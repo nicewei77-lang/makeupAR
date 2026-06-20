@@ -12,6 +12,7 @@ unity/*/*.user
 
 # Unity build/export artifacts
 unity-builds/
+rn/MakeupARValidation/unity/builds/
 
 # Xcode generated state
 evidence/derived-data/
