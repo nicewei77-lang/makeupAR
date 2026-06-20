@@ -12,10 +12,45 @@ unity/*/*.user
 
 # Unity build/export artifacts
 unity-builds/
-rn/MakeupARValidation/unity/builds/
+rn/MakeupARValidation/unity/
 
 # Xcode generated state
 evidence/derived-data/
+*.xcresult
+*.xcarchive
+*.ipa
+*.app
+*.dSYM/
+
+# Local validation evidence. Keep evidence artifacts locally only.
+evidence/
+
+# React Native generated/dependency state
+rn/MakeupARValidation/node_modules/
+rn/MakeupARValidation/ios/Pods/
+rn/MakeupARValidation/ios/build/
+rn/MakeupARValidation/ios/*.xcworkspace/
+rn/MakeupARValidation/ios/.xcode.env.local
+rn/MakeupARValidation/vendor/
+
+# Android is out of this iPhone-only validation scope.
+rn/MakeupARValidation/android/
+
+# Local media/log artifacts
+*.log
+*.mp4
+*.mov
+
+# Local secrets/signing material
+.env
+.env.*
+*.mobileprovision
+*.provisionprofile
+*.p12
+*.cer
+*.p8
+*.keystore
+*.jks
 
 # macOS
 .DS_Store
