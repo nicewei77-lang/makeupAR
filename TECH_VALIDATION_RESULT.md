@@ -2,18 +2,18 @@
 
 Date: 2026-06-20
 
-Latest re-check: 2026-06-20 21:03 KST
+Latest re-check: 2026-06-20 22:08 KST
 
 ## Scope
 
-Session 5 / M4 only: React Native app opens the Unity screen.
+Session 6 / M5 only: React Native controls send recipe-like JSON to Unity and Unity applies the received color/opacity to the diagnostic AR face overlay.
 
-RN-to-Unity messaging, Unity-to-RN messaging, recipe/color/opacity transfer, re-entry stability stress testing, makeup quality, AI/backend/admin/payment/community, and Android work were not attempted.
+Unity-to-RN messaging, re-entry stability stress testing, makeup quality, AI/backend/admin/payment/community, and Android work were not attempted.
 
 Authoritative inputs:
 
 - `AGENTS.md`
-- `TECH_VALIDATION_TEST_PLAN.md` section 11, M4 React Native app opens the Unity screen
+- `TECH_VALIDATION_TEST_PLAN.md` section 12, M5 RN -> Unity communication
 - `TECH_VALIDATION_RESULT.md` previous `Next Milestone Boundary`
 
 ## Workspace Document State
@@ -30,27 +30,91 @@ Completed session-specific plan/status documents have been absorbed into this re
 
 Status: Green
 
-M4 is Green because the React Native app now opens the Unity AR screen on the real iPhone:
+M5 is Green because the React Native app now sends recipe-like JSON values into the RN-hosted Unity scene on the real iPhone, and Unity applies those values through the `RNBridge.ApplyRecipeJson(string)` receiver:
 
-- `@azesmway/react-native-unity` 1.0.11 was installed in the RN project.
-- iOS pods were reinstalled and autolinked `react-native-unity`.
-- The M3 `UnityFramework.framework` artifact exists under the RN project, includes Unity `Data`, and was regenerated with `NativeCallProxy.h` for bridge compilation.
-- RN Home shows the M4 validation screen, validation status text, and `Start AR`.
-- `Start AR` opens a full-screen Unity view with a `Close` control and debug overlay.
-- The real iPhone displays the Unity AR front-camera feed inside the RN app.
-- The Unity diagnostic magenta face overlay is visible on the detected face.
-- Runtime logs from the RN-hosted app show UnityFramework loading, ARKit session configuration, `Camera requested/current: User/User`, `SessionTracking`, `Current tracked face count: 1`, and `Face detected: true`.
-- `Close` returns to the RN Home screen, as shown by the user-provided Home screenshot during the same validation flow.
+- RN Unity screen includes three color controls: `rose #D94B74`, `coral #E67B5F`, and `nude #B9826B`.
+- RN Unity screen includes an opacity slider with `0` to `1` range and `0.05` step display/rounding.
+- Value changes call `UnityView.postMessage("RNBridge", "ApplyRecipeJson", json)`.
+- Unity scene contains an active `RNBridge` GameObject with `RNBridge` and `FaceTrackingStatusReporter` components.
+- Unity `RNBridge.ApplyRecipeJson(string)` parses `layer`, `color`, and `opacity`, clamps opacity, and applies the resulting color to the overlay material and current face trackables.
+- The regenerated UnityFramework contains `RNBridge` in `Data/level0`.
+- The installed iPhone app bundle also contains `RNBridge` in `Frameworks/UnityFramework.framework/Data/level0`.
+- Real-device runtime logs show ARKit reaching `SessionTracking`, `Current tracked face count: 1`, and `Face detected: true`.
+- Real-device runtime logs show repeated `[M5] recipe_applied` entries for initial values, opacity changes, and color changes, including `#D94B74`, `#B9826B`, and `#E67B5F`.
 
 Known limitations:
 
-- Initial M4 attempts showed a black Unity screen and no camera permission entry in iOS Settings. The final successful run required an iOS bridge initialization timing fix in `node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm`: initialize Unity from `didMoveToWindow` after the RN view has a non-zero window/bounds. This is currently a local package patch and should be made durable before clean reinstall/reclone workflows.
-- The final app still shows the React Native warning toast `Open debugger to view warnings.` This did not block the Unity AR screen, camera feed, or face detection.
-- Unity logs include `Failed to initialize subsystem ARKit-Meshing [error: 1]`, but ARKit face tracking still reaches `SessionTracking` and detects one face. Meshing is not part of the M4 completion criteria.
-- Unity logs include `Can't add component because class 'SphereCollider' doesn't exist!` from the diagnostic marker path. The visible face overlay and face detection still work; fixing diagnostic-marker internals is outside M4.
-- The existing M1 observation about first-face-only behavior remains a follow-up risk and is not part of M4.
+- Initial M5 attempts showed the exact user symptom: the AR screen and RN controls were visible, but button/slider changes had no effect. The runtime logs showed `SendMessage: object RNBridge not found!`.
+- Root cause: the reproducible UnityFramework script updated `rn/MakeupARValidation/unity/builds/ios/UnityFramework.framework`, but the iOS app embedded the framework from `rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework`. That package framework was stale and did not contain the M5 scene object.
+- `scripts/build_m3_unityframework.sh` now also copies the generated framework to the `react-native-unity` package framework path when `node_modules` is present. This package copy is generated/local state and should not be source-controlled.
+- The M4 local `RNUnityView.mm` timing patch under `node_modules` is still required for this local run so Unity initializes from `didMoveToWindow` after the RN view has a real window/bounds. Make this durable before clean reinstall/reclone workflows.
+- Unity logs still include `Failed to initialize subsystem ARKit-Meshing [error: 1]` and `Can't add component because class 'SphereCollider' doesn't exist!` from earlier diagnostic paths. ARKit face tracking, overlay display, and M5 recipe application still work; these are outside M5.
+- The existing M1 observation about first-face-only behavior remains a follow-up risk and is not part of M5.
 
-These do not block M4 because M4 validates only that RN can open a full-screen Unity view and show an AR camera feed or Unity scene on a real iPhone. RN-Unity messaging, Unity-to-RN messaging, and re-entry stability remain M5+ scope.
+These do not block M5 because M5 validates one-way RN -> Unity value transfer and Unity-side application/logging only. Unity -> RN messaging and re-entry stability remain M6+ scope.
+
+## Current Screen State Review
+
+Review time: 2026-06-20 22:08 KST
+
+Scope: user-provided M5 app execution recording only. No code changes were made during this review. This section records the current visible app state after M5, and separates the M5 communication result from the visual AR makeup readiness result.
+
+Source recording:
+
+- Original user attachment: `/Users/wiseungcheol/Downloads/ScreenRecording_06-20-2026 21-48-38_1.MP4`
+- Workspace copy: `/Users/wiseungcheol/Desktop/makeupAR/evidence/screen-recordings/m5-current-screen-state-2026-06-20-214838.mp4`
+- Metadata log: `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-current-screen-recording-ffprobe-2026-06-20-214838.log`
+- Metadata summary: 44.35 seconds, 1180x2556 portrait video, HEVC, about 59.75 fps, creation time `2026-06-20T12:48:38Z` / `2026-06-20 21:48:38 KST`.
+
+Representative frame evidence:
+
+| Artifact | Path | Observation purpose |
+| --- | --- | --- |
+| Contact sheet | `evidence/screenshots/m5-current-screen-state-contact-sheet-2026-06-20-214838.jpg` | Full 44.35 second flow at about 2 second intervals |
+| 12s frame | `evidence/screenshots/m5-current-screen-state-12s-face-tracking-offset-2026-06-20.jpg` | AR tracking debug panel is true, but mask is visibly offset from the face |
+| 20s frame | `evidence/screenshots/m5-current-screen-state-20s-opacity-offset-2026-06-20.jpg` | Opacity value is high and overlay is visible, but still not face-aligned |
+| 28s frame | `evidence/screenshots/m5-current-screen-state-28s-color-offset-2026-06-20.jpg` | Coral color selection is reflected in the overlay, but overlay remains offset |
+| 36s frame | `evidence/screenshots/m5-current-screen-state-36s-second-face-no-overlay-2026-06-20.jpg` | Another person's face is visible, but no new mask is attached to that visible face |
+| 40s frame | `evidence/screenshots/m5-current-screen-state-40s-return-offset-2026-06-20.jpg` | Returning to the first face still shows the overlay displaced to the upper-left |
+
+Screen observations:
+
+| Area | Current visible state | Interpretation |
+| --- | --- | --- |
+| RN launch/home | The recording starts from the iPhone Home screen, opens the RN validation app, and shows `RN to Unity Recipe Validation` with `Start AR`. | M2/M4 host app launch and navigation entry remain usable. |
+| Unity startup | After `Start AR`, the Unity splash appears and then the front-camera AR feed appears inside the RN-hosted Unity screen. | M4 Unity embed remains functional in the installed app. |
+| RN overlay controls | The Unity screen shows `Close`, a debug text panel, `rose`, `coral`, `nude` controls, an opacity slider, and the RN warning banner `Open debugger to view warnings.` | The M5 test UI is visible. The warning banner is not an AR failure by itself, but it obscures part of the bottom UI and should be cleared or investigated before polished UX testing. |
+| AR tracking status | The Unity debug panel shows `AR support state: SessionTracking`, `Camera requested/current: User/User`, `Tracked face count: 1`, and `Face detected: true` in the captured frames. | ARKit face tracking is active according to runtime debug state. This does not prove visual alignment. |
+| Color changes | The overlay changes color when color controls are used, including rose/coral-like visible states. Runtime logs also record `recipe_applied` for `#D94B74`, `#B9826B`, and `#E67B5F`. | RN -> Unity message delivery and Unity-side material color application are working for the M5 contract. |
+| Opacity changes | The opacity label and slider change, and the overlay visibly changes opacity in some parts of the recording. Runtime logs record opacity values across the expected range. | RN -> Unity opacity delivery is working, but small step changes can be hard to perceive visually, especially when the overlay is off-face or partly off-screen. |
+| Face overlay alignment | The large colored mask is consistently displaced from the visible face, usually above and/or to the upper-left. At 12s the mouth cutout appears over the forehead/hair region rather than the mouth. At 20s and 28s the overlay is still not fitted to the eyes, mouth, jaw, or face contour. | Current visual state is not face-fitted makeup. It is diagnostic overlay rendering with a serious alignment problem. |
+| Head/face movement response | The overlay appears to move or deform with tracked face changes, and the user-observed eye/mouth openings can change the mask shape. | The app is receiving AR face pose/mesh-related updates, but the rendered camera/face coordinate alignment is wrong. |
+| Second face / face switching | Around the second-person segment, the debug overlay still reports one tracked face, but the visible second face does not receive a new aligned mask. | The earlier first-face-only / reacquisition risk remains real. Current logs count trackables but do not identify added/updated/removed trackable IDs, so the exact failure mode is not yet isolated. |
+| Controls with no visible effect | Some control movements can appear to do nothing. In current source, Unity only receives `layer`, `color`, and `opacity`, and only color/opacity are applied to the whole diagnostic face overlay material. | Any UI state that is not represented in the recipe JSON, or any change that targets a visual object outside the overlay material, will not produce a visible Unity change. This is a current implementation limitation, not user error. |
+
+Source and log cross-check:
+
+- AR Foundation and ARKit are present through `com.unity.xr.arfoundation` 6.3.5 and `com.unity.xr.arkit` 6.3.5 in `unity/MakeupARUnityValidation/Packages/manifest.json`.
+- ARKit face tracking is enabled in `unity/MakeupARUnityValidation/Assets/XR/Settings/ARKitSettings.asset` with `m_FaceTracking: 1`.
+- The Unity scene contains `ARFaceManager`, a face prefab, `RNBridge`, and `AR Camera Manager` in `unity/MakeupARUnityValidation/Assets/Scenes/MakeupARFaceValidation.unity`.
+- The scene has `m_MaximumFaceCount: 1`, so multi-face behavior or reliable switching between people is not currently proven.
+- The scene's `AR Camera` lists `Camera`, `AudioListener`, `ARCameraManager`, and `ARCameraBackground`, but no Tracked Pose Driver component is serialized in the inspected scene section.
+- The final real-device log contains this warning: `Camera "AR Camera" does not use a Tracked Pose Driver (Input System), so its transform will not be updated by an XR device.` This is the strongest current clue for why ARKit tracking can be true while the rendered overlay is offset from the camera feed.
+- The final real-device log also contains `UnityARKit: Updating ARSession configuration with <ARFaceTrackingConfiguration ... captureDeviceType=AVCaptureDeviceTypeBuiltInTrueDepthCamera ... framesPerSecond=(60)>`, followed by `SessionTracking`, `Current tracked face count: 1`, and `Face detected: true`.
+- The face prefab contains `ARFace`, `MeshFilter`, `MeshRenderer`, `ARFaceMeshVisualizer`, and `FaceTrackingMarker`. This is an ARKit/AR Foundation face mesh diagnostic setup, not a custom per-landmark makeup renderer.
+- `RNBridge.ApplyRecipeJson(string)` parses `layer`, `color`, and `opacity`; clamps opacity; and applies the resulting color to the shared overlay material and current `ARFace` trackable renderers.
+- Although the RN payload sends `layer: "lip"`, the current Unity implementation does not use that layer to isolate lips. It applies color/opacity to the diagnostic face overlay as a whole.
+- `FaceTrackingMarker` creates separate magenta/cyan diagnostic marker materials at runtime. Those marker materials are not driven by the RN recipe color/opacity application path.
+- The native bridge has a `sendMessageToMobileApp` path, but the current M5 app does not yet implement Unity -> RN status event handling on the RN screen. M6 remains necessary for UI-visible confirmation of `unity_initialized`, `face_detected`, and `recipe_applied`.
+
+Current screen-state decision:
+
+- M5 communication status remains Green: RN sends recipe-like JSON, Unity receives it, and Unity logs/applies color and opacity.
+- Current visual AR makeup readiness is Yellow/Fail: the displayed overlay is not aligned to the face and must not be treated as a successful face-fitted makeup implementation.
+- Current tracking interpretation: ARKit/AR Foundation face tracking is active, but the current render path is a diagnostic face mesh/marker setup with a camera/pose alignment issue and no per-region makeup segmentation.
+- Highest-priority follow-up before product makeup rendering: fix AR camera pose alignment, likely by adding the required Tracked Pose Driver / equivalent AR camera pose setup for the current AR Foundation + Input System stack, then re-test the same recording scenarios.
+- Next diagnostic follow-up: log `ARFaceManager.trackablesChanged` added/updated/removed events with trackable IDs, current face transform, and face mesh vertex count so first-face-only and second-face reacquisition behavior can be separated from visual alignment.
+- Product makeup work should not start from the current screen state. First prove a correctly aligned face mesh/landmark basis, then add region-specific rendering for lips, eyes, cheeks, brows, jaw/chin, and nose.
 
 ## Milestone History
 
@@ -61,7 +125,24 @@ These do not block M4 because M4 validates only that RN can open a full-screen U
 | M2. React Native standalone iOS validation | Green | RN 0.86.0 standalone iOS app builds, installs, launches, displays on the real iPhone, and relaunches once without crash. |
 | M3. UnityFramework generation | Green | Unity iOS export and `UnityFramework.framework` arm64 build succeeded; framework with `Data` is available under the RN project for M4 reference. |
 | M4. RN-Unity embed | Green | RN Home opens a full-screen Unity view on the real iPhone; AR camera feed, diagnostic face overlay, and face-detected logs are confirmed. |
-| M5. RN -> Unity communication | Next | Do this before Unity-to-RN messaging or re-entry stability work. |
+| M5. RN -> Unity communication | Green | RN color buttons and opacity slider send JSON to Unity `RNBridge`; real-device logs show repeated `recipe_applied` for color and opacity changes. |
+| M6. Unity -> RN communication | Next | Do this before re-entry stability work. |
+
+## M5 Requirement Matrix
+
+| M5 requirement | Current evidence | Status |
+| --- | --- | --- |
+| RN has three color controls | `rn/MakeupARValidation/App.tsx` defines `rose #D94B74`, `coral #E67B5F`, and `nude #B9826B` controls on the Unity screen | Green |
+| RN has opacity slider | `rn/MakeupARValidation/App.tsx` implements an opacity slider with `0` to `1` values rounded to `0.05` steps | Green |
+| RN calls Unity postMessage contract | `rn/MakeupARValidation/App.tsx` calls `UnityView.postMessage("RNBridge", "ApplyRecipeJson", json)` on initial mount and value changes | Green |
+| Unity scene has `RNBridge` receiver | `unity/MakeupARUnityValidation/Assets/Scenes/MakeupARFaceValidation.unity` contains an active `RNBridge` GameObject; `RNBridge.cs` exposes public `ApplyRecipeJson(string json)` | Green |
+| Unity parses recipe JSON | `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs` parses `layer`, `color`, and `opacity`, validates HTML colors, clamps opacity, and logs parse failures with the raw string | Green |
+| Unity applies color/opacity to overlay | `RNBridge.cs` applies the resulting color to the overlay material and current AR face trackable renderers, including transparent material settings | Green |
+| Generated UnityFramework contains M5 scene object | `evidence/logs/m3-repro-artifact-verification-m5-rnbridge-status-object-2026-06-20-213631.log` records a successful arm64 UnityFramework build; `rn/MakeupARValidation/unity/builds/ios/UnityFramework.framework/Data/level0` contains `RNBridge` | Green |
+| Installed iPhone app embeds M5 framework | `evidence/logs/m5-installed-app-framework-verification-2026-06-20-214651.log` records the installed app's `UnityFramework.framework/Data/level0` containing `RNBridge` | Green |
+| Real iPhone build/install/launch succeeds | `evidence/logs/m5-run-ios-device-rnbridge-package-sync-2026-06-20-214557.log` records successful build, install, and launch for `com.makeupar.rnvalidation` on `위승철의 iPhone` | Green |
+| Runtime receives and applies recipe changes | `evidence/logs/m5-devicectl-launch-console-rnbridge-package-sync-2026-06-20-214651.log` records repeated `[M5] recipe_applied` entries for `#D94B74`, `#B9826B`, `#E67B5F`, and opacity values from `0.65` down to `0.05` while AR face tracking is active | Green |
+| Earlier failure mode identified | `evidence/logs/m5-devicectl-launch-console-rnbridge-status-object-2026-06-20-214338.log` records `SendMessage: object RNBridge not found!`; the final installed-app verification shows this was caused by a stale embedded package framework | Green |
 
 ## M4 Requirement Matrix
 
@@ -144,15 +225,16 @@ These do not block M4 because M4 validates only that RN can open a full-screen U
 | React Native version | `0.86.0` |
 | iOS workspace | `rn/MakeupARValidation/ios/MakeupARValidation.xcworkspace` |
 | iOS bundle identifier | `com.makeupar.rnvalidation` |
-| Signing storage policy | Apple Development Team ID is not stored in `MakeupARValidation.xcodeproj/project.pbxproj`; M4 CLI signing used temporary extra params and redacted logs |
-| Unity integration | M4 embeds the local M3 `UnityFramework.framework` through `@azesmway/react-native-unity` |
+| Signing storage policy | Apple Development Team ID is not stored in `MakeupARValidation.xcodeproj/project.pbxproj`; M5 CLI signing used temporary extra params and redacted logs |
+| Unity integration | RN embeds Unity through `@azesmway/react-native-unity`; the iOS app copies the package framework under `node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework` |
 | RN-Unity bridge package | `@azesmway/react-native-unity` 1.0.11 installed and autolinked through CocoaPods |
-| M4 screens | `App.tsx` contains the minimal Home screen and full-screen Unity screen required by section 11 |
-| M4 Home controls | Home shows validation status text and `Start AR` |
-| M4 Unity controls | Unity screen shows full-screen `UnityView`, `Close`, and debug log text/overlay |
+| M5 screens | `App.tsx` contains the minimal Home screen and full-screen Unity screen required by sections 11-12 |
+| M5 Home controls | Home shows validation status text and `Start AR` |
+| M5 Unity controls | Unity screen shows full-screen `UnityView`, `Close`, debug text, rose/coral/nude color buttons, and an opacity slider |
 | Camera permission | `NSCameraUsageDescription` is present in the RN iOS app Info.plist |
-| M4 reference artifact | `rn/MakeupARValidation/unity/builds/ios/UnityFramework.framework` |
-| M4 bridge initialization caveat | The successful local run includes a package-local `RNUnityView.mm` timing patch in `node_modules` so Unity initializes after `didMoveToWindow` with a real window/bounds |
+| M5 generated reference artifact | `rn/MakeupARValidation/unity/builds/ios/UnityFramework.framework` |
+| M5 installed package artifact | `rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework` is synced from the generated reference artifact for local iPhone builds |
+| M4 bridge initialization caveat | The successful local run still includes a package-local `RNUnityView.mm` timing patch in `node_modules` so Unity initializes after `didMoveToWindow` with a real window/bounds |
 
 ## Current Unity Project State
 
@@ -164,10 +246,11 @@ These do not block M4 because M4 validates only that RN can open a full-screen U
 | XR Plug-in Management version | `com.unity.xr.management` 4.5.4 |
 | ARKit face tracking | `Assets/XR/Settings/ARKitSettings.asset` has face tracking enabled |
 | AR scene | `Assets/Scenes/MakeupARFaceValidation.unity` |
-| Required scene objects | `AR Session`, `XR Origin`, `AR Camera`, `AR Camera Manager`, `AR Face Manager`, and `Face Tracking Status Reporter` are present |
+| Required scene objects | `AR Session`, `XR Origin`, `AR Camera`, `AR Camera Manager`, `AR Face Manager`, and `RNBridge` are present |
 | Face prefab | `Assets/Prefabs/ValidationFaceOverlay.prefab` contains `ARFace`, `MeshFilter`, `MeshRenderer`, `ARFaceMeshVisualizer`, and `FaceTrackingMarker` |
 | Face mesh material | `Assets/Materials/ValidationFaceOverlay.mat` uses bright magenta with alpha `0.65` |
 | Runtime debug script | `Assets/Scripts/FaceTrackingStatusReporter.cs` logs AR state, camera requested/current direction, face subsystem support, face count, and `Face detected: true/false` |
+| M5 recipe receiver | `Assets/Scripts/RNBridge.cs` parses RN recipe JSON and applies color/opacity to the diagnostic face overlay material |
 | Diagnostic marker script | `Assets/Scripts/FaceTrackingMarker.cs` creates a magenta face-center sphere and cyan crosshair bars under the tracked face prefab |
 | iOS bridge proxy | `Assets/Plugins/iOS/NativeCallProxy.h` and `Assets/Plugins/iOS/NativeCallProxy.mm` were added so the RN Unity bridge can compile against the generated UnityFramework |
 | M3 exported Xcode project | `/Users/wiseungcheol/Desktop/makeupAR/unity-builds/ios-export` |
@@ -177,6 +260,17 @@ These do not block M4 because M4 validates only that RN can open a full-screen U
 
 | Evidence | Path / content |
 | --- | --- |
+| M5 Unity configure log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-unity-configure-rnbridge-on-status-object-2026-06-20-213545.log` |
+| M5 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-m5-rnbridge-status-object-2026-06-20-213631.log` |
+| M5 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-m5-rnbridge-status-object-2026-06-20-213631.log` contains `** BUILD SUCCEEDED **` |
+| M5 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-m5-rnbridge-status-object-2026-06-20-213631.log` records the RN framework path, arm64 binary, `104M` framework size, `9.2M` Data folder, and `NativeCallProxy.h` |
+| M5 TypeScript check log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-typescript-check-2026-06-20-214651.log` |
+| M5 diff whitespace check log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-git-diff-check-2026-06-20-214651.log` |
+| M5 initial stale-framework failure log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-devicectl-launch-console-rnbridge-status-object-2026-06-20-214338.log` records `SendMessage: object RNBridge not found!` while the AR screen and RN controls were visible |
+| M5 package-sync RN build/install/launch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-run-ios-device-rnbridge-package-sync-2026-06-20-214557.log` records successful build, install, and launch on `위승철의 iPhone` |
+| M5 installed app framework verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-installed-app-framework-verification-2026-06-20-214651.log` records the installed app bundle's `UnityFramework.framework/Data/level0` containing `RNBridge` |
+| M5 real-device recipe application console log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-devicectl-launch-console-rnbridge-package-sync-2026-06-20-214651.log` records AR `SessionTracking`, `Face detected: true`, and repeated `[M5] recipe_applied` entries for color and opacity changes |
+| M5 recipe application summary log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m5-runtime-recipe-applied-summary-2026-06-20-214651.log` |
 | M4 RN Unity bridge npm install log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m4-npm-install-react-native-unity-2026-06-20-202741.log` |
 | M4 regenerated UnityFramework log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m4-regenerate-unityframework-2026-06-20-203023.log` |
 | M4 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-2026-06-20-203023.log` |
@@ -228,14 +322,17 @@ These do not block M4 because M4 validates only that RN can open a full-screen U
 - M4 initial black screen: the RN view transitioned to the Unity screen but the bridge did not start Unity before a valid window/bounds were available, so iOS Settings initially showed no Camera permission entry and the Unity area stayed black.
 - M4 local bridge timing fix: the final successful run used a package-local `RNUnityView.mm` patch that initializes Unity from `didMoveToWindow` once the view has non-zero bounds and a window. This patch is documented as a reproducibility caveat because it lives under ignored `node_modules`.
 - M4 real-device result: after the timing fix and fresh install/launch, the RN-hosted Unity screen requested camera access, displayed the front-camera AR feed, showed the magenta diagnostic face overlay, and logged `Face detected: true`.
+- M5 stale embedded framework failure: the user-observed symptom was visible AR screen plus visible RN controls, but no color/opacity effect. Logs showed `SendMessage: object RNBridge not found!`.
+- M5 framework path correction: the generated reference framework under `rn/MakeupARValidation/unity/builds/ios` contained `RNBridge`, but Xcode embedded the package framework under `node_modules/@azesmway/react-native-unity/ios`. Syncing that package framework fixed message delivery; the build script now performs this sync when `node_modules` is present.
+- M5 real-device result: after package framework sync and reinstall, the installed app bundle's `UnityFramework.framework/Data/level0` contained `RNBridge`, and live device logs showed repeated `[M5] recipe_applied` for color and opacity changes while AR face tracking was active.
 - First-face-only behavior: after launch, the app appears to keep tracking only the first recognized face and does not reliably reacquire a different person's face later.
 - This should be treated as a follow-up validation risk before product AR UX work.
 - Candidate follow-up checks: confirm whether the original `ARFace` trackable is actually removed when the first face leaves; log `trackablesChanged` added/updated/removed events; test `ARSession.Reset()` or disable/enable `ARFaceManager` between users; confirm whether `requestedMaximumFaceCount = 1` and ARKit provider behavior are acceptable for the target UX.
 
 ## Next Milestone Boundary
 
-M4 is complete. Do not treat the M2 Xcode GUI stale issue record as an M4 blocker unless a fresh CLI build/install/launch fails in a later milestone.
+M5 is complete. Do not treat the M2 Xcode GUI stale issue record as an M5 blocker unless a fresh CLI build/install/launch fails in a later milestone.
 
-Recommended next validation step is M5, RN -> Unity communication.
+Recommended next validation step is M6, Unity -> RN communication.
 
-Do not start Unity-to-RN messaging, re-entry stability work, makeup-quality work, recipe/color/opacity transfer, or AI/backend/admin/payment/community work until the plan reaches those milestones.
+Do not start re-entry stability work, makeup-quality work, AI/backend/admin/payment/community work, or product implementation until the plan reaches those milestones.

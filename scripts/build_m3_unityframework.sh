@@ -17,6 +17,7 @@ VERIFY_LOG="$LOG_DIR/m3-repro-artifact-verification-$TIMESTAMP.log"
 
 RN_FRAMEWORK_DIR="$ROOT_DIR/rn/MakeupARValidation/unity/builds/ios"
 RN_FRAMEWORK="$RN_FRAMEWORK_DIR/UnityFramework.framework"
+PACKAGE_FRAMEWORK="$ROOT_DIR/rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework"
 PRODUCT_FRAMEWORK="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
 
 require_file() {
@@ -97,6 +98,16 @@ require_file "$RN_FRAMEWORK/UnityFramework"
 require_file "$RN_FRAMEWORK/Data/boot.config"
 require_file "$RN_FRAMEWORK/Headers/NativeCallProxy.h"
 
+if [[ -d "$(dirname "$PACKAGE_FRAMEWORK")" ]]; then
+  echo
+  echo "== Copy framework to react-native-unity package path =="
+  rm -rf "$PACKAGE_FRAMEWORK"
+  ditto "$PRODUCT_FRAMEWORK" "$PACKAGE_FRAMEWORK"
+  require_file "$PACKAGE_FRAMEWORK/UnityFramework"
+  require_file "$PACKAGE_FRAMEWORK/Data/boot.config"
+  require_file "$PACKAGE_FRAMEWORK/Headers/NativeCallProxy.h"
+fi
+
 echo
 echo "== Verify artifact =="
 {
@@ -109,6 +120,13 @@ echo "== Verify artifact =="
   file "$RN_FRAMEWORK/UnityFramework"
   du -sh "$RN_FRAMEWORK"
   du -sh "$RN_FRAMEWORK/Data"
+  if [[ -d "$PACKAGE_FRAMEWORK" ]]; then
+    echo
+    echo "Package framework: $PACKAGE_FRAMEWORK"
+    file "$PACKAGE_FRAMEWORK/UnityFramework"
+    du -sh "$PACKAGE_FRAMEWORK"
+    du -sh "$PACKAGE_FRAMEWORK/Data"
+  fi
   echo "Native bridge header:"
   ls -l "$RN_FRAMEWORK/Headers/NativeCallProxy.h"
   echo

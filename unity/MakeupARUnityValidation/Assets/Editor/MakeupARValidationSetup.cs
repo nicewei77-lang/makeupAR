@@ -38,7 +38,7 @@ public static class MakeupARValidationSetup
 
         Material faceMaterial = CreateFaceOverlayMaterial();
         GameObject facePrefab = CreateFacePrefab(faceMaterial);
-        CreateValidationScene(facePrefab);
+        CreateValidationScene(facePrefab, faceMaterial);
 
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
@@ -173,7 +173,7 @@ public static class MakeupARValidationSetup
         return component;
     }
 
-    private static void CreateValidationScene(GameObject facePrefab)
+    private static void CreateValidationScene(GameObject facePrefab, Material faceMaterial)
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
 
@@ -207,7 +207,7 @@ public static class MakeupARValidationSetup
         faceManager.facePrefab = facePrefab;
         faceManager.requestedMaximumFaceCount = 1;
 
-        GameObject statusObject = new GameObject("Face Tracking Status Reporter");
+        GameObject statusObject = new GameObject("RNBridge");
         FaceTrackingStatusReporter reporter = statusObject.AddComponent<FaceTrackingStatusReporter>();
         SerializedObject serializedReporter = new SerializedObject(reporter);
         serializedReporter.FindProperty("arSession").objectReferenceValue = arSessionObject.GetComponent<ARSession>();
@@ -215,6 +215,12 @@ public static class MakeupARValidationSetup
         serializedReporter.FindProperty("faceManager").objectReferenceValue = faceManager;
         serializedReporter.FindProperty("drawDebugOverlay").boolValue = true;
         serializedReporter.ApplyModifiedPropertiesWithoutUndo();
+
+        RNBridge bridge = statusObject.AddComponent<RNBridge>();
+        SerializedObject serializedBridge = new SerializedObject(bridge);
+        serializedBridge.FindProperty("faceManager").objectReferenceValue = faceManager;
+        serializedBridge.FindProperty("overlayMaterial").objectReferenceValue = faceMaterial;
+        serializedBridge.ApplyModifiedPropertiesWithoutUndo();
 
         GameObject lightObject = new GameObject("Directional Light");
         Light light = lightObject.AddComponent<Light>();
