@@ -27,10 +27,70 @@ type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
 const DEFAULT_RECIPE_OPACITY = 0.65;
 const OPACITY_STEP = 0.05;
+const UNITY_EVENT_HISTORY_LIMIT = 3;
+const UNITY_EVENT_TYPES = [
+  'unity_initialized',
+  'face_detected',
+  'recipe_applied',
+] as const;
+
+type UnityMessageEvent = {
+  nativeEvent: {
+    message?: string;
+  };
+};
+
+type UnityEventPayload = {
+  type?: string;
+  tracked?: boolean;
+  faceCount?: number;
+  totalTrackables?: number;
+  trackingStates?: string;
+  layer?: string;
+  color?: string;
+  opacity?: number;
+  [key: string]: unknown;
+};
+
+type UnityEventRecord = {
+  id: number;
+  receivedAt: string;
+  rawMessage: string;
+  displayText: string;
+  parsed?: UnityEventPayload;
+  parseError?: string;
+};
+
+type UnityEventType = (typeof UNITY_EVENT_TYPES)[number];
+type UnityEventStatusMap = Partial<Record<UnityEventType, UnityEventRecord>>;
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
   const [isUnityOpen, setIsUnityOpen] = useState(false);
+  const [unityEntryCount, setUnityEntryCount] = useState(0);
+  const [unityExitCount, setUnityExitCount] = useState(0);
+
+  const handleStartUnity = useCallback(() => {
+    setUnityEntryCount(currentCount => {
+      const nextCount = currentCount + 1;
+
+      console.log('[M7] unity_screen_open', `entry=${nextCount}`);
+
+      return nextCount;
+    });
+    setIsUnityOpen(true);
+  }, []);
+
+  const handleCloseUnity = useCallback(() => {
+    setUnityExitCount(currentCount => {
+      const nextCount = currentCount + 1;
+
+      console.log('[M7] unity_screen_close', `exit=${nextCount}`);
+
+      return nextCount;
+    });
+    setIsUnityOpen(false);
+  }, []);
 
   return (
     <SafeAreaProvider>
@@ -40,8 +100,10 @@ function App() {
       />
       <AppContent
         isUnityOpen={isUnityOpen}
-        onStartUnity={() => setIsUnityOpen(true)}
-        onCloseUnity={() => setIsUnityOpen(false)}
+        unityEntryCount={unityEntryCount}
+        unityExitCount={unityExitCount}
+        onStartUnity={handleStartUnity}
+        onCloseUnity={handleCloseUnity}
       />
     </SafeAreaProvider>
   );
@@ -49,28 +111,52 @@ function App() {
 
 type AppContentProps = {
   isUnityOpen: boolean;
+  unityEntryCount: number;
+  unityExitCount: number;
   onStartUnity: () => void;
   onCloseUnity: () => void;
 };
 
 function AppContent({
   isUnityOpen,
+  unityEntryCount,
+  unityExitCount,
   onStartUnity,
   onCloseUnity,
 }: AppContentProps) {
   if (isUnityOpen) {
-    return <UnityScreen onClose={onCloseUnity} />;
+    return (
+      <UnityScreen
+        key={`unity-entry-${unityEntryCount}`}
+        entryCount={unityEntryCount}
+        exitCount={unityExitCount}
+        onClose={onCloseUnity}
+      />
+    );
   }
 
-  return <HomeScreen onStart={onStartUnity} />;
+  return (
+    <HomeScreen
+      completedExitCount={unityExitCount}
+      nextEntryCount={unityEntryCount + 1}
+      onStart={onStartUnity}
+    />
+  );
 }
 
 type HomeScreenProps = {
+  completedExitCount: number;
+  nextEntryCount: number;
   onStart: () => void;
 };
 
-function HomeScreen({ onStart }: HomeScreenProps) {
+function HomeScreen({
+  completedExitCount,
+  nextEntryCount,
+  onStart,
+}: HomeScreenProps) {
   const safeAreaInsets = useSafeAreaInsets();
+  const completedCycles = Math.min(completedExitCount, 3);
 
   return (
     <View
@@ -82,12 +168,11 @@ function HomeScreen({ onStart }: HomeScreenProps) {
         },
       ]}>
       <View style={styles.homeBody}>
-        <Text style={styles.kicker}>Session 6 / M5</Text>
-        <Text style={styles.title}>RN to Unity Recipe Validation</Text>
+        <Text style={styles.kicker}>M7</Text>
+        <Text style={styles.title}>Unity Re-entry Stability Validation</Text>
         <Text style={styles.statusLabel}>Validation status</Text>
         <Text style={styles.statusText}>
-          Ready to send recipe color and opacity to the local UnityFramework
-          artifact on this iPhone.
+          {`Ready for entry #${nextEntryCount}. Completed exits ${completedCycles}/3.`}
         </Text>
       </View>
 
@@ -105,10 +190,12 @@ function HomeScreen({ onStart }: HomeScreenProps) {
 }
 
 type UnityScreenProps = {
+  entryCount: number;
+  exitCount: number;
   onClose: () => void;
 };
 
-function UnityScreen({ onClose }: UnityScreenProps) {
+function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const mountedAt = useMemo(() => new Date().toLocaleTimeString(), []);
   const unityRef = useRef<UnityView>(null);
@@ -116,6 +203,30 @@ function UnityScreen({ onClose }: UnityScreenProps) {
     useState<RecipeColor>(DEFAULT_RECIPE_COLOR);
   const [opacity, setOpacity] = useState(DEFAULT_RECIPE_OPACITY);
   const [sliderWidth, setSliderWidth] = useState(1);
+  const [lastUnityEvent, setLastUnityEvent] =
+    useState<UnityEventRecord | null>(null);
+  const [unityEventHistory, setUnityEventHistory] = useState<
+    UnityEventRecord[]
+  >([]);
+  const [unityEventStatus, setUnityEventStatus] =
+    useState<UnityEventStatusMap>({});
+
+  useEffect(() => {
+    console.log(
+      '[M7] unity_screen_mounted',
+      `entry=${entryCount}`,
+      `mounted=${mountedAt}`,
+    );
+
+    return () => {
+      console.log('[M7] unity_screen_unmounted', `entry=${entryCount}`);
+    };
+  }, [entryCount, mountedAt]);
+
+  const handleClose = useCallback(() => {
+    console.log('[M7] unity_screen_close_pressed', `entry=${entryCount}`);
+    onClose();
+  }, [entryCount, onClose]);
 
   const buildRecipeJson = useCallback(
     (color: RecipeColor, nextOpacity: number) =>
@@ -138,13 +249,72 @@ function UnityScreen({ onClose }: UnityScreenProps) {
     [buildRecipeJson],
   );
 
+  const handleUnityMessage = useCallback((event: UnityMessageEvent) => {
+    const rawMessage = String(event.nativeEvent.message ?? '');
+    const receivedAt = new Date().toLocaleTimeString();
+    let record: UnityEventRecord;
+
+    try {
+      const parsedMessage = JSON.parse(rawMessage);
+
+      if (
+        parsedMessage === null ||
+        typeof parsedMessage !== 'object' ||
+        Array.isArray(parsedMessage)
+      ) {
+        throw new Error('Unity message JSON is not an object.');
+      }
+
+      const parsed = parsedMessage as UnityEventPayload;
+      record = {
+        id: Date.now(),
+        receivedAt,
+        rawMessage,
+        parsed,
+        displayText: formatUnityEvent(parsed),
+      };
+
+      console.log('[M6] rn_unity_message_received', rawMessage);
+
+      const knownType = getKnownUnityEventType(parsed.type);
+      if (knownType) {
+        setUnityEventStatus(currentStatus => ({
+          ...currentStatus,
+          [knownType]: record,
+        }));
+      }
+    } catch (error) {
+      const parseError =
+        error instanceof Error ? error.message : 'Unknown parse error';
+
+      record = {
+        id: Date.now(),
+        receivedAt,
+        rawMessage,
+        parseError,
+        displayText: `parse_failed ${parseError}`,
+      };
+
+      console.log(
+        '[M6] rn_unity_message_parse_failed',
+        rawMessage,
+        parseError,
+      );
+    }
+
+    setLastUnityEvent(record);
+    setUnityEventHistory(currentHistory =>
+      [record, ...currentHistory].slice(0, UNITY_EVENT_HISTORY_LIMIT),
+    );
+  }, []);
+
   useEffect(() => {
     const initialPostTimer = setTimeout(() => {
-      postRecipe(selectedColor, opacity);
+      postRecipe(DEFAULT_RECIPE_COLOR, DEFAULT_RECIPE_OPACITY);
     }, 1000);
 
     return () => clearTimeout(initialPostTimer);
-  }, [opacity, postRecipe, selectedColor]);
+  }, [postRecipe]);
 
   const selectColor = useCallback(
     (color: RecipeColor) => {
@@ -166,7 +336,12 @@ function UnityScreen({ onClose }: UnityScreenProps) {
 
   return (
     <View style={styles.unityScreen}>
-      <UnityView ref={unityRef} style={styles.unityView} />
+      <UnityView
+        key={`unity-view-${entryCount}`}
+        ref={unityRef}
+        style={styles.unityView}
+        onUnityMessage={handleUnityMessage}
+      />
 
       <View
         pointerEvents="box-none"
@@ -183,14 +358,46 @@ function UnityScreen({ onClose }: UnityScreenProps) {
             styles.closeButton,
             pressed && styles.closeButtonPressed,
           ]}
-          onPress={onClose}>
+          onPress={handleClose}>
           <Text style={styles.closeButtonText}>Close</Text>
         </Pressable>
 
         <View style={styles.debugPanel}>
-          <Text style={styles.debugText}>
-            UnityView mounted for M5 validation at {mountedAt}.
+          <Text style={styles.debugMetaText}>
+            {`M7 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
           </Text>
+          <Text style={styles.debugLabel}>Latest Unity event</Text>
+          <Text style={styles.debugText} numberOfLines={2}>
+            {lastUnityEvent
+              ? `${lastUnityEvent.receivedAt} ${lastUnityEvent.displayText}`
+              : `waiting_for_unity_event mounted=${mountedAt}`}
+          </Text>
+          <View style={styles.debugStatus}>
+            <Text style={styles.debugSubLabel}>Last by type</Text>
+            {UNITY_EVENT_TYPES.map(type => {
+              const statusEvent = unityEventStatus[type];
+
+              return (
+                <Text key={type} style={styles.debugHistoryText} numberOfLines={1}>
+                  {formatUnityEventTypeStatus(type, statusEvent)}
+                </Text>
+              );
+            })}
+          </View>
+          <View style={styles.debugHistory}>
+            {unityEventHistory.length === 0 ? (
+              <Text style={styles.debugHistoryText}>history empty</Text>
+            ) : (
+              unityEventHistory.map(historyEvent => (
+                <Text
+                  key={`${historyEvent.id}-${historyEvent.rawMessage}`}
+                  style={styles.debugHistoryText}
+                  numberOfLines={1}>
+                  {historyEvent.receivedAt} {historyEvent.displayText}
+                </Text>
+              ))
+            )}
+          </View>
         </View>
 
         <View style={styles.recipePanel}>
@@ -233,6 +440,75 @@ function UnityScreen({ onClose }: UnityScreenProps) {
       </View>
     </View>
   );
+}
+
+function formatUnityEvent(event: UnityEventPayload) {
+  switch (event.type) {
+    case 'unity_initialized':
+      return 'unity_initialized';
+    case 'face_detected':
+      return `face_detected tracked=${String(
+        event.tracked,
+      )} faceCount=${String(event.faceCount)}${formatFaceTrackingDetails(
+        event,
+      )}`;
+    case 'recipe_applied':
+      return `recipe_applied layer=${String(event.layer)} color=${String(
+        event.color,
+      )} opacity=${String(event.opacity)}`;
+    default:
+      return event.type ? String(event.type) : 'unknown_unity_event';
+  }
+}
+
+function getKnownUnityEventType(type: unknown): UnityEventType | null {
+  if (typeof type !== 'string') {
+    return null;
+  }
+
+  return UNITY_EVENT_TYPES.includes(type as UnityEventType)
+    ? (type as UnityEventType)
+    : null;
+}
+
+function formatUnityEventTypeStatus(
+  type: UnityEventType,
+  event?: UnityEventRecord,
+) {
+  if (!event?.parsed) {
+    return `${type}: waiting`;
+  }
+
+  const parsed = event.parsed;
+
+  switch (type) {
+    case 'unity_initialized':
+      return `unity_initialized: seen ${event.receivedAt}`;
+    case 'face_detected':
+      return `face_detected: tracked=${String(
+        parsed.tracked,
+      )} faceCount=${String(parsed.faceCount)}${formatFaceTrackingDetails(
+        parsed,
+      )} ${event.receivedAt}`;
+    case 'recipe_applied':
+      return `recipe_applied: layer=${String(parsed.layer)} color=${String(
+        parsed.color,
+      )} opacity=${String(parsed.opacity)} ${event.receivedAt}`;
+  }
+}
+
+function formatFaceTrackingDetails(event: UnityEventPayload) {
+  const details: string[] = [];
+
+  if (typeof event.totalTrackables === 'number') {
+    details.push(`total=${String(event.totalTrackables)}`);
+  }
+
+  if (typeof event.trackingStates === 'string' && event.trackingStates) {
+    details.push(`states=${event.trackingStates}`);
+  }
+
+  return details.length > 0 ? ` ${details.join(' ')}` : '';
 }
 
 type OpacitySliderProps = {
@@ -394,16 +670,62 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
   },
   debugPanel: {
-    alignSelf: 'stretch',
+    alignSelf: 'center',
+    width: '76%',
+    maxHeight: 250,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    overflow: 'hidden',
+  },
+  debugMetaText: {
+    color: '#FDE68A',
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginBottom: 4,
+  },
+  debugLabel: {
+    color: '#D1FAE5',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginBottom: 4,
+    textTransform: 'uppercase',
   },
   debugText: {
     color: '#F9FAFB',
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
+    lineHeight: 16,
+    letterSpacing: 0,
+  },
+  debugStatus: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 2,
+  },
+  debugSubLabel: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  debugHistory: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 2,
+  },
+  debugHistoryText: {
+    color: '#E5E7EB',
+    fontSize: 10,
+    lineHeight: 14,
     letterSpacing: 0,
   },
   recipePanel: {

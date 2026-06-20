@@ -22,7 +22,8 @@ Primary path decision: Yellow - Unity + AR Foundation + ARKit 경로를 1순위�
 - RN, Unity, shader, AI, backend, admin, payment, community, product code를 구현하지 않는다.
 - M6/M7/M8을 완료 처리하지 않는다.
 - 유료 상용 beauty SDK를 도입하지 않는다.
-- 라이선스가 제한적이거나 불명확한 dataset/model을 구현 asset으로 사용하지 않는다.
+- dataset/model은 허용된 비상업 research 또는 educational 조건 안에서만 사용한다.
+- 제한이 있는 research asset을 출시, 판매, 재배포하거나 상용 product asset처럼 사용하지 않는다.
 - 상용 품질의 makeup rendering, 제품 수준 color matching, 전체 makeup suite coverage를 시도하지 않는다.
 
 엔진에 영향을 주는 제품 요구사항:
@@ -102,12 +103,20 @@ MediaPipe 또는 ARCore 비교 실험으로 넘어가는 fallback trigger:
 
 ### Makeup Texture and Region References
 
+Project-use note:
+
+- 이 프로젝트는 상업 출시용 앱이 아니라 부트캠프 research/education prototype이다.
+- non-commercial research, teaching, scientific publication, personal experimentation을 허용하는 dataset/model repo는 이 repo의 research validation에 사용할 수 있다.
+- dataset/model을 사용하면 citation/attribution note를 함께 남긴다.
+- upstream terms가 명시적으로 허용하지 않는 한 restricted dataset, derived dataset copy, pretrained weight를 재배포하지 않는다.
+- public launch, App Store submission, paid demo, commercial use 전에 license를 다시 검토한다.
+
 | Source | What it contributes | License/use constraint |
 | --- | --- | --- |
-| [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMask-HQ) | 30,000장 high-resolution face image와 skin, nose, eyes, brows, mouth, lip, hair 등을 포함하는 19개 mask class를 제공하는 face parsing reference다. | non-commercial/research restricted. license가 명확히 허용되지 않는 한 conceptual reference로만 사용한다. |
-| [LaPa Dataset](https://github.com/jd-opensource/lapa-dataset) | 22,000장 이상의 이미지, 11-category label, 106-point landmark를 제공하는 face parsing reference다. | non-commercial dataset terms. license가 명확히 허용되지 않는 한 conceptual reference로만 사용한다. |
-| [BiSeNet face parsing](https://github.com/zllrunning/face-parsing.PyTorch) | CelebAMask-HQ-style label과 함께 자주 쓰이는 practical face parsing implementation이다. | 이 phase에서는 research/reference only다. license와 runtime review 없이 engine code로 import하지 않는다. |
-| [SegFace](https://github.com/Kartik-3004/SegFace) | long-tail face parsing class를 위한 newer face segmentation reference다. | research/reference only다. immediate live AR code가 아니라 region taxonomy 참고에 사용한다. |
+| [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMask-HQ) | 30,000장 high-resolution face image와 skin, nose, eyes, brows, mouth, lip, hair 등을 포함하는 19개 mask class를 제공하는 face parsing reference다. | dataset agreement를 지키는 조건에서 이번 부트캠프 범위의 non-commercial research/educational use로 사용할 수 있다. 판매, 재배포, 상용 product asset 사용은 금지한다. |
+| [LaPa Dataset](https://github.com/jd-opensource/lapa-dataset) | 22,000장 이상의 이미지, 11-category label, 106-point landmark를 제공하는 face parsing reference다. | license terms를 지키는 조건에서 이번 부트캠프 범위의 non-commercial research, teaching, publication, personal experimentation으로 사용할 수 있다. 상용 출시 전에는 재검토한다. |
+| [BiSeNet face parsing](https://github.com/zllrunning/face-parsing.PyTorch) | CelebAMask-HQ-style label과 함께 자주 쓰이는 practical face parsing implementation이다. | MIT-licensed code는 research prototype에 사용할 수 있다. 단 dataset과 pretrained weight는 각각의 조건을 따른다. 실제 integration 전 runtime fit은 별도 검토한다. |
+| [SegFace](https://github.com/Kartik-3004/SegFace) | long-tail face parsing class를 위한 newer face segmentation reference다. | MIT-licensed code는 research prototype에 사용할 수 있다. 함께 쓰는 dataset은 각 dataset의 non-commercial/research 조건을 따른다. |
 | [PSGAN](https://hf.co/papers/1909.06956), [SARA](https://hf.co/papers/2311.16828), [BeautyBank](https://hf.co/papers/2411.11231), [AvatarMakeup](https://hf.co/papers/2507.02419), [FFHQ-Makeup](https://hf.co/papers/2508.03241) | makeup transfer literature는 spatial alignment, region-aware editing, identity/appearance consistency, UV/3D consistency의 중요성을 보여준다. | generative makeup pipeline을 v1에 가져오지 않는다. renderer requirement인 `region`, `texture`, `feather`, `blendMode`, `intensity`를 잡는 참고로만 사용한다. |
 
 ## 4. Candidate Architecture Matrix

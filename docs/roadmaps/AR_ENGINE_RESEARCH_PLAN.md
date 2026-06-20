@@ -22,7 +22,8 @@ Non-goals for this research document:
 - Do not implement RN, Unity, shader, AI, backend, admin, payment, community, or product code.
 - Do not mark M6/M7/M8 complete.
 - Do not introduce a paid commercial beauty SDK.
-- Do not use restricted or unclear-license datasets/models as implementation assets.
+- Do not use datasets/models outside their allowed non-commercial research or educational terms.
+- Do not ship, sell, redistribute, or present restricted research assets as commercial product assets.
 - Do not attempt commercial-quality makeup rendering, product-level color matching, or full makeup suite coverage.
 
 Product requirements that matter for the engine:
@@ -102,12 +103,20 @@ Fallback trigger for MediaPipe or ARCore comparison:
 
 ### Makeup Texture and Region References
 
+Project-use note:
+
+- This project is a bootcamp research/education prototype, not a commercial release.
+- Datasets and model repositories that allow non-commercial research, teaching, scientific publication, or personal experimentation may be used for research validation in this repo.
+- Keep citation/attribution notes with any dataset/model used.
+- Do not redistribute restricted datasets, derived dataset copies, or pretrained weights unless the upstream terms explicitly allow it.
+- Re-check licenses before any public launch, App Store submission, paid demo, or commercial use.
+
 | Source | What it contributes | License/use constraint |
 | --- | --- | --- |
-| [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMask-HQ) | Face parsing reference with 30,000 high-resolution images and 19 mask classes including skin, nose, eyes, brows, mouth, lip, and hair. | Non-commercial/research restricted. Use as conceptual reference only unless license is explicitly acceptable. |
-| [LaPa Dataset](https://github.com/jd-opensource/lapa-dataset) | Face parsing reference with 22,000+ images, 11-category labels, and 106-point landmarks. | Non-commercial dataset terms. Use as conceptual reference only unless license is explicitly acceptable. |
-| [BiSeNet face parsing](https://github.com/zllrunning/face-parsing.PyTorch) | Practical face parsing implementation commonly used with CelebAMask-HQ-style labels. | Research/reference only for this phase; do not import as engine code without license and runtime review. |
-| [SegFace](https://github.com/Kartik-3004/SegFace) | Newer face segmentation reference for long-tail face parsing classes. | Research/reference only; useful for region taxonomy, not immediate live AR code. |
+| [CelebAMask-HQ](https://github.com/switchablenorms/CelebAMask-HQ) | Face parsing reference with 30,000 high-resolution images and 19 mask classes including skin, nose, eyes, brows, mouth, lip, and hair. | Allowed for this bootcamp scope as non-commercial research/educational use if the dataset agreement is followed. Do not sell, redistribute, or use as a commercial product asset. |
+| [LaPa Dataset](https://github.com/jd-opensource/lapa-dataset) | Face parsing reference with 22,000+ images, 11-category labels, and 106-point landmarks. | Allowed for this bootcamp scope as non-commercial research, teaching, publication, or personal experimentation if license terms are followed. Do not use for commercial release without re-review. |
+| [BiSeNet face parsing](https://github.com/zllrunning/face-parsing.PyTorch) | Practical face parsing implementation commonly used with CelebAMask-HQ-style labels. | MIT-licensed code can be used for research prototyping, but datasets and pretrained weights must follow their own terms. Runtime fit still needs separate review before integration. |
+| [SegFace](https://github.com/Kartik-3004/SegFace) | Newer face segmentation reference for long-tail face parsing classes. | MIT-licensed code can be used for research prototyping; datasets used with it still inherit their own non-commercial/research terms. |
 | [PSGAN](https://hf.co/papers/1909.06956), [SARA](https://hf.co/papers/2311.16828), [BeautyBank](https://hf.co/papers/2411.11231), [AvatarMakeup](https://hf.co/papers/2507.02419), [FFHQ-Makeup](https://hf.co/papers/2508.03241) | Makeup transfer literature emphasizes spatial alignment, region-aware editing, identity/appearance consistency, and UV/3D consistency. | Use to shape renderer requirements (`region`, `texture`, `feather`, `blendMode`, `intensity`), not to import generative makeup pipelines into v1. |
 
 ## 4. Candidate Architecture Matrix

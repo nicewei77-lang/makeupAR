@@ -1,5 +1,7 @@
 using System;
 using System.Globalization;
+using System.Runtime.InteropServices;
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.XR.ARFoundation;
@@ -22,6 +24,11 @@ public sealed class RNBridge : MonoBehaviour
     private Color currentColor = new Color(0.85f, 0.29f, 0.45f, 0.65f);
     private bool hasRecipe;
 
+#if UNITY_IOS && !UNITY_EDITOR
+    [DllImport("__Internal")]
+    private static extern void sendMessageToMobileApp(string message);
+#endif
+
     private void Awake()
     {
         RefreshSceneReferences();
@@ -32,6 +39,13 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         ApplyCurrentRecipeToOverlay();
+    }
+
+    private IEnumerator Start()
+    {
+        yield return null;
+        yield return new WaitForSeconds(0.25f);
+        SendUnityEvent("{\"type\":\"unity_initialized\"}");
     }
 
     public void ApplyRecipeJson(string json)
@@ -68,6 +82,7 @@ public sealed class RNBridge : MonoBehaviour
             if (ApplyCurrentRecipeToOverlay())
             {
                 LogRecipeApplied("message");
+                SendRecipeAppliedEvent();
             }
             else
             {
@@ -82,6 +97,25 @@ public sealed class RNBridge : MonoBehaviour
         {
             Debug.LogError("[M5] recipe_parse_failed raw=" + json + " error=" + exception.Message);
         }
+    }
+
+    public void SendFaceDetectedEvent(
+        bool tracked,
+        int faceCount,
+        int totalTrackables,
+        string trackingStates)
+    {
+        SendUnityEvent(
+            "{\"type\":\"face_detected\",\"tracked\":"
+            + tracked.ToString().ToLowerInvariant()
+            + ",\"faceCount\":"
+            + faceCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"totalTrackables\":"
+            + totalTrackables.ToString(CultureInfo.InvariantCulture)
+            + ",\"trackingStates\":\""
+            + EscapeJsonString(trackingStates)
+            + "\""
+            + "}");
     }
 
     private void RefreshSceneReferences()
@@ -138,6 +172,43 @@ public sealed class RNBridge : MonoBehaviour
             + " layer=" + currentLayer
             + " color=" + currentColorHex
             + " opacity=" + currentColor.a.ToString("0.##", CultureInfo.InvariantCulture));
+    }
+
+    private void SendRecipeAppliedEvent()
+    {
+        SendUnityEvent(
+            "{\"type\":\"recipe_applied\",\"layer\":\""
+            + EscapeJsonString(currentLayer)
+            + "\",\"color\":\""
+            + EscapeJsonString(currentColorHex)
+            + "\",\"opacity\":"
+            + currentColor.a.ToString("0.##", CultureInfo.InvariantCulture)
+            + "}");
+    }
+
+    private static void SendUnityEvent(string message)
+    {
+        Debug.Log("[M6] unity_to_rn_send " + message);
+
+#if UNITY_IOS && !UNITY_EDITOR
+        try
+        {
+            sendMessageToMobileApp(message);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError("[M6] unity_to_rn_send_failed error=" + exception.Message + " message=" + message);
+        }
+#else
+        Debug.Log("[M6] unity_to_rn_editor_fallback " + message);
+#endif
+    }
+
+    private static string EscapeJsonString(string value)
+    {
+        return (value ?? string.Empty)
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"");
     }
 
     private static Color ReadMaterialColor(Material material)
