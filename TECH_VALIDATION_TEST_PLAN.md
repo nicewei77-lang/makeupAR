@@ -74,9 +74,9 @@
 - Unity as a Library iOS: https://docs.unity3d.com/Manual/UnityasaLibrary-iOS.html
 - React Native Unity bridge candidate: https://github.com/azesmway/react-native-unity
 
-## 4. 현재 로컬 상태
+## 4. 초기 로컬 상태 기록
 
-2026-06-19 기준 확인된 상태:
+아래 표는 2026-06-19 M0 시작 시점의 기록이다. 최신 진행 상태와 현재 툴체인 판정은 `TECH_VALIDATION_RESULT.md`를 기준으로 본다.
 
 | 항목 | 상태 | 판정 |
 | --- | --- | --- |
@@ -567,6 +567,8 @@ React Native 앱 안에서 Unity AR Foundation 기반 iOS AR 화면을 열고, i
 makeupAR/
   TECH_VALIDATION_TEST_PLAN.md
   TECH_VALIDATION_RESULT.md
+  docs/
+    runbooks/
   rn/
     MakeupARValidation/
   unity/
@@ -586,6 +588,15 @@ makeupAR/
 - `unity-builds/`에는 Unity export 결과를 둔다.
 - `evidence/`에는 검증 증거를 둔다.
 - Unity export 결과와 build artifact는 필요 시 `.gitignore`로 제외한다.
+
+문서 운영 원칙:
+
+- 루트 active 문서는 `TECH_VALIDATION_TEST_PLAN.md`와 `TECH_VALIDATION_RESULT.md` 두 개만 둔다.
+- `TECH_VALIDATION_TEST_PLAN.md`는 검증 계약과 milestone 순서를 담는 정본 계획서다. 진행 로그를 누적하지 않는다.
+- `TECH_VALIDATION_RESULT.md`는 최신 판정, milestone 이력, 현재 상태, 다음 경계를 담는 상태 문서다.
+- 세션별 계획서(`M*_..._PLAN.md`)는 필요한 세션에서만 임시로 만들고, 세션 완료 후 핵심 결과를 `TECH_VALIDATION_RESULT.md`에 흡수한 뒤 삭제한다.
+- 반복 실행 절차만 남길 필요가 있으면 `docs/runbooks/`에 둔다.
+- 증거 파일은 `evidence/logs/`, `evidence/screenshots/`, `evidence/screen-recordings/` 아래에 보관하고, 결과 문서에는 workspace 밖의 임시 경로를 남기지 않는다.
 
 ## 18. 핵심 리스크
 
@@ -609,4 +620,3 @@ makeupAR/
 4. Unity에서 face/status event를 RN으로 보내기
 
 이 4개가 되면 AR 메이크업 엔진의 핵심 기술 축은 성립한다. 이 4개가 안 되면 메이크업 렌더링 품질 구현으로 넘어가지 않는다.
-

@@ -11,7 +11,10 @@ unity/*/*.sln
 unity/*/*.user
 
 # Unity build/export artifacts
-unity-builds/ios-export/
+unity-builds/
+
+# Xcode generated state
+evidence/derived-data/
 
 # macOS
 .DS_Store

@@ -2,7 +2,7 @@
 
 Date: 2026-06-20
 
-Latest re-check: 2026-06-20 17:36:12 KST
+Latest re-check: 2026-06-20 18:29:59 KST
 
 ## Scope
 
@@ -12,8 +12,17 @@ React Native project creation, UnityFramework embedding, RN-Unity messaging, rea
 
 Authoritative inputs:
 
-- `M1_FRONT_CAMERA_OVERLAY_IMPLEMENTATION_PLAN.md`
 - `TECH_VALIDATION_TEST_PLAN.md` section 8, M1 Unity standalone AR validation
+- `docs/runbooks/M1_STANDALONE_AR_RUNBOOK.md`
+
+## Workspace Document State
+
+Active root documents:
+
+- `TECH_VALIDATION_TEST_PLAN.md`: stable validation contract, milestone order, and document policy.
+- `TECH_VALIDATION_RESULT.md`: latest milestone decisions, current status, evidence, and next boundary.
+
+Completed session-specific plan/status documents have been absorbed into this result document and removed from the active root. New `M*_..._PLAN.md` files should be temporary: create them only when a session needs one, then absorb the outcome here and delete the plan after completion.
 
 ## Final Decision
 
@@ -36,6 +45,14 @@ Known limitations:
 
 These do not block M1 because M1 only validates that Unity + AR Foundation + ARKit face tracking can run on iPhone with a visible face-following overlay for a detected face. Precise face fitting, makeup quality, segmentation, product-like rendering, robust face switching, and track reacquisition behavior remain out of M1 scope.
 
+## Milestone History
+
+| Milestone | Decision | Notes |
+| --- | --- | --- |
+| M0. Environment gate | Green as of 2026-06-20 | macOS 26.5.1, full Xcode 26.5, Node 22.23.0, npm 10.9.8, Watchman 2026.06.15.00, CocoaPods 1.16.2, Unity 6000.3.18f1, and iOS Build Support are available. |
+| M1. Unity standalone AR validation | Green | Real iPhone runtime confirmed front camera, ARKit face tracking, visible diagnostic marker/mask, and face-following behavior. |
+| M2. React Native standalone iOS validation | Next | Do this before UnityFramework export/embed or RN-Unity messaging work. |
+
 ## Requirement Matrix
 
 | M1 requirement | Current evidence | Status |
@@ -56,8 +73,12 @@ These do not block M1 because M1 only validates that Unity + AR Foundation + ARK
 | Xcode | Xcode 26.5, build 17F42 | Checked |
 | Unity | 6000.3.18f1 | Checked |
 | Unity iOS Build Support | `/Applications/Unity/Hub/Editor/6000.3.18f1/PlaybackEngines/iOSSupport` exists | Checked |
+| Node | `v22.23.0` | Checked |
+| npm | `10.9.8` | Checked |
+| Watchman | `2026.06.15.00` | Checked |
+| CocoaPods | `1.16.2` | Checked |
 | iPhone via `devicectl` | `위승철의 iPhone`, identifier `6F504EE9-BABC-5F6F-A186-C734E04CA625`, state `connected`, model `iPhone 16 (iPhone17,3)` | Checked |
-| Exported Xcode project | `/Users/wiseungcheol/Desktop/makeupAR/unity-builds/ios-export/Unity-iPhone.xcodeproj` | Generated |
+| Exported Xcode project | Generated during M1 under ignored `unity-builds/ios-export/`; generated artifact is not retained in the cleaned repo | Reproducible |
 | Real-device runtime | User confirmed the regenerated app runs and produced screenshots/logs | Checked |
 
 ## Current Unity Project State
@@ -82,10 +103,10 @@ These do not block M1 because M1 only validates that Unity + AR Foundation + ARK
 | --- | --- |
 | M1 front-camera/marker export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m1-front-camera-overlay-export-2026-06-20.log` |
 | Export success line | `[M1] Unity iOS export result: Succeeded at /Users/wiseungcheol/Desktop/makeupAR/unity-builds/ios-export` |
-| Regenerated Xcode project | `/Users/wiseungcheol/Desktop/makeupAR/unity-builds/ios-export/Unity-iPhone.xcodeproj` |
+| Regenerated Xcode project | Generated during M1; recreate with `docs/runbooks/M1_STANDALONE_AR_RUNBOOK.md` when needed |
 | Front camera serialization | `Assets/Scenes/MakeupARFaceValidation.unity` has `ARCameraManager` `m_FacingDirection: 2` |
 | Marker prefab inclusion | `Assets/Prefabs/ValidationFaceOverlay.prefab` includes `Assembly-CSharp::FaceTrackingMarker` |
-| Screenshot evidence | `/Users/wiseungcheol/Downloads/IMG_4185.png`, `/Users/wiseungcheol/Downloads/IMG_4184.png` |
+| Screenshot evidence | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screenshots/m1-front-camera-overlay-2026-06-20-1.png`, `/Users/wiseungcheol/Desktop/makeupAR/evidence/screenshots/m1-front-camera-overlay-2026-06-20-2.png` |
 | Runtime log evidence | User-provided Xcode log includes `SessionTracking`, `Camera requested/current: User/User`, `XRFaceSubsystem loaded`, `running=True`, `Current tracked face count: 1`, `Face detected: true` |
 | User visual confirmation | Front camera confirmed; cross visible; mask follows head movement; marker disappears when face leaves the view |
 | Face switching observation | User observed that after the first detected face, showing another person's face does not create a newly tracked mask |
