@@ -14,7 +14,7 @@ Current boundary:
 
 - `TECH_VALIDATION_RESULT.md` says M5 is complete and the next milestone is M6, Unity -> RN communication.
 - `TECH_VALIDATION_TEST_PLAN.md` remains the stable validation contract.
-- `docs/roadmaps/AR_FIRST_TECH_VALIDATION_ROADMAP.md` says to close M6/M7/M8 before AR alignment and region mask validation.
+- `docs/roadmaps/strategy/AR_FIRST_TECH_VALIDATION_ROADMAP.md` says to close M6/M7/M8 before AR alignment and region mask validation.
 - Current AR makeup readiness is not Green. RN -> Unity communication is Green, ARKit face tracking is active, but visual face-fitted makeup is Yellow/Fail.
 
 Non-goals for this research document:
@@ -37,8 +37,8 @@ Repo evidence:
 
 - `TECH_VALIDATION_RESULT.md` records M6 as the next milestone and explicitly says product makeup work should not start from the current screen state.
 - `TECH_VALIDATION_RESULT.md` records current overlay offset, first-face-only/reacquisition risk, and missing Unity -> RN status display.
-- `AIAR_MakeupGuide기획서_v1.md` defines the target AR makeup guide, editable parameters, half-face guide mode, and supported makeup categories.
-- `docs/roadmaps/AR_FIRST_TECH_VALIDATION_ROADMAP.md` defines the AR-first strategy and the `lip`/`cheek`/`eye` minimum region slice.
+- `docs/product/AIAR_MakeupGuide기획서_v1.md` defines the target AR makeup guide, editable parameters, half-face guide mode, and supported makeup categories.
+- `docs/roadmaps/strategy/AR_FIRST_TECH_VALIDATION_ROADMAP.md` defines the AR-first strategy and the `lip`/`cheek`/`eye` minimum region slice.
 
 ## 2. Current Evidence and Open Risks
 

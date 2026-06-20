@@ -6,6 +6,8 @@ Status: 리서치 계획 / 구현 전 단계
 
 Primary path decision: Yellow - Unity + AR Foundation + ARKit 경로를 1순위로 유지한다. 다만 iPhone 실기기에서 alignment, trackable lifecycle, region mask 검증이 통과되기 전까지 제품 수준의 makeup rendering은 시작하지 않는다.
 
+Current note: this document was written before the M8 closeout. For current milestone status and next boundary, use `../../../TECH_VALIDATION_RESULT.md` first. As of M8, M0-M6 are Green, M7 is Yellow / skipped by decision / risk accepted, and the next primary gate is E1 AR Alignment unless additional M7 verification is chosen.
+
 ## 1. Current Boundary and Non-Goals
 
 이 문서는 제품용 메이크업 렌더링을 구현하기 전에, AR makeup engine을 어떤 구조로 조사하고 설계할지 결정한다. 현재 기술 검증 milestone 순서를 대체하지 않는다.
@@ -14,7 +16,7 @@ Primary path decision: Yellow - Unity + AR Foundation + ARKit 경로를 1순위�
 
 - `TECH_VALIDATION_RESULT.md` 기준 M5는 완료되었고, 다음 milestone은 M6인 Unity -> RN communication이다.
 - `TECH_VALIDATION_TEST_PLAN.md`는 계속 안정적인 검증 계약으로 유지한다.
-- `docs/roadmaps/AR_FIRST_TECH_VALIDATION_ROADMAP.md`는 AR alignment와 region mask 검증 전에 M6/M7/M8을 먼저 닫으라고 정리한다.
+- `docs/roadmaps/strategy/AR_FIRST_TECH_VALIDATION_ROADMAP.md`는 AR alignment와 region mask 검증 전에 M6/M7/M8을 먼저 닫으라고 정리한다.
 - 현재 AR makeup readiness는 Green이 아니다. RN -> Unity communication은 Green이고 ARKit face tracking은 동작하지만, 얼굴에 정확히 붙는 visual makeup은 Yellow/Fail 상태다.
 
 이 리서치 문서의 non-goals:
@@ -37,8 +39,8 @@ Repo evidence:
 
 - `TECH_VALIDATION_RESULT.md`는 다음 milestone이 M6라고 기록하고, 현재 screen state에서 product makeup work를 시작하면 안 된다고 명시한다.
 - `TECH_VALIDATION_RESULT.md`는 현재 overlay offset, first-face-only/reacquisition risk, Unity -> RN status display 미구현 상태를 기록한다.
-- `AIAR_MakeupGuide기획서_v1.md`는 목표 AR makeup guide, editable parameters, half-face guide mode, supported makeup categories를 정의한다.
-- `docs/roadmaps/AR_FIRST_TECH_VALIDATION_ROADMAP.md`는 AR-first strategy와 `lip`/`cheek`/`eye` minimum region slice를 정의한다.
+- `docs/product/AIAR_MakeupGuide기획서_v1.md`는 목표 AR makeup guide, editable parameters, half-face guide mode, supported makeup categories를 정의한다.
+- `docs/roadmaps/strategy/AR_FIRST_TECH_VALIDATION_ROADMAP.md`는 AR-first strategy와 `lip`/`cheek`/`eye` minimum region slice를 정의한다.
 
 ## 2. Current Evidence and Open Risks
 

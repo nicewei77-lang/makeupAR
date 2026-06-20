@@ -2,7 +2,24 @@
 
 Date: 2026-06-21 KST
 
-Status: 구현 계획 / validation 전용 / 코드 구현 전
+Status: Active validation implementation plan / M8 foundation closeout complete / next gate is E1 or optional M7 re-check
+
+## 0. 현재 사용법
+
+이 문서는 `TECH_VALIDATION_TEST_PLAN.md`와 `TECH_VALIDATION_RESULT.md` 다음에 읽는 AR engine validation 작업 지시서다. 현재 루트 active 문서는 계속 아래 3개만 유지한다.
+
+- `AGENTS.md`
+- `TECH_VALIDATION_TEST_PLAN.md`
+- `TECH_VALIDATION_RESULT.md`
+
+현재 진행 기준:
+
+- M0-M6는 Green이다.
+- M7은 `Yellow / skipped by decision / risk accepted`이며 Green이 아니다.
+- M8 결과 리포트는 완료되었다.
+- M7 lifecycle risk를 수용하면 다음 작업은 E1 AR Alignment다.
+- lifecycle confidence를 먼저 확보해야 한다면 추가 M7 re-entry verification을 먼저 수행한다.
+- E1 전에는 region mask, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK, Android 작업을 시작하지 않는다.
 
 ## 1. 목적
 
@@ -12,16 +29,19 @@ Status: 구현 계획 / validation 전용 / 코드 구현 전
 
 > RN-hosted Unity + AR Foundation + ARKit 기반에서 얼굴 위에 `lip`, `cheek`, `eye` 메이크업 layer를 안정적으로 얹을 수 있는가?
 
-현재 상태:
+현재 foundation 상태:
 
-- M0-M5는 Green이다.
+- M0-M6는 Green이다.
+- M7은 Yellow / skipped by decision / risk accepted다.
+- M8 foundation closeout은 완료되었다.
 - RN app은 iPhone에서 Unity AR 화면을 연다.
 - ARKit face tracking은 `SessionTracking`, `Face detected: true`까지 확인되었다.
 - RN은 Unity `RNBridge.ApplyRecipeJson(string)`으로 `layer/color/opacity`를 보낸다.
 - Unity는 color/opacity를 diagnostic whole-face overlay material에 적용한다.
+- Unity는 RN으로 `unity_initialized`, `face_detected`, `recipe_applied` event를 보내고 RN 화면은 이를 표시한다.
 - 하지만 현재 overlay는 얼굴에 맞지 않고 offset되어 있다.
 - 현재 `layer: "lip"`은 실제 lip region으로 route되지 않는다.
-- 현재 Unity -> RN event 수신은 아직 M6로 남아 있다.
+- product-quality makeup rendering은 아직 시작하지 않았다.
 
 ## 2. 절대 범위
 
@@ -627,12 +647,12 @@ Use MediaPipe or ARCore comparison only if one of these happens:
   - `TECH_VALIDATION_RESULT.md`
 - Temporary session plans may be named `M6_..._PLAN.md`, `E1_..._PLAN.md`, etc., but must be absorbed into `TECH_VALIDATION_RESULT.md` and deleted after completion.
 
-## 14. Immediate Next Session Prompt
+## 14. Current Next Session Prompt
 
-Use this as the next implementation session goal.
+Use this as the next implementation session goal if the M7 lifecycle risk remains accepted.
 
 ```md
-# Goal: M6 Unity -> RN Communication 구현 및 검증
+# Goal: E1 AR Alignment 구현 및 실기기 검증
 
 Workspace: `/Users/wiseungcheol/Desktop/makeupAR`
 
@@ -641,39 +661,47 @@ Required reading order:
 1. `AGENTS.md`
 2. `TECH_VALIDATION_TEST_PLAN.md`
 3. `TECH_VALIDATION_RESULT.md`
-4. `docs/roadmaps/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`
-5. `rn/MakeupARValidation/App.tsx`
-6. `rn/MakeupARValidation/react-native-unity.d.ts`
-7. `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
-8. `unity/MakeupARUnityValidation/Assets/Scripts/FaceTrackingStatusReporter.cs`
-9. `unity/MakeupARUnityValidation/Assets/Plugins/iOS/NativeCallProxy.mm`
+4. `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`
+5. `docs/roadmaps/research/AR_ENGINE_RESEARCH_REPORT_KO.md`
+6. `unity/MakeupARUnityValidation/Assets/Editor/MakeupARValidationSetup.cs`
+7. `unity/MakeupARUnityValidation/Assets/Scenes/MakeupARFaceValidation.unity`
+8. `unity/MakeupARUnityValidation/Assets/Prefabs/ValidationFaceOverlay.prefab`
+9. `unity/MakeupARUnityValidation/Assets/Scripts/FaceTrackingMarker.cs`
+10. `unity/MakeupARUnityValidation/Assets/Scripts/FaceTrackingStatusReporter.cs`
+11. `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
 
 Current boundary:
 
-- M5 is Green.
-- Next milestone is M6 Unity -> RN communication.
-- Do not start M7, AR alignment, region mask, texture, AI/backend/admin/payment/community, product makeup quality, commercial SDK integration, or Android work.
+- M0-M6 are Green.
+- M7 is Yellow / skipped by decision / risk accepted.
+- M8 foundation closeout is complete.
+- Next primary milestone is E1 AR Alignment.
+- Do not start region masks, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation.
 
-Implement:
+Implement only E1:
 
-- Unity sends `unity_initialized`, `face_detected`, and `recipe_applied` JSON events to RN.
-- RN receives `onUnityMessage(event.nativeEvent.message)`, parses JSON, and displays the latest event plus a short event history.
-- Existing RN -> Unity color/opacity flow remains working.
+- Fix or explain the current camera/feed/ARFace mesh alignment problem.
+- Compare the scene setup against Unity AR Foundation 6.3 iOS face tracking expectations.
+- Address the `AR Camera` pose warning or document why it is harmless with evidence.
+- Add the minimum diagnostics needed for E1: camera transform, XR Origin transform, face transform, active orientation, trackable ID, trackingState, mesh vertex/index/UV counts.
+- Keep the renderer diagnostic. Do not implement lip/cheek/eye region masks yet.
 
 Verify on real iPhone:
 
-- RN screen displays `unity_initialized`.
-- RN screen displays `face_detected tracked=true faceCount=1`.
-- RN screen displays `recipe_applied layer=lip` after color/opacity changes.
-- Face lost/recovered produces a visible RN status change or a documented limitation.
-
-Evidence:
-
+- Record at least 30 seconds with front face, left/right head turn, up/down movement, mouth open/closed, and face lost/recovered.
+- Confirm whether the overlay is aligned to face contour, eyes, and mouth.
 - Save runtime logs under `evidence/logs/`.
 - Save screenshot or screen recording under `evidence/screenshots/` or `evidence/screen-recordings/`.
-- Update `TECH_VALIDATION_RESULT.md` with decision, evidence, limitations, and next boundary.
+
+Update:
+
+- Update `TECH_VALIDATION_RESULT.md` with E1 decision, evidence, limitations, and next boundary.
+- If E1 is Green, next boundary is E2 Trackable Lifecycle or E3 Region Mask depending on whether lifecycle diagnostics are already sufficient.
+- If E1 is Yellow/Fail, do not start E3 region mask or E4 texture sample work.
 
 Stop rule:
 
-- Do not mark M6 complete unless RN visibly receives Unity events and evidence is recorded.
+- Do not mark face-fitted rendering Green unless real-device evidence shows the overlay aligned with the camera feed and face mesh.
 ```
+
+If formal lifecycle confidence is required before E1, use a narrower additional M7 re-entry verification session instead. That session must keep M7 Yellow until a 3-cycle evidence pass is actually recorded.

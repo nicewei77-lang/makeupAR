@@ -5,7 +5,7 @@
 - This repo is for pre-product technical validation of React Native + Unity + AR Foundation on a real iPhone, then validation-only AR makeup engine feasibility.
 - Stay inside the current named milestone or explicitly named roadmap review/edit.
 - Derive the current milestone from `TECH_VALIDATION_RESULT.md` > `Next Milestone Boundary` unless the user explicitly names a different milestone.
-- Use `docs/roadmaps/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` only after the M6/M7/M8 foundation path is in scope, or when the user explicitly asks about AR engine validation planning.
+- Use `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` only after the M6/M7/M8 foundation path is in scope, or when the user explicitly asks about AR engine validation planning.
 - Do not start product implementation, AI/backend/admin/payment/community work, commercial SDK integration, Android work, or product-quality makeup rendering unless the milestone or user explicitly asks.
 - AI readiness in this repo means schema/evidence handoff only, such as `FaceFeatureSnapshot`; it does not mean AI model inference, recommendation, backend upload, or raw-frame storage.
 
@@ -15,8 +15,8 @@
 - Read `TECH_VALIDATION_RESULT.md` next.
 - Treat `TECH_VALIDATION_TEST_PLAN.md` as the stable validation contract.
 - Treat `TECH_VALIDATION_RESULT.md` as the latest status, evidence, milestone history, and next boundary.
-- For AR engine validation planning or implementation, read `docs/roadmaps/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` after the two root validation docs.
-- For research-backed AR/beauty engine decisions, also read the relevant files under `docs/roadmaps/`, especially the AR engine research report and beauty AR benchmark report.
+- For AR engine validation planning or implementation, read `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` after the two root validation docs.
+- For research-backed AR/beauty engine decisions, also read the relevant files under `docs/roadmaps/research/`, especially the AR engine research report and beauty AR benchmark report.
 
 ## Document Rules
 
@@ -26,7 +26,7 @@
 - Create `E*_..._PLAN.md` only as a temporary AR engine validation session plan.
 - After a session completes, absorb the result into `TECH_VALIDATION_RESULT.md` and delete the temporary plan.
 - Put reusable procedures in `docs/runbooks/`.
-- Keep roadmap/research docs under `docs/roadmaps/`; do not promote them to root active docs.
+- Keep roadmap/research docs under `docs/roadmaps/`; keep the current working plan under `docs/roadmaps/active/`; do not promote them to root active docs.
 
 ## Milestone Boundaries
 

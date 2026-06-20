@@ -6,6 +6,8 @@ Status: Draft / top-level planning document
 
 Decision: A안, AR 엔진 리스크 먼저 제거
 
+Current note: this is a strategy reference. For current milestone status and next boundary, use `../../../TECH_VALIDATION_RESULT.md` first. As of the M8 closeout, M0-M6 are Green, M7 remains Yellow / skipped by decision / risk accepted, and the next primary gate is E1 AR Alignment unless additional M7 verification is chosen.
+
 ## 1. Purpose
 
 이 문서는 AI AR Makeup Guide의 전체 기술 validation을 큰 단위로 정리한 상위 기획서다.
@@ -626,16 +628,15 @@ MediaPipe를 검토하게 되면 목표는 "교체"가 아니라 "비교 실험"
 
 ## 12. Immediate Next Step
 
-현재 `TECH_VALIDATION_RESULT.md` 기준 다음 작업은 M6이다.
+현재 `TECH_VALIDATION_RESULT.md` 기준 M8 foundation closeout은 완료되었고, M7은 Yellow / skipped by decision / risk accepted다.
 
 즉, 이 상위 로드맵을 기준으로 바로 product makeup 작업을 시작하지 않는다. 먼저 다음 순서를 따른다.
 
-1. M6 Unity -> RN communication
-2. M7 re-entry stability
-3. M8 foundation validation result
-4. AR alignment
-5. Region mask
-6. Texture sample
+1. E1 AR alignment, if the M7 lifecycle risk remains accepted
+2. Additional M7 re-entry verification, if formal lifecycle evidence is required before renderer work
+3. E2 trackable lifecycle diagnostics
+4. E3 region mask
+5. E4 texture sample
 7. AI face analysis
 8. AI recommendation
 

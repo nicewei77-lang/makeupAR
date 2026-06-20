@@ -6,6 +6,8 @@ Status: 리서치 보고서 / 구현 없음
 
 Decision: Yellow - RN-hosted Unity + AR Foundation + ARKit iPhone 경로를 primary path로 유지한다. 다만 현재 repo evidence상 face tracking과 RN -> Unity recipe 전달은 Green이지만, visual alignment와 region mask는 아직 Green이 아니다. M6/M7/M8을 대체하지 않으며, 이 보고서는 이후 AR Alignment / Trackable Lifecycle / Region Mask 세션의 근거 문서다.
 
+Current note: this report was written before the M8 closeout. For current milestone status and next boundary, use `../../../TECH_VALIDATION_RESULT.md` first. As of M8, M0-M6 are Green, M7 is Yellow / skipped by decision / risk accepted, and the next primary gate is E1 AR Alignment unless additional M7 verification is chosen.
+
 ## 1. Executive Summary
 
 결론은 "스택을 바꾸지 말고, 검증 순서를 더 엄격히 하자"이다.

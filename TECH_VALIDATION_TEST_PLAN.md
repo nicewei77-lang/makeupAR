@@ -565,9 +565,16 @@ React Native 앱 안에서 Unity AR Foundation 기반 iOS AR 화면을 열고, i
 
 ```txt
 makeupAR/
+  AGENTS.md
   TECH_VALIDATION_TEST_PLAN.md
   TECH_VALIDATION_RESULT.md
   docs/
+    product/
+    roadmaps/
+      active/
+      strategy/
+      research/
+      archive/
     runbooks/
   rn/
     MakeupARValidation/
@@ -591,9 +598,11 @@ makeupAR/
 
 문서 운영 원칙:
 
-- 루트 active 문서는 `TECH_VALIDATION_TEST_PLAN.md`와 `TECH_VALIDATION_RESULT.md` 두 개만 둔다.
+- 루트 active 문서는 `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, `TECH_VALIDATION_RESULT.md` 세 개만 둔다.
 - `TECH_VALIDATION_TEST_PLAN.md`는 검증 계약과 milestone 순서를 담는 정본 계획서다. 진행 로그를 누적하지 않는다.
 - `TECH_VALIDATION_RESULT.md`는 최신 판정, milestone 이력, 현재 상태, 다음 경계를 담는 상태 문서다.
+- AR engine validation의 현재 작업 지시서는 `docs/roadmaps/active/` 아래에 둔다.
+- 제품 기획은 `docs/product/`, research 문서는 `docs/roadmaps/research/`, 상위 전략은 `docs/roadmaps/strategy/`, 중복/과거 문서는 `docs/roadmaps/archive/` 아래에 둔다.
 - 세션별 계획서(`M*_..._PLAN.md`)는 필요한 세션에서만 임시로 만들고, 세션 완료 후 핵심 결과를 `TECH_VALIDATION_RESULT.md`에 흡수한 뒤 삭제한다.
 - 반복 실행 절차만 남길 필요가 있으면 `docs/runbooks/`에 둔다.
 - 증거 파일은 `evidence/logs/`, `evidence/screenshots/`, `evidence/screen-recordings/` 아래에 보관하고, 결과 문서에는 workspace 밖의 임시 경로를 남기지 않는다.
