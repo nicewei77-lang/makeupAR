@@ -2,15 +2,15 @@
 
 Date: 2026-06-21
 
-Latest re-check: 2026-06-22 00:50 KST
+Latest re-check: 2026-06-22 03:50 KST
 
 ## Scope
 
-Current update: this document records the E6 Engine Decision on top of the E5 AI Feature Readiness Snapshot result. E6 is Yellow: the current RN + Unity + ARKit path is viable enough to continue validation and focused product-readiness hardening, but it is not a Green product-v1 handoff because formal M7 re-entry evidence remains skipped/risk-accepted, clean rebuild durability still has local bridge/framework caveats, E3/E4 rendering evidence is validation/debug quality rather than product-quality makeup, and performance has not been instrumented beyond real-device recordings and runtime observation.
+Current update: this document records the E7.0 Session Preflight and E7.1 Build/Runtime Preflight result on top of the E6 Engine Decision. E7.0/E7.1 are Green for preflight only: a fresh UnityFramework export/build/sync succeeded, the RN iOS app built/installed/launched on the real iPhone, and the existing RN-hosted Unity event path still emitted `unity_initialized`, `face_detected`, and `recipe_applied`. This does not complete E7 or promote product readiness because E7.2 baseline instrumentation, region precision, renderer quality, FPS/thermal/memory/latency evidence, and demo-look validation have not started.
 
-M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum. E2 Trackable Lifecycle Diagnostics is Green. E3 Region Mask is Green. E4 Texture Sample is Green. E5 AI Feature Readiness Snapshot is Green with the screen-recording requirement explicitly waived by the user. E6 Engine Decision is Yellow.
+M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum. E2 Trackable Lifecycle Diagnostics is Green. E3 Region Mask is Green. E4 Texture Sample is Green. E5 AI Feature Readiness Snapshot is Green with the screen-recording requirement explicitly waived by the user. E6 Engine Decision is Yellow. E7.0/E7.1 preflight is Green, while full E7 visual product-readiness remains incomplete.
 
-Full M7 3-cycle re-entry stress testing, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
+Full M7 3-cycle re-entry stress testing, E7.2+ baseline instrumentation, E7.3+ region precision, E7.4+ renderer implementation, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, Android work, and raw camera frame storage were not attempted.
 
 Authoritative inputs:
 
@@ -21,11 +21,13 @@ Authoritative inputs:
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 9, E3 Region Mask
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` E4 Texture Sample boundary
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 12, E6 Engine Decision
+- `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.0 Session Preflight and E7.1 Build/Runtime Preflight
 - E1 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E2 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E3 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E4 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E5 implementation/build/runtime/screenshot evidence recorded in the evidence paths below; decision recording was explicitly waived by the user for this E5 decision
+- E7.0/E7.1 preflight build/runtime evidence recorded in the evidence paths below
 
 ## Workspace Document State
 
@@ -35,7 +37,47 @@ Active root documents:
 - `TECH_VALIDATION_TEST_PLAN.md`: stable validation contract, milestone order, and document policy.
 - `TECH_VALIDATION_RESULT.md`: latest milestone decisions, current status, evidence, and next boundary.
 
+Active temporary session plan:
+
+- `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 spike plan. This session touched only E7.0/E7.1 preflight. The sub-spike documents remain deferred: `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` before E7.3, `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` before E7.6, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if needed.
+
 Completed session-specific plan/status documents have been absorbed into this result document and removed from the active root. New `M*_..._PLAN.md` files should be temporary: create them only when a session needs one, then absorb the outcome here and delete the plan after completion.
+
+## E7.0/E7.1 Preflight Decision Detail
+
+Status: Green for E7.0/E7.1 preflight only
+
+E7.0 Session Preflight and E7.1 Build/Runtime Preflight are Green. The session confirmed the current branch/worktree, kept `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` as the active temporary plan, accepted the existing M7 Yellow risk only for E7 validation, cleaned/checkpointed Unity process state, regenerated and synced UnityFramework, built/installed/launched the RN iOS app on the real iPhone, and confirmed the existing RN-hosted Unity event path still emits the required M6 events.
+
+Preflight decisions:
+
+- Git state at session start: branch `codex/makeupar-github-sync`, single worktree at `/Users/wiseungcheol/Desktop/makeupAR`, working tree clean, branch ahead of origin by 3 commits.
+- `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` is the active temporary E7 plan. It was not absorbed or deleted because full E7 is not complete.
+- E7 sub-spike document timing is fixed but no sub-spike documents were created in this session: `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` before E7.3, `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` before E7.6, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if needed.
+- M7 remains Yellow / skipped by decision / risk accepted. This preflight does not promote M7 to Green.
+- Unity/Hub/Licensing cleanup check found no active Unity, Unity Hub, or Unity Licensing processes and no `/tmp/Unity-LicenseClient*` stale files before the build.
+
+Confirmed evidence:
+
+- Fresh UnityFramework export/build/sync succeeded through `bash scripts/build_m3_unityframework.sh` with `TIMESTAMP=e7-preflight-2026-06-22`.
+- Unity/Hub/Licensing cleanup evidence was recorded at `evidence/logs/e7-unity-process-cleanup-2026-06-22.log`.
+- UnityFramework evidence paths: `evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log`, and `evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log`.
+- Artifact verification records both the RN reference framework and the package-local framework as arm64 Mach-O binaries, each about `105M`, each with `9.2M` `Data`, and with `NativeCallProxy.h` present.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e7-build-install-run-2026-06-22.log` records `success Successfully built the app`, `success Installed the app on the device`, and `success Successfully launched the app`.
+- Runtime console evidence was captured at `evidence/logs/e7-runtime-event-preflight-2026-06-22.log`. It records UnityFramework loading inside RN, `runEmbeddedWithArgc`, `unity_initialized`, `face_detected` with `tracked=true`, `faceCount=1`, and `recipe_applied` events.
+
+Known limitations:
+
+- This is not a full E7 completion. E7.2 baseline instrumentation, E7.3 region precision, E7.4 cosmetic rendering core, E7.6 performance evidence, and any demo-look recipe work were not started.
+- This session did not collect FPS, frame-time, thermal, memory, latency, region G/Y/R, or demo-look evidence.
+- The current E3/E4 visuals remain validation/debug quality. Product-quality lip, cheek, or eye makeup readiness is not claimed.
+- The build temporarily caused Unity scene reserialization noise; it was restored so no source implementation change is retained from this preflight.
+- No product/backend/AI inference/commercial SDK/Android/raw camera frame storage work was started.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E7.2 Baseline Instrumentation.
+- Continue under the accepted M7 Yellow risk only if the team still accepts that lifecycle gap; otherwise run formal M7 re-entry verification before further renderer hardening.
 
 ## E6 Decision Detail
 
@@ -689,6 +731,7 @@ This table is the M8 single-glance foundation validation summary. M7 remains Yel
 
 Key evidence paths:
 
+- E7.0/E7.1 preflight: `evidence/logs/e7-unity-process-cleanup-2026-06-22.log`, `evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log`, `evidence/logs/e7-build-install-run-2026-06-22.log`, and `evidence/logs/e7-runtime-event-preflight-2026-06-22.log`.
 - E6 Engine Decision: this document's E6 section above synthesizes the existing E1-E5 real-device evidence plus the accepted M7 lifecycle gap. No new runtime artifact was required for E6 because it is a decision milestone rather than a new implementation milestone.
 - E5 AI Feature Readiness Snapshot: `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`, `evidence/logs/e5-build-install-run-2026-06-21.log`, `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`, `evidence/logs/m3-repro-unity-export-e5-ai-feature-readiness-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e5-ai-feature-readiness-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e5-ai-feature-readiness-2026-06-21.log`. The planned decision recording was explicitly waived by the user for this E5 decision.
 - E4 Texture Sample: `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`, `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`, and `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
@@ -702,6 +745,12 @@ Full evidence index:
 
 | Evidence | Path / content |
 | --- | --- |
+| E7.0/E7.1 Unity process cleanup log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e7-unity-process-cleanup-2026-06-22.log` records no active Unity/Hub/Licensing process and no `/tmp/Unity-LicenseClient*` stale file |
+| E7.0/E7.1 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log` |
+| E7.0/E7.1 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log` contains `** BUILD SUCCEEDED **` |
+| E7.0/E7.1 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log` records arm64 RN/package framework verification, `Data`, `NativeCallProxy.h`, and package framework sync |
+| E7.0/E7.1 RN build/install/launch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e7-build-install-run-2026-06-22.log` records successful build, install, and launch on `위승철의 iPhone` |
+| E7.0/E7.1 runtime event preflight log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e7-runtime-event-preflight-2026-06-22.log` records RN-hosted Unity loading, `unity_initialized`, `face_detected tracked=true faceCount=1`, and `recipe_applied` events |
 | E5 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e5-ai-feature-readiness-2026-06-21.log` |
 | E5 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e5-ai-feature-readiness-2026-06-21.log` contains `** BUILD SUCCEEDED **` |
 | E5 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e5-ai-feature-readiness-2026-06-21.log` records framework verification and package framework sync |
@@ -819,22 +868,24 @@ Full evidence index:
 - E4 texture sample result: RN now exposes `matte_lip`, `soft_blush`, and `shimmer_eye` as one validation sample per allowed region; Unity logs parse/region/texture/applied flow for each sample and applies them on nonzero face meshes. This is Green for debug texture-sample validation and not product-quality makeup fidelity.
 - E5 snapshot result: Unity now emits a no-inference `face_feature_snapshot` payload with face/tracking state, mesh counts, active regions, applied texture samples, timestamp, and explicit `rawCameraFrameStored=false` / `offDeviceUpload=false` privacy flags. The real-device runtime log proves snapshot creation and Unity -> RN send, and the RN status screenshot proves visible receipt. The separate decision recording was explicitly waived by the user, so E5 is Green.
 - E6 decision result: the AR engine direction is Yellow, not Green or Red. Continue with the RN + Unity + ARKit path, but require focused lifecycle, durable integration, renderer-quality, and performance hardening before claiming product-v1 readiness.
+- E7.0/E7.1 preflight result: fresh UnityFramework export/build/sync, RN iOS build/install/launch, and the existing RN-hosted Unity `unity_initialized`, `face_detected`, and `recipe_applied` event path were confirmed on the real iPhone. This is Green for preflight only and does not complete full E7.
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, and E6 Engine Decision are complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, and E7.0/E7.1 preflight are complete. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: create or run a product-readiness hardening plan/spike before product implementation, with lifecycle and durable integration first.
+- Primary path: E7.2 Baseline Instrumentation.
 - Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
-- Renderer path: if the team continues with accepted M7 risk, keep the next renderer work in validation/hardening mode until product-quality lip/cheek/eye evidence and performance profiling exist.
+- Renderer path: if the team continues with accepted M7 risk, stay in validation/hardening mode and create the required E7 sub-spike documents before E7.3, E7.4, and E7.6 instead of jumping directly into product renderer claims.
 
 Stop rules:
 
 - Do not mark M7 Green unless a formal 3-cycle re-entry pass with evidence is collected.
+- Do not claim full E7, visual product readiness, or product-v1 readiness from E7.0/E7.1 preflight alone.
 - Do not treat E3 as product-quality makeup accuracy; it only proves validation-level region independence.
 - Do not treat E4 as product-quality makeup fidelity; it only proves validation/debug texture sample dispatch and visual distinction.
 - Do not treat the E5 recording waiver as a general waiver for future milestones.
 - Do not treat E6 Yellow as permission to claim product-v1 readiness.
-- Do not start AI model inference, backend upload, recommendation logic, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.
+- Do not start AI model inference, backend upload, recommendation logic, commercial SDK integration, Android work, raw camera frame storage, or product implementation until the plan explicitly reaches those milestones.
