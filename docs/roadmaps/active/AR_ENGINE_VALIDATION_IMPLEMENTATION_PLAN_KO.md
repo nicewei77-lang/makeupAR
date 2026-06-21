@@ -2,11 +2,13 @@
 
 Date: 2026-06-21 KST
 
-Status: Active validation implementation plan / E1 AR Alignment complete / next gate is E2 or optional M7 re-check
+Latest status refresh: 2026-06-22 KST
+
+Status: Historical M6-E6 validation implementation plan / current boundary is E7.3 Region Precision
 
 ## 0. 현재 사용법
 
-이 문서는 `TECH_VALIDATION_TEST_PLAN.md`와 `TECH_VALIDATION_RESULT.md` 다음에 읽는 AR engine validation 작업 지시서다. 현재 루트 active 문서는 계속 아래 3개만 유지한다.
+이 문서는 M6-E6 AR engine validation 구현 이력을 보존하고, E7 작업의 배경 경계를 확인할 때만 읽는 보조 작업 지시서다. 현재 세션 진입점은 `TECH_VALIDATION_RESULT.md`의 `Current Session Snapshot`이다. 현재 루트 active 문서는 계속 아래 3개만 유지한다.
 
 - `AGENTS.md`
 - `TECH_VALIDATION_TEST_PLAN.md`
@@ -18,9 +20,11 @@ Status: Active validation implementation plan / E1 AR Alignment complete / next 
 - M7은 `Yellow / skipped by decision / risk accepted`이며 Green이 아니다.
 - M8 결과 리포트는 완료되었다.
 - E1 AR Alignment는 Green이며, 19.04초 녹화는 개정된 10초 이상 판정 영상 규칙을 충족한다.
-- M7 lifecycle risk를 수용하면 다음 작업은 E2 Trackable Lifecycle Diagnostics다.
+- E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 Preflight, E7.2 Baseline Instrumentation은 완료되었다.
+- Full E7 visual product-readiness는 아직 완료되지 않았다.
+- 현재 primary boundary는 E7.3 Region Precision sub-spike planning/validation이다.
 - lifecycle confidence를 먼저 확보해야 한다면 추가 M7 re-entry verification을 먼저 수행한다.
-- E2 전에는 region mask, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK, Android 작업을 시작하지 않는다.
+- E7.3 전에는 E7 region precision sub-spike 계획을 만들고, E7.4/E7.6/product-readiness claim으로 바로 건너뛰지 않는다.
 
 ## 1. 목적
 
@@ -86,6 +90,8 @@ Status: Active validation implementation plan / E1 AR Alignment complete / next 
 | 7 | E4 Texture Sample | 최소 질감 표현 검증 | matte lip / soft blush / shimmer eye 구분 |
 | 8 | E5 AI Feature Readiness | AI가 소비할 얼굴 feature snapshot 준비 | no-inference `FaceFeatureSnapshot` schema and sample logs |
 | 9 | E6 Engine Decision | AR engine v1 가능성 판정 | Green/Yellow/Red decision and next product boundary |
+
+위 M6-E6 항목은 현재 모두 과거 이력이다. 최신 다음 boundary와 active temporary plan은 항상 `TECH_VALIDATION_RESULT.md`의 `Current Session Snapshot`을 우선한다.
 
 ## 4. Milestone M6 - Unity -> RN Events
 
@@ -228,7 +234,7 @@ M7이 Green 또는 명확한 Yellow workaround로 정리되기 전에는 AR engi
 
 - M6/M7 evidence path가 결과 문서에 들어간다.
 - M0-M7 history가 한 표로 정리된다.
-- Next Milestone Boundary가 E1 AR Alignment로 갱신된다.
+- M8 당시에는 Next Milestone Boundary가 E1 AR Alignment로 갱신되었다. 현재 boundary는 result snapshot을 따른다.
 - visual makeup readiness가 integration Green과 분리되어 기록된다.
 - `node_modules` package framework sync와 `RNUnityView.mm` timing patch가 durable path로 정리되었거나, 남은 local caveat와 clean rebuild 영향이 Yellow workaround로 명시된다.
 
@@ -639,8 +645,9 @@ Use MediaPipe or ARCore comparison only if one of these happens:
 - Store logs under `evidence/logs/`.
 - Store screenshots under `evidence/screenshots/`.
 - Store recordings under `evidence/screen-recordings/`.
-- Decision screen recordings must be at least 10 seconds by default. If a milestone requires a specific cycle or scenario, the footage must be long enough to show the full scenario even when that exceeds 10 seconds.
-- For decision recordings, also keep metadata and representative frames/contact sheets when practical.
+- Do not save screen recordings by default.
+- Save recordings only when motion, elapsed time, or a continuous scenario is core decision evidence. If a recording is captured, it must show the required scenario clearly.
+- For decision recordings, keep metadata and representative frames/contact sheets for long-term evidence. The raw recording may be deleted after decision review or extraction unless a milestone explicitly requires keeping it.
 - Runtime console output used as decision evidence must be captured as a full stream with `tee` or an equivalent method. If only an observation summary is retained, label it as a summary artifact.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Put reusable procedures in `docs/runbooks/`.
@@ -692,10 +699,10 @@ Implement only E1:
 
 Verify on real iPhone:
 
-- Record at least 10 seconds with front face, left/right head turn, up/down movement, mouth open/closed, and face lost/recovered.
+- Capture representative evidence with front face, left/right head turn, up/down movement, mouth open/closed, and face lost/recovered. Record a short clip only if those motion/continuity checks cannot be judged from logs plus frames/contact sheet.
 - Confirm whether the overlay is aligned to face contour, eyes, and mouth.
 - Save runtime logs under `evidence/logs/`.
-- Save screenshot or screen recording under `evidence/screenshots/` or `evidence/screen-recordings/`.
+- Save representative frame/contact sheet under `evidence/screenshots/`; use `evidence/screen-recordings/` only for optional raw clips.
 
 Update:
 

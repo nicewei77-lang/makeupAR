@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Text;
 using Unity.XR.CoreUtils;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 using UnityEngine.XR.Management;
@@ -20,6 +21,8 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     [SerializeField] private bool drawDebugOverlay = true;
     [SerializeField] private bool logE1Diagnostics = true;
     [SerializeField] private bool logE2LifecycleDiagnostics = true;
+    [SerializeField] private bool logE7BaselineMetrics = true;
+    [SerializeField] private float e7MetricIntervalSeconds = 2.0f;
 
     private int lastFaceCount = -1;
     private int lastTotalTrackables = -1;
@@ -38,6 +41,14 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     private float nextLifecycleEventTime;
     private float nextFeatureSnapshotEventTime;
     private float nextLogTime;
+    private string e7RunId = string.Empty;
+    private float e7MetricWindowStartTime;
+    private int e7MetricFrameCount;
+    private float e7MetricFrameTimeTotalMs;
+    private float e7MetricWorstFrameTimeMs;
+    private bool e7SustainedSub20FpsObserved;
+    private bool e7MemoryUnavailableLogged;
+    private bool e7ThermalUnavailableLogged;
     private GUIStyle debugBoxStyle;
     private GUIStyle debugTitleStyle;
     private GUIStyle debugLabelStyle;
@@ -80,6 +91,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     {
         RefreshSceneReferences();
         RefreshFaceSupportState();
+        InitializeE7BaselineMetrics();
         LogStatus(true);
     }
 
@@ -106,6 +118,8 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
     private void Update()
     {
+        UpdateE7MetricSampler();
+
         int faceCount = CountTrackedFaces(out int totalTrackables, out string trackingStates);
         bool faceCountChanged = faceCount != lastFaceCount
             || totalTrackables != lastTotalTrackables
@@ -115,6 +129,251 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         {
             LogStatus(false);
         }
+    }
+
+    private void InitializeE7BaselineMetrics()
+    {
+        if (!string.IsNullOrWhiteSpace(e7RunId))
+        {
+            return;
+        }
+
+        e7RunId = "e7-baseline-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        e7MetricWindowStartTime = Time.unscaledTime;
+        e7MetricFrameCount = 0;
+        e7MetricFrameTimeTotalMs = 0.0f;
+        e7MetricWorstFrameTimeMs = 0.0f;
+        e7SustainedSub20FpsObserved = false;
+        LogE7ThermalUnavailableOnce();
+    }
+
+    private void UpdateE7MetricSampler()
+    {
+        if (!logE7BaselineMetrics)
+        {
+            return;
+        }
+
+        InitializeE7BaselineMetrics();
+
+        float frameTimeMs = Mathf.Max(0.0f, Time.unscaledDeltaTime * 1000.0f);
+        e7MetricFrameCount++;
+        e7MetricFrameTimeTotalMs += frameTimeMs;
+        e7MetricWorstFrameTimeMs = Mathf.Max(e7MetricWorstFrameTimeMs, frameTimeMs);
+        e7SustainedSub20FpsObserved = e7SustainedSub20FpsObserved || frameTimeMs >= 50.0f;
+
+        float elapsedSeconds = Time.unscaledTime - e7MetricWindowStartTime;
+        if (elapsedSeconds < Mathf.Max(0.5f, e7MetricIntervalSeconds)
+            || e7MetricFrameCount <= 0)
+        {
+            return;
+        }
+
+        LogE7BaselineMetricSample(elapsedSeconds);
+
+        e7MetricWindowStartTime = Time.unscaledTime;
+        e7MetricFrameCount = 0;
+        e7MetricFrameTimeTotalMs = 0.0f;
+        e7MetricWorstFrameTimeMs = 0.0f;
+        e7SustainedSub20FpsObserved = false;
+    }
+
+    private void LogE7BaselineMetricSample(float elapsedSeconds)
+    {
+        RefreshFaceSupportState();
+
+        FaceLifecycleSnapshot lifecycle = BuildLifecycleSnapshot(
+            "e7MetricSample",
+            0,
+            0,
+            0,
+            "none",
+            "none",
+            "none");
+
+        if (rnBridge == null)
+        {
+            rnBridge = FindFirstObjectByType<RNBridge>();
+        }
+
+        long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        int sampleWindowMs = Mathf.RoundToInt(elapsedSeconds * 1000.0f);
+        float averageFrameTimeMs = e7MetricFrameTimeTotalMs / Mathf.Max(1, e7MetricFrameCount);
+        float averageFps = e7MetricFrameCount / Mathf.Max(0.001f, elapsedSeconds);
+        bool sustainedSub20FpsObserved = e7SustainedSub20FpsObserved || averageFps < 20.0f;
+
+        bool memoryMetricAvailable = TryCollectMemoryMetrics(
+            out long allocatedMemoryBytes,
+            out long reservedMemoryBytes,
+            out long monoUsedMemoryBytes);
+        string memoryMetricSource = memoryMetricAvailable
+            ? "UnityEngine.Profiling.Profiler"
+            : "manual-unavailable";
+
+        if (!memoryMetricAvailable)
+        {
+            LogE7MemoryUnavailableOnce();
+        }
+
+        LogE7ThermalUnavailableOnce();
+
+        string baselineLogFields = rnBridge != null
+            ? rnBridge.BuildE7BaselineStateLogFields()
+            : " rendererMode=e3e4-baseline lookId=baseline_debug_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
+        string baselineJsonFragment = rnBridge != null
+            ? rnBridge.BuildE7BaselineStateJsonFragment()
+            : "\"rendererMode\":\"e3e4-baseline\",\"lookId\":\"baseline_debug_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
+
+        Debug.Log(
+            "[E7] metric_sample"
+            + " runId=" + e7RunId
+            + " phase=baseline"
+            + " timestampMs=" + timestampMs.ToString(CultureInfo.InvariantCulture)
+            + " deviceName=" + SanitizeLogValue(SystemInfo.deviceName)
+            + " appBuildLabel=" + SanitizeLogValue(Application.version)
+            + " unityFrameworkBuildLabel=e7.2-baseline"
+            + baselineLogFields
+            + " trackingState=" + lifecycle.TrackingState
+            + " faceCount=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + " totalTrackables=" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
+            + " activeTrackableState=" + lifecycle.Status
+            + " meshVertexCount=" + lifecycle.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+            + " meshIndexCount=" + lifecycle.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+            + " meshUvCount=" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+            + " hasStableUv=" + lifecycle.HasStableUv.ToString().ToLowerInvariant()
+            + " meshSummary=" + SanitizeLogValue(lifecycle.MeshSummary)
+            + " sampleWindowMs=" + sampleWindowMs.ToString(CultureInfo.InvariantCulture)
+            + " sampleFrameCount=" + e7MetricFrameCount.ToString(CultureInfo.InvariantCulture)
+            + " averageFps=" + averageFps.ToString("0.0", CultureInfo.InvariantCulture)
+            + " averageFrameTimeMs=" + averageFrameTimeMs.ToString("0.0", CultureInfo.InvariantCulture)
+            + " worstFrameTimeMs=" + e7MetricWorstFrameTimeMs.ToString("0.0", CultureInfo.InvariantCulture)
+            + " sustainedSub20FpsObserved=" + sustainedSub20FpsObserved.ToString().ToLowerInvariant()
+            + " memoryMetricAvailable=" + memoryMetricAvailable.ToString().ToLowerInvariant()
+            + " memoryMetricSource=" + memoryMetricSource
+            + " allocatedMemoryMb=" + FormatMegabytes(allocatedMemoryBytes)
+            + " reservedMemoryMb=" + FormatMegabytes(reservedMemoryBytes)
+            + " monoUsedMemoryMb=" + FormatMegabytes(monoUsedMemoryBytes)
+            + " memoryWarningObserved=false"
+            + " memoryMetricYellowCap=" + (!memoryMetricAvailable).ToString().ToLowerInvariant()
+            + " thermalEvidenceType=manual-device-heat"
+            + " thermalWarningObserved=false"
+            + " manualHeatObservation=not_recorded"
+            + " thermalMetricYellowCap=true");
+
+        if (rnBridge != null)
+        {
+            rnBridge.SendE7MetricSampleEvent(
+                "{"
+                + "\"type\":\"e7_metric_sample\""
+                + ",\"runId\":\"" + EscapeJsonString(e7RunId) + "\""
+                + ",\"phase\":\"baseline\""
+                + ",\"timestampMs\":" + timestampMs.ToString(CultureInfo.InvariantCulture)
+                + ",\"deviceName\":\"" + EscapeJsonString(SystemInfo.deviceName) + "\""
+                + ",\"appBuildLabel\":\"" + EscapeJsonString(Application.version) + "\""
+                + ",\"unityFrameworkBuildLabel\":\"e7.2-baseline\""
+                + "," + baselineJsonFragment
+                + ",\"trackingState\":\"" + EscapeJsonString(lifecycle.TrackingState) + "\""
+                + ",\"faceCount\":" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"totalTrackables\":" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
+                + ",\"activeTrackableState\":\"" + EscapeJsonString(lifecycle.Status) + "\""
+                + ",\"meshVertexCount\":" + lifecycle.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"meshIndexCount\":" + lifecycle.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"meshUvCount\":" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"hasStableUv\":" + lifecycle.HasStableUv.ToString().ToLowerInvariant()
+                + ",\"meshSummary\":\"" + EscapeJsonString(lifecycle.MeshSummary) + "\""
+                + ",\"sampleWindowMs\":" + sampleWindowMs.ToString(CultureInfo.InvariantCulture)
+                + ",\"sampleFrameCount\":" + e7MetricFrameCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"averageFps\":" + averageFps.ToString("0.0", CultureInfo.InvariantCulture)
+                + ",\"averageFrameTimeMs\":" + averageFrameTimeMs.ToString("0.0", CultureInfo.InvariantCulture)
+                + ",\"worstFrameTimeMs\":" + e7MetricWorstFrameTimeMs.ToString("0.0", CultureInfo.InvariantCulture)
+                + ",\"sustainedSub20FpsObserved\":" + sustainedSub20FpsObserved.ToString().ToLowerInvariant()
+                + ",\"memoryMetricAvailable\":" + memoryMetricAvailable.ToString().ToLowerInvariant()
+                + ",\"memoryMetricSource\":\"" + EscapeJsonString(memoryMetricSource) + "\""
+                + ",\"allocatedMemoryMb\":" + FormatMegabytes(allocatedMemoryBytes)
+                + ",\"reservedMemoryMb\":" + FormatMegabytes(reservedMemoryBytes)
+                + ",\"monoUsedMemoryMb\":" + FormatMegabytes(monoUsedMemoryBytes)
+                + ",\"memoryWarningObserved\":false"
+                + ",\"memoryMetricYellowCap\":" + (!memoryMetricAvailable).ToString().ToLowerInvariant()
+                + ",\"thermalEvidenceType\":\"manual-device-heat\""
+                + ",\"thermalWarningObserved\":false"
+                + ",\"manualHeatObservation\":\"not_recorded\""
+                + ",\"thermalMetricYellowCap\":true"
+                + "}");
+        }
+    }
+
+    private bool TryCollectMemoryMetrics(
+        out long allocatedMemoryBytes,
+        out long reservedMemoryBytes,
+        out long monoUsedMemoryBytes)
+    {
+        allocatedMemoryBytes = 0L;
+        reservedMemoryBytes = 0L;
+        monoUsedMemoryBytes = 0L;
+
+        try
+        {
+            allocatedMemoryBytes = Profiler.GetTotalAllocatedMemoryLong();
+            reservedMemoryBytes = Profiler.GetTotalReservedMemoryLong();
+            monoUsedMemoryBytes = Profiler.GetMonoUsedSizeLong();
+            return allocatedMemoryBytes > 0L || reservedMemoryBytes > 0L || monoUsedMemoryBytes > 0L;
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning("[E7] memory_metric_read_failed error=" + exception.Message);
+            return false;
+        }
+    }
+
+    private void LogE7MemoryUnavailableOnce()
+    {
+        if (e7MemoryUnavailableLogged)
+        {
+            return;
+        }
+
+        Debug.Log(
+            "[E7] metric_unavailable"
+            + " runId=" + e7RunId
+            + " phase=baseline"
+            + " metric=memory"
+            + " reason=Profiler_counter_unavailable_in_current_build"
+            + " memoryMetricAvailable=false"
+            + " yellowCap=true");
+        e7MemoryUnavailableLogged = true;
+    }
+
+    private void LogE7ThermalUnavailableOnce()
+    {
+        if (e7ThermalUnavailableLogged)
+        {
+            return;
+        }
+
+        Debug.Log(
+            "[E7] metric_unavailable"
+            + " runId=" + e7RunId
+            + " phase=baseline"
+            + " metric=thermal"
+            + " reason=native_thermal_api_not_configured"
+            + " thermalEvidenceType=manual-device-heat"
+            + " yellowCap=true");
+        e7ThermalUnavailableLogged = true;
+    }
+
+    private static string FormatMegabytes(long bytes)
+    {
+        return (bytes / 1048576.0).ToString("0.0", CultureInfo.InvariantCulture);
+    }
+
+    private static string SanitizeLogValue(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "none";
+        }
+
+        return value.Trim().Replace(" ", "_").Replace(";", ",");
     }
 
     private void OnGUI()

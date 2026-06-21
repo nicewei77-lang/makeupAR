@@ -103,6 +103,7 @@ const UNITY_EVENT_TYPES = [
   'face_detected',
   'face_lifecycle',
   'face_feature_snapshot',
+  'e7_metric_sample',
   'recipe_applied',
 ] as const;
 
@@ -168,6 +169,33 @@ type UnityEventPayload = {
   intensity?: number;
   feather?: number;
   blendMode?: string;
+  runId?: string;
+  rendererMode?: string;
+  lookId?: string;
+  recipeId?: string;
+  sentAtMs?: number;
+  appliedAtMs?: number;
+  appliedFrame?: number;
+  receivedAtMs?: number;
+  sampleWindowMs?: number;
+  sampleFrameCount?: number;
+  averageFps?: number;
+  averageFrameTimeMs?: number;
+  worstFrameTimeMs?: number;
+  sustainedSub20FpsObserved?: boolean;
+  memoryMetricAvailable?: boolean;
+  memoryMetricSource?: string;
+  allocatedMemoryMb?: number;
+  reservedMemoryMb?: number;
+  monoUsedMemoryMb?: number;
+  memoryWarningObserved?: boolean;
+  memoryMetricYellowCap?: boolean;
+  thermalEvidenceType?: string;
+  thermalWarningObserved?: boolean;
+  manualHeatObservation?: string;
+  thermalMetricYellowCap?: boolean;
+  visualLatencyConfirmedByRecording?: boolean;
+  visualLatencyObservation?: string;
   meshTriangles?: number;
   usedFallback?: boolean;
   [key: string]: unknown;
@@ -176,6 +204,7 @@ type UnityEventPayload = {
 type UnityEventRecord = {
   id: number;
   receivedAt: string;
+  receivedAtMs: number;
   rawMessage: string;
   displayText: string;
   parsed?: UnityEventPayload;
@@ -195,7 +224,7 @@ function App() {
     setUnityEntryCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[E5] unity_screen_open', `entry=${nextCount}`);
+      console.log('[E7] unity_screen_open', `entry=${nextCount}`);
 
       return nextCount;
     });
@@ -206,7 +235,7 @@ function App() {
     setUnityExitCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[E5] unity_screen_close', `exit=${nextCount}`);
+      console.log('[E7] unity_screen_close', `exit=${nextCount}`);
 
       return nextCount;
     });
@@ -290,8 +319,8 @@ function HomeScreen({
       ]}
     >
       <View style={styles.homeBody}>
-        <Text style={styles.kicker}>E5</Text>
-        <Text style={styles.title}>AI Feature Readiness Snapshot</Text>
+        <Text style={styles.kicker}>E7.2</Text>
+        <Text style={styles.title}>Baseline Instrumentation</Text>
         <Text style={styles.statusLabel}>Validation status</Text>
         <Text style={styles.statusText}>
           {`Ready for entry #${nextEntryCount}. Completed exits ${completedCycles}/3.`}
@@ -341,25 +370,32 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   useEffect(() => {
     console.log(
-      '[E5] unity_screen_mounted',
+      '[E7] unity_screen_mounted',
       `entry=${entryCount}`,
       `mounted=${mountedAt}`,
     );
 
     return () => {
-      console.log('[E5] unity_screen_unmounted', `entry=${entryCount}`);
+      console.log('[E7] unity_screen_unmounted', `entry=${entryCount}`);
     };
   }, [entryCount, mountedAt]);
 
   const handleClose = useCallback(() => {
-    console.log('[E5] unity_screen_close_pressed', `entry=${entryCount}`);
+    console.log('[E7] unity_screen_close_pressed', `entry=${entryCount}`);
     onClose();
   }, [entryCount, onClose]);
 
   const buildRecipeJson = useCallback(
-    (region: RecipeRegion, recipe: RegionRecipe) =>
-      JSON.stringify({
+    (region: RecipeRegion, recipe: RegionRecipe, sentAtMs: number) => {
+      const recipeId = `e7-baseline-${region}-${recipe.textureSample.name}-${Math.round(
+        sentAtMs,
+      )}`;
+
+      return JSON.stringify({
         version: 1,
+        recipeId,
+        lookId: 'baseline_debug_mask',
+        sentAtMs,
         region,
         texture: recipe.textureSample.name,
         sample: recipe.textureSample.name,
@@ -367,6 +403,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         layers: [
           {
             id: `${region}-${recipe.textureSample.name}`,
+            recipeId,
+            lookId: 'baseline_debug_mask',
+            sentAtMs,
             region,
             layer: region,
             color: recipe.color.color,
@@ -380,30 +419,61 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             enabled: true,
           },
         ],
-      }),
+      });
+    },
     [],
   );
 
   const postRecipe = useCallback(
     (region: RecipeRegion, recipe: RegionRecipe) => {
-      const recipeJson = buildRecipeJson(region, recipe);
+      const sentAtMs = Date.now();
+      const recipeJson = buildRecipeJson(region, recipe, sentAtMs);
       console.log(
-        '[E4] rn_texture_recipe_post',
+        '[E7] rn_texture_recipe_post',
+        'lookId=baseline_debug_mask',
         `region=${region}`,
         `color=${recipe.color.color}`,
         `opacity=${recipe.opacity}`,
         `texture=${recipe.textureSample.name}`,
         `mode=${recipe.textureSample.textureMode}`,
         `intensity=${recipe.textureSample.intensity}`,
+        `sentAtMs=${sentAtMs}`,
       );
       unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
     },
     [buildRecipeJson],
   );
 
+  const postRecipeAck = useCallback(
+    (payload: UnityEventPayload, receivedAtMs: number) => {
+      const ackJson = JSON.stringify({
+        type: 'recipe_ack',
+        runId: payload.runId ?? 'e7-baseline',
+        phase: payload.phase ?? 'baseline',
+        rendererMode: payload.rendererMode ?? 'e3e4-baseline',
+        lookId: payload.lookId ?? 'baseline_debug_mask',
+        recipeId: payload.recipeId ?? 'none',
+        region: payload.region ?? payload.appliedRegion ?? 'none',
+        texture: payload.texture ?? payload.sample ?? 'none',
+        sentAtMs: readNumber(payload.sentAtMs) ?? 0,
+        appliedAtMs: readNumber(payload.appliedAtMs) ?? 0,
+        appliedFrame: readNumber(payload.appliedFrame) ?? 0,
+        receivedAtMs,
+        visualLatencyConfirmedByRecording:
+          payload.visualLatencyConfirmedByRecording ?? false,
+        visualLatencyObservation:
+          payload.visualLatencyObservation ?? 'pending_recording_review',
+      });
+
+      unityRef.current?.postMessage('RNBridge', 'LogRecipeAck', ackJson);
+    },
+    [],
+  );
+
   const handleUnityMessage = useCallback((event: UnityMessageEvent) => {
     const rawMessage = String(event.nativeEvent.message ?? '');
     const receivedAt = new Date().toLocaleTimeString();
+    const receivedAtMs = Date.now();
     let record: UnityEventRecord;
 
     try {
@@ -418,19 +488,28 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       }
 
       const parsed = parsedMessage as UnityEventPayload;
+      parsed.receivedAtMs = receivedAtMs;
       record = {
         id: Date.now(),
         receivedAt,
+        receivedAtMs,
         rawMessage,
         parsed,
         displayText: formatUnityEvent(parsed),
       };
 
+      if (parsed.type === 'recipe_applied') {
+        logE7RecipeLatency(parsed, receivedAtMs);
+        postRecipeAck(parsed, receivedAtMs);
+      }
+
       console.log(
         parsed.type === 'face_feature_snapshot'
           ? '[E5] rn_face_feature_snapshot_received'
+          : parsed.type === 'e7_metric_sample'
+          ? '[E7] rn_metric_sample_received'
           : parsed.type === 'recipe_applied'
-          ? '[E4] rn_unity_message_received'
+          ? '[E7] rn_recipe_applied_received'
           : parsed.type === 'face_lifecycle'
           ? '[E2] rn_unity_message_received'
           : '[M6] rn_unity_message_received',
@@ -458,6 +537,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       record = {
         id: Date.now(),
         receivedAt,
+        receivedAtMs,
         rawMessage,
         parseError,
         displayText: `parse_failed ${parseError}`,
@@ -470,7 +550,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     setUnityEventHistory(currentHistory =>
       [record, ...currentHistory].slice(0, UNITY_EVENT_HISTORY_LIMIT),
     );
-  }, []);
+  }, [postRecipeAck]);
 
   useEffect(() => {
     const initialPostTimer = setTimeout(() => {
@@ -595,6 +675,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           <FaceFeatureSnapshotPanel
             event={unityEventStatus.face_feature_snapshot?.parsed}
             receivedAt={unityEventStatus.face_feature_snapshot?.receivedAt}
+          />
+          <E7StatusPanel
+            currentRegion={selectedRegion}
+            metricRecord={unityEventStatus.e7_metric_sample}
+            recipeRecord={unityEventStatus.recipe_applied}
           />
           <View style={styles.debugStatus}>
             <Text style={styles.debugSubLabel}>Last by type</Text>
@@ -874,6 +959,88 @@ function FaceFeatureSnapshotPanel({
   );
 }
 
+type E7StatusPanelProps = {
+  currentRegion: RecipeRegion;
+  metricRecord?: UnityEventRecord;
+  recipeRecord?: UnityEventRecord;
+};
+
+function E7StatusPanel({
+  currentRegion,
+  metricRecord,
+  recipeRecord,
+}: E7StatusPanelProps) {
+  const metric = metricRecord?.parsed;
+  const recipe = recipeRecord?.parsed;
+  const latencyMs = getRecipeAckLatencyMs(recipe, recipeRecord?.receivedAtMs);
+
+  return (
+    <View style={styles.e7Panel}>
+      <View style={styles.e7Header}>
+        <Text style={styles.e7Label}>E7 baseline</Text>
+        <Text
+          style={[
+            styles.e7Badge,
+            metric?.type === 'e7_metric_sample' && styles.e7BadgeGreen,
+          ]}
+        >
+          {metric ? 'metric' : 'waiting'}
+        </Text>
+      </View>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `look=${String(metric.lookId ?? 'baseline_debug_mask')} mode=${String(
+              metric.rendererMode ?? 'e3e4-baseline',
+            )} region=${String(metric.region ?? currentRegion)}`
+          : `look=baseline_debug_mask mode=e3e4-baseline region=${currentRegion}`}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `fps=${formatMetricNumber(
+              metric.averageFps,
+            )} frame=${formatMetricNumber(
+              metric.averageFrameTimeMs,
+            )}ms worst=${formatMetricNumber(
+              metric.worstFrameTimeMs,
+            )}ms sub20=${String(metric.sustainedSub20FpsObserved ?? false)}`
+          : 'fps/frame-time waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `memory=${String(
+              metric.memoryMetricAvailable ?? false,
+            )} alloc=${formatMetricNumber(
+              metric.allocatedMemoryMb,
+            )}MB reserved=${formatMetricNumber(
+              metric.reservedMemoryMb,
+            )}MB`
+          : 'memory waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `thermal=${String(
+              metric.thermalEvidenceType ?? 'manual-device-heat',
+            )} heat=${String(
+              metric.manualHeatObservation ?? 'not_recorded',
+            )} warning=${String(metric.thermalWarningObserved ?? false)}`
+          : 'thermal waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {recipe
+          ? `latency=${formatMetricNumber(
+              latencyMs,
+            )}ms sent=${formatMetricNumber(
+              recipe.sentAtMs,
+              0,
+            )} appliedFrame=${String(recipe.appliedFrame ?? 'n/a')} ${
+              recipeRecord?.receivedAt ?? ''
+            }`
+          : 'latency waiting'}
+      </Text>
+    </View>
+  );
+}
+
 function formatUnityEvent(event: UnityEventPayload) {
   switch (event.type) {
     case 'unity_initialized':
@@ -886,6 +1053,8 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `face_lifecycle ${formatFaceLifecycleSummary(event)}`;
     case 'face_feature_snapshot':
       return `face_feature_snapshot ${formatFaceFeatureSnapshotSummary(event)}`;
+    case 'e7_metric_sample':
+      return `e7_metric_sample ${formatE7MetricSummary(event)}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -930,9 +1099,78 @@ function formatUnityEventTypeStatus(
       return `face_feature_snapshot: ${formatFaceFeatureSnapshotSummary(
         parsed,
       )} ${event.receivedAt}`;
+    case 'e7_metric_sample':
+      return `e7_metric_sample: ${formatE7MetricSummary(parsed)} ${
+        event.receivedAt
+      }`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7MetricSummary(event: UnityEventPayload) {
+  return `fps=${formatMetricNumber(
+    event.averageFps,
+  )} frame=${formatMetricNumber(
+    event.averageFrameTimeMs,
+  )}ms mem=${String(event.memoryMetricAvailable ?? false)} thermal=${String(
+    event.thermalEvidenceType ?? 'n/a',
+  )} look=${String(event.lookId ?? 'baseline_debug_mask')}`;
+}
+
+function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
+  const sentAtMs = readNumber(event.sentAtMs);
+  const appliedAtMs = readNumber(event.appliedAtMs);
+  const sendToAckLatencyMs =
+    sentAtMs === undefined ? undefined : receivedAtMs - sentAtMs;
+
+  console.log(
+    '[E7] recipe_latency',
+    `runId=${String(event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`)}`,
+    'phase=baseline',
+    `timestampMs=${receivedAtMs}`,
+    `rendererMode=${String(event.rendererMode ?? 'e3e4-baseline')}`,
+    `lookId=${String(event.lookId ?? 'baseline_debug_mask')}`,
+    `recipeId=${String(event.recipeId ?? 'none')}`,
+    `region=${String(event.region ?? event.layer ?? 'none')}`,
+    `texture=${String(event.texture ?? event.sample ?? 'none')}`,
+    `sentAtMs=${formatMetricNumber(sentAtMs, 0)}`,
+    `appliedAtMs=${formatMetricNumber(appliedAtMs, 0)}`,
+    `appliedFrame=${String(event.appliedFrame ?? 'n/a')}`,
+    `receivedAtMs=${receivedAtMs}`,
+    `sendToAckLatencyMs=${formatMetricNumber(sendToAckLatencyMs)}`,
+    'visualLatencyConfirmedByRecording=false',
+    `visualLatencyObservation=${String(
+      event.visualLatencyObservation ?? 'pending_recording_review',
+    )}`,
+  );
+}
+
+function getRecipeAckLatencyMs(
+  event: UnityEventPayload | undefined,
+  receivedAtMs: number | undefined,
+) {
+  const sentAtMs = readNumber(event?.sentAtMs);
+  if (sentAtMs === undefined || receivedAtMs === undefined) {
+    return undefined;
+  }
+
+  return receivedAtMs - sentAtMs;
+}
+
+function readNumber(value: unknown) {
+  return typeof value === 'number' && Number.isFinite(value)
+    ? value
+    : undefined;
+}
+
+function formatMetricNumber(value: unknown, fractionDigits = 1) {
+  const numberValue = readNumber(value);
+  if (numberValue === undefined) {
+    return 'n/a';
+  }
+
+  return numberValue.toFixed(fractionDigits);
 }
 
 function formatFaceFeatureSnapshotSummary(event: UnityEventPayload) {
@@ -991,6 +1229,7 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
   }
 
   const texture = String(event.texture ?? event.sample ?? 'none');
+  const latencyMs = getRecipeAckLatencyMs(event, event.receivedAtMs);
 
   return `recipe_applied region=${String(
     event.region ?? event.layer,
@@ -1002,7 +1241,9 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.applied ?? false,
   )} faceCount=${String(event.faceCount ?? 'n/a')} meshTriangles=${String(
     event.meshTriangles ?? 'n/a',
-  )} fallback=${String(event.usedFallback ?? false)}`;
+  )} fallback=${String(event.usedFallback ?? false)} latency=${formatMetricNumber(
+    latencyMs,
+  )}ms`;
 }
 
 function formatFaceTrackingDetails(event: UnityEventPayload) {
@@ -1216,7 +1457,7 @@ const styles = StyleSheet.create({
   debugPanel: {
     alignSelf: 'center',
     width: '84%',
-    maxHeight: 390,
+    maxHeight: 500,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
     paddingHorizontal: 10,
@@ -1329,6 +1570,47 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(22, 101, 52, 0.82)',
   },
   snapshotText: {
+    color: '#E5E7EB',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0,
+  },
+  e7Panel: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 2,
+  },
+  e7Header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  e7Label: {
+    color: '#FBCFE8',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  e7Badge: {
+    color: '#E5E7EB',
+    backgroundColor: 'rgba(75, 85, 99, 0.82)',
+    borderRadius: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  e7BadgeGreen: {
+    color: '#DCFCE7',
+    backgroundColor: 'rgba(22, 101, 52, 0.82)',
+  },
+  e7Text: {
     color: '#E5E7EB',
     fontSize: 10,
     lineHeight: 14,

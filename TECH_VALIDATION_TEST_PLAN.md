@@ -606,8 +606,8 @@ makeupAR/
 - 세션별 계획서(`M*_..._PLAN.md`)는 필요한 세션에서만 임시로 만들고, 세션 완료 후 핵심 결과를 `TECH_VALIDATION_RESULT.md`에 흡수한 뒤 삭제한다.
 - 반복 실행 절차만 남길 필요가 있으면 `docs/runbooks/`에 둔다.
 - 증거 파일은 `evidence/logs/`, `evidence/screenshots/`, `evidence/screen-recordings/` 아래에 보관하고, 결과 문서에는 workspace 밖의 임시 경로를 남기지 않는다.
-- Green/Yellow/Red 판정에 쓰는 화면 녹화는 기본적으로 10초 이상이어야 한다. 단, M7처럼 특정 cycle/scenario를 검증하는 milestone은 10초보다 길더라도 요구 시나리오 전체가 영상에 보여야 한다.
-- 판정용 화면 녹화는 가능하면 metadata 로그와 대표 frame/contact sheet를 함께 남긴다.
+- 기본 정책은 화면 녹화를 저장하지 않는 것이다. 녹화는 움직임, 시간 경과, 연속 scenario 자체가 핵심 판정 근거일 때만 저장한다.
+- 판정용 화면 녹화를 저장할 때는 scenario를 충분히 보여야 하며, 원본 장기보관 대신 metadata 로그, 대표 frame, contact sheet를 우선 남긴다. 원본 녹화는 필요한 판정/추출이 끝나면 삭제할 수 있다.
 - runtime console output을 판정 근거로 쓸 때는 `tee` 등으로 실제 콘솔 스트림을 `evidence/logs/`에 저장한다. 원본 로그가 아니라 관찰 요약만 남긴 경우에는 summary artifact라고 명확히 표시한다.
 
 ## 18. 핵심 리스크

@@ -1,0 +1,85 @@
+# Local Workspace Cleanup Runbook
+
+## Purpose
+
+Use this runbook when the local `makeupAR` workspace is low on disk space but the next validation session should still start quickly.
+
+Default policy: use the `balanced` cleanup profile. It removes large reproducible generated artifacts and preserves durable evidence plus speed-critical dependency caches.
+
+Video policy: do not save screen recordings by default. Record only when motion, elapsed time, or a continuous scenario is core evidence. If a raw recording is captured, extract metadata, representative frames, or a contact sheet and delete the raw recording when it is no longer needed.
+
+## When To Run
+
+Run balanced cleanup when:
+
+- `du -h -d 1 .` shows the workspace is dominated by generated artifacts.
+- `evidence/derived-data/` contains old Xcode derived-data snapshots from previous UnityFramework builds.
+- `unity-builds/` or `rn/MakeupARValidation/unity/` exists from a previous build and the next session can regenerate UnityFramework.
+
+Do not run cleanup in the middle of an active Unity/RN build.
+
+## Command
+
+Preview first:
+
+```bash
+bash scripts/cleanup_local_generated.sh --profile balanced --dry-run
+```
+
+Apply only after reviewing the dry-run output:
+
+```bash
+bash scripts/cleanup_local_generated.sh --profile balanced --apply
+```
+
+## Balanced Cleanup Removes
+
+- `evidence/derived-data/`
+- `unity-builds/`
+- `rn/MakeupARValidation/unity/`
+- `rn/MakeupARValidation/ios/build/`
+- repository-local `.DS_Store` files
+
+The script refuses to remove a target if Git reports it as tracked or not ignored.
+
+## Balanced Cleanup Preserves
+
+- `evidence/logs/`
+- `evidence/screenshots/`
+- `evidence/screen-recordings/`
+- `rn/MakeupARValidation/node_modules/`
+- `rn/MakeupARValidation/ios/Pods/`
+- `unity/MakeupARUnityValidation/Library/`
+
+Keep these by default because they either contain milestone evidence or avoid expensive reinstall/reimport work. `balanced` cleanup does not delete screen recordings automatically; review raw recordings manually after durable metadata/contact sheets/representative frames exist.
+
+## Optional Manual Video Pruning
+
+Before deleting a raw recording, confirm that `TECH_VALIDATION_RESULT.md` points to durable replacement evidence such as:
+
+- runtime log or summary metadata under `evidence/logs/`
+- representative frame under `evidence/screenshots/`
+- contact sheet under `evidence/screenshots/`
+
+Do not delete a raw recording if a current milestone explicitly requires the original video to remain as decision evidence.
+
+## After Cleanup
+
+The next real-device Unity/RN validation session must regenerate UnityFramework before building the RN iOS app:
+
+```bash
+bash scripts/build_m3_unityframework.sh
+```
+
+Then run the RN iOS app from `rn/MakeupARValidation` according to `AGENTS.md`.
+
+## Deep Cleanup
+
+Deep cleanup of `node_modules`, iOS `Pods`, or Unity `Library` is not part of the default workflow.
+
+Use it only when disk pressure remains severe after balanced cleanup and the session can afford:
+
+- npm install time
+- CocoaPods install time
+- Unity asset/package reimport time
+- reapplying or making durable any package-local bridge caveat such as `RNUnityView.mm`

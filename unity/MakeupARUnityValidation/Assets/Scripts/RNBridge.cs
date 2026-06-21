@@ -15,6 +15,9 @@ public sealed class RNBridge : MonoBehaviour
     private sealed class RecipePayload
     {
         public int version;
+        public string recipeId;
+        public string lookId;
+        public double sentAtMs;
         public string region;
         public string layer;
         public string color;
@@ -32,6 +35,9 @@ public sealed class RNBridge : MonoBehaviour
     private sealed class RecipeLayerPayload
     {
         public string id;
+        public string recipeId;
+        public string lookId;
+        public double sentAtMs;
         public string region;
         public string layer;
         public string color;
@@ -45,6 +51,25 @@ public sealed class RNBridge : MonoBehaviour
         public bool enabled;
     }
 
+    [Serializable]
+    private sealed class RecipeAckPayload
+    {
+        public string type;
+        public string runId;
+        public string phase;
+        public string rendererMode;
+        public string lookId;
+        public string recipeId;
+        public string region;
+        public string texture;
+        public double sentAtMs;
+        public double appliedAtMs;
+        public int appliedFrame;
+        public double receivedAtMs;
+        public bool visualLatencyConfirmedByRecording;
+        public string visualLatencyObservation;
+    }
+
     private struct ParsedRecipeLayer
     {
         public string Id;
@@ -53,6 +78,9 @@ public sealed class RNBridge : MonoBehaviour
         public string ColorHex;
         public Color Color;
         public float Opacity;
+        public string RecipeId;
+        public string LookId;
+        public double SentAtMs;
         public string TextureSample;
         public string TextureMode;
         public float Intensity;
@@ -66,6 +94,8 @@ public sealed class RNBridge : MonoBehaviour
         public string Region = string.Empty;
         public bool Enabled;
         public bool Applied;
+        public string ColorHex = string.Empty;
+        public float Opacity;
         public string TextureSample = string.Empty;
         public string TextureMode = string.Empty;
         public string BlendMode = string.Empty;
@@ -158,9 +188,11 @@ public sealed class RNBridge : MonoBehaviour
                     + " blendMode=" + layer.BlendMode);
 
                 E3RegionMaskOverlay.RegionApplyResult result = ApplyRegionLayer(layer);
+                long appliedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+                int appliedFrame = Time.frameCount;
                 RememberRegionFeatureState(layer, result);
-                LogRecipeApplied("message", layer, result);
-                SendRecipeAppliedEvent(layer, result);
+                LogRecipeApplied("message", layer, result, appliedAtMs, appliedFrame);
+                SendRecipeAppliedEvent(layer, result, appliedAtMs, appliedFrame);
             }
         }
         catch (Exception exception)
@@ -196,6 +228,59 @@ public sealed class RNBridge : MonoBehaviour
     public void SendFaceFeatureSnapshotEvent(string json)
     {
         SendUnityEvent(json, "[E5]");
+    }
+
+    public void SendE7MetricSampleEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
+    public void LogRecipeAck(string json)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                throw new ArgumentException("Recipe ack JSON is empty.");
+            }
+
+            RecipeAckPayload ack = JsonUtility.FromJson<RecipeAckPayload>(json);
+            if (ack == null)
+            {
+                throw new ArgumentException("Recipe ack JSON did not parse into a payload.");
+            }
+
+            double sendToAckLatencyMs = CalculateLatencyMs(ack.sentAtMs, ack.receivedAtMs);
+            double unityApplyLatencyMs = CalculateLatencyMs(ack.sentAtMs, ack.appliedAtMs);
+            double unityToRnReceiveLatencyMs = CalculateLatencyMs(ack.appliedAtMs, ack.receivedAtMs);
+
+            Debug.Log(
+                "[E7] recipe_latency"
+                + " source=rn_ack"
+                + " runId=" + NormalizeOptional(ack.runId)
+                + " phase=" + NormalizeOptional(ack.phase)
+                + " timestampMs=" + ack.receivedAtMs.ToString("0", CultureInfo.InvariantCulture)
+                + " rendererMode=" + NormalizeOptional(ack.rendererMode)
+                + " lookId=" + NormalizeOptional(ack.lookId)
+                + " recipeId=" + NormalizeOptional(ack.recipeId)
+                + " region=" + NormalizeOptional(ack.region)
+                + " texture=" + NormalizeOptional(ack.texture)
+                + " sentAtMs=" + ack.sentAtMs.ToString("0", CultureInfo.InvariantCulture)
+                + " appliedAtMs=" + ack.appliedAtMs.ToString("0", CultureInfo.InvariantCulture)
+                + " appliedFrame=" + ack.appliedFrame.ToString(CultureInfo.InvariantCulture)
+                + " receivedAtMs=" + ack.receivedAtMs.ToString("0", CultureInfo.InvariantCulture)
+                + " sendToAckLatencyMs=" + sendToAckLatencyMs.ToString("0", CultureInfo.InvariantCulture)
+                + " unityApplyLatencyMs=" + unityApplyLatencyMs.ToString("0", CultureInfo.InvariantCulture)
+                + " unityToRnReceiveLatencyMs=" + unityToRnReceiveLatencyMs.ToString("0", CultureInfo.InvariantCulture)
+                + " visualLatencyConfirmedByRecording="
+                + ack.visualLatencyConfirmedByRecording.ToString().ToLowerInvariant()
+                + " visualLatencyObservation="
+                + NormalizeOptional(ack.visualLatencyObservation));
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError("[E7] recipe_latency_ack_failed raw=" + json + " error=" + exception.Message);
+        }
     }
 
     public string BuildFaceFeatureRegionSnapshotJsonFragment()
@@ -270,6 +355,8 @@ public sealed class RNBridge : MonoBehaviour
             Region = layer.Region,
             Enabled = layer.Enabled,
             Applied = result.Applied,
+            ColorHex = layer.ColorHex,
+            Opacity = layer.Opacity,
             TextureSample = result.TextureSample,
             TextureMode = result.TextureMode,
             BlendMode = result.BlendMode,
@@ -389,10 +476,78 @@ public sealed class RNBridge : MonoBehaviour
         return "{" + string.Join(",", regions) + "}";
     }
 
+    public string BuildE7BaselineStateLogFields()
+    {
+        RegionFeatureState state = GetLatestActiveRegionFeatureState();
+        string region = state != null ? state.Region : "none";
+        string activeRegions = BuildActiveRegionSummary();
+        string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
+            ? state.TextureSample
+            : "none";
+        string colorHex = state != null && !string.IsNullOrWhiteSpace(state.ColorHex)
+            ? state.ColorHex
+            : "none";
+        float opacity = state != null ? state.Opacity : 0.0f;
+
+        return " rendererMode=e3e4-baseline"
+            + " lookId=baseline_debug_mask"
+            + " region=" + region
+            + " activeRegions=" + activeRegions
+            + " texture=" + textureSample
+            + " sample=" + textureSample
+            + " color=" + colorHex
+            + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    public string BuildE7BaselineStateJsonFragment()
+    {
+        RegionFeatureState state = GetLatestActiveRegionFeatureState();
+        string region = state != null ? state.Region : "none";
+        string activeRegions = BuildActiveRegionSummary();
+        string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
+            ? state.TextureSample
+            : "none";
+        string colorHex = state != null && !string.IsNullOrWhiteSpace(state.ColorHex)
+            ? state.ColorHex
+            : "none";
+        float opacity = state != null ? state.Opacity : 0.0f;
+
+        return "\"rendererMode\":\"e3e4-baseline\""
+            + ",\"lookId\":\"baseline_debug_mask\""
+            + ",\"region\":\"" + EscapeJsonString(region) + "\""
+            + ",\"activeRegions\":\"" + EscapeJsonString(activeRegions) + "\""
+            + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
+            + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
+            + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
+            + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture);
+    }
+
+    private RegionFeatureState GetLatestActiveRegionFeatureState()
+    {
+        RegionFeatureState latest = null;
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                || !state.Enabled)
+            {
+                continue;
+            }
+
+            if (latest == null || state.LastUpdatedMs > latest.LastUpdatedMs)
+            {
+                latest = state;
+            }
+        }
+
+        return latest;
+    }
+
     private void LogRecipeApplied(
         string source,
         ParsedRecipeLayer layer,
-        E3RegionMaskOverlay.RegionApplyResult result)
+        E3RegionMaskOverlay.RegionApplyResult result,
+        long appliedAtMs,
+        int appliedFrame)
     {
         string applied = result.Applied ? "true" : "false";
         Debug.Log(
@@ -413,11 +568,32 @@ public sealed class RNBridge : MonoBehaviour
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant());
+
+        Debug.Log(
+            "[E7] recipe_latency"
+            + " source=unity_applied"
+            + " runId=e7-baseline-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            + " phase=baseline"
+            + " timestampMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
+            + " rendererMode=e3e4-baseline"
+            + " lookId=" + layer.LookId
+            + " recipeId=" + layer.RecipeId
+            + " region=" + layer.Region
+            + " texture=" + layer.TextureSample
+            + " sentAtMs=" + layer.SentAtMs.ToString("0", CultureInfo.InvariantCulture)
+            + " appliedAtMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
+            + " appliedFrame=" + appliedFrame.ToString(CultureInfo.InvariantCulture)
+            + " receivedAtMs=0"
+            + " sendToAckLatencyMs=0"
+            + " visualLatencyConfirmedByRecording=false"
+            + " visualLatencyObservation=pending_recording_review");
     }
 
     private void SendRecipeAppliedEvent(
         ParsedRecipeLayer layer,
-        E3RegionMaskOverlay.RegionApplyResult result)
+        E3RegionMaskOverlay.RegionApplyResult result,
+        long appliedAtMs,
+        int appliedFrame)
     {
         SendUnityEvent(
             "{\"type\":\"recipe_applied\",\"region\":\""
@@ -438,6 +614,19 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(layer.BlendMode)
             + "\",\"applied\":"
             + result.Applied.ToString().ToLowerInvariant()
+            + ",\"rendererMode\":\"e3e4-baseline\""
+            + ",\"lookId\":\""
+            + EscapeJsonString(layer.LookId)
+            + "\",\"recipeId\":\""
+            + EscapeJsonString(layer.RecipeId)
+            + "\",\"sentAtMs\":"
+            + layer.SentAtMs.ToString("0", CultureInfo.InvariantCulture)
+            + ",\"appliedAtMs\":"
+            + appliedAtMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"appliedFrame\":"
+            + appliedFrame.ToString(CultureInfo.InvariantCulture)
+            + ",\"visualLatencyConfirmedByRecording\":false"
+            + ",\"visualLatencyObservation\":\"pending_recording_review\""
             + ",\"faceCount\":"
             + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshTriangles\":"
@@ -463,7 +652,7 @@ public sealed class RNBridge : MonoBehaviour
         {
             for (int index = 0; index < recipe.layers.Length; index++)
             {
-                layers.Add(ParseRecipeLayer(recipe.layers[index], index));
+                layers.Add(ParseRecipeLayer(recipe.layers[index], recipe, index));
             }
         }
         else
@@ -474,7 +663,7 @@ public sealed class RNBridge : MonoBehaviour
         return layers;
     }
 
-    private static ParsedRecipeLayer ParseRecipeLayer(RecipeLayerPayload layer, int index)
+    private static ParsedRecipeLayer ParseRecipeLayer(RecipeLayerPayload layer, RecipePayload recipe, int index)
     {
         if (layer == null)
         {
@@ -499,6 +688,9 @@ public sealed class RNBridge : MonoBehaviour
             ColorHex = colorHex,
             Color = parsedColor,
             Opacity = opacity,
+            RecipeId = NormalizeRecipeId(layer.recipeId, recipe.recipeId, region, index),
+            LookId = NormalizeLookId(layer.lookId, recipe.lookId),
+            SentAtMs = NormalizeSentAtMs(layer.sentAtMs, recipe.sentAtMs),
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(layer.textureMode),
             Intensity = NormalizeIntensity(layer.intensity),
@@ -528,6 +720,9 @@ public sealed class RNBridge : MonoBehaviour
             ColorHex = colorHex,
             Color = parsedColor,
             Opacity = opacity,
+            RecipeId = NormalizeRecipeId(recipe.recipeId, string.Empty, region, 0),
+            LookId = NormalizeLookId(recipe.lookId, string.Empty),
+            SentAtMs = NormalizeSentAtMs(recipe.sentAtMs, 0.0),
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(recipe.textureMode),
             Intensity = NormalizeIntensity(recipe.intensity),
@@ -560,6 +755,46 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         return color.Trim();
+    }
+
+    private static string NormalizeRecipeId(string preferred, string fallback, string region, int index)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            return fallback.Trim();
+        }
+
+        return "e7-baseline-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string NormalizeLookId(string preferred, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            return fallback.Trim();
+        }
+
+        return "baseline_debug_mask";
+    }
+
+    private static double NormalizeSentAtMs(double preferred, double fallback)
+    {
+        if (preferred > 0.0)
+        {
+            return preferred;
+        }
+
+        return fallback > 0.0 ? fallback : 0.0;
     }
 
     private static string NormalizeTextureSample(string region, string texture, string sample)
@@ -636,6 +871,16 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         throw new ArgumentException("Unsupported E4 blend mode: " + candidate);
+    }
+
+    private static double CalculateLatencyMs(double startMs, double endMs)
+    {
+        if (startMs <= 0.0 || endMs <= 0.0)
+        {
+            return 0.0;
+        }
+
+        return Math.Max(0.0, endMs - startMs);
     }
 
     private static string NormalizeOptional(string value)

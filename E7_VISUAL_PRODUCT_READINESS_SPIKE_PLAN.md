@@ -2,7 +2,7 @@
 
 Date: 2026-06-22 KST
 
-Status: Temporary session implementation plan / no implementation evidence yet
+Status: Temporary E7 master plan / E7.0-E7.2 complete / current boundary is E7.3 Region Precision
 
 ## 0. Purpose
 
@@ -16,18 +16,19 @@ E7 must not claim product-v1 readiness. A Green E7 means the renderer path is st
 
 ## 1. Required Reading
 
-Read in this order before implementing E7:
+Default E7 session reading is intentionally narrow:
 
 1. `AGENTS.md`
-2. `TECH_VALIDATION_TEST_PLAN.md`
-3. `TECH_VALIDATION_RESULT.md`
-4. `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`
-5. `docs/roadmaps/research/AR_ENGINE_RESEARCH_REPORT_KO.md`
-6. `docs/roadmaps/research/BEAUTY_AR_ENGINE_BENCHMARK_REPORT_KO.md`
-7. `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_GPT.md`
-8. `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_CLAUDE.md`
-9. `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_GPT.md`
-10. `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_CLAUDE.md`
+2. `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`
+3. The current E7 section in this plan
+
+Lazy-load only when the current task needs it:
+
+- Contract or evidence rule check: relevant section of `TECH_VALIDATION_TEST_PLAN.md`
+- E7.3 region precision: `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_GPT.md` and `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_CLAUDE.md`
+- E7.4/E7.5 cosmetic rendering: `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_GPT.md` and `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_CLAUDE.md`
+- E7.6 performance decision: `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`
+- Fallback, SDK, licensing, or architecture comparison: `docs/roadmaps/research/AR_ENGINE_RESEARCH_REPORT_KO.md` and `docs/roadmaps/research/BEAUTY_AR_ENGINE_BENCHMARK_REPORT_KO.md`
 
 ## 2. AGENTS.md Operating Guardrails
 
@@ -82,8 +83,9 @@ Known build caveats:
   - `evidence/logs/`
   - `evidence/screenshots/`
   - `evidence/screen-recordings/`
-- Decision screen recordings must be at least 10 seconds unless the user explicitly accepts a shorter artifact.
-- Scenario- or cycle-based milestones still need enough footage to show the required scenario.
+- Do not save screen recordings by default.
+- Save recordings only when motion, elapsed time, or a continuous scenario is core evidence.
+- When a recording is captured, keep metadata/contact sheets/representative frames for long-term evidence and delete the raw recording when it is no longer needed.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method.
 - Summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts.
@@ -109,12 +111,16 @@ Authoritative current state comes from `TECH_VALIDATION_RESULT.md`.
 - E4 Texture Sample: Green for validation only; samples are procedural/debug quality.
 - E5 FaceFeatureSnapshot: Green for no-inference handoff.
 - E6 Engine Decision: Yellow.
+- E7.0/E7.1 Preflight: Green for preflight only.
+- E7.2 Baseline Instrumentation: Green.
+- Full E7 visual product-readiness: incomplete.
 
-E7 starts from this position:
+E7 continues from this position:
 
 - The current stack is viable enough to continue.
 - The problem is not missing face data.
 - The problem is product-readiness uncertainty in region precision, cosmetic visual quality, performance, lifecycle caveat, and clean rebuild durability.
+- The current primary boundary is E7.3 Region Precision sub-spike planning/validation.
 
 ## 4. E7 Decision Summary
 
@@ -179,7 +185,7 @@ E7 does not decide commercial SDK adoption, Android support, AI recommendation, 
 - Simple skin-tone robustness check across 2-3 different skin tones or lighting conditions.
 - Gloss highlight movement check for `gloss_lip_focus`.
 - Separate `shimmer` and `shimmerColor` controls for the eye demo.
-- Contact sheet from representative recording frames.
+- Contact sheet from representative frames or from a short decision recording when motion/time evidence is required.
 
 ### Defer
 
@@ -386,30 +392,31 @@ Implementation actions:
    - current region
    - latest FPS/frame-time summary if received
    - latest recipe latency if available
-3. Capture baseline recordings before E7 renderer changes:
+3. Capture baseline visual evidence before E7 renderer changes:
    - existing `matte_lip`
    - existing `soft_blush`
    - existing `shimmer_eye`
+   - prefer representative frame/contact sheet plus metadata unless motion/time is the decision point
 4. Keep runtime console output as a full stream with `tee`.
 
 Evidence:
 
 - `evidence/logs/e7-baseline-runtime-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
+- Optional short raw recording only if motion/time is the decision point: `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-baseline-representative-frame-YYYY-MM-DD.jpg`
 
 Green:
 
 - Baseline runtime log includes face state, region state, sample state, FPS/frame-time or explicit metric-unavailable note, and recipe apply timing.
-- Baseline recording is at least 10 seconds and shows the current debug-quality renderer.
+- Baseline visual evidence shows the current debug-quality renderer through representative frame/contact sheet, or through a short recording when motion/time is core evidence.
 
 Yellow:
 
-- Visual baseline is recorded, but one metric is missing and explicitly labeled unavailable.
+- Visual baseline exists, but one metric is missing and explicitly labeled unavailable.
 
 Red:
 
-- No baseline recording or runtime stream exists.
+- No baseline visual evidence or runtime stream exists.
 - Existing E3/E4 behavior regresses before E7 changes.
 
 Stop rule:
@@ -454,7 +461,7 @@ Implementation actions:
 Evidence:
 
 - `evidence/logs/e7-region-precision-runtime-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-region-precision-lip-cheek-eye-YYYY-MM-DD.mp4`
+- Optional short raw recording only if motion/expression/lost-recovered continuity is core evidence: `evidence/screen-recordings/e7-region-precision-lip-cheek-eye-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-region-precision-contact-sheet-YYYY-MM-DD.jpg`
 
 Region G/Y/R:
@@ -556,7 +563,7 @@ Implementation actions:
 Evidence:
 
 - `evidence/logs/e7-renderer-core-runtime-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-renderer-core-comparison-YYYY-MM-DD.mp4`
+- Optional short raw recording only if temporal visual behavior is core evidence: `evidence/screen-recordings/e7-renderer-core-comparison-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-renderer-core-before-after-YYYY-MM-DD.jpg`
 
 Green:
@@ -608,7 +615,7 @@ Demo criteria:
 Evidence:
 
 - `evidence/logs/e7-demo-looks-runtime-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-demo-looks-natural-gloss-shimmer-YYYY-MM-DD.mp4`
+- Optional short raw recording only if transitions/motion are core evidence: `evidence/screen-recordings/e7-demo-looks-natural-gloss-shimmer-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-demo-looks-contact-sheet-YYYY-MM-DD.jpg`
 
 Green:
@@ -659,7 +666,7 @@ Default measurement methods:
   - RN should attach a `sentAtMs` timestamp and `lookId` to each E7 recipe payload.
   - Unity should echo the `lookId`, active recipe id, and applied timestamp or frame count in `recipe_applied`.
   - RN should log the observed send-to-ack latency.
-  - Visual latency still needs human confirmation from the screen recording; event latency alone is not enough if the screen visibly lags.
+  - Visual latency still needs human confirmation from representative evidence; capture a short recording only when still frames cannot show lag/motion continuity.
 - Summary:
   - Create `evidence/logs/e7-performance-summary-YYYY-MM-DD.log`.
   - The summary must state which metrics are measured, which are unavailable, and whether each unavailable metric caps the E7 result at Yellow.
@@ -668,7 +675,7 @@ Implementation actions:
 
 1. Run the final E7 demo on the real iPhone.
 2. Capture a full runtime stream with `tee`.
-3. Record at least 10 seconds per decision clip. If one clip covers all looks and scenarios, it must be long enough to show:
+3. Capture visual decision evidence. Record a short clip only when motion/time/continuous scenario evidence is required; if one clip covers all looks and scenarios, it must be long enough to show:
    - baseline or transition from baseline
    - all three demo looks
    - at least one head movement sequence
@@ -679,13 +686,13 @@ Implementation actions:
    - thermal warning or manual device heat observation
    - memory observation or explicit unavailable note
    - recipe send to visual-applied latency
-5. Save representative screenshots or a contact sheet.
+5. Save representative screenshots, metadata, or a contact sheet. Capture a short recording only if visual latency/motion continuity cannot be judged from still evidence.
 
 Evidence:
 
 - `evidence/logs/e7-performance-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-summary-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
+- Optional short raw recording only if visual latency/motion continuity is core evidence: `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-performance-contact-sheet-YYYY-MM-DD.jpg`
 
 Performance G/Y/R:
@@ -811,14 +818,17 @@ Use these names unless the implementation session needs a more specific suffix:
 - `evidence/logs/e7-demo-looks-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-summary-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
-- `evidence/screen-recordings/e7-region-precision-lip-cheek-eye-YYYY-MM-DD.mp4`
-- `evidence/screen-recordings/e7-demo-looks-natural-gloss-shimmer-YYYY-MM-DD.mp4`
-- `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-baseline-representative-frame-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-region-precision-contact-sheet-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-demo-looks-contact-sheet-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-performance-contact-sheet-YYYY-MM-DD.jpg`
+
+Optional raw recordings, only when motion/time/continuous scenario evidence is required:
+
+- `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
+- `evidence/screen-recordings/e7-region-precision-lip-cheek-eye-YYYY-MM-DD.mp4`
+- `evidence/screen-recordings/e7-demo-looks-natural-gloss-shimmer-YYYY-MM-DD.mp4`
+- `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
 
 Do not commit `evidence/`.
 

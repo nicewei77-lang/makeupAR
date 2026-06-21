@@ -9,10 +9,10 @@
 - AI readiness in this repo means schema/evidence handoff only, such as `FaceFeatureSnapshot`; it does not mean AI model inference, recommendation, backend upload, or raw-frame storage.
 
 ## Required Reading
-- Read `TECH_VALIDATION_TEST_PLAN.md` first, then `TECH_VALIDATION_RESULT.md`.
-- Treat the test plan as the stable validation contract and the result doc as latest status, evidence, milestone history, and next boundary.
-- For AR engine validation planning or implementation, also read `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` and relevant research files.
-- For E7 visual product-readiness work, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` and the four `docs/roadmaps/research/E7_AXIS*.md` reports.
+- Start each session with `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`; read `TECH_VALIDATION_TEST_PLAN.md` only when changing the validation contract or checking milestone/evidence rules.
+- Treat the result snapshot as latest status, active docs, evidence summary, stop rules, and next boundary.
+- For AR engine validation, read only the current milestone section of `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`; if it conflicts with the result snapshot, the snapshot wins.
+- For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
 
 ## Build Loop
 - Every Unity/RN real-device validation session should regenerate and sync `UnityFramework.framework` before the RN iOS build.
@@ -42,8 +42,8 @@
 ## Evidence and Cleanup
 - Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation; E7 also needs FPS/frame-time, thermal, memory, latency, region G/Y/R, and demo-look evidence.
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
-- Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`.
-- Decision screen recordings must be at least 10 seconds unless the user explicitly accepts a shorter artifact; scenario- or cycle-based milestones still need enough footage to show the required scenario.
+- Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
+- Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; then keep metadata/contact sheets/representative frames and delete the raw recording when no longer needed.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Do not commit generated/cache state: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode derived data, `evidence/`, or `.DS_Store`.

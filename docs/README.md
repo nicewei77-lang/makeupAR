@@ -12,20 +12,21 @@
 
 | 목적 | 문서 |
 | --- | --- |
-| 현재 상태와 다음 boundary 확인 | `../TECH_VALIDATION_RESULT.md` |
-| 안정적인 foundation validation 계약 확인 | `../TECH_VALIDATION_TEST_PLAN.md` |
-| 다음 AR engine validation 작업 지시서 | `roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` |
+| 현재 상태와 다음 boundary 확인 | `../TECH_VALIDATION_RESULT.md` > `Current Session Snapshot` |
+| 안정적인 foundation validation 계약 확인 | 필요할 때만 `../TECH_VALIDATION_TEST_PLAN.md` 관련 섹션 |
+| AR engine validation 과거/배경 지시서 | `roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` |
 | 제품 기획 참고 | `product/AIAR_MakeupGuide기획서_v1.md` |
-| AR/beauty engine research 근거 | `roadmaps/research/` |
+| AR/beauty engine research 근거 | `roadmaps/research/`에서 milestone별 lazy-load |
 | 이전/상위 전략 참고 | `roadmaps/strategy/` |
 | 반복 실행 절차 | `runbooks/` |
+| 로컬 생성물 정리 | `runbooks/LOCAL_WORKSPACE_CLEANUP_RUNBOOK.md` |
 
 ## 폴더 역할
 
 | Folder | Role |
 | --- | --- |
 | `product/` | 서비스/제품 기획 참고 문서. Validation milestone의 현재 상태를 대체하지 않는다. |
-| `roadmaps/active/` | 앞으로 작업할 때 먼저 찾을 active AR engine validation 지시서. |
+| `roadmaps/active/` | M6-E6/E7 배경 지시서. 현재 boundary는 result snapshot을 우선한다. |
 | `roadmaps/strategy/` | 상위 전략/로드맵 참고 문서. 현재 boundary는 `TECH_VALIDATION_RESULT.md`를 우선한다. |
 | `roadmaps/research/` | 공개 자료 기반 research report/plan. 구현 지시서가 아니라 판단 근거다. |
 | `roadmaps/archive/` | 중복되었거나 현재 기준으로는 보조적인 과거 문서. |

@@ -2,18 +2,18 @@
 
 Date: 2026-06-22 KST
 
-Status: Temporary E7 sub-spike plan / no implementation evidence yet
+Status: Temporary E7 performance contract / E7.2 baseline complete / retained for E7.6
 
 ## 1. Purpose and Scope
 
 이 문서는 E7 visual product-readiness spike 안에서 성능 증거를 애매하지 않게 만들기 위한 측정 계약서다.
 
-이 sub spike는 두 구간을 함께 다룬다.
+이 sub spike는 두 구간을 함께 다루도록 작성되었다.
 
 - `E7.2 - Baseline Instrumentation`
 - `E7.6 - Performance and Device Evidence Pass`
 
-목적은 현재 E3/E4 debug renderer baseline과 이후 E7 renderer 결과를 같은 단위로 비교할 수 있게 만드는 것이다. 이 문서는 구현 계획과 evidence 기준만 고정한다. 코드 구현, evidence 생성, `TECH_VALIDATION_RESULT.md` 업데이트, product-v1 readiness claim은 이 문서 작성 범위가 아니다.
+E7.2 baseline instrumentation은 완료되었고, 이 문서는 이제 E7.6에서 현재 E3/E4 debug renderer baseline과 이후 E7 renderer 결과를 같은 단위로 비교하기 위한 성능 판정 계약으로 유지한다. 코드 구현, evidence 생성, `TECH_VALIDATION_RESULT.md` 업데이트, product-v1 readiness claim은 이 문서 자체의 범위가 아니다.
 
 Non-scope:
 
@@ -31,28 +31,30 @@ Non-scope:
 현재 authoritative boundary는 `TECH_VALIDATION_RESULT.md`를 따른다.
 
 - E7.0/E7.1 preflight는 Green for preflight only.
+- E7.2 Baseline Instrumentation은 Green이다.
 - Full E7 visual product-readiness는 incomplete.
-- Next Milestone Boundary는 `E7.2 Baseline Instrumentation`.
+- 현재 primary boundary는 `E7.3 Region Precision`이다.
+- 이 문서의 다음 주요 사용 시점은 `E7.6 Performance and Device Evidence Pass`다.
 - M7은 여전히 Yellow / skipped by decision / risk accepted.
 - E7.2 이후에도 formal M7 3-cycle re-entry evidence 없이 M7을 Green으로 승격하지 않는다.
 
-E7.2에서는 기존 E3/E4 renderer behavior를 바꾸지 않는다. 먼저 current debug-quality renderer의 face state, region state, sample state, FPS/frame-time, memory/thermal 가능 여부, recipe timing, baseline recording을 확보한다.
+E7.2 기록은 과거 baseline reference다. E7.6에서는 E7.3-E7.5 결과가 존재할 때 같은 필드와 기준으로 성능/열/메모리/latency를 비교한다.
 
 ## 3. Required Context
 
-E7 performance evidence 작업 전 다음 문서를 읽는다.
+E7 performance evidence 작업 전 기본으로 읽는다.
 
 1. `AGENTS.md`
-2. `TECH_VALIDATION_TEST_PLAN.md`
-3. `TECH_VALIDATION_RESULT.md`
-4. `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`
-5. `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`
-6. `docs/roadmaps/research/AR_ENGINE_RESEARCH_REPORT_KO.md`
-7. `docs/roadmaps/research/BEAUTY_AR_ENGINE_BENCHMARK_REPORT_KO.md`
-8. `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_GPT.md`
-9. `docs/roadmaps/research/E7_AXIS1_FACE_REGION_TRACKING_CLAUDE.md`
-10. `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_GPT.md`
-11. `docs/roadmaps/research/E7_AXIS2_COSMETIC_RENDERING_CLAUDE.md`
+2. `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`
+3. 이 문서의 E7.6 절
+4. `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`의 E7.6 절
+
+Lazy-load only:
+
+- Contract/evidence threshold check: relevant section of `TECH_VALIDATION_TEST_PLAN.md`
+- Region precision regression interpretation: E7.3 section plus `docs/roadmaps/research/E7_AXIS1_*`
+- Cosmetic rendering regression interpretation: E7.4/E7.5 sections plus `docs/roadmaps/research/E7_AXIS2_*`
+- Fallback, SDK, licensing, or architecture comparison: base research/benchmark reports
 
 Context interpretation:
 
@@ -143,7 +145,7 @@ Logging rules:
 - Per-frame RN bridge traffic is not allowed for metrics. FPS/frame-time sampling should run in Unity and emit a compact summary every 2 seconds while the E7 screen is active.
 - Missing metrics must be logged with `[E7] metric_unavailable` and must state whether they cap the result at Yellow.
 - Summary-only files are allowed only as summaries; they do not replace the full runtime stream.
-- Do not store raw camera frames. Screen recordings, screenshots, and contact sheets are allowed evidence artifacts under the existing evidence rules.
+- Do not store raw camera frames. Do not save screen recordings by default; capture a short recording only when motion, elapsed time, visual latency, or a continuous scenario is core evidence. Keep metadata, contact sheets, and representative frames for long-term evidence; delete raw recordings when they are no longer needed.
 
 ## 5. E7.2 Baseline Procedure
 
@@ -168,32 +170,31 @@ Required baseline runtime evidence:
 
 Required baseline visual evidence:
 
-- A baseline recording of at least 10 seconds.
-- The recording must show the current debug-quality renderer before E7 renderer changes.
-- The recording should include the existing `matte_lip`, `soft_blush`, and `shimmer_eye` states when practical.
-- A representative frame screenshot should be saved from the baseline recording or live run.
+- Baseline representative frame, contact sheet, or metadata-backed visual summary.
+- A short baseline recording only if motion/time continuity is the decision point.
+- Visual evidence should include the existing `matte_lip`, `soft_blush`, and `shimmer_eye` states when practical.
 
 Baseline output files:
 
 - `evidence/logs/e7-baseline-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-baseline-summary-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
+- Optional raw recording: `evidence/screen-recordings/e7-baseline-debug-mask-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-baseline-representative-frame-YYYY-MM-DD.jpg`
 
 E7.2 Green:
 
 - Baseline runtime log includes face state, region state, sample state, FPS/frame-time or explicit metric-unavailable note, and recipe apply timing.
-- Baseline recording is at least 10 seconds and shows the current debug-quality renderer.
+- Baseline visual evidence shows the current debug-quality renderer through representative frame/contact sheet, or through a short recording when motion/time is core evidence.
 - Missing metric decisions are explicit and do not hide uncertainty.
 
 E7.2 Yellow:
 
-- Visual baseline is recorded, but one metric is missing and explicitly labeled unavailable.
+- Visual baseline exists, but one metric is missing and explicitly labeled unavailable.
 - Memory or thermal evidence is manual-only or incomplete, but no instability is observed.
 
 E7.2 Red:
 
-- No baseline recording exists.
+- No baseline visual evidence exists.
 - No full runtime stream exists.
 - Existing E3/E4 behavior regresses before E7 changes.
 - Recipe path, face tracking, or RN-hosted Unity event flow fails.
@@ -207,7 +208,7 @@ Default final run procedure:
 1. Start from a fresh UnityFramework export/build/sync according to `AGENTS.md`.
 2. Build/install/launch the RN iOS app on `위승철의 iPhone`.
 3. Capture a full runtime stream with `tee`.
-4. Record decision footage. A single clip may cover all looks only if it is long enough to show:
+4. Capture decision visual evidence. Use metadata/contact sheet/representative frames by default; record short footage only when needed to prove:
    - baseline or transition from baseline
    - all three demo looks
    - at least one head movement sequence
@@ -218,13 +219,13 @@ Default final run procedure:
    - thermal warning or manual device heat observation
    - memory observation or explicit unavailable note
    - recipe send-to-visual-applied latency
-6. Save representative screenshots or a contact sheet.
+6. Save representative screenshots, metadata, or a contact sheet. If raw footage was captured, extract the durable artifacts and delete the raw recording when it is no longer needed.
 
 Final performance output files:
 
 - `evidence/logs/e7-performance-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-summary-YYYY-MM-DD.log`
-- `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
+- Optional raw recording: `evidence/screen-recordings/e7-performance-demo-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-performance-contact-sheet-YYYY-MM-DD.jpg`
 
 Final summary requirements:
@@ -234,7 +235,7 @@ Final summary requirements:
 - State whether each unavailable metric caps the E7 result at Yellow.
 - State the final performance G/Y/R decision per layer: FPS/frame-time, thermal, memory, latency.
 - State whether performance evidence is strong enough to support the overall E7 decision.
-- State that event latency alone is not enough if the screen recording shows visible lag.
+- State that event latency alone is not enough if representative visual evidence shows visible lag.
 
 ## 7. Evidence Files and Summary Format
 
@@ -256,7 +257,7 @@ date:
 device:
 buildEvidence:
 runtimeLog:
-recording:
+recording: optional; required only when motion/time/continuous scenario evidence is core
 screenshotsOrContactSheet:
 metricsMeasured:
 metricsUnavailable:
@@ -302,7 +303,7 @@ Overall performance:
 
 - Green only if FPS/frame-time is Green, latency is Green, and thermal/memory are Green or explicitly accepted Yellow limitations for validation only.
 - Yellow if one or more metrics are incomplete but the run is stable and the limitation is explicit.
-- Red if any layer is Red or if runtime/recording evidence is missing.
+- Red if any layer is Red or if runtime evidence or required visual evidence is missing.
 
 ## 9. Stop Rules
 
@@ -312,6 +313,7 @@ Stop rule:
 - Do not mark E7 Green without explicit FPS/frame-time, thermal, memory, and latency evidence or explicit documented metric-unavailable decisions.
 - Do not continue to E7.6 final performance decision if E7.3/E7.4/E7.5 renderer/look evidence does not exist.
 - Do not use event latency alone as proof of visual responsiveness.
+- Do not save screen recordings by default; keep raw footage only when motion/time/continuous scenario evidence requires it.
 - Do not store raw camera frames by default.
 - Do not start backend upload, AI inference, AI recommendation, commercial SDK integration, Android work, or product implementation.
 - Do not promote M7 to Green from E7 performance evidence.
