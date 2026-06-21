@@ -30,11 +30,13 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     private string lastTrackingStates = string.Empty;
     private string lastSentTrackingStates = string.Empty;
     private string lastLifecycleEventFingerprint = string.Empty;
+    private string lastFeatureSnapshotFingerprint = string.Empty;
     private string previousActiveFaceId = string.Empty;
     private string lastTrackedFaceId = "none";
     private bool hasEverTrackedFace;
     private bool wasFaceLostAfterTracking;
     private float nextLifecycleEventTime;
+    private float nextFeatureSnapshotEventTime;
     private float nextLogTime;
     private GUIStyle debugBoxStyle;
     private GUIStyle debugTitleStyle;
@@ -51,6 +53,8 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         public string TrackingState = "None";
         public string TrackingStates = "none";
         public string FaceTransform = "none";
+        public string PosePositionJson = "[0,0,0]";
+        public string PoseRotationEulerJson = "[0,0,0]";
         public string MeshSummary = "none";
         public string ProviderCapabilitySnapshot = "unknown";
         public string AddedFaces = "none";
@@ -62,8 +66,14 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         public int RemovedCount;
         public int FaceCount;
         public int TotalTrackables;
+        public int MeshVertexCount;
+        public int MeshIndexCount;
+        public int MeshUvCount;
+        public int UnityMeshVertexCount;
         public bool Tracked;
         public bool ActiveFaceChanged;
+        public bool PoseAvailable;
+        public bool HasStableUv;
     }
 
     private void Awake()
@@ -271,7 +281,15 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         snapshot.TrackingState = activeFace.trackingState.ToString();
         snapshot.Tracked = activeFace.trackingState == TrackingState.Tracking;
         snapshot.FaceTransform = FormatTransform(activeFace.transform);
+        snapshot.PoseAvailable = true;
+        snapshot.PosePositionJson = FormatVector3Json(activeFace.transform.position);
+        snapshot.PoseRotationEulerJson = FormatVector3Json(activeFace.transform.eulerAngles);
         snapshot.MeshSummary = GetFaceMeshSummary(activeFace);
+        snapshot.MeshVertexCount = GetFaceVertexCount(activeFace);
+        snapshot.MeshIndexCount = GetFaceIndexCount(activeFace);
+        snapshot.MeshUvCount = GetFaceUvCount(activeFace);
+        snapshot.UnityMeshVertexCount = GetUnityMeshVertexCount(activeFace);
+        snapshot.HasStableUv = snapshot.MeshUvCount > 0;
         snapshot.ActiveFaceChanged = snapshot.ActiveFaceId != snapshot.LastTrackedFaceId
             && snapshot.LastTrackedFaceId != "none";
 
@@ -416,6 +434,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             lifecycle.TrackingStates,
             force);
         SendFaceLifecycleToReactNative(lifecycle, force);
+        SendFaceFeatureSnapshotToReactNative(lifecycle, force);
         UpdateLifecycleMemory(lifecycle);
     }
 
@@ -532,6 +551,54 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         nextLifecycleEventTime = Time.unscaledTime + logIntervalSeconds;
     }
 
+    private void SendFaceFeatureSnapshotToReactNative(FaceLifecycleSnapshot lifecycle, bool force)
+    {
+        if (rnBridge == null)
+        {
+            rnBridge = FindFirstObjectByType<RNBridge>();
+        }
+
+        if (rnBridge == null)
+        {
+            Debug.LogWarning("[E5] face_feature_snapshot_send_skipped RNBridge not found");
+            return;
+        }
+
+        string fingerprint = lifecycle.Status
+            + "|active=" + lifecycle.ActiveFaceId
+            + "|state=" + lifecycle.TrackingState
+            + "|count=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + "|total=" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
+            + "|mesh=" + lifecycle.MeshSummary
+            + "|regions=" + rnBridge.BuildFaceFeatureRegionSnapshotJsonFragment();
+
+        if (!force
+            && fingerprint == lastFeatureSnapshotFingerprint
+            && Time.unscaledTime < nextFeatureSnapshotEventTime)
+        {
+            return;
+        }
+
+        string snapshotJson = BuildFaceFeatureSnapshotJson(lifecycle);
+        Debug.Log(
+            "[E5] face_feature_snapshot_created"
+            + " schemaVersion=1"
+            + " timestampMs=" + DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)
+            + " tracked=" + lifecycle.Tracked.ToString().ToLowerInvariant()
+            + " faceCount=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + " trackingState=" + lifecycle.TrackingState
+            + " meshVertices=" + lifecycle.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+            + " meshIndices=" + lifecycle.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+            + " meshUvs=" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+            + " rawCameraFrameStored=false"
+            + " offDeviceUpload=false"
+            + " payload=" + snapshotJson);
+
+        rnBridge.SendFaceFeatureSnapshotEvent(snapshotJson);
+        lastFeatureSnapshotFingerprint = fingerprint;
+        nextFeatureSnapshotEventTime = Time.unscaledTime + logIntervalSeconds;
+    }
+
     private void UpdateLifecycleMemory(FaceLifecycleSnapshot lifecycle)
     {
         previousActiveFaceId = lifecycle.ActiveFaceId;
@@ -602,6 +669,97 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + "}";
     }
 
+    private string BuildFaceFeatureSnapshotJson(FaceLifecycleSnapshot lifecycle)
+    {
+        long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        string regionSnapshotJson = rnBridge != null
+            ? rnBridge.BuildFaceFeatureRegionSnapshotJsonFragment()
+            : BuildUnavailableRegionSnapshotJsonFragment();
+
+        return "{"
+            + "\"type\":\"face_feature_snapshot\""
+            + ",\"schemaVersion\":1"
+            + ",\"timestampMs\":" + timestampMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"timestamp\":\"" + EscapeJsonString(GetUtcTimestamp()) + "\""
+            + ",\"source\":\"arkit_arface\""
+            + ",\"deviceModel\":\"" + EscapeJsonString(SystemInfo.deviceModel) + "\""
+            + ",\"arSessionState\":\"" + EscapeJsonString(ARSession.state.ToString()) + "\""
+            + ",\"cameraFacing\":\"" + EscapeJsonString(GetCurrentCameraFacing()) + "\""
+            + ",\"orientation\":\"" + EscapeJsonString(Screen.orientation.ToString()) + "\""
+            + ",\"faceDetected\":" + lifecycle.Tracked.ToString().ToLowerInvariant()
+            + ",\"tracked\":" + lifecycle.Tracked.ToString().ToLowerInvariant()
+            + ",\"faceCount\":" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"totalTrackables\":" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
+            + ",\"trackingStates\":\"" + EscapeJsonString(lifecycle.TrackingStates) + "\""
+            + ",\"trackingState\":\"" + EscapeJsonString(lifecycle.TrackingState) + "\""
+            + ",\"lifecycleState\":\"" + EscapeJsonString(lifecycle.Status) + "\""
+            + ",\"selectedActiveFaceId\":\"" + EscapeJsonString(lifecycle.ActiveFaceId) + "\""
+            + ",\"meshSummary\":\"" + EscapeJsonString(lifecycle.MeshSummary) + "\""
+            + ",\"providerCapabilitySnapshot\":\"" + EscapeJsonString(lifecycle.ProviderCapabilitySnapshot) + "\""
+            + ",\"rawCameraFrameStored\":false"
+            + ",\"offDeviceUpload\":false"
+            + ",\"activeFace\":{"
+            + "\"trackableId\":\"" + EscapeJsonString(lifecycle.ActiveFaceId) + "\""
+            + ",\"trackingState\":\"" + EscapeJsonString(lifecycle.TrackingState) + "\""
+            + ",\"lifecycleState\":\"" + EscapeJsonString(lifecycle.Status) + "\""
+            + ",\"poseAvailable\":" + lifecycle.PoseAvailable.ToString().ToLowerInvariant()
+            + ",\"pose\":{"
+            + "\"position\":" + lifecycle.PosePositionJson
+            + ",\"rotationEuler\":" + lifecycle.PoseRotationEulerJson
+            + "}"
+            + "}"
+            + ",\"mesh\":{"
+            + "\"vertexCount\":" + lifecycle.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"indexCount\":" + lifecycle.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"uvCount\":" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"unityMeshVertexCount\":" + lifecycle.UnityMeshVertexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"hasStableUv\":" + lifecycle.HasStableUv.ToString().ToLowerInvariant()
+            + "}"
+            + "," + regionSnapshotJson
+            + ",\"capabilities\":" + BuildCapabilitiesJson()
+            + ",\"privacy\":{"
+            + "\"rawCameraFrameStored\":false"
+            + ",\"offDeviceUpload\":false"
+            + "}"
+            + "}";
+    }
+
+    private static string BuildUnavailableRegionSnapshotJsonFragment()
+    {
+        return "\"activeRegions\":[]"
+            + ",\"appliedTextureSamples\":[]"
+            + ",\"activeRegionSummary\":\"none\""
+            + ",\"appliedTextureSampleSummary\":\"none\""
+            + ",\"regions\":{"
+            + "\"lip\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
+            + ",\"cheek\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
+            + ",\"eye\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
+            + "}";
+    }
+
+    private string BuildCapabilitiesJson()
+    {
+        XRFaceSubsystem faceSubsystem = null;
+        XRGeneralSettings generalSettings = XRGeneralSettings.Instance;
+        XRManagerSettings managerSettings = generalSettings != null ? generalSettings.Manager : null;
+
+        if (managerSettings != null && managerSettings.activeLoader != null)
+        {
+            faceSubsystem = managerSettings.activeLoader.GetLoadedSubsystem<XRFaceSubsystem>();
+        }
+
+        XRFaceSubsystemDescriptor descriptor = faceSubsystem != null ? faceSubsystem.subsystemDescriptor : null;
+
+        return "{"
+            + "\"facePoseAvailable\":" + ReadBoolPropertyAsJsonBoolean(descriptor, "supportsFacePose")
+            + ",\"meshVerticesAndIndicesAvailable\":" + ReadBoolPropertyAsJsonBoolean(descriptor, "supportsFaceMeshVerticesAndIndices")
+            + ",\"meshUvAvailable\":" + ReadBoolPropertyAsJsonBoolean(descriptor, "supportsFaceMeshUVs")
+            + ",\"eyePoseAvailable\":" + ReadBoolPropertyAsJsonBoolean(descriptor, "supportsEyeTracking")
+            + ",\"blendShapesAvailable\":false"
+            + ",\"providerSnapshot\":\"" + EscapeJsonString(faceSupportState) + "\""
+            + "}";
+    }
+
     private string GetCameraDirectionStatus()
     {
         if (cameraManager == null)
@@ -613,6 +771,16 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + cameraManager.requestedFacingDirection
             + "/"
             + cameraManager.currentFacingDirection;
+    }
+
+    private string GetCurrentCameraFacing()
+    {
+        if (cameraManager == null)
+        {
+            return "unknown";
+        }
+
+        return cameraManager.currentFacingDirection.ToString();
     }
 
     private void RefreshSceneReferences()
@@ -729,6 +897,33 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + ",meshV=" + unityVertexCount.ToString(CultureInfo.InvariantCulture);
     }
 
+    private static int GetFaceVertexCount(ARFace face)
+    {
+        return face != null && face.vertices.IsCreated ? face.vertices.Length : 0;
+    }
+
+    private static int GetFaceIndexCount(ARFace face)
+    {
+        return face != null && face.indices.IsCreated ? face.indices.Length : 0;
+    }
+
+    private static int GetFaceUvCount(ARFace face)
+    {
+        return face != null && face.uvs.IsCreated ? face.uvs.Length : 0;
+    }
+
+    private static int GetUnityMeshVertexCount(ARFace face)
+    {
+        if (face == null)
+        {
+            return 0;
+        }
+
+        MeshFilter meshFilter = face.GetComponent<MeshFilter>();
+        Mesh mesh = meshFilter != null ? meshFilter.sharedMesh : null;
+        return mesh != null ? mesh.vertexCount : 0;
+    }
+
     private static string FormatTrackableList(Unity.XR.CoreUtils.Collections.ReadOnlyList<ARFace> faces)
     {
         if (faces == null || faces.Count == 0)
@@ -788,6 +983,17 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + ")";
     }
 
+    private static string FormatVector3Json(Vector3 value)
+    {
+        return "["
+            + value.x.ToString("0.######", CultureInfo.InvariantCulture)
+            + ","
+            + value.y.ToString("0.######", CultureInfo.InvariantCulture)
+            + ","
+            + value.z.ToString("0.######", CultureInfo.InvariantCulture)
+            + "]";
+    }
+
     private static string GetUtcTimestamp()
     {
         return DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture);
@@ -811,6 +1017,22 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         if (property == null || property.PropertyType != typeof(bool))
         {
             return "unknown";
+        }
+
+        return ((bool)property.GetValue(target)).ToString().ToLowerInvariant();
+    }
+
+    private static string ReadBoolPropertyAsJsonBoolean(object target, string propertyName)
+    {
+        if (target == null)
+        {
+            return "false";
+        }
+
+        PropertyInfo property = target.GetType().GetProperty(propertyName, BindingFlags.Public | BindingFlags.Instance);
+        if (property == null || property.PropertyType != typeof(bool))
+        {
+            return "false";
         }
 
         return ((bool)property.GetValue(target)).ToString().ToLowerInvariant();

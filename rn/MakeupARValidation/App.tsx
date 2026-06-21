@@ -102,6 +102,7 @@ const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
   'face_lifecycle',
+  'face_feature_snapshot',
   'recipe_applied',
 ] as const;
 
@@ -135,6 +136,26 @@ type UnityEventPayload = {
   faceTransform?: string;
   meshSummary?: string;
   providerCapabilitySnapshot?: string;
+  schemaVersion?: number;
+  timestampMs?: number;
+  source?: string;
+  deviceModel?: string;
+  arSessionState?: string;
+  cameraFacing?: string;
+  orientation?: string;
+  faceDetected?: boolean;
+  lifecycleState?: string;
+  rawCameraFrameStored?: boolean;
+  offDeviceUpload?: boolean;
+  activeRegionSummary?: string;
+  appliedTextureSampleSummary?: string;
+  activeRegions?: unknown;
+  appliedTextureSamples?: unknown;
+  activeFace?: unknown;
+  mesh?: unknown;
+  regions?: unknown;
+  privacy?: unknown;
+  capabilities?: unknown;
   region?: string;
   layer?: string;
   appliedRegion?: string;
@@ -174,7 +195,7 @@ function App() {
     setUnityEntryCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[E4] unity_screen_open', `entry=${nextCount}`);
+      console.log('[E5] unity_screen_open', `entry=${nextCount}`);
 
       return nextCount;
     });
@@ -185,7 +206,7 @@ function App() {
     setUnityExitCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[E4] unity_screen_close', `exit=${nextCount}`);
+      console.log('[E5] unity_screen_close', `exit=${nextCount}`);
 
       return nextCount;
     });
@@ -269,8 +290,8 @@ function HomeScreen({
       ]}
     >
       <View style={styles.homeBody}>
-        <Text style={styles.kicker}>E4</Text>
-        <Text style={styles.title}>Texture Sample Validation</Text>
+        <Text style={styles.kicker}>E5</Text>
+        <Text style={styles.title}>AI Feature Readiness Snapshot</Text>
         <Text style={styles.statusLabel}>Validation status</Text>
         <Text style={styles.statusText}>
           {`Ready for entry #${nextEntryCount}. Completed exits ${completedCycles}/3.`}
@@ -320,18 +341,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   useEffect(() => {
     console.log(
-      '[E4] unity_screen_mounted',
+      '[E5] unity_screen_mounted',
       `entry=${entryCount}`,
       `mounted=${mountedAt}`,
     );
 
     return () => {
-      console.log('[E4] unity_screen_unmounted', `entry=${entryCount}`);
+      console.log('[E5] unity_screen_unmounted', `entry=${entryCount}`);
     };
   }, [entryCount, mountedAt]);
 
   const handleClose = useCallback(() => {
-    console.log('[E4] unity_screen_close_pressed', `entry=${entryCount}`);
+    console.log('[E5] unity_screen_close_pressed', `entry=${entryCount}`);
     onClose();
   }, [entryCount, onClose]);
 
@@ -406,11 +427,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       };
 
       console.log(
-        parsed.type === 'recipe_applied'
+        parsed.type === 'face_feature_snapshot'
+          ? '[E5] rn_face_feature_snapshot_received'
+          : parsed.type === 'recipe_applied'
           ? '[E4] rn_unity_message_received'
           : parsed.type === 'face_lifecycle'
           ? '[E2] rn_unity_message_received'
           : '[M6] rn_unity_message_received',
+        parsed.type === 'face_feature_snapshot'
+          ? `rawCameraFrameStored=${String(
+              readSnapshotPrivacyFlag(parsed, 'rawCameraFrameStored'),
+            )} offDeviceUpload=${String(
+              readSnapshotPrivacyFlag(parsed, 'offDeviceUpload'),
+            )}`
+          : '',
         rawMessage,
       );
 
@@ -550,7 +580,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
         <View style={styles.debugPanel}>
           <Text style={styles.debugMetaText}>
-            {`E4 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
+            {`E5 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
           </Text>
           <Text style={styles.debugLabel}>Latest Unity event</Text>
           <Text style={styles.debugText} numberOfLines={2}>
@@ -561,6 +591,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           <FaceLifecyclePanel
             event={unityEventStatus.face_lifecycle?.parsed}
             receivedAt={unityEventStatus.face_lifecycle?.receivedAt}
+          />
+          <FaceFeatureSnapshotPanel
+            event={unityEventStatus.face_feature_snapshot?.parsed}
+            receivedAt={unityEventStatus.face_feature_snapshot?.receivedAt}
           />
           <View style={styles.debugStatus}>
             <Text style={styles.debugSubLabel}>Last by type</Text>
@@ -778,6 +812,68 @@ function FaceLifecyclePanel({ event, receivedAt }: FaceLifecyclePanelProps) {
   );
 }
 
+type FaceFeatureSnapshotPanelProps = {
+  event?: UnityEventPayload;
+  receivedAt?: string;
+};
+
+function FaceFeatureSnapshotPanel({
+  event,
+  receivedAt,
+}: FaceFeatureSnapshotPanelProps) {
+  const rawFrameStored = readSnapshotPrivacyFlag(
+    event,
+    'rawCameraFrameStored',
+  );
+  const offDeviceUpload = readSnapshotPrivacyFlag(event, 'offDeviceUpload');
+
+  return (
+    <View style={styles.snapshotPanel}>
+      <View style={styles.snapshotHeader}>
+        <Text style={styles.snapshotLabel}>FaceFeatureSnapshot</Text>
+        <Text
+          style={[
+            styles.snapshotBadge,
+            rawFrameStored === false &&
+              offDeviceUpload === false &&
+              styles.snapshotBadgeGreen,
+          ]}
+        >
+          {event ? 'received' : 'waiting'}
+        </Text>
+      </View>
+      <Text style={styles.snapshotText} numberOfLines={1}>
+        {event
+          ? `schema=${String(event.schemaVersion ?? 'n/a')} ${String(
+              event.lifecycleState ?? event.status ?? 'lost',
+            )} face=${String(event.faceCount ?? 'n/a')}/${String(
+              event.totalTrackables ?? 'n/a',
+            )} camera=${String(event.cameraFacing ?? 'n/a')}`
+          : 'waiting for E5 snapshot'}
+      </Text>
+      <Text style={styles.snapshotText} numberOfLines={1}>
+        {event ? formatSnapshotMesh(event) : 'mesh=waiting'}
+      </Text>
+      <Text style={styles.snapshotText} numberOfLines={1}>
+        {event
+          ? `regions=${formatLifecycleValue(
+              event.activeRegionSummary,
+            )} samples=${formatLifecycleValue(
+              event.appliedTextureSampleSummary,
+            )}`
+          : 'regions=waiting samples=waiting'}
+      </Text>
+      <Text style={styles.snapshotText} numberOfLines={1}>
+        {event
+          ? `rawFrameStored=${String(rawFrameStored)} upload=${String(
+              offDeviceUpload,
+            )} ${receivedAt ?? ''}`
+          : 'rawFrameStored=false upload=false'}
+      </Text>
+    </View>
+  );
+}
+
 function formatUnityEvent(event: UnityEventPayload) {
   switch (event.type) {
     case 'unity_initialized':
@@ -788,6 +884,8 @@ function formatUnityEvent(event: UnityEventPayload) {
       )}${formatFaceTrackingDetails(event)}`;
     case 'face_lifecycle':
       return `face_lifecycle ${formatFaceLifecycleSummary(event)}`;
+    case 'face_feature_snapshot':
+      return `face_feature_snapshot ${formatFaceFeatureSnapshotSummary(event)}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -828,9 +926,63 @@ function formatUnityEventTypeStatus(
       return `face_lifecycle: ${formatFaceLifecycleSummary(parsed)} ${
         event.receivedAt
       }`;
+    case 'face_feature_snapshot':
+      return `face_feature_snapshot: ${formatFaceFeatureSnapshotSummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatFaceFeatureSnapshotSummary(event: UnityEventPayload) {
+  return `${String(event.lifecycleState ?? event.status ?? 'lost')} face=${String(
+    event.faceCount ?? 'n/a',
+  )}/${String(event.totalTrackables ?? 'n/a')} mesh=${formatSnapshotMesh(
+    event,
+  )} regions=${formatLifecycleValue(
+    event.activeRegionSummary,
+  )} rawFrame=${String(
+    readSnapshotPrivacyFlag(event, 'rawCameraFrameStored'),
+  )} upload=${String(readSnapshotPrivacyFlag(event, 'offDeviceUpload'))}`;
+}
+
+function formatSnapshotMesh(event: UnityEventPayload) {
+  const mesh = asRecord(event.mesh);
+  const vertexCount = mesh?.vertexCount ?? 'n/a';
+  const indexCount = mesh?.indexCount ?? 'n/a';
+  const uvCount = mesh?.uvCount ?? 'n/a';
+  const hasStableUv = mesh?.hasStableUv ?? 'n/a';
+
+  return `mesh v=${String(vertexCount)} i=${String(indexCount)} uv=${String(
+    uvCount,
+  )} stableUv=${String(hasStableUv)}`;
+}
+
+function readSnapshotPrivacyFlag(
+  event: UnityEventPayload | undefined,
+  key: 'rawCameraFrameStored' | 'offDeviceUpload',
+) {
+  if (!event) {
+    return false;
+  }
+
+  const directValue = event[key];
+  if (typeof directValue === 'boolean') {
+    return directValue;
+  }
+
+  const privacy = asRecord(event.privacy);
+  const nestedValue = privacy?.[key];
+  return typeof nestedValue === 'boolean' ? nestedValue : false;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+
+  return value as Record<string, unknown>;
 }
 
 function formatRecipeAppliedSummary(event?: UnityEventPayload) {
@@ -1064,7 +1216,7 @@ const styles = StyleSheet.create({
   debugPanel: {
     alignSelf: 'center',
     width: '84%',
-    maxHeight: 330,
+    maxHeight: 390,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
     paddingHorizontal: 10,
@@ -1137,6 +1289,46 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(30, 64, 175, 0.82)',
   },
   faceStateText: {
+    color: '#E5E7EB',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0,
+  },
+  snapshotPanel: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 2,
+  },
+  snapshotHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  snapshotLabel: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  snapshotBadge: {
+    color: '#E5E7EB',
+    backgroundColor: 'rgba(75, 85, 99, 0.82)',
+    borderRadius: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  snapshotBadgeGreen: {
+    color: '#DCFCE7',
+    backgroundColor: 'rgba(22, 101, 52, 0.82)',
+  },
+  snapshotText: {
     color: '#E5E7EB',
     fontSize: 10,
     lineHeight: 14,

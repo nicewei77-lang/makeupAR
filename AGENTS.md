@@ -11,8 +11,8 @@
 ## Required Reading
 - Read `TECH_VALIDATION_TEST_PLAN.md` first, then `TECH_VALIDATION_RESULT.md`.
 - Treat the test plan as the stable validation contract and the result doc as latest status, evidence, milestone history, and next boundary.
-- For AR engine validation planning or implementation, also read `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`.
-- For research-backed AR/beauty decisions, read the relevant files under `docs/roadmaps/research/`.
+- For AR engine validation planning or implementation, also read `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` and relevant research files.
+- For E7 visual product-readiness work, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` and the four `docs/roadmaps/research/E7_AXIS*.md` reports.
 
 ## Build Loop
 - Every Unity/RN real-device validation session should regenerate and sync `UnityFramework.framework` before the RN iOS build.
@@ -35,12 +35,12 @@
 - M6 must prove Unity -> RN events before M7, AR alignment, region masks, texture work, or AI readiness.
 - M7 must prove re-entry stability or document a clear Yellow workaround before AR engine renderer work.
 - M8 must separate integration Green from visual makeup readiness; do not mark face-fitted rendering Green before E1/E3 evidence.
-- E1 must prove camera/feed/face mesh alignment before region mask or texture validation.
-- E3 validates only `lip`, `cheek`, and `eye`; other face regions stay future product scope unless explicitly added.
+- E1 must prove camera/feed/face mesh alignment before region/texture work; E3 validates only `lip`, `cheek`, and `eye`, with other regions future scope unless explicitly added.
 - E5 AI readiness is a no-inference feature snapshot handoff, not AI product work.
+- E7 is validation/hardening only: keep `lip`/`cheek`/`eye` decisions separate, require visual/performance evidence, and never promote M7 or product readiness without matching evidence.
 
 ## Evidence and Cleanup
-- Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation.
+- Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation; E7 also needs FPS/frame-time, thermal, memory, latency, region G/Y/R, and demo-look evidence.
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
 - Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`.
 - Decision screen recordings must be at least 10 seconds unless the user explicitly accepts a shorter artifact; scenario- or cycle-based milestones still need enough footage to show the required scenario.

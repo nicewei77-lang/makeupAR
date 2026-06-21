@@ -9,6 +9,8 @@ using UnityEngine.XR.ARFoundation;
 
 public sealed class RNBridge : MonoBehaviour
 {
+    private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye" };
+
     [Serializable]
     private sealed class RecipePayload
     {
@@ -59,10 +61,28 @@ public sealed class RNBridge : MonoBehaviour
         public bool Enabled;
     }
 
+    private sealed class RegionFeatureState
+    {
+        public string Region = string.Empty;
+        public bool Enabled;
+        public bool Applied;
+        public string TextureSample = string.Empty;
+        public string TextureMode = string.Empty;
+        public string BlendMode = string.Empty;
+        public float Intensity;
+        public float Feather;
+        public int FaceCount;
+        public int MeshTriangleCount;
+        public bool UsedFallback;
+        public long LastUpdatedMs;
+    }
+
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private Material overlayMaterial;
 
     private E3RegionMaskOverlay regionMaskOverlay;
+    private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
+        new Dictionary<string, RegionFeatureState>();
 
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -138,6 +158,7 @@ public sealed class RNBridge : MonoBehaviour
                     + " blendMode=" + layer.BlendMode);
 
                 E3RegionMaskOverlay.RegionApplyResult result = ApplyRegionLayer(layer);
+                RememberRegionFeatureState(layer, result);
                 LogRecipeApplied("message", layer, result);
                 SendRecipeAppliedEvent(layer, result);
             }
@@ -170,6 +191,23 @@ public sealed class RNBridge : MonoBehaviour
     public void SendFaceLifecycleEvent(string json)
     {
         SendUnityEvent(json, "[E2]");
+    }
+
+    public void SendFaceFeatureSnapshotEvent(string json)
+    {
+        SendUnityEvent(json, "[E5]");
+    }
+
+    public string BuildFaceFeatureRegionSnapshotJsonFragment()
+    {
+        string activeRegionSummary = BuildActiveRegionSummary();
+        string appliedTextureSampleSummary = BuildAppliedTextureSampleSummary();
+
+        return "\"activeRegions\":" + BuildActiveRegionsJson()
+            + ",\"appliedTextureSamples\":" + BuildAppliedTextureSamplesJson()
+            + ",\"activeRegionSummary\":\"" + EscapeJsonString(activeRegionSummary) + "\""
+            + ",\"appliedTextureSampleSummary\":\"" + EscapeJsonString(appliedTextureSampleSummary) + "\""
+            + ",\"regions\":" + BuildRegionsJson();
     }
 
     private void RefreshSceneReferences()
@@ -221,6 +259,134 @@ public sealed class RNBridge : MonoBehaviour
             layer.Intensity,
             layer.Feather,
             layer.BlendMode);
+    }
+
+    private void RememberRegionFeatureState(
+        ParsedRecipeLayer layer,
+        E3RegionMaskOverlay.RegionApplyResult result)
+    {
+        latestRegionFeatureStates[layer.Region] = new RegionFeatureState
+        {
+            Region = layer.Region,
+            Enabled = layer.Enabled,
+            Applied = result.Applied,
+            TextureSample = result.TextureSample,
+            TextureMode = result.TextureMode,
+            BlendMode = result.BlendMode,
+            Intensity = result.Intensity,
+            Feather = result.Feather,
+            FaceCount = result.FaceCount,
+            MeshTriangleCount = result.MeshTriangleCount,
+            UsedFallback = result.UsedFallback,
+            LastUpdatedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+        };
+    }
+
+    private string BuildActiveRegionSummary()
+    {
+        List<string> activeRegions = new List<string>();
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                && state.Enabled)
+            {
+                activeRegions.Add(region);
+            }
+        }
+
+        return activeRegions.Count == 0 ? "none" : string.Join(",", activeRegions);
+    }
+
+    private string BuildAppliedTextureSampleSummary()
+    {
+        List<string> appliedSamples = new List<string>();
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                && state.Enabled)
+            {
+                appliedSamples.Add(region + ":" + state.TextureSample + ":applied=" + state.Applied.ToString().ToLowerInvariant());
+            }
+        }
+
+        return appliedSamples.Count == 0 ? "none" : string.Join(",", appliedSamples);
+    }
+
+    private string BuildActiveRegionsJson()
+    {
+        List<string> activeRegions = new List<string>();
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                && state.Enabled)
+            {
+                activeRegions.Add("\"" + EscapeJsonString(region) + "\"");
+            }
+        }
+
+        return "[" + string.Join(",", activeRegions) + "]";
+    }
+
+    private string BuildAppliedTextureSamplesJson()
+    {
+        List<string> samples = new List<string>();
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                || !state.Enabled)
+            {
+                continue;
+            }
+
+            samples.Add("{"
+                + "\"region\":\"" + EscapeJsonString(region) + "\""
+                + ",\"texture\":\"" + EscapeJsonString(state.TextureSample) + "\""
+                + ",\"sample\":\"" + EscapeJsonString(state.TextureSample) + "\""
+                + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
+                + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
+                + ",\"intensity\":" + state.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"feather\":" + state.Feather.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"applied\":" + state.Applied.ToString().ToLowerInvariant()
+                + ",\"faceCount\":" + state.FaceCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"meshTriangles\":" + state.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"usedFallback\":" + state.UsedFallback.ToString().ToLowerInvariant()
+                + "}");
+        }
+
+        return "[" + string.Join(",", samples) + "]";
+    }
+
+    private string BuildRegionsJson()
+    {
+        List<string> regions = new List<string>();
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state);
+            bool active = state != null && state.Enabled;
+            string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
+                ? state.TextureSample
+                : GetDefaultTextureSample(region);
+            string textureMode = state != null && !string.IsNullOrWhiteSpace(state.TextureMode)
+                ? state.TextureMode
+                : "sample";
+
+            regions.Add("\"" + EscapeJsonString(region) + "\":{"
+                + "\"available\":true"
+                + ",\"active\":" + active.ToString().ToLowerInvariant()
+                + ",\"lastApplied\":" + (state != null && state.Applied).ToString().ToLowerInvariant()
+                + ",\"maskSource\":\"arface_uv\""
+                + ",\"qaStatus\":\"green\""
+                + ",\"validationScope\":\"debug\""
+                + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
+                + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
+                + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
+                + ",\"meshTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"usedFallback\":" + (state != null && state.UsedFallback).ToString().ToLowerInvariant()
+                + ",\"lastUpdatedMs\":" + (state != null ? state.LastUpdatedMs : 0L).ToString(CultureInfo.InvariantCulture)
+                + "}");
+        }
+
+        return "{" + string.Join(",", regions) + "}";
     }
 
     private void LogRecipeApplied(

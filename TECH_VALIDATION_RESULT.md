@@ -2,13 +2,13 @@
 
 Date: 2026-06-21
 
-Latest re-check: 2026-06-21 22:25 KST
+Latest re-check: 2026-06-22 00:50 KST
 
 ## Scope
 
-Current update: this document records the E4 Texture Sample real-device result on top of the E3 Region Mask result. E4 is Green for validation/debug purposes: RN keeps `lip`, `cheek`, and `eye` region selection, exposes one sample per region, Unity parses and dispatches texture/sample metadata while preserving canonical `region`, and the real iPhone run plus screen recording show `matte_lip`, `soft_blush`, and `shimmer_eye` as distinct debug samples.
+Current update: this document records the E6 Engine Decision on top of the E5 AI Feature Readiness Snapshot result. E6 is Yellow: the current RN + Unity + ARKit path is viable enough to continue validation and focused product-readiness hardening, but it is not a Green product-v1 handoff because formal M7 re-entry evidence remains skipped/risk-accepted, clean rebuild durability still has local bridge/framework caveats, E3/E4 rendering evidence is validation/debug quality rather than product-quality makeup, and performance has not been instrumented beyond real-device recordings and runtime observation.
 
-M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum. E2 Trackable Lifecycle Diagnostics is Green. E3 Region Mask is Green. E4 Texture Sample is Green.
+M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum. E2 Trackable Lifecycle Diagnostics is Green. E3 Region Mask is Green. E4 Texture Sample is Green. E5 AI Feature Readiness Snapshot is Green with the screen-recording requirement explicitly waived by the user. E6 Engine Decision is Yellow.
 
 Full M7 3-cycle re-entry stress testing, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
 
@@ -20,10 +20,12 @@ Authoritative inputs:
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 6, M8 Foundation Closeout
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 9, E3 Region Mask
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` E4 Texture Sample boundary
+- `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 12, E6 Engine Decision
 - E1 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E2 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E3 implementation/build/runtime/screen evidence recorded in the evidence paths below
 - E4 implementation/build/runtime/screen evidence recorded in the evidence paths below
+- E5 implementation/build/runtime/screenshot evidence recorded in the evidence paths below; decision recording was explicitly waived by the user for this E5 decision
 
 ## Workspace Document State
 
@@ -34,6 +36,99 @@ Active root documents:
 - `TECH_VALIDATION_RESULT.md`: latest milestone decisions, current status, evidence, and next boundary.
 
 Completed session-specific plan/status documents have been absorbed into this result document and removed from the active root. New `M*_..._PLAN.md` files should be temporary: create them only when a session needs one, then absorb the outcome here and delete the plan after completion.
+
+## E6 Decision Detail
+
+Status: Yellow
+
+E6 Engine Decision is Yellow. The validation evidence supports continuing on the current RN + Unity + ARKit path, but not treating the engine as product-v1-ready without focused hardening. The result is not Red because the core integration, tracking, alignment, region dispatch, texture-sample dispatch, and no-inference feature snapshot handoff all have real-device evidence. The result is not Green because M7 remains formally skipped/risk-accepted, clean rebuild durability still depends on local bridge/framework sync caveats, E3/E4 prove debug-validation visuals rather than product-quality makeup, and performance/thermal behavior has not been measured with an explicit FPS or profiling pass.
+
+Decision matrix:
+
+| Layer | E6 readout | Evidence basis |
+| --- | --- | --- |
+| Integration | Yellow / viable with accepted lifecycle caveat | M0-M6 are Green, M8 is Yellow only because M7 was skipped/risk-accepted, and RN-hosted Unity builds/install/runs on the real iPhone. |
+| Tracking | Green | RN and runtime evidence show `unity_initialized`, `face_detected`, `face_lifecycle`, and `face_feature_snapshot` state with tracked/lost/recovered information. |
+| Alignment | Green for validation | E1 real-device 19.04 second recording and frames show the overlay aligned to face contour/eyes/mouth at validation level. |
+| Lifecycle | Yellow | E2 explains lost/recovered behavior and first-face observations, but formal M7 3-cycle re-entry evidence is still absent. |
+| Region | Green for validation | E3 proves independent `lip`, `cheek`, and `eye` dispatch and nonzero mesh-region application; the masks remain broad debug masks. |
+| Texture | Green for validation | E4 proves `matte_lip`, `soft_blush`, and `shimmer_eye` are distinguishable validation samples on the three allowed regions. |
+| Performance | Yellow | E1-E4 recordings are about 60 fps video captures and no obvious severe degradation was recorded, but no explicit FPS/thermal profiling pass exists. |
+| AI feature readiness | Green for no-inference handoff | E5 proves a real-device `FaceFeatureSnapshot` with mesh, region, texture-sample, timestamp, and privacy flags, with `rawCameraFrameStored=false` and `offDeviceUpload=false`. |
+
+Final decision outcome:
+
+- Yellow: continue with the current RN + Unity + ARKit direction, but schedule focused hardening before product v1 implementation.
+- This is a validation success for the chosen technical direction, not a product-quality AR makeup engine sign-off.
+- No fallback path is required now. MediaPipe, ARCore, commercial SDK, or alternate runtime comparison should be considered only if lifecycle, region precision, Android, or shared static/runtime landmark requirements become explicit blockers.
+
+Required product-readiness spikes before Green product handoff:
+
+- Lifecycle: either collect formal M7 3-cycle re-entry evidence or choose and document a Yellow workaround such as pause/resume or hide/show Unity runtime strategy.
+- Clean rebuild durability: make the `RNUnityView.mm` timing patch and UnityFramework package sync reproducible outside ignored `node_modules` state.
+- Renderer quality: improve beyond E3/E4 broad debug masks and procedural samples before claiming product-quality lip, cheek, or eye makeup.
+- Performance: add an explicit real-device FPS/thermal/profiling pass once renderer quality work starts.
+
+Known limitations:
+
+- E6 does not start product implementation, AI inference, backend upload, recommendation logic, commercial SDK integration, Android work, or product-quality makeup rendering.
+- E5's recording waiver remains scoped only to E5 and does not waive future decision-recording expectations.
+- M7 is still Yellow and must not be silently promoted to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E6 is complete; next work should be a product-readiness hardening plan/spike, starting with lifecycle/durable integration if the team wants a Green product handoff.
+- Conservative path: run formal M7 re-entry verification before any product-facing renderer investment.
+- Renderer path: if the M7 Yellow risk remains accepted, proceed only to validation-quality renderer hardening and profiling, not product implementation claims.
+
+## E5 Decision Detail
+
+Status: Green
+
+E5 AI Feature Readiness Snapshot is Green. The implementation stays inside the no-inference schema/evidence handoff boundary: Unity summarizes AR face state into a `face_feature_snapshot` payload without raw camera frame storage, AI inference, recommendation logic, backend upload, or product implementation. The real-device runtime log proves snapshot creation and Unity -> RN event send with face/tracking state, face count, mesh counts, active regions, applied texture samples, timestamp, and privacy flags. The RN screenshot proves visible snapshot receipt. The separate at least 10 second screen recording was explicitly waived by the user for this E5 decision.
+
+Implementation summary:
+
+- `FaceTrackingStatusReporter` now builds E5 snapshot JSON from AR session state, face lifecycle state, ARFace pose, mesh counts, provider capabilities, timestamp, device/camera metadata, and explicit privacy flags.
+- `RNBridge` now remembers the validation feature state for `lip`, `cheek`, and `eye`, exposes active region and applied texture sample summaries, and sends `face_feature_snapshot` through the existing Unity -> RN event path.
+- `rn/MakeupARValidation/App.tsx` now recognizes `face_feature_snapshot`, stores the latest payload, logs RN receipt when the JS handler receives it, and displays a compact FaceFeatureSnapshot status panel on the Unity screen.
+
+Confirmed evidence:
+
+- RN TypeScript check passed: `cd rn/MakeupARValidation && npx tsc --noEmit`.
+- UnityFramework export/build/sync succeeded for the E5 implementation: `evidence/logs/m3-repro-unity-export-e5-ai-feature-readiness-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e5-ai-feature-readiness-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e5-ai-feature-readiness-2026-06-21.log`.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e5-build-install-run-2026-06-21.log`.
+- Runtime console was captured with `tee` at `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`.
+- Runtime log evidence includes repeated `[E5] face_feature_snapshot_created` and `[E5] unity_to_rn_send` entries. A tracked-face payload records `faceDetected=true`, `tracked=true`, `faceCount=1`, `trackingState=Tracking`, mesh counts `vertexCount=1220`, `indexCount=6912`, `uvCount=1220`, `activeRegionSummary="lip,cheek,eye"`, and `appliedTextureSampleSummary="lip:matte_lip:applied=true,cheek:soft_blush:applied=true,eye:shimmer_eye:applied=true"`.
+- User-provided RN status screenshot was saved at `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`; it shows `FaceFeatureSnapshot` as `received`, `schema=1`, `tracking`, `face=1/1`, `camera=User`, `mesh v=1220 i=6912 uv=1220 stableUv=true`, `regions=lip,cheek,eye`, and `rawFrameStored=false upload=false`.
+- E4 region/texture independence did not regress in the E5 runtime log: the snapshot carries all three active validation regions and the required texture samples with nonzero mesh triangle counts and `usedFallback=false`.
+- Raw frame/off-device storage checks were negative for this E5 implementation path: runtime payloads include `rawCameraFrameStored=false` and `offDeviceUpload=false`; source search over the changed RN/Unity script paths found no `ReadPixels`, `EncodeTo`, `ScreenCapture`, `AVCapture`, `File.Write`, `persistentDataPath`, `fetch`, `axios`, `upload`, or HTTP URL use.
+
+Recording waiver:
+
+- The planned screen-recording artifact `evidence/screen-recordings/e5-ai-feature-readiness-snapshot-2026-06-21.mp4` was not collected.
+- User decision at 2026-06-21 23:03 KST: "이번엔 녹화는 필요 없을 것 같아 그린 플래그 띄우자".
+- This waiver applies only to E5 decision evidence and does not change future recording expectations unless explicitly repeated.
+
+Snapshot payload interpretation:
+
+- `type`, `schemaVersion`, `timestampMs`, and `timestamp` identify the no-inference snapshot contract and capture time.
+- `faceDetected`, `tracked`, `faceCount`, `totalTrackables`, `trackingStates`, `trackingState`, and `lifecycleState` summarize the current face/tracking state.
+- `activeFace.pose`, `mesh`, `meshSummary`, and `capabilities` summarize pose/mesh availability and counts without raw image data.
+- `activeRegions`, `appliedTextureSamples`, `activeRegionSummary`, `appliedTextureSampleSummary`, and `regions` summarize the E3/E4 validation renderer state for `lip`, `cheek`, and `eye`.
+- `rawCameraFrameStored=false`, `offDeviceUpload=false`, and the nested `privacy` object are the explicit non-storage/non-upload privacy markers.
+
+Known limitations:
+
+- E5 does not implement AI inference, recommendation, backend upload, persistent feature storage, raw camera frame capture, or product makeup rendering.
+- RN receive is visually proven by screenshot. The missing decision recording is recorded as an explicit user-approved waiver for this E5 decision, not as hidden Green evidence.
+- M7 remains Yellow / skipped by decision / risk accepted; E5 does not promote M7 to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E5 is complete; choose the next roadmap boundary before starting new implementation.
+- Future milestones should continue to require decision recordings unless the user explicitly waives them again.
+- Do not move into AI model inference, backend upload, recommendation logic, product-quality makeup rendering, commercial SDK integration, Android work, or product implementation.
 
 ## E4 Decision Detail
 
@@ -266,7 +361,7 @@ M8 decision gate at that time:
 | Face-fitted AR visual alignment | M8: Not Green / E1 required | At M8 closeout, the diagnostic overlay was offset from the face. The later E1 section above records the alignment fix and evidence. |
 | Region renderer | Not started | `lip`, `cheek`, and `eye` independent region control remains E3 scope. |
 | Product-quality makeup rendering | Not started / Not ready | No product-quality makeup, texture, shade fidelity, feathering, or blend-mode validation has begun. |
-| AI readiness | Not started | Future E5 scope is no-inference schema/evidence handoff only, not AI model/backend/product inference. |
+| AI readiness | Green | E5 no-inference snapshot creation, Unity -> RN send, and RN-visible status screenshot are proven; the separate decision recording was explicitly waived by the user. This is not AI model/backend/product inference. |
 
 ## Green / Yellow / Red Basis
 
@@ -592,8 +687,10 @@ This table is the M8 single-glance foundation validation summary. M7 remains Yel
 
 ## Evidence
 
-M8 key evidence paths:
+Key evidence paths:
 
+- E6 Engine Decision: this document's E6 section above synthesizes the existing E1-E5 real-device evidence plus the accepted M7 lifecycle gap. No new runtime artifact was required for E6 because it is a decision milestone rather than a new implementation milestone.
+- E5 AI Feature Readiness Snapshot: `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`, `evidence/logs/e5-build-install-run-2026-06-21.log`, `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`, `evidence/logs/m3-repro-unity-export-e5-ai-feature-readiness-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e5-ai-feature-readiness-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e5-ai-feature-readiness-2026-06-21.log`. The planned decision recording was explicitly waived by the user for this E5 decision.
 - E4 Texture Sample: `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`, `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`, and `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
 - E3 Region Mask: `evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log`, `evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4`, and `evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg`.
 - M5 RN -> Unity communication: `evidence/logs/m5-devicectl-launch-console-rnbridge-package-sync-2026-06-20-214651.log`, `evidence/screen-recordings/m5-current-screen-state-2026-06-20-214838.mp4`, and sampled offset/alignment screenshots under `evidence/screenshots/m5-current-screen-state-*`.
@@ -605,6 +702,13 @@ Full evidence index:
 
 | Evidence | Path / content |
 | --- | --- |
+| E5 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e5-ai-feature-readiness-2026-06-21.log` |
+| E5 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e5-ai-feature-readiness-2026-06-21.log` contains `** BUILD SUCCEEDED **` |
+| E5 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e5-ai-feature-readiness-2026-06-21.log` records framework verification and package framework sync |
+| E5 RN build/install/launch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e5-build-install-run-2026-06-21.log` records successful build, install, and launch on `위승철의 iPhone` |
+| E5 runtime snapshot log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log` records `[E5] face_feature_snapshot_created` and `[E5] unity_to_rn_send` entries with `rawCameraFrameStored=false`, `offDeviceUpload=false`, face/tracking state, mesh counts, active regions, and texture samples |
+| E5 RN status screenshot | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg` shows RN `FaceFeatureSnapshot` received with schema, tracking, mesh, region/sample, and raw-frame/upload flags |
+| E5 waived decision recording | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screen-recordings/e5-ai-feature-readiness-snapshot-2026-06-21.mp4` was not collected; user explicitly waived the recording requirement for this E5 Green decision |
 | E4 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e4-texture-samples-2026-06-21.log` |
 | E4 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e4-texture-samples-2026-06-21.log` contains `** BUILD SUCCEEDED **` |
 | E4 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e4-texture-samples-2026-06-21.log` records framework verification and package framework sync |
@@ -713,21 +817,24 @@ Full evidence index:
 - M7 time-box decision: formal 3-cycle re-entry validation was skipped by user decision. The user confirmed app launch and normal exit behavior were acceptable, but this is recorded as Yellow/risk accepted rather than Green.
 - E3 region mask result: RN now sends canonical `region` recipe layers for `lip`, `cheek`, and `eye`; Unity logs parse/dispatch/applied results and applies nonzero mesh masks for all three. The user confirmed the regions are separated, but the painted ranges are broad, so this is Green for validation dispatch/independence and not product-quality makeup accuracy.
 - E4 texture sample result: RN now exposes `matte_lip`, `soft_blush`, and `shimmer_eye` as one validation sample per allowed region; Unity logs parse/region/texture/applied flow for each sample and applies them on nonzero face meshes. This is Green for debug texture-sample validation and not product-quality makeup fidelity.
+- E5 snapshot result: Unity now emits a no-inference `face_feature_snapshot` payload with face/tracking state, mesh counts, active regions, applied texture samples, timestamp, and explicit `rawCameraFrameStored=false` / `offDeviceUpload=false` privacy flags. The real-device runtime log proves snapshot creation and Unity -> RN send, and the RN status screenshot proves visible receipt. The separate decision recording was explicitly waived by the user, so E5 is Green.
+- E6 decision result: the AR engine direction is Yellow, not Green or Red. Continue with the RN + Unity + ARKit path, but require focused lifecycle, durable integration, renderer-quality, and performance hardening before claiming product-v1 readiness.
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, and E4 Texture Sample are complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, and E6 Engine Decision are complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: start E5 AI Readiness Snapshot.
-- E5 should stay limited to a no-inference feature snapshot/schema/evidence handoff.
-- Conservative path: run additional M7 re-entry verification first only if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
+- Primary path: create or run a product-readiness hardening plan/spike before product implementation, with lifecycle and durable integration first.
+- Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
+- Renderer path: if the team continues with accepted M7 risk, keep the next renderer work in validation/hardening mode until product-quality lip/cheek/eye evidence and performance profiling exist.
 
 Stop rules:
 
 - Do not mark M7 Green unless a formal 3-cycle re-entry pass with evidence is collected.
 - Do not treat E3 as product-quality makeup accuracy; it only proves validation-level region independence.
 - Do not treat E4 as product-quality makeup fidelity; it only proves validation/debug texture sample dispatch and visual distinction.
-- Do not expand E5 beyond no-inference snapshot/schema/log readiness unless the user explicitly changes scope.
-- Do not start AI model inference, backend upload, recommendation logic, product-quality makeup rendering, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.
+- Do not treat the E5 recording waiver as a general waiver for future milestones.
+- Do not treat E6 Yellow as permission to claim product-v1 readiness.
+- Do not start AI model inference, backend upload, recommendation logic, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.
