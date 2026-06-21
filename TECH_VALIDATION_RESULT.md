@@ -2,15 +2,15 @@
 
 Date: 2026-06-21
 
-Latest re-check: 2026-06-21 20:14 KST
+Latest re-check: 2026-06-21 22:25 KST
 
 ## Scope
 
-Current update: this document records the E1 AR Alignment result on top of the prior M8 foundation closeout, so the next engine decision can separate validated diagnostic face alignment from future region masks, texture rendering, and product-quality makeup work.
+Current update: this document records the E4 Texture Sample real-device result on top of the E3 Region Mask result. E4 is Green for validation/debug purposes: RN keeps `lip`, `cheek`, and `eye` region selection, exposes one sample per region, Unity parses and dispatches texture/sample metadata while preserving canonical `region`, and the real iPhone run plus screen recording show `matte_lip`, `soft_blush`, and `shimmer_eye` as distinct debug samples.
 
-M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum.
+M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum. E2 Trackable Lifecycle Diagnostics is Green. E3 Region Mask is Green. E4 Texture Sample is Green.
 
-Full M7 3-cycle re-entry stress testing, E2 lifecycle diagnostics matrix, E3 region masks, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
+Full M7 3-cycle re-entry stress testing, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
 
 Authoritative inputs:
 
@@ -18,7 +18,12 @@ Authoritative inputs:
 - `TECH_VALIDATION_TEST_PLAN.md` sections 13-15, M6 Unity -> RN communication, M7 re-entry stability, and M8 result report
 - `TECH_VALIDATION_RESULT.md` previous `Next Milestone Boundary`
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 6, M8 Foundation Closeout
+- `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 9, E3 Region Mask
+- `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` E4 Texture Sample boundary
 - E1 implementation/build/runtime/screen evidence recorded in the evidence paths below
+- E2 implementation/build/runtime/screen evidence recorded in the evidence paths below
+- E3 implementation/build/runtime/screen evidence recorded in the evidence paths below
+- E4 implementation/build/runtime/screen evidence recorded in the evidence paths below
 
 ## Workspace Document State
 
@@ -29,6 +34,160 @@ Active root documents:
 - `TECH_VALIDATION_RESULT.md`: latest milestone decisions, current status, evidence, and next boundary.
 
 Completed session-specific plan/status documents have been absorbed into this result document and removed from the active root. New `M*_..._PLAN.md` files should be temporary: create them only when a session needs one, then absorb the outcome here and delete the plan after completion.
+
+## E4 Decision Detail
+
+Status: Green
+
+E4 Texture Sample is Green for validation/debug purposes. RN preserves `lip`, `cheek`, and `eye` as the only selectable regions and adds a region-specific sample selector. Unity receives texture/sample metadata in the recipe payload while `region` remains the canonical dispatch field. The real-device runtime log proves recipe parse, region dispatch, texture dispatch, applied texture, and RN-visible `recipe_applied` feedback for all three required samples. The 20.53 second decision recording satisfies the 10 second minimum and visually distinguishes `matte_lip`, `soft_blush`, and `shimmer_eye` at debug-validation level.
+
+Implementation summary:
+
+- `rn/MakeupARValidation/App.tsx` keeps the existing `lip`, `cheek`, and `eye` region controls, adds one texture sample option per region, stores `textureSample` per region recipe, keeps color/opacity changes scoped to the selected region, and displays current region/color/opacity/texture/applied status in RN.
+- `RNBridge` parses additive `texture`, `sample`, `textureMode`, `intensity`, `feather`, and `blendMode` fields while continuing to dispatch by canonical `region`; it logs `[E4] recipe_parse`, `[E4] region_dispatch`, `[E4] texture_dispatch`, and `[E4] recipe_applied`.
+- `E3RegionMaskOverlay` preserves per-region overlay state, uses runtime-generated debug textures for `matte_lip`, `soft_blush`, and `shimmer_eye`, and logs `[E4] applied_texture` for the applied region/sample.
+
+Confirmed evidence:
+
+- UnityFramework export/build/sync succeeded for the E4 implementation: `evidence/logs/m3-repro-unity-export-e4-texture-samples-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e4-texture-samples-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e4-texture-samples-2026-06-21.log`.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e4-build-install-run-2026-06-21.log`.
+- Runtime console was captured with `tee` at `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`.
+- Runtime log evidence includes successful non-fallback mesh application for all required sample pairs: `lip/matte_lip` applied with `meshTriangles=772-844`, `cheek/soft_blush` applied with `meshTriangles=193-200`, and `eye/shimmer_eye` applied with `meshTriangles=513-520`.
+- User-provided real-device screen recording was remuxed to `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`.
+- Screen recording metadata was captured at `evidence/logs/e4-screen-recording-ffprobe-2026-06-21.log`: 20.53 seconds, 1180x2556 portrait, HEVC, about 60 fps.
+- Texture comparison contact-sheet screenshot was generated at `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
+
+Observed behavior interpretation:
+
+- `region` remains the canonical Unity dispatch field. `texture`, `sample`, and `textureMode` are additive E4 metadata and do not replace region dispatch.
+- `matte_lip` maps to `lip`, `soft_blush` maps to `cheek`, and `shimmer_eye` maps to `eye`; invalid region/sample expansion was not introduced.
+- Color and opacity changes remain scoped to the selected region recipe. Runtime logs show repeated updates for cheek, eye, and lip with their own region/sample pair, and `E3RegionMaskOverlay` keeps independent per-region overlay state.
+- The three samples are visually distinct enough for validation/debug: `matte_lip` is a flatter lip sample, `soft_blush` is a softer cheek sample, and `shimmer_eye` uses the brighter eye sample with screen-style blending.
+
+Known limitations:
+
+- The samples are procedural debug textures on broad E3 validation masks. They are not product-quality cosmetics, precise segmentation, real product color fidelity, or final blending.
+- This result does not validate advanced shaders, commercial beauty SDK parity, product makeup aesthetics, FPS targets, backend upload, AI recommendation, or Android behavior.
+- M7 remains Yellow / skipped by decision / risk accepted; E4 does not promote M7 to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E5 AI Readiness Snapshot.
+- E5 may validate only a no-inference feature snapshot/schema/evidence handoff. Do not start AI model inference, backend upload, recommendation logic, product makeup rendering, commercial SDK integration, Android work, or product implementation.
+
+## E3 Decision Detail
+
+Status: Green
+
+E3 Region Mask is Green for validation purposes. The real-device run proves independent `lip`, `cheek`, and `eye` control through RN-selected canonical `region` values, Unity recipe parsing, region dispatch, mesh-region application, and Unity-to-RN `recipe_applied` feedback.
+
+Implementation summary:
+
+- `rn/MakeupARValidation/App.tsx` now exposes only `lip`, `cheek`, and `eye` region selection, keeps color/opacity controls per region, sends versioned recipe JSON with canonical `region`, and keeps legacy `layer` as an alias.
+- `RNBridge` now parses `version` and `layers[]`, accepts only `lip`, `cheek`, and `eye`, logs `[E3] recipe_parse`, `[E3] region_dispatch`, and `[E3] recipe_applied`, and sends RN events with `region`, `appliedRegion`, `applied`, `faceCount`, `meshTriangles`, and `usedFallback`.
+- `E3RegionMaskOverlay` maintains per-region recipe/overlay state and applies validation mesh masks under each tracked `ARFace`, so applying one region does not erase other enabled region overlays.
+
+Confirmed evidence:
+
+- UnityFramework export/build/sync succeeded for the E3 implementation: `evidence/logs/m3-repro-unity-export-e3-region-mask-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e3-region-mask-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e3-region-mask-2026-06-21.log`.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e3-build-install-run-2026-06-21.log`.
+- Runtime console was captured with `tee` at `evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log`.
+- Runtime log evidence includes successful mesh application for all required regions with fallback disabled: `lip` applied with `meshTriangles=737`, `cheek` applied with `meshTriangles=196`, and `eye` applied with `meshTriangles=514`; later repeated runs also show nonzero mesh triangles for the same regions.
+- User-provided real-device screen recording was copied to `evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4`.
+- Screen recording metadata was captured at `evidence/logs/e3-screen-recording-ffprobe-2026-06-21.log`: 38.25 seconds, 1180x2556 portrait, about 60 fps.
+- Debug color contact-sheet screenshot was generated at `evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg`.
+- User confirmed on the real iPhone that eyes, cheeks, and lips are separated, while noting that the painted ranges are broad and not precise.
+
+Observed behavior interpretation:
+
+- `lip`, `cheek`, and `eye` are independently selected from RN and dispatched by `region`, not only by the legacy `layer` alias.
+- Color and opacity updates apply to the selected region and return RN-visible `recipe_applied` status with `applied=true`, `faceCount=1`, nonzero mesh triangle counts, and `usedFallback=false`.
+- The E3 result validates region dispatch, attachment, and independent debug rendering. It does not validate product-quality makeup boundaries, texture fidelity, shimmer, commercial SDK parity, or AI readiness.
+
+Known limitations:
+
+- The region masks are broad validation/debug masks. The user observed that the regions are separated but not accurately bounded.
+- Edge softness, precise lip/cheek/eye landmarks, upper/lower lip fit, and product-quality makeup aesthetics are not proven by E3.
+- The implementation uses validation mesh heuristics, not a production segmentation model, commercial beauty SDK, or texture/shader pipeline.
+- M7 remains Yellow / skipped by decision / risk accepted; E3 does not promote M7 to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E4 Texture Sample.
+- E4 may validate only the planned minimum texture samples after this E3 result. Do not expand into product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation.
+
+## E2 Decision Detail
+
+Status: Green
+
+E2 Trackable Lifecycle Diagnostics is Green for validation purposes. The real-device run proves that the RN-hosted Unity app records and displays face trackable lifecycle diagnostics for `trackablesChanged.added/updated/removed`, trackable ID, timestamp, tracking state, selected active face ID, `tracking/lost/reacquired` status, face count, face transform, mesh vertex/index/UV counts, and ARKit provider capability snapshot.
+
+Implementation summary:
+
+- `FaceTrackingStatusReporter` now emits `[E2] trackablesChanged` and `[E2] face_lifecycle` diagnostics and sends `face_lifecycle` payloads to RN.
+- `RNBridge` now forwards E2 lifecycle payloads through the existing Unity-to-RN event path.
+- `rn/MakeupARValidation/App.tsx` now displays the diagnostic face state, active ID, lifecycle status, changed counts, mesh summary, and provider capability snapshot.
+
+Confirmed evidence:
+
+- UnityFramework export/build/sync succeeded after the final E2 rebuild: `evidence/logs/m3-repro-unity-export-e2-final-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e2-final-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e2-final-2026-06-21.log`.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e2-build-install-run-2026-06-21.log`.
+- Runtime console was captured with `tee` at `evidence/logs/e2-trackable-lifecycle-2026-06-21.log`.
+- Analysis summary was saved at `evidence/logs/e2-trackable-lifecycle-analysis-2026-06-21.log`: 1086 `face_lifecycle` events, 1086 Unity-to-RN lifecycle sends, status counts `tracking:1064`, `lost:15`, `reacquired:7`, raw `trackablesChanged` totals `added:1`, `updated:1073`, `removed:0`.
+- User-provided real-device screen recording was copied to `evidence/screen-recordings/e2-trackable-lifecycle-scenarios-2026-06-21.mp4`.
+- Screen recording metadata was captured at `evidence/logs/e2-screen-recording-ffprobe-2026-06-21.log`: 18.35 seconds, 1180x2556 portrait, HEVC, about 60 fps, creation time `2026-06-21T12:23:18Z` / `2026-06-21 21:23:18 KST`.
+- RN face-state screenshot was generated at `evidence/screenshots/e2-rn-face-state-2026-06-21.jpg`; it shows `face_lifecycle lost`, active face ID, mesh `v=1220,i=6912,uv=1220,meshV=1220`, and provider capability text.
+
+Observed behavior interpretation:
+
+- First-face behavior: the run starts with no face as `status=lost`, then `trackablesChanged.added=1` creates trackable `F344E15BABC190CD-1DEF21B23315A688` with `Tracking`.
+- Lost/recovered behavior: the same trackable ID repeatedly moves from `Tracking` to `trackingState=None`, `tracked=false`, `faceCount=0`, `status=lost`, then returns to `Tracking` with `status=reacquired`.
+- Second-face behavior: no distinct second trackable ID was observed. The provider did not emit `removed` or a second `added`; the active face ID stayed `F344E15BABC190CD-1DEF21B23315A688` and recovered as the same ARFace trackable.
+- Partial occlusion and close/far movement are diagnosable in the captured stream through `tracking/lost/reacquired`, face transform changes, and stable mesh summaries.
+- Provider capability snapshot in the runtime stream reports `supportsFacePose=true`, `supportsFaceMeshVerticesAndIndices=true`, `supportsFaceMeshUVs=true`, and `supportsEyeTracking=true`.
+
+Known limitations:
+
+- This E2 result is Green for lifecycle diagnostics, not for person identity recognition. The second-face scenario did not produce a distinct provider trackable ID in this run.
+- `trackablesChanged.removed` stayed `0`; ARKit surfaced loss as an updated persistent face trackable with `trackingState=None`, not as a removed trackable.
+- `limited` did not appear in this run; observed runtime statuses were `tracking`, `lost`, and `reacquired`.
+- M7 remains Yellow / skipped by decision / risk accepted; E2 does not promote M7 to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E3 Region Mask.
+- E3 must validate only `lip`, `cheek`, and `eye`; do not start texture rendering, shimmer, product-quality makeup, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation from this E2 result.
+
+## E2 Build Blocker Re-check
+
+Status: Build blocker resolved
+
+This section records the earlier E2 build blocker re-check. It resolved the Unity export blocker that prevented the E2 build loop from reaching `UnityFramework.framework` generation.
+
+Action taken:
+
+- Confirmed the failing export log was a Unity Licensing Client IPC/version handshake problem, not an E2 C# or RN code compile problem.
+- Confirmed Unity Hub is installed at version `3.18.3` and the Editor-local `Unity.Licensing.Client` binary exists under Unity `6000.3.18f1`.
+- Found stale/conflicting Unity processes: GUI Unity Editor, Hub `UnityLicensingClient_V1`, and an older Editor helper `Unity.Licensing.Client`.
+- Quit Unity/Unity Hub, force-terminated the stuck Unity/Unity Licensing Client processes that survived normal quit, and removed stale `/tmp/Unity-LicenseClient*` entries.
+- Re-ran `TIMESTAMP=e2-licfix-2026-06-21 bash scripts/build_m3_unityframework.sh`.
+
+Confirmed evidence:
+
+- Previous failure log recorded `Unsupported protocol version '1.18.1'`, missing `LicenseClient-wiseungcheol-6000.3.18`, licensing initialization timeout, and lost Licensing Client connection: `evidence/logs/m3-repro-unity-export-e2-2026-06-21.log`.
+- The retry export passed Unity iOS export with `Build Finished, Result: Success` and `[M1] Unity iOS export result: Succeeded`: `evidence/logs/m3-repro-unity-export-e2-licfix-2026-06-21.log`.
+- Generated Xcode project still contained required ARKit native links: `UnityARKit.m`, `libUnityARKit.a`, `libUnityARKitFaceTracking.a`, `ARKit.framework`, and `MetalPerformanceShaders.framework`.
+- `UnityFramework` Xcode build completed with `** BUILD SUCCEEDED **`: `evidence/logs/m3-repro-xcodebuild-unityframework-e2-licfix-2026-06-21.log`.
+- Artifact verification confirmed arm64 RN and package-local `UnityFramework.framework` copies with Data and `NativeCallProxy.h`: `evidence/logs/m3-repro-artifact-verification-e2-licfix-2026-06-21.log`.
+
+Known limitations:
+
+- This proved the Unity export/build blocker was cleared for the retry run; the E2 decision above supersedes that earlier unresolved runtime state.
+- If the Unity Licensing Client popup returns, first repeat the process cleanup path before reinstalling Unity or resetting Hub settings.
+
+Next boundary decision:
+
+- Superseded by the E2 Decision Detail above.
 
 ## E1 Decision Detail
 
@@ -65,8 +224,8 @@ Known limitations:
 
 Next boundary decision:
 
-- Next Milestone Boundary: E2 Trackable Lifecycle Diagnostics.
-- E3 Region Mask should not start until E2 is either completed or explicitly skipped/risk-accepted by the user.
+- Historical E1 boundary: E2 Trackable Lifecycle Diagnostics.
+- Superseded by the E2 Decision Detail above; the current Next Milestone Boundary is E3 Region Mask.
 - Do not start texture rendering, product-quality makeup, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation from this E1 result.
 
 ## M8 Final Decision
@@ -252,7 +411,7 @@ Current screen-state decision:
 - Current visual AR makeup readiness is Yellow/Fail: the displayed overlay is not aligned to the face and must not be treated as a successful face-fitted makeup implementation.
 - Current tracking interpretation: ARKit/AR Foundation face tracking is active, but the current render path is a diagnostic face mesh/marker setup with a camera/pose alignment issue and no per-region makeup segmentation.
 - Highest-priority follow-up before product makeup rendering: fix AR camera pose alignment, likely by adding the required Tracked Pose Driver / equivalent AR camera pose setup for the current AR Foundation + Input System stack, then re-test the same recording scenarios.
-- Next diagnostic follow-up: log `ARFaceManager.trackablesChanged` added/updated/removed events with trackable IDs, current face transform, and face mesh vertex count so first-face-only and second-face reacquisition behavior can be separated from visual alignment.
+- M8 diagnostic follow-up, now completed by E2 above: log `ARFaceManager.trackablesChanged` added/updated/removed events with trackable IDs, current face transform, and face mesh vertex count so first-face-only and second-face reacquisition behavior can be separated from visual alignment.
 - Product makeup work should not start from the current screen state. First prove a correctly aligned face mesh/landmark basis, then validate E3 region-specific rendering only for `lip`, `cheek`, and `eye`; other face regions remain future product scope.
 
 ## M0-M7 Foundation Summary
@@ -435,6 +594,8 @@ This table is the M8 single-glance foundation validation summary. M7 remains Yel
 
 M8 key evidence paths:
 
+- E4 Texture Sample: `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`, `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`, and `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
+- E3 Region Mask: `evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log`, `evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4`, and `evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg`.
 - M5 RN -> Unity communication: `evidence/logs/m5-devicectl-launch-console-rnbridge-package-sync-2026-06-20-214651.log`, `evidence/screen-recordings/m5-current-screen-state-2026-06-20-214838.mp4`, and sampled offset/alignment screenshots under `evidence/screenshots/m5-current-screen-state-*`.
 - M6 Unity -> RN communication: `evidence/logs/m6-face-state-fix-runtime-2026-06-21.log`, `evidence/screen-recordings/m6-unity-to-rn-events-2026-06-21.mp4`, `evidence/screenshots/m6-rn-face-lost-latest-event-2026-06-21.jpg`, and `evidence/screenshots/m6-rn-face-tracked-recipe-event-2026-06-21.jpg`.
 - M7 interrupted/risk-accepted evidence: `evidence/logs/m7-reentry-runtime-2026-06-21.log`, `evidence/logs/m7-metro-2026-06-21.log`, and `evidence/logs/m7-build-install-run-2026-06-21.log`.
@@ -444,6 +605,22 @@ Full evidence index:
 
 | Evidence | Path / content |
 | --- | --- |
+| E4 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e4-texture-samples-2026-06-21.log` |
+| E4 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e4-texture-samples-2026-06-21.log` contains `** BUILD SUCCEEDED **` |
+| E4 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e4-texture-samples-2026-06-21.log` records framework verification and package framework sync |
+| E4 RN build/install/launch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e4-build-install-run-2026-06-21.log` records successful build, install, and launch on `위승철의 iPhone` |
+| E4 runtime texture sample log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e4-texture-samples-runtime-2026-06-21.log` records `[E4] recipe_parse`, `[E4] region_dispatch`, `[E4] texture_dispatch`, `[E4] applied_texture`, and `[E4] recipe_applied` for `matte_lip`, `soft_blush`, and `shimmer_eye` |
+| E4 screen recording metadata log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e4-screen-recording-ffprobe-2026-06-21.log` records a 20.53 second 1180x2556 portrait recording |
+| E4 user screen recording | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4` shows the three texture samples on the real iPhone |
+| E4 texture comparison screenshot | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg` summarizes the RN debug UI and visible texture sample differences from the E4 recording |
+| E3 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-e3-region-mask-2026-06-21.log` |
+| E3 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-e3-region-mask-2026-06-21.log` contains `** BUILD SUCCEEDED **` |
+| E3 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-e3-region-mask-2026-06-21.log` records framework verification and package framework sync |
+| E3 RN build/install/launch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e3-build-install-run-2026-06-21.log` records successful build, install, and launch on `위승철의 iPhone` |
+| E3 runtime region dispatch log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log` records `[E3] recipe_parse`, `[E3] region_dispatch`, `[E3] applied_region`, and RN `recipe_applied` events for `lip`, `cheek`, and `eye` |
+| E3 screen recording metadata log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/e3-screen-recording-ffprobe-2026-06-21.log` records a 38.25 second 1180x2556 portrait recording |
+| E3 user screen recording | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4` shows lip, cheek, and eye region changes on the real iPhone |
+| E3 debug color screenshot | `/Users/wiseungcheol/Desktop/makeupAR/evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg` summarizes the RN debug UI and region color states from the E3 recording |
 | M6 regenerated UnityFramework export log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-unity-export-m6-unity-to-rn-2026-06-21-0030.log` |
 | M6 regenerated UnityFramework build log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-xcodebuild-unityframework-m6-unity-to-rn-2026-06-21-0030.log` contains `** BUILD SUCCEEDED **` |
 | M6 regenerated artifact verification log | `/Users/wiseungcheol/Desktop/makeupAR/evidence/logs/m3-repro-artifact-verification-m6-unity-to-rn-2026-06-21-0030.log` records framework verification and package framework sync |
@@ -534,20 +711,23 @@ Full evidence index:
 - M6 logging caveat: the collected runtime/Metro logs do not include RN-side `[M6] rn_unity_message_received` lines, but RN receipt is proven by the real-device RN event panel populated from parsed `onUnityMessage` payloads.
 - First-face/reacquisition note: the previous recording showed an apparent first-face-only risk. The M6 fix confirms a persistent ARFace trackable can move to `TrackingState.None`; M6 now counts only active tracking faces, but different-person reacquisition remains outside this M6 screen-evidence pass.
 - M7 time-box decision: formal 3-cycle re-entry validation was skipped by user decision. The user confirmed app launch and normal exit behavior were acceptable, but this is recorded as Yellow/risk accepted rather than Green.
+- E3 region mask result: RN now sends canonical `region` recipe layers for `lip`, `cheek`, and `eye`; Unity logs parse/dispatch/applied results and applies nonzero mesh masks for all three. The user confirmed the regions are separated, but the painted ranges are broad, so this is Green for validation dispatch/independence and not product-quality makeup accuracy.
+- E4 texture sample result: RN now exposes `matte_lip`, `soft_blush`, and `shimmer_eye` as one validation sample per allowed region; Unity logs parse/region/texture/applied flow for each sample and applies them on nonzero face meshes. This is Green for debug texture-sample validation and not product-quality makeup fidelity.
 
 ## Next Milestone Boundary
 
-E1 AR Alignment is complete and satisfies the revised 10 second decision-recording rule. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, and E4 Texture Sample are complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: start E2 Trackable Lifecycle Diagnostics to formalize added/updated/removed trackable behavior, face lost/recovered transitions, and lifecycle logs before renderer work.
-- Conservative path: run additional M7 re-entry verification first if formal 3-cycle lifecycle evidence is required before any more AR engine work.
-- Skip path: only proceed to E3 Region Mask if the user explicitly accepts skipping E2 or treating the current E1 diagnostics as sufficient lifecycle evidence.
+- Primary path: start E5 AI Readiness Snapshot.
+- E5 should stay limited to a no-inference feature snapshot/schema/evidence handoff.
+- Conservative path: run additional M7 re-entry verification first only if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
 
 Stop rules:
 
 - Do not mark M7 Green unless a formal 3-cycle re-entry pass with evidence is collected.
-- Do not mark E2 Green unless lifecycle/trackable transition evidence is collected or explicitly risk-accepted.
-- Do not start region mask or texture validation unless E2 is completed or explicitly skipped/risk-accepted.
-- Do not start product-quality makeup rendering, AI/backend/admin/payment/community work, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.
+- Do not treat E3 as product-quality makeup accuracy; it only proves validation-level region independence.
+- Do not treat E4 as product-quality makeup fidelity; it only proves validation/debug texture sample dispatch and visual distinction.
+- Do not expand E5 beyond no-inference snapshot/schema/log readiness unless the user explicitly changes scope.
+- Do not start AI model inference, backend upload, recommendation logic, product-quality makeup rendering, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.

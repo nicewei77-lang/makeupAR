@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   GestureResponderEvent,
   LayoutChangeEvent,
@@ -17,20 +23,85 @@ import {
 } from 'react-native-safe-area-context';
 
 const RECIPE_COLOR_OPTIONS = [
-  {name: 'rose', color: '#D94B74'},
-  {name: 'coral', color: '#E67B5F'},
-  {name: 'nude', color: '#B9826B'},
+  { name: 'rose', color: '#D94B74' },
+  { name: 'coral', color: '#E67B5F' },
+  { name: 'nude', color: '#B9826B' },
+] as const;
+
+const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
+const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
+  {
+    name: 'matte_lip',
+    label: 'matte lip',
+    region: 'lip',
+    textureMode: 'sample',
+    blendMode: 'normal',
+    intensity: 0.72,
+    feather: 0.04,
+  },
+  {
+    name: 'soft_blush',
+    label: 'soft blush',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'normal',
+    intensity: 0.6,
+    feather: 0.32,
+  },
+  {
+    name: 'shimmer_eye',
+    label: 'shimmer eye',
+    region: 'eye',
+    textureMode: 'sample',
+    blendMode: 'screen',
+    intensity: 0.82,
+    feather: 0.08,
+  },
 ] as const;
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
+type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
+type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
+type RegionRecipe = {
+  color: RecipeColor;
+  opacity: number;
+  textureSample: RecipeTextureSample;
+};
 
+const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
 const DEFAULT_RECIPE_OPACITY = 0.65;
+const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
+  RecipeRegion,
+  RecipeTextureSample
+> = {
+  lip: RECIPE_TEXTURE_SAMPLE_OPTIONS[0],
+  cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS[1],
+  eye: RECIPE_TEXTURE_SAMPLE_OPTIONS[2],
+};
+const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
+  lip: {
+    color: DEFAULT_RECIPE_COLOR,
+    opacity: 0.72,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
+  },
+  cheek: {
+    color: RECIPE_COLOR_OPTIONS[1],
+    opacity: 0.46,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
+  },
+  eye: {
+    color: DEFAULT_RECIPE_COLOR,
+    opacity: DEFAULT_RECIPE_OPACITY,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
+  },
+};
 const OPACITY_STEP = 0.05;
-const UNITY_EVENT_HISTORY_LIMIT = 3;
+const UNITY_EVENT_HISTORY_LIMIT = 5;
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
+  'face_lifecycle',
   'recipe_applied',
 ] as const;
 
@@ -46,9 +117,38 @@ type UnityEventPayload = {
   faceCount?: number;
   totalTrackables?: number;
   trackingStates?: string;
+  timestamp?: string;
+  phase?: string;
+  sequence?: number;
+  status?: string;
+  selectedActiveFaceId?: string;
+  previousActiveFaceId?: string;
+  lastTrackedFaceId?: string;
+  activeFaceChanged?: boolean;
+  trackingState?: string;
+  addedCount?: number;
+  updatedCount?: number;
+  removedCount?: number;
+  addedFaces?: string;
+  updatedFaces?: string;
+  removedFaces?: string;
+  faceTransform?: string;
+  meshSummary?: string;
+  providerCapabilitySnapshot?: string;
+  region?: string;
   layer?: string;
+  appliedRegion?: string;
+  applied?: boolean;
   color?: string;
   opacity?: number;
+  texture?: string;
+  sample?: string;
+  textureMode?: string;
+  intensity?: number;
+  feather?: number;
+  blendMode?: string;
+  meshTriangles?: number;
+  usedFallback?: boolean;
   [key: string]: unknown;
 };
 
@@ -74,7 +174,7 @@ function App() {
     setUnityEntryCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[M7] unity_screen_open', `entry=${nextCount}`);
+      console.log('[E4] unity_screen_open', `entry=${nextCount}`);
 
       return nextCount;
     });
@@ -85,7 +185,7 @@ function App() {
     setUnityExitCount(currentCount => {
       const nextCount = currentCount + 1;
 
-      console.log('[M7] unity_screen_close', `exit=${nextCount}`);
+      console.log('[E4] unity_screen_close', `exit=${nextCount}`);
 
       return nextCount;
     });
@@ -166,10 +266,11 @@ function HomeScreen({
           paddingTop: safeAreaInsets.top + 28,
           paddingBottom: safeAreaInsets.bottom + 28,
         },
-      ]}>
+      ]}
+    >
       <View style={styles.homeBody}>
-        <Text style={styles.kicker}>M7</Text>
-        <Text style={styles.title}>Unity Re-entry Stability Validation</Text>
+        <Text style={styles.kicker}>E4</Text>
+        <Text style={styles.title}>Texture Sample Validation</Text>
         <Text style={styles.statusLabel}>Validation status</Text>
         <Text style={styles.statusText}>
           {`Ready for entry #${nextEntryCount}. Completed exits ${completedCycles}/3.`}
@@ -182,7 +283,8 @@ function HomeScreen({
           styles.primaryButton,
           pressed && styles.primaryButtonPressed,
         ]}
-        onPress={onStart}>
+        onPress={onStart}
+      >
         <Text style={styles.primaryButtonText}>Start AR</Text>
       </Pressable>
     </View>
@@ -199,52 +301,81 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const mountedAt = useMemo(() => new Date().toLocaleTimeString(), []);
   const unityRef = useRef<UnityView>(null);
-  const [selectedColor, setSelectedColor] =
-    useState<RecipeColor>(DEFAULT_RECIPE_COLOR);
-  const [opacity, setOpacity] = useState(DEFAULT_RECIPE_OPACITY);
+  const [selectedRegion, setSelectedRegion] = useState<RecipeRegion>(
+    DEFAULT_RECIPE_REGION,
+  );
+  const [regionRecipes, setRegionRecipes] = useState<
+    Record<RecipeRegion, RegionRecipe>
+  >(DEFAULT_REGION_RECIPES);
   const [sliderWidth, setSliderWidth] = useState(1);
-  const [lastUnityEvent, setLastUnityEvent] =
-    useState<UnityEventRecord | null>(null);
+  const [lastUnityEvent, setLastUnityEvent] = useState<UnityEventRecord | null>(
+    null,
+  );
   const [unityEventHistory, setUnityEventHistory] = useState<
     UnityEventRecord[]
   >([]);
-  const [unityEventStatus, setUnityEventStatus] =
-    useState<UnityEventStatusMap>({});
+  const [unityEventStatus, setUnityEventStatus] = useState<UnityEventStatusMap>(
+    {},
+  );
 
   useEffect(() => {
     console.log(
-      '[M7] unity_screen_mounted',
+      '[E4] unity_screen_mounted',
       `entry=${entryCount}`,
       `mounted=${mountedAt}`,
     );
 
     return () => {
-      console.log('[M7] unity_screen_unmounted', `entry=${entryCount}`);
+      console.log('[E4] unity_screen_unmounted', `entry=${entryCount}`);
     };
   }, [entryCount, mountedAt]);
 
   const handleClose = useCallback(() => {
-    console.log('[M7] unity_screen_close_pressed', `entry=${entryCount}`);
+    console.log('[E4] unity_screen_close_pressed', `entry=${entryCount}`);
     onClose();
   }, [entryCount, onClose]);
 
   const buildRecipeJson = useCallback(
-    (color: RecipeColor, nextOpacity: number) =>
+    (region: RecipeRegion, recipe: RegionRecipe) =>
       JSON.stringify({
-        layer: 'lip',
-        color: color.color,
-        opacity: nextOpacity,
+        version: 1,
+        region,
+        texture: recipe.textureSample.name,
+        sample: recipe.textureSample.name,
+        textureMode: recipe.textureSample.textureMode,
+        layers: [
+          {
+            id: `${region}-${recipe.textureSample.name}`,
+            region,
+            layer: region,
+            color: recipe.color.color,
+            opacity: recipe.opacity,
+            texture: recipe.textureSample.name,
+            sample: recipe.textureSample.name,
+            textureMode: recipe.textureSample.textureMode,
+            intensity: recipe.textureSample.intensity,
+            feather: recipe.textureSample.feather,
+            blendMode: recipe.textureSample.blendMode,
+            enabled: true,
+          },
+        ],
       }),
     [],
   );
 
   const postRecipe = useCallback(
-    (color: RecipeColor, nextOpacity: number) => {
-      unityRef.current?.postMessage(
-        'RNBridge',
-        'ApplyRecipeJson',
-        buildRecipeJson(color, nextOpacity),
+    (region: RecipeRegion, recipe: RegionRecipe) => {
+      const recipeJson = buildRecipeJson(region, recipe);
+      console.log(
+        '[E4] rn_texture_recipe_post',
+        `region=${region}`,
+        `color=${recipe.color.color}`,
+        `opacity=${recipe.opacity}`,
+        `texture=${recipe.textureSample.name}`,
+        `mode=${recipe.textureSample.textureMode}`,
+        `intensity=${recipe.textureSample.intensity}`,
       );
+      unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
     },
     [buildRecipeJson],
   );
@@ -274,7 +405,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         displayText: formatUnityEvent(parsed),
       };
 
-      console.log('[M6] rn_unity_message_received', rawMessage);
+      console.log(
+        parsed.type === 'recipe_applied'
+          ? '[E4] rn_unity_message_received'
+          : parsed.type === 'face_lifecycle'
+          ? '[E2] rn_unity_message_received'
+          : '[M6] rn_unity_message_received',
+        rawMessage,
+      );
 
       const knownType = getKnownUnityEventType(parsed.type);
       if (knownType) {
@@ -295,11 +433,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         displayText: `parse_failed ${parseError}`,
       };
 
-      console.log(
-        '[M6] rn_unity_message_parse_failed',
-        rawMessage,
-        parseError,
-      );
+      console.log('[M6] rn_unity_message_parse_failed', rawMessage, parseError);
     }
 
     setLastUnityEvent(record);
@@ -310,26 +444,76 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   useEffect(() => {
     const initialPostTimer = setTimeout(() => {
-      postRecipe(DEFAULT_RECIPE_COLOR, DEFAULT_RECIPE_OPACITY);
+      postRecipe(
+        DEFAULT_RECIPE_REGION,
+        DEFAULT_REGION_RECIPES[DEFAULT_RECIPE_REGION],
+      );
     }, 1000);
 
     return () => clearTimeout(initialPostTimer);
   }, [postRecipe]);
 
+  const selectedRecipe = regionRecipes[selectedRegion];
+  const selectedColor = selectedRecipe.color;
+  const selectedTextureSample = selectedRecipe.textureSample;
+  const opacity = selectedRecipe.opacity;
+
+  const selectRegion = useCallback(
+    (region: RecipeRegion) => {
+      setSelectedRegion(region);
+      postRecipe(region, regionRecipes[region]);
+    },
+    [postRecipe, regionRecipes],
+  );
+
   const selectColor = useCallback(
     (color: RecipeColor) => {
-      setSelectedColor(color);
-      postRecipe(color, opacity);
+      const nextRecipe = {
+        ...selectedRecipe,
+        color,
+      };
+
+      setRegionRecipes(currentRecipes => ({
+        ...currentRecipes,
+        [selectedRegion]: nextRecipe,
+      }));
+      postRecipe(selectedRegion, nextRecipe);
     },
-    [opacity, postRecipe],
+    [postRecipe, selectedRecipe, selectedRegion],
   );
 
   const updateOpacity = useCallback(
     (nextOpacity: number) => {
-      setOpacity(nextOpacity);
-      postRecipe(selectedColor, nextOpacity);
+      const nextRecipe = {
+        ...selectedRecipe,
+        opacity: nextOpacity,
+      };
+
+      setRegionRecipes(currentRecipes => ({
+        ...currentRecipes,
+        [selectedRegion]: nextRecipe,
+      }));
+      postRecipe(selectedRegion, nextRecipe);
     },
-    [postRecipe, selectedColor],
+    [postRecipe, selectedRecipe, selectedRegion],
+  );
+
+  const selectTextureSample = useCallback(
+    (textureSample: RecipeTextureSample) => {
+      const nextRegion = textureSample.region;
+      const nextRecipe = {
+        ...regionRecipes[nextRegion],
+        textureSample,
+      };
+
+      setSelectedRegion(nextRegion);
+      setRegionRecipes(currentRecipes => ({
+        ...currentRecipes,
+        [nextRegion]: nextRecipe,
+      }));
+      postRecipe(nextRegion, nextRecipe);
+    },
+    [postRecipe, regionRecipes],
   );
 
   const opacityPercent = Math.round(opacity * 100);
@@ -351,20 +535,22 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             paddingTop: safeAreaInsets.top + 12,
             paddingBottom: safeAreaInsets.bottom + 16,
           },
-        ]}>
+        ]}
+      >
         <Pressable
           accessibilityRole="button"
           style={({ pressed }) => [
             styles.closeButton,
             pressed && styles.closeButtonPressed,
           ]}
-          onPress={handleClose}>
+          onPress={handleClose}
+        >
           <Text style={styles.closeButtonText}>Close</Text>
         </Pressable>
 
         <View style={styles.debugPanel}>
           <Text style={styles.debugMetaText}>
-            {`M7 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
+            {`E4 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
           </Text>
           <Text style={styles.debugLabel}>Latest Unity event</Text>
           <Text style={styles.debugText} numberOfLines={2}>
@@ -372,13 +558,21 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               ? `${lastUnityEvent.receivedAt} ${lastUnityEvent.displayText}`
               : `waiting_for_unity_event mounted=${mountedAt}`}
           </Text>
+          <FaceLifecyclePanel
+            event={unityEventStatus.face_lifecycle?.parsed}
+            receivedAt={unityEventStatus.face_lifecycle?.receivedAt}
+          />
           <View style={styles.debugStatus}>
             <Text style={styles.debugSubLabel}>Last by type</Text>
             {UNITY_EVENT_TYPES.map(type => {
               const statusEvent = unityEventStatus[type];
 
               return (
-                <Text key={type} style={styles.debugHistoryText} numberOfLines={1}>
+                <Text
+                  key={type}
+                  style={styles.debugHistoryText}
+                  numberOfLines={1}
+                >
                   {formatUnityEventTypeStatus(type, statusEvent)}
                 </Text>
               );
@@ -392,7 +586,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 <Text
                   key={`${historyEvent.id}-${historyEvent.rawMessage}`}
                   style={styles.debugHistoryText}
-                  numberOfLines={1}>
+                  numberOfLines={1}
+                >
                   {historyEvent.receivedAt} {historyEvent.displayText}
                 </Text>
               ))
@@ -401,6 +596,35 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         </View>
 
         <View style={styles.recipePanel}>
+          <View style={styles.regionButtonRow}>
+            {RECIPE_REGION_OPTIONS.map(regionOption => {
+              const isSelected = regionOption === selectedRegion;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={regionOption}
+                  style={({ pressed }) => [
+                    styles.regionButton,
+                    isSelected && styles.regionButtonSelected,
+                    pressed && styles.colorButtonPressed,
+                  ]}
+                  onPress={() => selectRegion(regionOption)}
+                >
+                  <Text
+                    style={[
+                      styles.regionButtonText,
+                      isSelected && styles.regionButtonTextSelected,
+                    ]}
+                  >
+                    {regionOption}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <View style={styles.colorButtonRow}>
             {RECIPE_COLOR_OPTIONS.map(colorOption => {
               const isSelected = colorOption.name === selectedColor.name;
@@ -408,17 +632,56 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               return (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityState={{selected: isSelected}}
+                  accessibilityState={{ selected: isSelected }}
                   key={colorOption.name}
-                  style={({pressed}) => [
+                  style={({ pressed }) => [
                     styles.colorButton,
-                    {backgroundColor: colorOption.color},
+                    { backgroundColor: colorOption.color },
                     isSelected && styles.colorButtonSelected,
                     pressed && styles.colorButtonPressed,
                   ]}
-                  onPress={() => selectColor(colorOption)}>
-                  <Text style={styles.colorButtonText}>
-                    {colorOption.name}
+                  onPress={() => selectColor(colorOption)}
+                >
+                  <Text style={styles.colorButtonText}>{colorOption.name}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          <View style={styles.textureButtonRow}>
+            {RECIPE_TEXTURE_SAMPLE_OPTIONS.map(textureOption => {
+              const isSelected =
+                textureOption.name === selectedTextureSample.name;
+              const isCurrentRegion = textureOption.region === selectedRegion;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={textureOption.name}
+                  style={({ pressed }) => [
+                    styles.textureButton,
+                    isSelected && styles.textureButtonSelected,
+                    isCurrentRegion && styles.textureButtonCurrentRegion,
+                    pressed && styles.colorButtonPressed,
+                  ]}
+                  onPress={() => selectTextureSample(textureOption)}
+                >
+                  <Text
+                    style={[
+                      styles.textureButtonText,
+                      isSelected && styles.textureButtonTextSelected,
+                    ]}
+                  >
+                    {textureOption.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.textureButtonRegionText,
+                      isSelected && styles.textureButtonTextSelected,
+                    ]}
+                  >
+                    {textureOption.region}
                   </Text>
                 </Pressable>
               );
@@ -432,12 +695,85 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             onChange={updateOpacity}
           />
 
-          <Text style={styles.recipeValueText}>
-            {selectedColor.name} {selectedColor.color} / opacity{' '}
-            {opacityPercent}%
+          <Text style={styles.recipeValueText} numberOfLines={3}>
+            region {selectedRegion} / {selectedColor.name} {selectedColor.color}{' '}
+            / opacity {opacityPercent}% / texture {selectedTextureSample.name} /
+            mode {selectedTextureSample.textureMode} / intensity{' '}
+            {selectedTextureSample.intensity.toFixed(2)}
+          </Text>
+          <Text style={styles.recipeAppliedText} numberOfLines={2}>
+            {formatRecipeAppliedSummary(
+              unityEventStatus.recipe_applied?.parsed,
+            )}
           </Text>
         </View>
       </View>
+    </View>
+  );
+}
+
+type FaceLifecyclePanelProps = {
+  event?: UnityEventPayload;
+  receivedAt?: string;
+};
+
+function FaceLifecyclePanel({ event, receivedAt }: FaceLifecyclePanelProps) {
+  const status = formatLifecycleStatus(event);
+
+  return (
+    <View style={styles.faceStatePanel}>
+      <View style={styles.faceStateHeader}>
+        <Text style={styles.faceStateLabel}>Face state</Text>
+        <Text
+          style={[
+            styles.faceStateBadge,
+            status === 'lost' && styles.faceStateBadgeLost,
+            status === 'limited' && styles.faceStateBadgeLimited,
+            status === 'reacquired' && styles.faceStateBadgeReacquired,
+          ]}
+        >
+          {status}
+        </Text>
+      </View>
+      <Text style={styles.faceStateText} numberOfLines={1}>
+        {event
+          ? `active=${formatLifecycleValue(
+              event.selectedActiveFaceId,
+            )} state=${formatLifecycleValue(
+              event.trackingState,
+            )} count=${String(event.faceCount ?? 'n/a')}/${String(
+              event.totalTrackables ?? 'n/a',
+            )}`
+          : 'waiting for E2 lifecycle event'}
+      </Text>
+      <Text style={styles.faceStateText} numberOfLines={1}>
+        {event
+          ? `lastTracked=${formatLifecycleValue(
+              event.lastTrackedFaceId,
+            )} changed=${String(event.activeFaceChanged ?? false)}`
+          : 'lastTracked=waiting'}
+      </Text>
+      <Text style={styles.faceStateText} numberOfLines={1}>
+        {event
+          ? `change +${String(event.addedCount ?? 0)} ~${String(
+              event.updatedCount ?? 0,
+            )} -${String(event.removedCount ?? 0)} phase=${formatLifecycleValue(
+              event.phase,
+            )}`
+          : 'change +0 ~0 -0'}
+      </Text>
+      <Text style={styles.faceStateText} numberOfLines={1}>
+        {event
+          ? `mesh=${formatLifecycleValue(event.meshSummary)}`
+          : 'mesh=waiting'}
+      </Text>
+      <Text style={styles.faceStateText} numberOfLines={1}>
+        {event
+          ? `caps=${formatLifecycleValue(event.providerCapabilitySnapshot)} ${
+              receivedAt ?? ''
+            }`
+          : 'caps=waiting'}
+      </Text>
     </View>
   );
 }
@@ -447,15 +783,13 @@ function formatUnityEvent(event: UnityEventPayload) {
     case 'unity_initialized':
       return 'unity_initialized';
     case 'face_detected':
-      return `face_detected tracked=${String(
-        event.tracked,
-      )} faceCount=${String(event.faceCount)}${formatFaceTrackingDetails(
-        event,
-      )}`;
+      return `face_detected tracked=${String(event.tracked)} faceCount=${String(
+        event.faceCount,
+      )}${formatFaceTrackingDetails(event)}`;
+    case 'face_lifecycle':
+      return `face_lifecycle ${formatFaceLifecycleSummary(event)}`;
     case 'recipe_applied':
-      return `recipe_applied layer=${String(event.layer)} color=${String(
-        event.color,
-      )} opacity=${String(event.opacity)}`;
+      return formatRecipeAppliedSummary(event);
     default:
       return event.type ? String(event.type) : 'unknown_unity_event';
   }
@@ -490,11 +824,33 @@ function formatUnityEventTypeStatus(
       )} faceCount=${String(parsed.faceCount)}${formatFaceTrackingDetails(
         parsed,
       )} ${event.receivedAt}`;
+    case 'face_lifecycle':
+      return `face_lifecycle: ${formatFaceLifecycleSummary(parsed)} ${
+        event.receivedAt
+      }`;
     case 'recipe_applied':
-      return `recipe_applied: layer=${String(parsed.layer)} color=${String(
-        parsed.color,
-      )} opacity=${String(parsed.opacity)} ${event.receivedAt}`;
+      return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatRecipeAppliedSummary(event?: UnityEventPayload) {
+  if (!event) {
+    return 'recipe_applied waiting';
+  }
+
+  const texture = String(event.texture ?? event.sample ?? 'none');
+
+  return `recipe_applied region=${String(
+    event.region ?? event.layer,
+  )} texture=${texture} mode=${String(
+    event.textureMode ?? 'n/a',
+  )} color=${String(event.color)} opacity=${String(
+    event.opacity,
+  )} intensity=${String(event.intensity ?? 'n/a')} applied=${String(
+    event.applied ?? false,
+  )} faceCount=${String(event.faceCount ?? 'n/a')} meshTriangles=${String(
+    event.meshTriangles ?? 'n/a',
+  )} fallback=${String(event.usedFallback ?? false)}`;
 }
 
 function formatFaceTrackingDetails(event: UnityEventPayload) {
@@ -509,6 +865,41 @@ function formatFaceTrackingDetails(event: UnityEventPayload) {
   }
 
   return details.length > 0 ? ` ${details.join(' ')}` : '';
+}
+
+function formatFaceLifecycleSummary(event: UnityEventPayload) {
+  return `${formatLifecycleStatus(event)} active=${formatLifecycleValue(
+    event.selectedActiveFaceId,
+  )} lastTracked=${formatLifecycleValue(
+    event.lastTrackedFaceId,
+  )} state=${formatLifecycleValue(event.trackingState)} faceCount=${String(
+    event.faceCount ?? 'n/a',
+  )}/${String(event.totalTrackables ?? 'n/a')} change=+${String(
+    event.addedCount ?? 0,
+  )}/~${String(event.updatedCount ?? 0)}/-${String(event.removedCount ?? 0)}`;
+}
+
+function formatLifecycleStatus(event?: UnityEventPayload) {
+  const status = event?.status;
+
+  if (
+    status === 'tracking' ||
+    status === 'limited' ||
+    status === 'lost' ||
+    status === 'reacquired'
+  ) {
+    return status;
+  }
+
+  return 'lost';
+}
+
+function formatLifecycleValue(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return 'none';
+  }
+
+  return String(value);
 }
 
 type OpacitySliderProps = {
@@ -574,12 +965,13 @@ function OpacitySlider({
       </View>
       <View
         accessibilityRole="adjustable"
-        accessibilityValue={{min: 0, max: 1, now: value}}
+        accessibilityValue={{ min: 0, max: 1, now: value }}
         style={styles.sliderTrack}
         onLayout={handleLayout}
-        {...panResponder.panHandlers}>
-        <View style={[styles.sliderFill, {width: fillWidth}]} />
-        <View style={[styles.sliderThumb, {left: fillWidth}]} />
+        {...panResponder.panHandlers}
+      >
+        <View style={[styles.sliderFill, { width: fillWidth }]} />
+        <View style={[styles.sliderThumb, { left: fillWidth }]} />
       </View>
     </View>
   );
@@ -671,8 +1063,8 @@ const styles = StyleSheet.create({
   },
   debugPanel: {
     alignSelf: 'center',
-    width: '76%',
-    maxHeight: 250,
+    width: '84%',
+    maxHeight: 330,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
     paddingHorizontal: 10,
@@ -699,6 +1091,55 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 12,
     lineHeight: 16,
+    letterSpacing: 0,
+  },
+  faceStatePanel: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.18)',
+    marginTop: 6,
+    paddingTop: 6,
+    gap: 2,
+  },
+  faceStateHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  faceStateLabel: {
+    color: '#FDE68A',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  faceStateBadge: {
+    color: '#DCFCE7',
+    backgroundColor: 'rgba(22, 101, 52, 0.82)',
+    borderRadius: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  faceStateBadgeLost: {
+    color: '#FEE2E2',
+    backgroundColor: 'rgba(153, 27, 27, 0.82)',
+  },
+  faceStateBadgeLimited: {
+    color: '#FEF3C7',
+    backgroundColor: 'rgba(146, 64, 14, 0.82)',
+  },
+  faceStateBadgeReacquired: {
+    color: '#DBEAFE',
+    backgroundColor: 'rgba(30, 64, 175, 0.82)',
+  },
+  faceStateText: {
+    color: '#E5E7EB',
+    fontSize: 10,
+    lineHeight: 14,
     letterSpacing: 0,
   },
   debugStatus: {
@@ -738,6 +1179,34 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
   },
+  regionButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  regionButton: {
+    flex: 1,
+    minHeight: 36,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+  },
+  regionButtonSelected: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#FFFFFF',
+  },
+  regionButtonText: {
+    color: '#F9FAFB',
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  regionButtonTextSelected: {
+    color: '#111827',
+  },
   colorButtonRow: {
     flexDirection: 'row',
     gap: 8,
@@ -764,6 +1233,47 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0,
     textTransform: 'uppercase',
+  },
+  textureButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  textureButton: {
+    flex: 1,
+    minHeight: 48,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 4,
+  },
+  textureButtonCurrentRegion: {
+    borderColor: '#FDE68A',
+  },
+  textureButtonSelected: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  textureButtonText: {
+    color: '#F9FAFB',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  textureButtonRegionText: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginTop: 2,
+    textTransform: 'uppercase',
+  },
+  textureButtonTextSelected: {
+    color: '#111827',
   },
   opacityControl: {
     gap: 8,
@@ -813,6 +1323,12 @@ const styles = StyleSheet.create({
     color: '#F9FAFB',
     fontSize: 13,
     lineHeight: 18,
+    letterSpacing: 0,
+  },
+  recipeAppliedText: {
+    color: '#BAE6FD',
+    fontSize: 11,
+    lineHeight: 15,
     letterSpacing: 0,
   },
 });
