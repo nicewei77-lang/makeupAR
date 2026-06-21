@@ -2,7 +2,7 @@
 
 Date: 2026-06-21 KST
 
-Status: Active validation implementation plan / M8 foundation closeout complete / next gate is E1 or optional M7 re-check
+Status: Active validation implementation plan / E1 AR Alignment complete / next gate is E2 or optional M7 re-check
 
 ## 0. 현재 사용법
 
@@ -17,9 +17,10 @@ Status: Active validation implementation plan / M8 foundation closeout complete 
 - M0-M6는 Green이다.
 - M7은 `Yellow / skipped by decision / risk accepted`이며 Green이 아니다.
 - M8 결과 리포트는 완료되었다.
-- M7 lifecycle risk를 수용하면 다음 작업은 E1 AR Alignment다.
+- E1 AR Alignment는 Green이며, 19.04초 녹화는 개정된 10초 이상 판정 영상 규칙을 충족한다.
+- M7 lifecycle risk를 수용하면 다음 작업은 E2 Trackable Lifecycle Diagnostics다.
 - lifecycle confidence를 먼저 확보해야 한다면 추가 M7 re-entry verification을 먼저 수행한다.
-- E1 전에는 region mask, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK, Android 작업을 시작하지 않는다.
+- E2 전에는 region mask, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK, Android 작업을 시작하지 않는다.
 
 ## 1. 목적
 
@@ -79,7 +80,7 @@ Status: Active validation implementation plan / M8 foundation closeout complete 
 | 1 | M6 Unity -> RN Events | Unity 상태를 RN 화면에서 확인 | RN receives `unity_initialized`, `face_detected`, `recipe_applied` |
 | 2 | M7 Re-entry Stability | AR 화면 lifecycle 안정성 확인 | Start/Close 3회 + background/foreground 통과 |
 | 3 | M8 Foundation Closeout | 기존 RN-Unity 검증 닫기 | `TECH_VALIDATION_RESULT.md`가 integration과 visual readiness를 분리 |
-| 4 | E1 AR Alignment | camera feed와 `ARFace` mesh 정렬 | 30초 recording에서 overlay가 face contour/eyes/mouth에 정렬 |
+| 4 | E1 AR Alignment | camera feed와 `ARFace` mesh 정렬 | 10초 이상 recording에서 overlay가 face contour/eyes/mouth에 정렬 |
 | 5 | E2 Trackable Lifecycle | face lost/recovered/second-face 상태 분리 | added/updated/removed, ID, trackingState, mesh count log |
 | 6 | E3 Region Mask | `lip`, `cheek`, `eye` 독립 제어 | region별 color/opacity가 독립 적용 |
 | 7 | E4 Texture Sample | 최소 질감 표현 검증 | matte lip / soft blush / shimmer eye 구분 |
@@ -276,7 +277,7 @@ M8에서 visual makeup을 Green으로 적지 않는다. E1/E3 evidence가 생기
 
 ### Green criteria
 
-- 30초 이상 iPhone recording에서 overlay가 face contour, eyes, mouth에 맞는다.
+- 10초 이상 iPhone recording에서 overlay가 face contour, eyes, mouth에 맞는다.
 - 정면, 좌/우 회전, 위/아래 움직임, 입 벌림, face lost/recovered를 포함한다.
 - runtime log는 `SessionTracking`, active face, mesh/UV availability를 보여준다.
 - runtime log는 같은 recording 구간의 active `trackableId`, `trackingState`, face transform, camera transform을 함께 보여준다.
@@ -638,6 +639,9 @@ Use MediaPipe or ARCore comparison only if one of these happens:
 - Store logs under `evidence/logs/`.
 - Store screenshots under `evidence/screenshots/`.
 - Store recordings under `evidence/screen-recordings/`.
+- Decision screen recordings must be at least 10 seconds by default. If a milestone requires a specific cycle or scenario, the footage must be long enough to show the full scenario even when that exceeds 10 seconds.
+- For decision recordings, also keep metadata and representative frames/contact sheets when practical.
+- Runtime console output used as decision evidence must be captured as a full stream with `tee` or an equivalent method. If only an observation summary is retained, label it as a summary artifact.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Put reusable procedures in `docs/runbooks/`.
 - Do not keep `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode `derived-data/`, `.DS_Store`, or generated framework artifacts in source control.
@@ -647,9 +651,9 @@ Use MediaPipe or ARCore comparison only if one of these happens:
   - `TECH_VALIDATION_RESULT.md`
 - Temporary session plans may be named `M6_..._PLAN.md`, `E1_..._PLAN.md`, etc., but must be absorbed into `TECH_VALIDATION_RESULT.md` and deleted after completion.
 
-## 14. Current Next Session Prompt
+## 14. Historical E1 Session Prompt
 
-Use this as the next implementation session goal if the M7 lifecycle risk remains accepted.
+The prompt below is retained as the historical E1 implementation prompt. For the current next session, derive the goal from `TECH_VALIDATION_RESULT.md` > `Next Milestone Boundary`.
 
 ```md
 # Goal: E1 AR Alignment 구현 및 실기기 검증
@@ -670,12 +674,12 @@ Required reading order:
 10. `unity/MakeupARUnityValidation/Assets/Scripts/FaceTrackingStatusReporter.cs`
 11. `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
 
-Current boundary:
+Historical E1 boundary at the time:
 
 - M0-M6 are Green.
 - M7 is Yellow / skipped by decision / risk accepted.
 - M8 foundation closeout is complete.
-- Next primary milestone is E1 AR Alignment.
+- At that time, the next primary milestone was E1 AR Alignment.
 - Do not start region masks, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation.
 
 Implement only E1:
@@ -688,7 +692,7 @@ Implement only E1:
 
 Verify on real iPhone:
 
-- Record at least 30 seconds with front face, left/right head turn, up/down movement, mouth open/closed, and face lost/recovered.
+- Record at least 10 seconds with front face, left/right head turn, up/down movement, mouth open/closed, and face lost/recovered.
 - Confirm whether the overlay is aligned to face contour, eyes, and mouth.
 - Save runtime logs under `evidence/logs/`.
 - Save screenshot or screen recording under `evidence/screenshots/` or `evidence/screen-recordings/`.

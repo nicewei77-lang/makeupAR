@@ -7,6 +7,8 @@ using UnityEditor.XR.ARKit;
 using UnityEditor.XR.Management;
 using UnityEditor.XR.Management.Metadata;
 using UnityEngine;
+using UnityEngine.InputSystem;
+using UnityEngine.InputSystem.XR;
 using UnityEngine.SceneManagement;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.Management;
@@ -201,6 +203,7 @@ public static class MakeupARValidationSetup
         ARCameraManager cameraManager = cameraObject.AddComponent<ARCameraManager>();
         cameraManager.requestedFacingDirection = CameraFacingDirection.User;
         cameraObject.AddComponent<ARCameraBackground>();
+        ConfigureTrackedPoseDriver(cameraObject);
         xrOrigin.Camera = camera;
 
         ARFaceManager faceManager = xrOriginObject.AddComponent<ARFaceManager>();
@@ -213,7 +216,10 @@ public static class MakeupARValidationSetup
         serializedReporter.FindProperty("arSession").objectReferenceValue = arSessionObject.GetComponent<ARSession>();
         serializedReporter.FindProperty("cameraManager").objectReferenceValue = cameraManager;
         serializedReporter.FindProperty("faceManager").objectReferenceValue = faceManager;
+        serializedReporter.FindProperty("xrOrigin").objectReferenceValue = xrOrigin;
+        serializedReporter.FindProperty("arCamera").objectReferenceValue = camera;
         serializedReporter.FindProperty("drawDebugOverlay").boolValue = true;
+        serializedReporter.FindProperty("logE1Diagnostics").boolValue = true;
         serializedReporter.ApplyModifiedPropertiesWithoutUndo();
 
         RNBridge bridge = statusObject.AddComponent<RNBridge>();
@@ -221,6 +227,10 @@ public static class MakeupARValidationSetup
         serializedBridge.FindProperty("faceManager").objectReferenceValue = faceManager;
         serializedBridge.FindProperty("overlayMaterial").objectReferenceValue = faceMaterial;
         serializedBridge.ApplyModifiedPropertiesWithoutUndo();
+
+        serializedReporter.Update();
+        serializedReporter.FindProperty("rnBridge").objectReferenceValue = bridge;
+        serializedReporter.ApplyModifiedPropertiesWithoutUndo();
 
         GameObject lightObject = new GameObject("Directional Light");
         Light light = lightObject.AddComponent<Light>();
@@ -230,6 +240,23 @@ public static class MakeupARValidationSetup
 
         EditorSceneManager.SaveScene(scene, ScenePath);
         EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
+    }
+
+    private static void ConfigureTrackedPoseDriver(GameObject cameraObject)
+    {
+        TrackedPoseDriver trackedPoseDriver = GetOrAddComponent<TrackedPoseDriver>(cameraObject);
+        trackedPoseDriver.trackingType = TrackedPoseDriver.TrackingType.RotationAndPosition;
+        trackedPoseDriver.updateType = TrackedPoseDriver.UpdateType.UpdateAndBeforeRender;
+        trackedPoseDriver.ignoreTrackingState = false;
+
+        InputAction positionAction = new InputAction("Position", binding: "<XRHMD>/centerEyePosition", expectedControlType: "Vector3");
+        positionAction.AddBinding("<HandheldARInputDevice>/devicePosition");
+
+        InputAction rotationAction = new InputAction("Rotation", binding: "<XRHMD>/centerEyeRotation", expectedControlType: "Quaternion");
+        rotationAction.AddBinding("<HandheldARInputDevice>/deviceRotation");
+
+        trackedPoseDriver.positionInput = new InputActionProperty(positionAction);
+        trackedPoseDriver.rotationInput = new InputActionProperty(rotationAction);
     }
 
     private static void EnableArKitLoaderForIos()

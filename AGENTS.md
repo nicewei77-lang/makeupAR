@@ -42,5 +42,7 @@
 - Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation.
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
 - Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`.
+- Decision screen recordings must be at least 10 seconds unless the user explicitly accepts a shorter artifact; scenario- or cycle-based milestones still need enough footage to show the required scenario.
+- When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Do not keep generated/cache state in the repo: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode `derived-data/`, or `.DS_Store`.

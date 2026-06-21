@@ -2,15 +2,15 @@
 
 Date: 2026-06-21
 
-Latest re-check: 2026-06-21 01:23 KST
+Latest re-check: 2026-06-21 20:14 KST
 
 ## Scope
 
-M8 foundation closeout: this document summarizes the RN + Unity + AR Foundation iPhone validation result so the next product/engine decision can separate foundation integration readiness from AR makeup visual readiness.
+Current update: this document records the E1 AR Alignment result on top of the prior M8 foundation closeout, so the next engine decision can separate validated diagnostic face alignment from future region masks, texture rendering, and product-quality makeup work.
 
-M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. No new Xcode, React Native, or Unity build was run for M8; this update is a result report based on existing evidence.
+M0-M6 are Green. M7 is Yellow / skipped by decision / risk accepted. M8 foundation closeout remains Yellow overall because of the accepted M7 lifecycle gap. E1 AR Alignment is Green; its 19.04 second recording satisfies the revised 10 second decision-recording minimum.
 
-Full M7 3-cycle re-entry stress testing, E1 AR visual alignment fixes, region masks, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
+Full M7 3-cycle re-entry stress testing, E2 lifecycle diagnostics matrix, E3 region masks, texture rendering, product-quality makeup rendering, AI/backend/admin/payment/community, commercial SDK integration, and Android work were not attempted.
 
 Authoritative inputs:
 
@@ -18,6 +18,7 @@ Authoritative inputs:
 - `TECH_VALIDATION_TEST_PLAN.md` sections 13-15, M6 Unity -> RN communication, M7 re-entry stability, and M8 result report
 - `TECH_VALIDATION_RESULT.md` previous `Next Milestone Boundary`
 - `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` section 6, M8 Foundation Closeout
+- E1 implementation/build/runtime/screen evidence recorded in the evidence paths below
 
 ## Workspace Document State
 
@@ -29,11 +30,50 @@ Active root documents:
 
 Completed session-specific plan/status documents have been absorbed into this result document and removed from the active root. New `M*_..._PLAN.md` files should be temporary: create them only when a session needs one, then absorb the outcome here and delete the plan after completion.
 
+## E1 Decision Detail
+
+Status: Green
+
+E1 AR Alignment is Green for validation purposes. The gross face-overlay offset recorded in the M5 screen-state review is addressed by adding AR camera pose driving and E1 diagnostics, then rebuilding UnityFramework and reinstalling/running the RN-hosted Unity app on the real iPhone.
+
+Implementation summary:
+
+- `MakeupARValidationSetup` now configures the AR Camera with an Input System `TrackedPoseDriver` using handheld AR device position and rotation bindings.
+- `FaceTrackingStatusReporter` now logs E1 alignment diagnostics including orientation, screen size, XROrigin/camera/camera-offset transforms, face trackable state, and mesh vertex/index/UV counts.
+- The Unity scene now serializes the Tracked Pose Driver and the reporter references for `XROrigin`, AR Camera, RN bridge, and E1 diagnostics.
+
+Confirmed evidence:
+
+- Unity project configuration completed without C# compile failure: `evidence/logs/e1-unity-configure-2026-06-21.log`.
+- UnityFramework export/build/sync succeeded and produced arm64 RN and package framework artifacts with Data: `evidence/logs/m3-repro-unity-export-e1-2026-06-21.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e1-2026-06-21.log`, and `evidence/logs/m3-repro-artifact-verification-e1-2026-06-21.log`.
+- RN iOS build/install/launch succeeded on `위승철의 iPhone`: `evidence/logs/e1-build-install-run-2026-06-21.log`.
+- Runtime console summary records E1 alignment diagnostics, `SessionTracking`, `User/User` front camera, repeated face trackable updates, camera transform updates, mesh counts, and no observed missing Tracked Pose Driver warning in the E1 stream: `evidence/logs/e1-ar-alignment-runtime-summary-2026-06-21.log`.
+- Devicectl wrapper launch log was retained at `evidence/logs/e1-ar-alignment-runtime-2026-06-21.log`.
+- User-provided real-device screen recording was copied to `evidence/screen-recordings/e1-ar-alignment-front-turn-mouth-2026-06-21.mp4`.
+- Screen recording metadata was captured at `evidence/logs/e1-screen-recording-ffprobe-2026-06-21.log`: 19.04 seconds, 1180x2556 portrait, HEVC, about 59.98 fps, creation time `2026-06-21T11:05:03Z` / `2026-06-21 20:05:03 KST`.
+- Representative frame evidence was generated at `evidence/screenshots/e1-ar-alignment-contact-sheet-2026-06-21.jpg`, `evidence/screenshots/e1-ar-alignment-frame-05s-2026-06-21.jpg`, and `evidence/screenshots/e1-ar-alignment-frame-12s-2026-06-21.jpg`.
+- The contact sheet shows the diagnostic overlay attached to the visible face rather than displaced up-left, RN event panels showing `face_detected` and `recipe_applied`, opacity/color controls affecting the diagnostic overlay, and face lost/recovered states during the short device flow.
+- User confirmed on-device that all intended functions were checked. The 19.04 second recording exceeds the revised 10 second minimum for decision recordings.
+
+Known limitations:
+
+- The E1 recording was originally accepted under the previous 30 second expectation because the user explicitly confirmed all functions. The validation contract was later revised so decision recordings are 10 seconds minimum by default; the retained 19.04 second E1 recording satisfies that revised duration rule.
+- The full raw app console stream was not persisted because `devicectl --log-output` retained only wrapper messages. The runtime evidence is therefore preserved as a summary from the observed console stream, and future captures should use shell stream capture such as `2>&1 | tee`.
+- The current visual output is still a diagnostic whole-face/marker overlay. It is not E3 `lip`, `cheek`, and `eye` region rendering, and it is not product-quality makeup.
+- `Failed to initialize subsystem ARKit-Meshing [error: 1]`, diagnostic `SphereCollider` warnings, and RN warning banners remain non-E1 blockers.
+- M7 remains Yellow / skipped by decision / risk accepted; E1 does not promote M7 to Green.
+
+Next boundary decision:
+
+- Next Milestone Boundary: E2 Trackable Lifecycle Diagnostics.
+- E3 Region Mask should not start until E2 is either completed or explicitly skipped/risk-accepted by the user.
+- Do not start texture rendering, product-quality makeup, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation from this E1 result.
+
 ## M8 Final Decision
 
 Status: Yellow
 
-Foundation integration is technically viable enough to proceed to E1 AR Alignment if the M7 lifecycle risk is accepted. The result is not Green because the formal M7 3-cycle re-entry evidence was skipped, and it is not Red because the core RN + Unity + AR Foundation path has real-device evidence for app execution, Unity embed, ARKit face tracking, and bidirectional RN-Unity communication.
+At M8 closeout, foundation integration was technically viable enough to proceed to E1 AR Alignment if the M7 lifecycle risk was accepted. The result was not Green because the formal M7 3-cycle re-entry evidence was skipped, and it was not Red because the core RN + Unity + AR Foundation path had real-device evidence for app execution, Unity embed, ARKit face tracking, and bidirectional RN-Unity communication.
 
 Decision summary:
 
@@ -44,13 +84,13 @@ Decision summary:
 - Unity -> RN communication: Green.
 - Re-entry stability: Yellow / skipped by decision / risk accepted.
 - Foundation integration readiness: Yellow overall, with the core integration path Green and M7 lifecycle proof carried as an accepted risk.
-- AR visual makeup readiness: Not Green. Current face overlay is diagnostic and visibly offset; E1 must prove camera/feed/face mesh alignment.
+- AR visual makeup readiness at M8 closeout: Not Green. The then-current face overlay was diagnostic and visibly offset; E1 was required to prove camera/feed/face mesh alignment.
 - Product-quality makeup rendering: Not started. Do not treat the current overlay as lip, cheek, eye, or product-quality rendering.
 
-Next decision gate:
+M8 decision gate at that time:
 
-- If the accepted M7 risk is still acceptable, the next milestone boundary is E1 AR Alignment.
-- If lifecycle confidence is required before renderer work, the next milestone boundary is additional M7 re-entry verification.
+- If the accepted M7 risk was still acceptable, the next milestone boundary was E1 AR Alignment.
+- If lifecycle confidence was required before renderer work, the next milestone boundary was additional M7 re-entry verification.
 - Do not start region masks, texture rendering, product makeup quality, AI/backend/admin/payment/community, commercial SDK integration, Android work, or product implementation from this M8 report.
 
 ## Readiness Breakdown
@@ -64,7 +104,7 @@ Next decision gate:
 | Unity -> RN event path | Green | RN visibly receives and displays `unity_initialized`, `face_detected tracked=true/false`, and `recipe_applied`. |
 | Re-entry lifecycle | Yellow / risk accepted | User confirmed app execution and normal Close/exit behavior, but formal 3-cycle M7 evidence was intentionally skipped. |
 | Clean rebuild/reinstall durability | Yellow caveat | Local success depends on the package framework sync and the `node_modules` `RNUnityView.mm` timing patch until made durable. |
-| Face-fitted AR visual alignment | Not Green / E1 required | Current diagnostic overlay is offset from the face; it is tracking evidence, not makeup visual readiness. |
+| Face-fitted AR visual alignment | M8: Not Green / E1 required | At M8 closeout, the diagnostic overlay was offset from the face. The later E1 section above records the alignment fix and evidence. |
 | Region renderer | Not started | `lip`, `cheek`, and `eye` independent region control remains E3 scope. |
 | Product-quality makeup rendering | Not started / Not ready | No product-quality makeup, texture, shade fidelity, feathering, or blend-mode validation has begun. |
 | AI readiness | Not started | Future E5 scope is no-inference schema/evidence handoff only, not AI model/backend/product inference. |
@@ -80,7 +120,7 @@ Yellow basis:
 
 - M7 formal 3-cycle re-entry validation was skipped by decision; this is a lifecycle confidence gap, not a Green proof.
 - Clean reinstall/reclone durability still has local caveats around framework sync and the `RNUnityView.mm` timing patch.
-- Current visual overlay is not face-fitted, so visual makeup readiness is intentionally separated from foundation integration readiness.
+- At M8 closeout, the visual overlay was not face-fitted, so visual makeup readiness was intentionally separated from foundation integration readiness. The later E1 section above supersedes only the diagnostic alignment gap, not region rendering or product makeup quality.
 
 Red basis:
 
@@ -237,7 +277,7 @@ This table is the M8 single-glance foundation validation summary. M7 remains Yel
 - The successful local RN-hosted Unity run still depends on the package-local `RNUnityView.mm` timing patch under `node_modules`; this must be made durable before clean reinstall/reclone workflows.
 - Generated UnityFramework artifacts must be synced into the package framework path used by `@azesmway/react-native-unity`; stale embedded frameworks previously caused RN -> Unity messages to miss `RNBridge`.
 - RN-side JS console receipt logs were not captured for M6, although RN receipt is proven by the real-device RN event panel and screenshots.
-- Current AR visual output is a diagnostic whole-face overlay, not face-fitted makeup. The overlay is visibly offset and must not be used as evidence for lip, cheek, eye, or product-quality rendering.
+- The previous M5 gross visual offset is addressed by E1. Current AR visual output is still a diagnostic whole-face/marker overlay and must not be used as evidence for lip, cheek, eye, texture, or product-quality rendering.
 - The current Unity recipe path accepts `layer: "lip"` but does not route to a lip region; it applies color/opacity to the whole diagnostic overlay.
 - First-face/reacquisition behavior remains a follow-up diagnostic topic; M6 fixed active tracking state reporting but did not fully validate second-person switching.
 - Multi-face UX, product makeup quality, texture samples, AI inference, backend upload, commercial SDK integration, and Android remain outside the completed foundation validation.
@@ -245,9 +285,9 @@ This table is the M8 single-glance foundation validation summary. M7 remains Yel
 ## Risk Accepted
 
 - M8 closes with an overall Yellow decision instead of spending more time on standalone M7 re-entry stress testing.
-- Proceeding to E1 AR Alignment is acceptable only if the team accepts that M7 lifecycle risk remains open.
-- If lifecycle stability becomes a release-critical question before renderer work, run additional M7 verification before E1.
-- The current visual evidence is accepted only as integration/tracking evidence, not as makeup visual readiness.
+- Proceeding past E1 is acceptable only if the team accepts that M7 lifecycle risk remains open and that E1's 19.04 second recording is evaluated under the revised 10 second decision-recording rule.
+- If lifecycle stability becomes a release-critical question before renderer work, run additional M7 verification before continuing renderer validation.
+- The current visual evidence is accepted only as E1 diagnostic alignment evidence, not as region-renderer, texture, or product makeup visual readiness.
 
 ## M6 Requirement Matrix
 
@@ -497,16 +537,17 @@ Full evidence index:
 
 ## Next Milestone Boundary
 
-M8 result report is complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment is complete and satisfies the revised 10 second decision-recording rule. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: start E1 AR Alignment if the team accepts the M7 lifecycle risk and wants to validate whether the camera feed, ARFace mesh, and diagnostic overlay can be aligned.
-- Conservative path: run additional M7 re-entry verification first if formal 3-cycle lifecycle evidence is required before renderer work.
+- Primary path: start E2 Trackable Lifecycle Diagnostics to formalize added/updated/removed trackable behavior, face lost/recovered transitions, and lifecycle logs before renderer work.
+- Conservative path: run additional M7 re-entry verification first if formal 3-cycle lifecycle evidence is required before any more AR engine work.
+- Skip path: only proceed to E3 Region Mask if the user explicitly accepts skipping E2 or treating the current E1 diagnostics as sufficient lifecycle evidence.
 
 Stop rules:
 
 - Do not mark M7 Green unless a formal 3-cycle re-entry pass with evidence is collected.
-- Do not mark face-fitted rendering Green before E1 evidence.
-- Do not start region mask or texture validation before E1 establishes alignment.
+- Do not mark E2 Green unless lifecycle/trackable transition evidence is collected or explicitly risk-accepted.
+- Do not start region mask or texture validation unless E2 is completed or explicitly skipped/risk-accepted.
 - Do not start product-quality makeup rendering, AI/backend/admin/payment/community work, commercial SDK integration, Android work, or product implementation until the plan explicitly reaches those milestones.
