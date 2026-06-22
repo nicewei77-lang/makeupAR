@@ -543,6 +543,11 @@ public sealed class RNBridge : MonoBehaviour
                     continue;
                 }
 
+                if (IsRegionOverlayRenderer(renderer))
+                {
+                    continue;
+                }
+
                 if (!suppressedFaceRendererStates.ContainsKey(renderer))
                 {
                     suppressedFaceRendererStates[renderer] = renderer.enabled;
@@ -551,6 +556,22 @@ public sealed class RNBridge : MonoBehaviour
                 renderer.enabled = false;
             }
         }
+    }
+
+    private static bool IsRegionOverlayRenderer(Renderer renderer)
+    {
+        Transform current = renderer.transform;
+        while (current != null)
+        {
+            if (current.name.StartsWith("E3 Region ", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            current = current.parent;
+        }
+
+        return false;
     }
 
     private E3RegionMaskOverlay.RegionApplyResult ApplyRegionLayer(ParsedRecipeLayer layer)
