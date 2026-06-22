@@ -19,7 +19,8 @@ Current `e7-arface-authored-atlas` implementation should be treated as an `ARFac
 The next E7.03 path is:
 
 ```txt
-reference masks
+clean synchronized capture frame + ARFace export
+-> human-reviewed gold mask on that exact frame
 -> ARFace projection and UV back-projection
 -> per-region UV probability atlas
 -> offline scoring and candidate pruning
@@ -125,6 +126,19 @@ ARFace mesh and UVs
 + tracking-state visibility rules
 ```
 
+### 4.1 Data Role Map
+
+Use this table to prevent confusing example/reference data with official atlas input.
+
+| Data type | Has this app's synchronized ARFace mesh/UV export? | Has marking? | Role |
+| --- | --- | --- | --- |
+| Official app `frame.png` + `arface_export.json` + human-reviewed mask | Yes | Yes | Gold input for UV atlas generation and final region decisions |
+| Official app `frame.png` + `arface_export.json` + model-generated mask or landmarks | Yes | Yes, generated | Silver reference for draft labeling, diagnosis, and candidate assistance; never Green by itself |
+| External dataset image + external face parsing mask | No | Often yes | Taxonomy/example/reference only; not an official ARFace UV atlas input |
+| Internet image, generic screenshot, or screen-recording-only frame | No | Maybe | Visual reference, scenario planning, or practice mask only |
+
+External dataset masks may already mark lips, eyes, skin, or similar classes, but their markings belong to that dataset image coordinate system. They do not identify which triangles or UV coordinates in this app's ARFace mesh correspond to the region. Official gold masks must therefore be drawn on this app's clean synchronized capture frames.
+
 ## 5. Reference Sources
 
 ### 5.1 Gold Reference
@@ -147,12 +161,19 @@ How to create:
 Critical rule:
 
 - A mask can become an official gold mask for UV atlas generation only if its frame has a valid synchronized capture pair. A screen-recording-only frame without matching ARFace export may be used for review or practice, but not for UV back-projection input.
+- The official annotation frame must be clean: no ARFace mesh overlay, no region candidate overlay, no HUD/log text, no debug points/triangles, and no makeup/beauty texture. Mesh and debug views must be exported as separate derived files such as `projected_mesh_overlay.png`.
 
 Minimum initial set:
 
 - `lip`: 8 to 12 frames: neutral, smile, mouth open, mouth close, pucker, yaw left/right.
 - `cheek`: 6 to 10 frames: neutral, smile, yaw, pitch, partial profile.
 - `eye`: 8 to 12 frames: neutral, blink, squint, wide eye, gaze direction, pitch.
+
+Gold mask authoring notes:
+
+- `lip`: include visible lip surface only. Exclude teeth, inner mouth, tongue, chin, cheek, broad skin, and shadow-only areas. For open-mouth frames, mark the lip surface and leave the mouth hole outside.
+- `cheek`: mark a makeup placement target, not an anatomical dataset class. Prefer a soft blush-safe zone around the cheek/apple area. Avoid nose folds, jaw, mouth corners, under-eye dark area, hair, and ears. A grayscale soft mask is preferred when evaluating blush falloff.
+- `eye`: target a broad eyeshadow/eye tint zone, not eyeliner-grade precision. Exclude eyeball/iris/sclera, forehead above the intended eye area, cheek, nose bridge spill, and lower-face spill. Blink frames may have a narrower valid zone.
 
 ### 5.2 Silver Reference
 
@@ -170,6 +191,9 @@ Rules:
 - Use silver reference to propose masks, not to decide Green alone.
 - Human review must override silver reference when makeup placement differs from raw anatomy.
 - Record model/source/version/license notes for every generated reference.
+- Split silver/reference roles explicitly:
+  - External dataset masks are taxonomy/example material unless they are re-run or re-authored on this app's official frames.
+  - Model outputs generated on this app's official synchronized frames may assist UV back-projection, but remain silver until human-reviewed into gold.
 
 ### 5.3 Shape and Product Benchmarks
 
@@ -200,35 +224,34 @@ evidence/e7-reference-atlas/
       arface_export.json
       projected_mesh_overlay.png
       round_trip_overlay.png
-  frames/
-    practice_from_recording/
-    synced/
-  masks/
-    gold/
-      lip/
-      cheek/
-      eye/
-    silver/
-      mediapipe/
-      face-parsing/
-  arface-export/
-    frame_0001.arface.json
-    frame_0001.preview.png
-  atlas/
-    lip_probability_v0.png
-    cheek_probability_v0.png
-    eye_probability_v0.png
-    lip_mask_v0.png
-    cheek_mask_v0.png
-    eye_mask_v0.png
-  candidates/
-    e7_atlas_candidates_v0.json
+  frames_practice/
+    from_screen_recording/
+  masks_gold/
+    lip/pair_lip_0001.png
+    cheek/
+    eye/
+  masks_silver/
+    mediapipe/
+    parsing/
+    apple_vision/
+  atlases/
+    v0/
+      lip_probability.png
+      lip_coverage.png
+      lip_unknown.png
+      lip_debug_votes.png
+      lip_variants.json
+      cheek_probability.png
+      cheek_variants.json
+      eye_probability.png
+      eye_variants.json
   scores/
-    offline_scores.csv
+    atlas_scores.csv
+    atlas_scores.json
     offline_summary.md
-    contact_sheet_lip.jpg
-    contact_sheet_cheek.jpg
-    contact_sheet_eye.jpg
+  contact_sheets/
+    p1_frame_pack.jpg
+    p6_candidate_review.jpg
   splits/
     leave_one_frame_out.json
   forward_checks/
@@ -243,12 +266,13 @@ Critical capture-pair prerequisite:
 
 - A frame can be used for UV atlas generation only if it has a matching ARFace export captured from the same runtime moment and the same display coordinate system.
 - Valid atlas source pair:
-  - frame image actually used for annotation,
+  - clean frame image actually used for annotation,
   - `screenVertices` projected into the exact same pixel coordinate space,
   - `uvs` and `indices` from the same ARFace mesh,
   - orientation, mirroring, Unity view rect, screen/video resolution, safe-area, viewport/crop, and display transform metadata,
   - blendshape values from the same frame.
 - Existing screen recordings without matching ARFace export may be used for visual review, scenario selection, or mask-authoring practice, but must not be treated as valid UV back-projection input.
+- `frame.png` is the clean annotation frame. It must not include mesh, candidate mask, HUD/log text, debug markers, or beauty texture. Derived debug files such as `projected_mesh_overlay.png` may overlay mesh on the same frame for coordinate validation.
 
 ## 7. Runtime Export Contract
 
@@ -270,7 +294,10 @@ Minimum per-frame export:
   "screenCoordinateOrigin": "top-left",
   "isMirrored": true,
   "displayScale": 3.0,
+  "annotationFrameClean": true,
   "hudIncludedInFrame": false,
+  "meshOverlayIncludedInFrame": false,
+  "candidateOverlayIncludedInFrame": false,
   "cameraImageToScreenMatrix": [16 floats],
   "displayTransform": [16 floats],
   "viewportCropPx": [0, 0, 1179, 2556],
@@ -309,6 +336,10 @@ If exact camera matrices are difficult to export in the first pass, export a pro
   "screenCoordinateOrigin": "top-left",
   "isMirrored": true,
   "displayScale": 3.0,
+  "annotationFrameClean": true,
+  "hudIncludedInFrame": false,
+  "meshOverlayIncludedInFrame": false,
+  "candidateOverlayIncludedInFrame": false,
   "displayTransform": [16 floats]
 }
 ```
@@ -318,6 +349,7 @@ The projected mesh path is simpler, but it is valid only when the frame image an
 Required export metadata:
 
 - `videoFrameSize`, `unityViewRectPx`, `safeAreaPx`, `screenCoordinateOrigin`, `isMirrored`, `displayScale`, `displayTransform` or `cameraImageToScreenMatrix`, and `viewportCropPx`.
+- `annotationFrameClean`, `hudIncludedInFrame`, `meshOverlayIncludedInFrame`, and `candidateOverlayIncludedInFrame` must make it explicit that the official annotation frame is clean.
 - `screenVertices` must include enough depth or clip-space information for perspective-correct interpolation. Prefer `clipW` or a GPU-rendered triangle-id/UV buffer over depth-only correction.
 - Official atlas-source frames must be captured in the same runtime event as the ARFace export. Screen-recording-only frames are review/practice material only.
 
@@ -661,7 +693,8 @@ evidence/e7-reference-atlas/
   "planId": "e7-reference-driven-uv-atlas",
   "atlasVersion": "e7ref-v0",
   "privacy": {
-    "rawCameraFrameStored": false,
+    "selectedValidationFrameStored": true,
+    "rawRecordingStored": false,
     "offDeviceUpload": false
   },
   "capturePairs": [
@@ -673,6 +706,11 @@ evidence/e7-reference-atlas/
       "framePath": "capture_pairs/pair_lip_0001/frame.png",
       "arfaceExportPath": "capture_pairs/pair_lip_0001/arface_export.json",
       "goldMaskPath": "masks_gold/lip/pair_lip_0001.png",
+      "projectedMeshOverlayPath": "capture_pairs/pair_lip_0001/projected_mesh_overlay.png",
+      "annotationFrameClean": true,
+      "hudIncludedInFrame": false,
+      "meshOverlayIncludedInFrame": false,
+      "candidateOverlayIncludedInFrame": false,
       "status": "synced_capture_pending",
       "coordinateSpaceValidated": false,
       "roundTripStatus": "not_run"
@@ -686,6 +724,7 @@ Required implementation details:
 - Use the existing user-provided recording only for failure review, scenario planning, and practice masks.
 - Use stable `capturePairId` values for official atlas inputs. Never key artifacts only by timestamp.
 - Add frame statuses: `practice_from_recording`, `synced_capture_pending`, `synced_capture_valid`, `gold_mask_accepted`, `round_trip_passed`, `rejected`.
+- Store official annotation frames only as clean selected validation frames. Do not store mesh/HUD/candidate/debug overlays inside `frame.png`; store those as derived files.
 - Keep raw recording outside repo unless a milestone explicitly requires storing it.
 - Store representative derived frames only under `evidence/`, and document whether they should be retained or deleted after scoring.
 
@@ -695,6 +734,7 @@ Verification:
 - `find evidence/e7-reference-atlas -maxdepth 3 -type f`
 - Manual check that no `.mov`-only frame is marked `synced_capture_valid`.
 - Manual check that each official pair has region, scenario, coordinate metadata, and privacy metadata.
+- Manual check that every official `frame.png` is clean enough for human masking and every mesh/debug overlay is stored separately.
 
 Exit criteria:
 
@@ -715,13 +755,14 @@ Build policy:
 Required implementation details:
 
 - Export validation-only data from the same runtime moment:
-  - frame image used for annotation,
+  - clean frame image used for annotation, with no mesh, HUD, candidate overlay, debug points, or makeup texture,
   - `screenVertices`, `uvs`, `indices`,
   - vertex/index/UV counts,
   - blendshapes,
   - `videoFrameSize`, `unityViewRectPx`, `safeAreaPx`, `screenCoordinateOrigin`, `isMirrored`, `displayScale`, `displayTransform` or `cameraImageToScreenMatrix`, `viewportCropPx`,
   - `clipW` or equivalent perspective-correction value when using screen-space interpolation,
   - visibility data or enough depth/triangle-id information to recover front-most triangles.
+- Also export derived debug files separately, especially `projected_mesh_overlay.png`, so coordinate alignment can be checked without polluting the annotation frame.
 - Keep raw capture bounded to the selected validation event.
 - Emit export success/failure through existing RN event paths.
 
@@ -729,6 +770,7 @@ Verification:
 
 - Overlay exported mesh over the exact captured frame.
 - Verify face outline, lips, eyes, and key contours align in the same pixel coordinate space.
+- Confirm `frame.png` itself remains clean enough to see real lip, eye, and cheek boundaries.
 - Confirm current device shape is plausible, for example around `1220` vertices / `6912` indices / `1220` UVs where supported.
 
 Exit criteria:
@@ -744,6 +786,7 @@ Purpose:
 Required implementation details:
 
 - Draw on `capture_pairs/pair_lip_0001/frame.png`, not on a `.mov`-only practice frame.
+- Do not draw on `projected_mesh_overlay.png` or any screenshot that already contains mesh/debug/HUD overlays.
 - Export the mask at the exact same pixel dimensions as the captured frame.
 - Mark teeth, inner mouth, chin, cheek, and broad skin as outside.
 - Record author, tool, date, frame id, and review status in `manifest.json`.
@@ -753,6 +796,7 @@ Verification:
 
 - Overlay the mask on the synchronized frame.
 - Reject masks with dimension mismatch, empty coverage, full-frame coverage, or obvious coordinate offset.
+- Reject masks authored from mesh-covered frames when the real boundary is not visible enough to judge.
 
 Exit criteria:
 
@@ -1073,6 +1117,7 @@ Primary experiment path:
 Compare-only paths:
 Validation contract:
 Synchronized capture-pair contract:
+Clean annotation frame contract:
 Candidate matrix:
 Expected runtime fields:
 Expected visual evidence:
@@ -1101,6 +1146,7 @@ in one install, while preserving RN <-> Unity recipe/events and E3/E4 baselines?
 ### Offline acceptance
 
 - For the next session, one synchronized `lip` capture pair exists before any official gold mask.
+- The official annotation `frame.png` is clean, while mesh/HUD/candidate/debug overlays are stored as separate derived files.
 - The one-frame `lip` round-trip passes before batch atlas generation.
 - Later full E7.03 offline acceptance requires gold reference mask packs for each in-scope region.
 - Offline scorer outputs metrics and contact sheets.
@@ -1137,6 +1183,8 @@ in one install, while preserving RN <-> Unity recipe/events and E3/E4 baselines?
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
 | Screen recording frame lacks matching ARFace export | Invalid UV votes | Use `.mov` only for review/practice; official atlas input requires synchronized capture pair |
+| External dataset mask is treated as official atlas input | Invalid ARFace UV mapping | Use external masks only as taxonomy/examples unless generated or re-authored on this app's synchronized frame |
+| Mesh/HUD/debug overlay hides the real lip, eye, or cheek boundary | Noisy or biased gold masks | Keep official `frame.png` clean and export mesh/debug overlays only as separate derived files |
 | Coordinate transform, mirroring, viewport, or safe-area mismatch | Round-trip fails even with good masks | Capture display metadata and require mesh overlay plus one-frame round-trip |
 | Train-on-test offline scoring | Over-optimistic candidate scores | Use leave-one-frame-out or clearly label calibration vs eval scores |
 | Perspective-incorrect UV interpolation | Boundary drift on close/selfie geometry | Use `clipW` perspective-correct interpolation or Unity-rendered UV/triangle-id buffer |
@@ -1243,9 +1291,10 @@ Then do:
 4. Finalize the synchronized capture-pair contract and manifest fields.
 5. Stop at Build Gate before any Unity/RN build and state whether the build is for synchronized capture or runtime sweep.
 6. Capture one official `lip` pair from a single runtime moment.
-7. Draw one official `lip` gold mask on that synchronized frame.
-8. Run one-frame round-trip and inspect `round_trip_overlay.png`.
-9. Do not start multi-frame atlas generation, scorer work, silver references, or runtime candidate sweep until the round-trip gate passes.
+7. Confirm the official annotation `frame.png` is clean and mesh/debug overlays are separate derived files.
+8. Draw one official `lip` gold mask on that synchronized frame.
+9. Run one-frame round-trip and inspect `round_trip_overlay.png`.
+10. Do not start multi-frame atlas generation, scorer work, silver references, or runtime candidate sweep until the round-trip gate passes.
 
 ## 20. Final Review
 
@@ -1256,6 +1305,8 @@ This plan was checked against the current repo constraints:
 - It does not introduce E7.4/E7.5/E7.6, product readiness, M7 Green, AI/backend/upload, Android, or commercial SDK work.
 - It treats MediaPipe/face parsing as offline reference only, not as runtime dependency, and leaves Apple Vision as a future research/escalation note.
 - It replaces hand-tuned ellipse logic with a measurable reference-driven UV atlas path.
+- It treats external dataset masks as taxonomy/examples unless they are generated or re-authored on this app's synchronized frames.
+- It requires official annotation frames to be clean and keeps mesh/HUD/candidate/debug overlays as separate derived files.
 - It requires synchronized capture pairs before official gold masks or UV back-projection.
 - It gates all batch atlas/scoring/runtime sweep work behind a one-frame `lip` round-trip.
 - It includes direct digital marking, existing mask datasets, mathematical UV projection, offline scoring, runtime candidate sweep, and real-device evidence.

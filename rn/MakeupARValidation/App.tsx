@@ -64,7 +64,7 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
 const RENDERER_MODE_OPTIONS = [
   { name: 'e3e4-baseline', label: 'Baseline' },
   { name: 'e7-arface-uv-candidate', label: 'E7 UV' },
-  { name: 'e7-arface-authored-atlas', label: 'Atlas' },
+  { name: 'e7-arface-authored-atlas', label: 'Heuristic' },
 ] as const;
 const ATLAS_VARIANT_OPTIONS = [
   {
@@ -128,7 +128,7 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Full Debug' },
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
-const E7_EVIDENCE_MODE = 'phase2-arface-authored-atlas-mvp';
+const E7_EVIDENCE_MODE = 'phase2-arface-manual-heuristic-baseline';
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
@@ -164,8 +164,8 @@ const VALIDATION_CANDIDATE_OPTIONS: ValidationCandidateOption[] = [
   },
   {
     id: 'arface-authored-atlas',
-    label: 'ARFace atlas',
-    status: 'selectable P2 MVP',
+    label: 'ARFace heuristic',
+    status: 'selectable manual ellipse baseline',
     rendererMode: 'e7-arface-authored-atlas',
   },
   {
@@ -1155,7 +1155,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             {showFullControls &&
               selectedRendererMode === 'e7-arface-authored-atlas' && (
                 <View style={styles.variantPanel}>
-                  <Text style={styles.debugSubLabel}>Atlas variant</Text>
+                  <Text style={styles.debugSubLabel}>Heuristic variant</Text>
                   <View style={styles.variantButtonRow}>
                     {atlasVariantsForSelectedRegion.map(variantOption => {
                       const isSelected =
@@ -1550,7 +1550,7 @@ function E7StatusPanel({
             )} hash=${String(
               metric?.atlasConfigHash ?? recipe?.atlasConfigHash ?? 'none',
             )}`
-          : 'atlas audit waiting'}
+          : 'heuristic audit waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric || recipe

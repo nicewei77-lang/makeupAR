@@ -19,7 +19,8 @@
 다음 E7.03의 주 경로는 다음과 같다.
 
 ```txt
-reference masks
+clean synchronized capture frame + ARFace export
+-> human-reviewed gold mask on that exact frame
 -> ARFace projection and UV back-projection
 -> per-region UV probability atlas
 -> offline scoring and candidate pruning
@@ -125,6 +126,19 @@ ARFace mesh and UVs
 + tracking-state visibility rules
 ```
 
+### 4.1 데이터 역할 지도
+
+예시/참고 데이터와 official atlas input을 혼동하지 않기 위해 아래처럼 구분한다.
+
+| 데이터 유형 | 우리 앱의 synchronized ARFace mesh/UV export가 있는가? | 마킹이 있는가? | 역할 |
+| --- | --- | --- | --- |
+| official app `frame.png` + `arface_export.json` + human-reviewed mask | Yes | Yes | UV atlas generation과 최종 region decision용 Gold input |
+| official app `frame.png` + `arface_export.json` + model-generated mask/landmark | Yes | Yes, generated | draft labeling, diagnosis, candidate assistance용 Silver reference. 단독 Green 근거 불가 |
+| external dataset image + external face parsing mask | No | 보통 Yes | taxonomy/example/reference only. official ARFace UV atlas input 아님 |
+| internet image, 일반 screenshot, screen-recording-only frame | No | 있을 수도 있음 | visual reference, scenario planning, practice mask 전용 |
+
+External dataset mask가 이미 lip, eye, skin 등을 표시하더라도 그 마킹은 해당 dataset image coordinate system 기준이다. 우리 앱의 ARFace mesh에서 어떤 triangle 또는 UV coordinate가 해당 region인지 알려주지 않는다. 따라서 official gold mask는 반드시 우리 앱의 clean synchronized capture frame 위에 그려야 한다.
+
 ## 5. 레퍼런스 소스
 
 ### 5.1 Gold Reference
@@ -147,12 +161,19 @@ Gold reference는 synchronized iPhone capture frame 위에 사람이 검토한 m
 중요 규칙:
 
 - mask가 UV atlas generation용 official gold mask가 되려면 해당 frame에 valid synchronized capture pair가 있어야 한다. matching ARFace export가 없는 screen-recording-only frame은 review 또는 practice에는 쓸 수 있지만 UV back-projection input으로 쓰지 않는다.
+- official annotation frame은 clean해야 한다. ARFace mesh overlay, region candidate overlay, HUD/log text, debug point/triangle, makeup/beauty texture가 보이면 안 된다. Mesh/debug view는 `projected_mesh_overlay.png` 같은 별도 derived file로 export한다.
 
 초기 최소 세트:
 
 - `lip`: 8 to 12 frames: neutral, smile, mouth open, mouth close, pucker, yaw left/right.
 - `cheek`: 6 to 10 frames: neutral, smile, yaw, pitch, partial profile.
 - `eye`: 8 to 12 frames: neutral, blink, squint, wide eye, gaze direction, pitch.
+
+Gold mask 작성 notes:
+
+- `lip`: visible lip surface만 포함한다. teeth, inner mouth, tongue, chin, cheek, broad skin, shadow-only area는 제외한다. mouth open frame에서는 lip surface만 칠하고 열린 입 안쪽 구멍은 outside로 둔다.
+- `cheek`: anatomical dataset class가 아니라 makeup placement target을 mark한다. cheek/apple area 주변 soft blush-safe zone을 우선하고, nose fold, jaw, mouth corner, under-eye dark area, hair, ear는 피한다. blush falloff를 평가할 때는 grayscale soft mask가 더 좋다.
+- `eye`: eyeliner급 정밀도가 아니라 broad eyeshadow/eye tint zone이 목표다. eyeball/iris/sclera, intended eye area보다 위의 forehead, cheek, nose bridge spill, lower-face spill은 제외한다. blink frame에서는 valid zone이 더 좁을 수 있다.
 
 ### 5.2 Silver Reference
 
@@ -170,6 +191,9 @@ Silver reference는 최종 truth가 아니라 draft와 보조 신호로만 쓰�
 - Silver reference는 mask 제안에만 사용하고 Green 결정에는 단독 사용하지 않는다.
 - raw anatomy와 makeup placement가 다르면 human review가 silver reference를 이긴다.
 - 모든 generated reference에 model/source/version/license note를 기록한다.
+- Silver/reference 역할을 명확히 나눈다.
+  - External dataset mask는 우리 official frame 위에 다시 생성되거나 사람이 다시 authored 되기 전까지 taxonomy/example material이다.
+  - 우리 official synchronized frame 위에서 생성된 model output은 UV back-projection을 도울 수 있지만, 사람이 검토해 gold로 승격하기 전까지는 silver다.
 
 ### 5.3 Shape and Product Benchmarks
 
@@ -200,35 +224,34 @@ evidence/e7-reference-atlas/
       arface_export.json
       projected_mesh_overlay.png
       round_trip_overlay.png
-  frames/
-    practice_from_recording/
-    synced/
-  masks/
-    gold/
-      lip/
-      cheek/
-      eye/
-    silver/
-      mediapipe/
-      face-parsing/
-  arface-export/
-    frame_0001.arface.json
-    frame_0001.preview.png
-  atlas/
-    lip_probability_v0.png
-    cheek_probability_v0.png
-    eye_probability_v0.png
-    lip_mask_v0.png
-    cheek_mask_v0.png
-    eye_mask_v0.png
-  candidates/
-    e7_atlas_candidates_v0.json
+  frames_practice/
+    from_screen_recording/
+  masks_gold/
+    lip/pair_lip_0001.png
+    cheek/
+    eye/
+  masks_silver/
+    mediapipe/
+    parsing/
+    apple_vision/
+  atlases/
+    v0/
+      lip_probability.png
+      lip_coverage.png
+      lip_unknown.png
+      lip_debug_votes.png
+      lip_variants.json
+      cheek_probability.png
+      cheek_variants.json
+      eye_probability.png
+      eye_variants.json
   scores/
-    offline_scores.csv
+    atlas_scores.csv
+    atlas_scores.json
     offline_summary.md
-    contact_sheet_lip.jpg
-    contact_sheet_cheek.jpg
-    contact_sheet_eye.jpg
+  contact_sheets/
+    p1_frame_pack.jpg
+    p6_candidate_review.jpg
   splits/
     leave_one_frame_out.json
   forward_checks/
@@ -243,12 +266,13 @@ evidence/e7-reference-atlas/
 
 - UV atlas generation에 사용할 수 있는 frame은 같은 runtime moment와 같은 display coordinate system에서 capture된 matching ARFace export가 있을 때뿐이다.
 - valid atlas source pair:
-  - annotation에 실제로 사용한 frame image,
+  - annotation에 실제로 사용한 clean frame image,
   - 같은 pixel coordinate space로 projection된 `screenVertices`,
   - 같은 ARFace mesh에서 나온 `uvs`와 `indices`,
   - orientation, mirroring, Unity view rect, screen/video resolution, safe-area, viewport/crop, display transform metadata,
   - 같은 frame의 blendshape values.
 - matching ARFace export가 없는 기존 screen recording은 visual review, scenario selection, mask-authoring practice에만 사용하고 valid UV back-projection input으로 취급하지 않는다.
+- `frame.png`는 clean annotation frame이다. mesh, candidate mask, HUD/log text, debug marker, beauty texture가 들어가면 안 된다. `projected_mesh_overlay.png` 같은 derived debug file은 같은 frame 위에 mesh를 얹어 coordinate validation에만 사용한다.
 
 ## 7. Runtime Export Contract
 
@@ -270,7 +294,10 @@ frame별 최소 export:
   "screenCoordinateOrigin": "top-left",
   "isMirrored": true,
   "displayScale": 3.0,
+  "annotationFrameClean": true,
   "hudIncludedInFrame": false,
+  "meshOverlayIncludedInFrame": false,
+  "candidateOverlayIncludedInFrame": false,
   "cameraImageToScreenMatrix": [16],
   "displayTransform": [16],
   "viewportCropPx": [0, 0, 1179, 2556],
@@ -293,7 +320,8 @@ frame별 최소 export:
     "cheekSquintRight": 0.0
   },
   "privacy": {
-    "rawCameraFrameStored": false,
+    "selectedValidationFrameStored": true,
+    "rawRecordingStored": false,
     "offDeviceUpload": false
   }
 }
@@ -304,9 +332,10 @@ frame별 최소 export:
 - `vertices`, `indices`, `uvs` count가 함께 기록되어야 한다.
 - `screenVertices`는 source frame과 같은 coordinate system이어야 한다.
 - `videoFrameSize`, `unityViewRectPx`, `safeAreaPx`, `screenCoordinateOrigin`, `isMirrored`, `displayScale`, `displayTransform` 또는 `cameraImageToScreenMatrix`, `viewportCropPx`를 capture해야 한다.
+- `annotationFrameClean`, `hudIncludedInFrame`, `meshOverlayIncludedInFrame`, `candidateOverlayIncludedInFrame`로 official annotation frame이 clean한지 명시해야 한다.
 - screen-space interpolation을 쓸 경우 `screenVertices`는 perspective-correct interpolation에 필요한 depth 또는 clip-space 정보를 포함해야 한다. 가능하면 단순 depth 보정보다 `clipW` 또는 GPU-rendered triangle-id/UV buffer를 우선한다.
 - export는 validation mode에서만 활성화한다.
-- raw camera frame은 기본 저장하지 않는다.
+- selected validation frame은 저장할 수 있지만 raw recording이나 continuous raw feed는 기본 저장하지 않는다.
 - official atlas-source frame image는 ARFace export와 같은 runtime event에서 capture한다. matching export가 없는 screen-recording frame은 review/practice material일 뿐이다.
 
 ## 8. UV Back-Projection Algorithm
@@ -328,11 +357,13 @@ screen pixel p
 1. gold mask image와 source frame을 load한다.
 2. matching ARFace export의 `screenVertices`, `indices`, `uvs`를 load한다.
 3. 각 triangle에 대해 screen-space bounding box를 계산한다.
-4. bounding box 안의 pixel을 sampling한다.
-5. pixel이 triangle 안에 있으면 barycentric weights `(w0, w1, w2)`를 계산한다.
-6. UV를 `uv = w0 * uv0 + w1 * uv1 + w2 * uv2`로 interpolate한다.
-7. gold mask pixel이 region inside이면 positive vote, outside이면 negative vote를 누적한다.
-8. 모든 frame을 region별로 누적해 probability atlas를 만든다.
+4. back-facing, occluded, active Unity view rect 밖, grazing-angle confidence threshold 미만 triangle을 reject한다.
+5. bounding box 안의 pixel을 sampling한다.
+6. triangle이 겹치면 depth test, triangle-id buffer 또는 동등한 visibility pass로 front-most visible triangle만 vote한다.
+7. pixel이 triangle 안에 있으면 barycentric weights `(w0, w1, w2)`를 계산한다.
+8. screen-space barycentric을 쓸 때는 perspective-correct interpolation을 사용한다. `clipW`가 없으면 임의 depth 보정보다 Unity-rendered UV buffer를 우선한다.
+9. gold mask pixel이 region inside이면 positive vote, outside이면 negative vote를 누적한다.
+10. 모든 frame을 region별로 누적해 probability atlas를 만든다.
 
 출력:
 
@@ -346,6 +377,15 @@ probability(u, v) = positiveVotes(u, v) / totalVotes(u, v)
 - feather로 edge softening.
 - morphology로 small hole 또는 accidental island 정리.
 - unknown UV 영역은 negative로 간주하지 말고 별도 표시.
+- supersampling 또는 triangle rasterization은 sparse vote 완화용이며 grazing-angle geometry 자체의 해결책으로 취급하지 않는다.
+- projected triangle area 또는 `abs(normal dot viewDir)`로 sample을 weight/reject한다. silhouette와 side-facing triangle이 cheek/yaw vote를 지배하면 안 된다.
+- back-facing 또는 occluded triangle은 positive/negative 모두 기여하지 않는다.
+- batch atlas generation 전에 one-frame round-trip을 실행한다.
+  1. synchronized `lip` frame 하나에 accepted gold mask를 작성한다.
+  2. UV space로 back-project한다.
+  3. 같은 mesh를 사용해 generated UV mask를 같은 frame에 다시 render한다.
+  4. gold mask와 visual alignment를 비교한다.
+- UV checkerboard 또는 single-triangle mask 같은 known pattern을 screen space로 forward-project해 inverse projection bug를 잡는다.
 
 ## 9. Candidate Config Contract
 
@@ -359,18 +399,26 @@ candidate는 코드 상수만으로 결정하지 않는다. offline output에서
   "candidates": [
     {
       "candidateId": "lip_uvatlas_v0_precision",
+      "variantId": "lip-refuv-v0-p65-f02px",
       "region": "lip",
       "source": "gold-reference-uv-probability",
       "probabilityAtlas": "lip_probability_v0.png",
       "threshold": 0.65,
       "featherUvPixels": 2,
+      "uvResolution": [512, 512],
+      "featherUvNormalized": 0.00390625,
+      "regionUvFootprint": {
+        "widthPixels": 64,
+        "heightPixels": 28
+      },
       "morphology": "erode-one",
-      "scoreSummary": {
+      "calibrationScore": {
         "precision": 0.84,
         "recall": 0.62,
         "iou": 0.56,
         "leakage": 0.11
       },
+      "evalScore": null,
       "sourceFrameCount": 9,
       "goldMaskCount": 9,
       "silverReferenceCount": 0,
@@ -388,11 +436,14 @@ runtime에서 반드시 log해야 하는 값:
 - `region`
 - `threshold`
 - `featherUvPixels`
+- `featherUvNormalized`
+- `uvResolution`
+- `regionUvFootprint`
 - `morphology`
 - `sourceFrameCount`
 - `goldMaskCount`
 - `silverReferenceCount`
-- `scoreSummary`
+- `calibrationScore` 또는 `evalScore`
 - `fallback`
 - `fallbackReason`
 
@@ -413,6 +464,18 @@ IoU = TP / (TP + FP + FN)
 leakage = FP / candidatePositive
 ```
 
+Evaluation split:
+
+- atlas 생성에 사용한 gold mask만으로 scoring하지 않는다.
+- frame 수가 적으면 leave-one-frame-out을 사용한다.
+- atlas-generation frame에서 측정한 점수는 `calibrationScore`로 표시하고, held-out frame에서 측정한 점수만 `evalScore`로 표시한다.
+- one-frame round-trip은 projection sanity check이지 region precision performance evidence가 아니다.
+
+Jitter 해석:
+
+- temporal jitter metric은 smoothing pass가 명시적으로 켜지지 않는 한 pre-smoothing metric이다.
+- One Euro filtering은 future stabilization candidate이며 E7.03 atlas generation 필수 dependency가 아니다.
+
 `lip` 우선순위:
 
 - 가장 높은 가중치: precision과 leakage.
@@ -424,6 +487,10 @@ leakage = FP / candidatePositive
 - hard boundary accuracy보다 soft placement.
 - IoU는 낮아도 괜찮다. blush는 의도적으로 soft zone이다.
 - face-attached stability와 no-hard-edge가 더 중요하다.
+- soft grayscale metric을 우선한다.
+  - `cheekWeightedError = mean(abs(candidateAlpha - goldSoftMask))`.
+  - `cheekCenterDistance = normalized distance(candidateCentroid, goldCentroid)`.
+  - `cheekHardEdgePenalty = boundaryGradientTooSharpArea`.
 
 `eye` 우선순위:
 
@@ -514,15 +581,15 @@ runtime ML로 성급하게 뛰어넘지 않기 위한 후보 ladder다.
 | Priority | Milestone | 목표 | 빌드 필요 여부 | Stop / promote rule |
 | --- | --- | --- | --- | --- |
 | P0 | Contract and naming reset | 현재 atlas 상태를 명확히 만든다 | No | 현재 atlas가 heuristic baseline으로 문서/UI에 표시됨 |
-| P1 | Evidence pack and artifact layout | 반복 가능한 local input을 만든다 | No | frames, metadata, mask slots가 stable id를 가짐 |
-| P2 | Gold mask authoring | 사람이 검토한 target mask 생성 | No | 각 region이 first scoring에 충분한 gold mask를 가짐 |
-| P3 | Offline silver/reference pass | runtime scope creep 없이 draft mask/landmark 추가 | No | silver reference가 non-authoritative로 표시됨 |
-| P4 | ARFace projection export | frame과 맞는 screen-space mesh/UV data capture | Yes, Build Gate 후에만 | export가 frame/mask id와 매칭됨 |
-| P5 | UV atlas generator | frame mask를 UV-space probability atlas로 변환 | export 이후 No | region별 atlas PNG/JSON/debug overlay 존재 |
-| P6 | Offline scorer and optimizer | threshold/feather/morphology 후보 ranking | No | top variants가 metric + visual review로 선택됨 |
-| P7 | Unity/RN atlas sweep implementation | 한 번의 빌드로 selected candidates 실행 | Yes, candidate freeze 후에만 | 한 build에서 variants sweep과 evidence log 가능 |
-| P8 | Real-device decision pass | region G/Y/R과 next boundary 기록 | P7 구조 실패 외 extra build 없음 | `TECH_VALIDATION_RESULT.md`에 result/limits/boundary 기록 |
-| P9 | Escalation decision | ARFace-only 지속 가능성 판단 | No | runtime semantic POC는 future/user-approved only |
+| P1 | Capture-pair contract and artifact skeleton | valid atlas input을 mask 작성 전에 정의 | No | manifest가 practice frame과 official synchronized pair를 구분 |
+| P2 | Synchronized `lip` capture export | official frame + ARFace export pair 1개 capture | Yes, Build Gate 후에만 | frame, mesh, UV, indices, blendshapes, display metadata가 같은 runtime moment |
+| P3 | Official `lip` gold mask | synchronized frame 위에 mask 1장 작성 | No | mask dimension과 coordinate space가 captured frame과 일치 |
+| P4 | One-frame round-trip | batch 작업 전 projection math 검증 | P2/P3 이후 No | gold mask -> UV -> same-frame render가 시각적으로 정렬 |
+| P5 | UV atlas generator | 검증된 round-trip path 일반화 | No | probability/coverage/unknown/debug output 존재 |
+| P6 | Offline scorer and optimizer | train-on-test 혼동 없이 후보 ranking | No | leave-one-frame-out 또는 split-labeled score 존재 |
+| P7 | Offline silver/reference pass | runtime scope creep 없이 draft reference 추가 | No | silver reference가 non-authoritative 및 license-noted |
+| P8 | Unity/RN atlas sweep implementation | frozen candidates를 한 번의 build로 실행 | Yes, candidate freeze 후에만 | 한 build에서 variants sweep과 evidence log 가능 |
+| P9 | Real-device decision and escalation | region G/Y/R과 next boundary 기록 | P8 구조 실패 외 extra build 없음 | `TECH_VALIDATION_RESULT.md`에 result/limits/boundary 기록 |
 
 ### P0: Contract and naming reset
 
@@ -534,8 +601,8 @@ runtime ML로 성급하게 뛰어넘지 않기 위한 후보 ladder다.
 수정 대상:
 
 - `TECH_VALIDATION_RESULT.md`: 이 계획 실행 후 next-session result language.
-- `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KR.md`: 한국어 구현 계약.
-- `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: 원문/병행 문서.
+- `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: 에이전트용 primary implementation contract.
+- `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KR.md`: 사용자 검토용 한국어 companion.
 - `rn/MakeupARValidation/App.tsx`: UI label이 true atlas처럼 보일 때만 label 수정.
 - `unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs`: 필요할 경우 runtime metadata string만 수정.
 
@@ -555,11 +622,12 @@ Exit criteria:
 
 - reviewer가 baseline, 새 reference-driven atlas, future-only path를 혼동 없이 구분할 수 있다.
 
-### P1: Evidence pack and artifact layout
+### P1: Capture-pair contract and artifact skeleton
 
 목적:
 
-- frame extraction, mask authoring, ARFace export matching, atlas generation, scoring을 재현 가능하게 만든다.
+- screen-recording-only frame을 UV atlas input으로 잘못 쓰지 못하게 한다.
+- official mask authoring 전에 local artifact shape를 정의한다.
 
 목표 artifact layout:
 
@@ -567,20 +635,20 @@ Exit criteria:
 evidence/e7-reference-atlas/
   README.md
   manifest.json
-  frames/
-    frame_lip_0001.png
-    frame_cheek_0001.png
-    frame_eye_0001.png
+  capture_pairs/
+    pair_lip_0001/
+      frame.png
+      arface_export.json
+      projected_mesh_overlay.png
+      round_trip_overlay.png
+  frames_practice/
+    from_screen_recording/
   masks_gold/
-    lip/frame_lip_0001.png
-    cheek/frame_cheek_0001.png
-    eye/frame_eye_0001.png
+    lip/pair_lip_0001.png
   masks_silver/
     mediapipe/
     parsing/
     apple_vision/
-  arface_exports/
-    frame_lip_0001.json
   atlases/
     v0/
       lip_probability.png
@@ -603,21 +671,28 @@ evidence/e7-reference-atlas/
 {
   "planId": "e7-reference-driven-uv-atlas",
   "atlasVersion": "e7ref-v0",
-  "sourceRecording": "/Users/wiseungcheol/Downloads/ScreenRecording_06-22-2026 19-52-46_1.mov",
   "privacy": {
-    "rawCameraFrameStored": false,
+    "selectedValidationFrameStored": true,
+    "rawRecordingStored": false,
     "offDeviceUpload": false
   },
-  "frames": [
+  "capturePairs": [
     {
-      "frameId": "frame_lip_0001",
+      "capturePairId": "pair_lip_0001",
       "region": "lip",
-      "timestampSec": 20.35,
+      "source": "synchronized_runtime_capture",
       "scenario": "neutral_or_talking",
-      "framePath": "frames/frame_lip_0001.png",
-      "goldMaskPath": "masks_gold/lip/frame_lip_0001.png",
-      "arfaceExportPath": "arface_exports/frame_lip_0001.json",
-      "status": "needs_gold_mask"
+      "framePath": "capture_pairs/pair_lip_0001/frame.png",
+      "arfaceExportPath": "capture_pairs/pair_lip_0001/arface_export.json",
+      "goldMaskPath": "masks_gold/lip/pair_lip_0001.png",
+      "projectedMeshOverlayPath": "capture_pairs/pair_lip_0001/projected_mesh_overlay.png",
+      "annotationFrameClean": true,
+      "hudIncludedInFrame": false,
+      "meshOverlayIncludedInFrame": false,
+      "candidateOverlayIncludedInFrame": false,
+      "status": "synced_capture_pending",
+      "coordinateSpaceValidated": false,
+      "roundTripStatus": "not_run"
     }
   ]
 }
@@ -625,8 +700,10 @@ evidence/e7-reference-atlas/
 
 필수 구현 디테일:
 
-- 기존 사용자 제공 녹화를 먼저 사용한다. missing scenario가 `lip`, `cheek`, `eye` 판단을 막을 때만 새 녹화를 요청한다.
-- stable frame id를 사용한다. timestamp만으로 artifact를 keying하지 않는다.
+- 기존 사용자 제공 녹화는 failure review, scenario planning, practice mask 용도로만 사용한다.
+- official atlas input에는 stable `capturePairId`를 사용한다. timestamp만으로 artifact를 keying하지 않는다.
+- frame status는 `practice_from_recording`, `synced_capture_pending`, `synced_capture_valid`, `gold_mask_accepted`, `round_trip_passed`, `rejected`를 사용한다.
+- official annotation frame은 clean selected validation frame으로만 저장한다. `frame.png` 안에 mesh/HUD/candidate/debug overlay를 넣지 말고, 이런 이미지는 derived file로 분리한다.
 - milestone이 명시적으로 요구하지 않는 한 raw recording은 repo 밖에 둔다.
 - representative derived frame만 `evidence/` 아래에 저장하고, scoring 후 retain/delete 여부를 문서화한다.
 
@@ -634,160 +711,103 @@ evidence/e7-reference-atlas/
 
 - `python3 -m json.tool evidence/e7-reference-atlas/manifest.json`
 - `find evidence/e7-reference-atlas -maxdepth 3 -type f`
-- 각 selected frame에 region, scenario, source timestamp, privacy metadata가 있는지 수동 확인.
+- `.mov`-only frame이 `synced_capture_valid`로 표시되지 않았는지 수동 확인.
+- official pair마다 region, scenario, coordinate metadata, privacy metadata가 있는지 수동 확인.
+- 모든 official `frame.png`가 사람이 실제 경계를 볼 수 있을 만큼 clean하고, mesh/debug overlay가 별도 파일로 분리됐는지 수동 확인.
 
 Exit criteria:
 
-- 다음 세션이 입력 조건을 다시 묻지 않고 manifest만으로 frame/mask/atlas/scoring 작업을 재실행할 수 있다.
+- 다음 세션이 어떤 frame이 practice/review material이고 어떤 synchronized pair가 valid atlas input인지 구분할 수 있다.
 
-### P2: Gold mask authoring
+### P2: Synchronized `lip` capture export
 
 목적:
 
-- 현재 validation footage 위에서 시각적으로 허용 가능한 makeup placement의 truth source를 만든다.
+- official gold mask나 atlas generation 전에 official `lip` source pair 1개를 capture한다.
 
-최소 frame target:
+빌드 정책:
 
-| Region | First-pass minimum | Preferred target | Required scenario spread |
-| --- | --- | --- | --- |
-| lip | 5 frames | 8 to 12 frames | neutral, smile/talking, mouth open/close, yaw |
-| cheek | 4 frames | 6 to 10 frames | neutral, smile, yaw, pitch or near/far |
-| eye | 5 frames | 8 to 12 frames | neutral, blink/squint, wide eye, pitch/gaze |
-
-mask authoring rules:
-
-- `lip`: visible lip surface를 포함한다. teeth, inner mouth, chin, cheek, broad skin은 제외한다. vermilion border 밖 feather는 makeup-plausible할 때만 허용한다.
-- `cheek`: anatomical segmentation class가 아니라 soft blush-safe zone을 mark한다. cheekbone/apple area 주변 oval/gradient placement를 우선한다. hard dataset-style border는 필요 없다.
-- `eye`: eyeliner-grade lash precision이 아니라 broad eyeshadow/eye tint zone이 목표다. lower face, cheek, nose bridge spill, forehead spill은 제외한다.
+- 이 milestone은 Unity/RN 변경과 real-device build가 필요할 수 있다.
+- Build Gate에서 멈추고 build purpose가 `synchronized capture / one-frame round-trip`인지, runtime candidate sweep이 아닌지 명시한다.
+- 이미 설치된 build가 필요한 pair를 export할 수 있으면 rebuild를 건너뛴다.
 
 필수 구현 디테일:
 
-- Gold mask는 Figma, Photoshop, Procreate, CVAT, Label Studio 또는 local equivalent로 그릴 수 있다.
-- source frame과 같은 pixel dimension으로 mask를 export한다.
-- region/frame마다 binary 또는 grayscale mask 하나를 사용한다.
+- 같은 runtime moment에서 validation-only data를 export한다.
+  - annotation에 사용할 clean frame image. mesh, HUD, candidate overlay, debug point, makeup texture가 없어야 한다.
+  - `screenVertices`, `uvs`, `indices`,
+  - vertex/index/UV counts,
+  - blendshapes,
+  - `videoFrameSize`, `unityViewRectPx`, `safeAreaPx`, `screenCoordinateOrigin`, `isMirrored`, `displayScale`, `displayTransform` 또는 `cameraImageToScreenMatrix`, `viewportCropPx`,
+  - screen-space interpolation을 쓸 때 필요한 `clipW` 또는 equivalent perspective-correction value,
+  - front-most triangle 복원을 위한 visibility data 또는 depth/triangle-id 정보.
+- coordinate alignment를 확인하되 annotation frame을 오염시키지 않도록 `projected_mesh_overlay.png` 같은 derived debug file도 별도로 export한다.
+- raw capture는 selected validation event로 제한한다.
+- export success/failure는 기존 RN event path로 emit한다.
+
+검증:
+
+- export mesh를 정확히 같은 captured frame 위에 overlay한다.
+- face outline, lips, eyes, key contours가 같은 pixel coordinate space에서 맞는지 확인한다.
+- `frame.png` 자체는 실제 lip, eye, cheek boundary가 보일 만큼 clean한지 확인한다.
+- 현재 device evidence 기준 약 `1220` vertices / `6912` indices / `1220` UVs와 count가 plausible한지 확인한다.
+
+Exit criteria:
+
+- `lip` pair 1개가 `synced_capture_valid` 및 `coordinateSpaceValidated=true`로 표시된다.
+
+### P3: Official `lip` gold mask
+
+목적:
+
+- P2가 frame/export pair 유효성을 증명한 뒤 첫 official gold mask를 작성한다.
+
+필수 구현 디테일:
+
+- `.mov`-only practice frame이 아니라 `capture_pairs/pair_lip_0001/frame.png` 위에 그린다.
+- `projected_mesh_overlay.png`나 mesh/debug/HUD overlay가 이미 들어간 screenshot 위에 그리지 않는다.
+- captured frame과 정확히 같은 pixel dimension으로 mask를 export한다.
+- teeth, inner mouth, chin, cheek, broad skin은 outside로 mark한다.
 - `manifest.json`에 author, tool, date, frame id, review status를 기록한다.
 - review status는 `draft`, `reviewed`, `accepted`, `rejected`만 사용한다.
 
 검증:
 
-- 각 gold mask를 source frame 위에 overlay하고 `contact_sheets/p2_gold_masks.jpg`를 만든다.
-- source frame과 dimension이 다른 mask는 reject한다.
-- empty alpha/white coverage 또는 full-frame accidental coverage는 reject한다.
+- mask를 synchronized frame 위에 overlay한다.
+- dimension mismatch, empty coverage, full-frame coverage, obvious coordinate offset이 있으면 reject한다.
+- 실제 경계를 판단하기 어려울 정도로 mesh가 덮인 frame에서 작성한 mask는 reject한다.
 
 Exit criteria:
 
-- 각 region에 first-pass offline scoring을 실행할 만큼 accepted gold mask가 있다.
+- `lip` gold mask 1개가 synchronized capture pair에 대해 `accepted` 상태가 된다.
 
-### P3: Offline silver/reference pass
+### P4: One-frame round-trip
 
 목적:
 
-- runtime ML을 도입하지 않고 manual effort를 줄이고 failure mode를 드러낸다.
-
-허용 reference signal:
-
-- MediaPipe Face Landmarker output: offline landmarks/blendshapes/face transform hints.
-- BiSeNet/SegFace-style face parsing output: offline lip/eye/skin hints.
-- Apple Vision face landmarks: optional 2D contour sanity check only.
-- CelebAMask-HQ와 LaPa: license review 전까지 taxonomy/reference dataset only.
+- multi-frame atlas generation이나 scoring 전에 projection math를 증명한다.
 
 필수 구현 디테일:
 
-- generated output은 모두 `masks_silver/` 또는 `references/` 아래에 저장한다.
-- source name과 version을 알 수 있으면 모든 silver artifact에 prefix로 남긴다.
-- metadata에 `referenceAuthority: "silver"`를 추가한다.
-- silver mask만으로 E7.03 Green을 결정하지 않는다.
-- runtime MediaPipe, runtime Apple Vision, live face parsing, new camera session, upload, backend path를 추가하지 않는다.
+- accepted `lip` gold mask를 UV space로 back-project한다.
+- 같은 mesh/export를 사용해 generated UV mask를 같은 frame 위에 다시 render한다.
+- original gold mask와 비교한다.
+- known UV checkerboard 또는 single-triangle pattern으로 forward-projection sanity check를 실행한다.
 
 검증:
 
-- manifest에 source, version, command/tool, license note, human-reviewed 여부가 기록된다.
-- visual review에서 silver output이 맹신 대상이 아니라 draft로만 유용하다는 점을 확인한다.
+- `capture_pairs/pair_lip_0001/round_trip_overlay.png`를 만든다.
+- mismatch 원인이 coordinate transform, mirroring, perspective interpolation, visibility/depth, grazing-angle rejection, mask authoring 중 무엇인지 기록한다.
 
 Exit criteria:
 
-- silver reference는 comparison 또는 pre-labeling에 사용 가능하지만, decision authority는 gold mask로 유지된다.
-
-### P4: ARFace projection export
-
-목적:
-
-- screen pixel을 ARFace UV로 되돌릴 정확한 mapping data를 capture한다.
-
-빌드 정책:
-
-- 이 milestone은 처음으로 Unity/RN build가 필요할 수 있다.
-- 시작 전 반드시 Build Gate에서 멈춘다.
-- 이미 설치된 build가 필요한 export를 지원하면 rebuild를 건너뛴다.
-
-Unity 수정 대상:
-
-- `unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs`
-- `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
-- overlay class가 복잡해지는 경우에만 작은 validation-only exporter class를 추가한다.
-
-RN 수정 대상:
-
-- `rn/MakeupARValidation/App.tsx`: export trigger 또는 export status 표시용 toggle/button이 필요할 때만.
-
-`arface_exports/<frameId>.json` 최소 필드:
-
-```json
-{
-  "frameId": "frame_lip_0001",
-  "capturedAtUnixMs": 1780000000000,
-  "rendererMode": "manual-ellipse-heuristic-baseline",
-  "trackingState": "Tracking",
-  "region": "lip",
-  "screen": {
-    "width": 1179,
-    "height": 2556,
-    "orientation": "portrait"
-  },
-  "mesh": {
-    "vertexCount": 1220,
-    "indexCount": 6912,
-    "uvCount": 1220,
-    "hasStableUv": true,
-    "screenVertices": [[512.1, 1204.7, 0.93]],
-    "uvs": [[0.42, 0.58]],
-    "indices": [0, 1, 2]
-  },
-  "blendshapes": {
-    "mouthSmileLeft": 0.0,
-    "jawOpen": 0.0,
-    "eyeBlinkLeft": 0.0
-  },
-  "privacy": {
-    "rawCameraFrameStored": false,
-    "offDeviceUpload": false
-  }
-}
-```
-
-필수 구현 디테일:
-
-- validation mode에서만 export한다.
-- 짧은 `exportSchemaVersion`을 포함한다.
-- frame 위에 mesh overlay를 그릴 수 있을 만큼 screen projection data를 포함한다.
-- export success/failure는 기존 RN event path로 log한다.
-- export size를 제한한다. selected frame 또는 short capture window만 사용하고, continuous raw capture는 기본 금지한다.
-
-검증:
-
-- export된 `screenVertices`와 `indices`를 matching frame 위에 overlay한다.
-- UV vote에 사용하기 전에 mesh outline이 얼굴을 따라가는지 확인한다.
-- 현재 device evidence 기준 약 `1220` vertices / `6912` indices / `1220` UVs와 count가 맞는지 확인한다.
-
-Exit criteria:
-
-- region별 accepted gold frame 중 최소 하나가 visually aligned ARFace export를 가진다.
+- round-trip이 batch atlas generation을 진행할 만큼 시각적으로 정렬된다.
 
 ### P5: UV atlas generator
 
 목적:
 
-- accepted screen-space region mask를 UV-space probability atlas로 변환한다.
+- 검증된 one-frame round-trip path를 UV-space probability atlas generation으로 일반화한다.
 
 권장 script target:
 
@@ -796,9 +816,9 @@ Exit criteria:
 Inputs:
 
 - `manifest.json`
-- `frames/*.png`
+- `capture_pairs/*/frame.png`
 - `masks_gold/<region>/*.png`
-- `arface_exports/*.json`
+- `capture_pairs/*/arface_export.json`
 - Optional `masks_silver/**`
 
 Outputs:
@@ -811,9 +831,12 @@ Outputs:
 
 Algorithm requirements:
 
+- `synced_capture_valid` pair만 사용한다.
 - visible ARFace triangle마다 projected screen-space triangle 안의 source-frame pixel을 test한다.
 - sampled pixel마다 screen space에서 barycentric coordinate를 계산한다.
-- triangle UV로부터 UV를 interpolate한다.
+- perspective-correct interpolation 또는 Unity-rendered UV/triangle-id buffer로 UV를 interpolate한다.
+- front-most visible triangle에서만 vote를 누적한다.
+- back-facing, occluded, tiny projected-area, grazing-angle triangle은 reject 또는 down-weight한다.
 - gold mask inside이면 positive vote, outside이면 negative vote를 누적한다.
 - probability는 `positiveVotes / totalVotes`로 기록한다.
 - unknown UV texel은 별도 tracking한다. unknown을 조용히 negative로 처리하지 않는다.
@@ -838,19 +861,19 @@ Algorithm requirements:
 
 검증:
 
-- batch mode 전에 frame 하나로 generator를 먼저 실행한다.
+- batch mode 전에 one-frame round-trip을 실행한다.
 - probability atlas를 신뢰하기 전에 `debug_votes`와 `coverage` image를 inspect한다.
 - unknown region이 excluded region과 시각적으로 분리되어 있는지 확인한다.
 
 Exit criteria:
 
-- 각 region에 accepted gold mask 기반 probability atlas와 metadata가 있다.
+- `lip`에 대해 valid synchronized pair 기반 probability, coverage, unknown, debug vote image가 있다.
 
 ### P6: Offline scorer and candidate optimizer
 
 목적:
 
-- 가능한 atlas threshold 후보들을 빌드 전에 작은 runtime candidate set으로 줄인다.
+- 가능한 atlas threshold 후보를 빌드 전에 작은 runtime candidate set으로 줄이되, calibration score와 eval score를 분리한다.
 
 권장 script target:
 
@@ -865,6 +888,10 @@ Candidate sweep dimensions:
   - `lip`: high precision과 low leakage 우선.
   - `cheek`: soft coverage와 low hard-edge penalty 우선.
   - `eye`: lower-face spill 없음과 blink-safe behavior 우선.
+- Evaluation split:
+  - frame 수가 적으면 leave-one-frame-out을 사용한다.
+  - atlas-generation frame에서 측정한 값은 `calibrationScore`로 표시한다.
+  - held-out frame에서 측정한 값만 `evalScore`로 표시한다.
 
 Outputs:
 
@@ -885,13 +912,20 @@ Outputs:
       "probabilityAtlas": "lip_probability.png",
       "threshold": 0.65,
       "featherUvPixels": 2,
+      "uvResolution": [512, 512],
+      "featherUvNormalized": 0.00390625,
+      "regionUvFootprint": {
+        "widthPixels": 64,
+        "heightPixels": 28
+      },
       "morphology": "erode-one",
-      "offlineScore": {
+      "calibrationScore": {
         "precision": 0.84,
         "recall": 0.62,
         "iou": 0.56,
         "leakage": 0.11
       },
+      "evalScore": null,
       "promotionReason": "best leakage-controlled lip candidate"
     }
   ]
@@ -909,21 +943,42 @@ Promotion limits:
 - score는 manifest/artifact에서 재현 가능해야 한다.
 - contact sheet에는 source frame, gold mask, candidate overlay, false positives, false negatives가 보여야 한다.
 - metric이 좋아도 cosmetically implausible하면 manual visual review가 veto할 수 있다.
+- cheek candidate는 promotion 전에 `cheekWeightedError`, `cheekCenterDistance`, `cheekHardEdgePenalty`를 포함해야 한다.
+- temporal jitter score는 smoothing pass가 명시적으로 켜지지 않는 한 pre-smoothing metric이다.
 
 Exit criteria:
 
-- Unity/RN build 전에 runtime candidate set이 freeze된다.
+- runtime candidate는 constant나 train-on-test number가 아니라 재현 가능한 score와 visual review로 승격된다.
 
-### P7: Unity/RN atlas sweep implementation
+### P7: Offline silver/reference pass
 
 목적:
 
-- frozen UV atlas candidate를 Unity에서 load하고 RN에서 한 번의 build로 sweep한다.
+- runtime ML을 도입하지 않고 optional draft reference를 추가한다.
+
+필수 구현 디테일:
+
+- MediaPipe, face parsing, Apple Vision output은 offline reference material로만 유지한다.
+- LaPa, BiSeNet, SegFace, CelebAMask-HQ, pretrained output은 license review 전까지 reference-only다.
+- 모든 silver artifact는 source, version, command/tool, license note, human review status를 기록한다.
+- silver mask만으로 E7.03 Green을 결정하지 않는다.
+- runtime MediaPipe, runtime Apple Vision, live face parsing, new camera session, upload, backend path를 추가하지 않는다.
+
+Exit criteria:
+
+- silver reference는 labeling 또는 diagnosis를 도울 수 있지만 decision authority는 gold mask로 유지된다.
+
+### P8: Unity/RN atlas sweep implementation
+
+목적:
+
+- frozen, evidence-backed atlas candidate를 Unity에서 load하고 RN에서 한 번의 build로 sweep한다.
 
 빌드 정책:
 
-- Unity/RN real-device build 전 Build Gate에서 멈춘다.
-- selected runtime candidate를 모두 build에 bundle해서 rebuild 없이 여러 candidate를 탐색한다.
+- Build Gate에서 멈추고 build purpose가 `runtime candidate sweep`임을 명시한다.
+- selected runtime candidate를 모두 하나의 build에 bundle한다.
+- P4가 통과하고 P6가 작은 candidate list를 freeze하기 전에는 P8을 시작하지 않는다.
 
 Unity asset target:
 
@@ -954,8 +1009,9 @@ runtime metadata requirements:
 - `uvResolution`
 - `threshold`
 - `featherUvPixels`
+- `featherUvNormalized`
 - `morphology`
-- `offlineScoreSummary`
+- `calibrationScore` 또는 `evalScore`
 - `fallback`
 - `fallbackReason`
 - `trackingState`
@@ -975,7 +1031,7 @@ Exit criteria:
 
 - 설치된 앱 하나로 RN에서 `lip`, `cheek`, `eye` atlas variant를 switch하고 full evidence metadata를 emit할 수 있다.
 
-### P8: Real-device decision pass
+### P9: Real-device decision and escalation
 
 목적:
 
@@ -1008,13 +1064,7 @@ Exit criteria:
 
 - `TECH_VALIDATION_RESULT.md`에 command evidence, visual evidence, region G/Y/R, limitations, next boundary를 기록한다.
 
-### P9: Escalation decision
-
-목적:
-
-- reference-driven ARFace UV atlas가 Q3에 도달하지 못할 때 다음 선택지를 결정한다.
-
-Decision ladder:
+Escalation ladder:
 
 1. `cheek`이 실패하면 먼저 atlas feather/centroid/shape envelope를 조정한다.
 2. `lip`이 skin/teeth/inner-mouth spill로 실패하면 offline MediaPipe 또는 face parsing reference assistance를 추가한다.
@@ -1027,7 +1077,7 @@ Hard limits:
 - E7.03이 Green이거나 팀이 남은 Yellow risk를 명시적으로 수용하기 전까지 E7.4/E7.5/E7.6은 blocked다.
 - 이 계획으로 product-quality makeup, M7 Green, AI/backend readiness, SDK readiness, Android readiness, product readiness를 주장하지 않는다.
 
-Exit criteria:
+Escalation exit criteria:
 
 - next boundary는 아래 중 하나다.
   - ARFace UV atlas hardening 계속.
@@ -1041,9 +1091,12 @@ Unity/RN real-device build는 아래 질문에 답하기 전 시작하지 않는
 
 ```txt
 Build question:
+Build purpose: synchronized capture / one-frame round-trip / runtime candidate sweep
 Primary experiment path:
 Compare-only paths:
 Validation contract:
+Synchronized capture-pair contract:
+Clean annotation frame contract:
 Candidate matrix:
 Expected runtime fields:
 Expected visual evidence:
@@ -1054,19 +1107,31 @@ Why one build is enough:
 이 계획에서 유효한 build question 예시:
 
 ```txt
-Can the reference-driven UV atlas candidates keep lip, cheek, and eye masks
-face-attached and semantically plausible enough for Q3 region precision,
+Can this build capture one synchronized lip source pair and prove the
+one-frame round-trip before any multi-frame atlas or runtime candidate sweep,
 while preserving RN <-> Unity recipe/events and E3/E4 compare baselines?
+```
+
+나중에 P4와 P6가 통과한 뒤 runtime sweep build question은 다음처럼 바뀔 수 있다.
+
+```txt
+Can the frozen reference-driven UV atlas candidates keep lip, cheek, and eye
+masks face-attached and semantically plausible enough for Q3 region precision
+in one install, while preserving RN <-> Unity recipe/events and E3/E4 baselines?
 ```
 
 ## 15. Acceptance Criteria
 
 ### Offline acceptance
 
-- in-scope region마다 gold reference mask pack이 최소 하나 있다.
+- 다음 세션 기준으로는 official gold mask 전에 synchronized `lip` capture pair 1개가 있어야 한다.
+- official annotation `frame.png`는 clean해야 하며, mesh/HUD/candidate/debug overlay는 별도 derived file로 저장한다.
+- batch atlas generation 전에 one-frame `lip` round-trip이 통과해야 한다.
+- 이후 전체 E7.03 offline acceptance에는 in-scope region마다 gold reference mask pack이 필요하다.
 - offline scorer가 metrics와 contact sheets를 출력한다.
 - top runtime candidate는 code constant가 아니라 score와 visual review로 선택된다.
 - 현재 manual ellipse candidate는 compare-only로 측정된다.
+- calibration score와 held-out eval score는 분리해서 표시한다.
 
 ### Runtime acceptance
 
@@ -1096,10 +1161,18 @@ while preserving RN <-> Unity recipe/events and E3/E4 compare baselines?
 
 | Risk | Impact | Mitigation |
 | --- | --- | --- |
+| Screen recording frame에 matching ARFace export 없음 | invalid UV vote | `.mov`는 review/practice로만 사용하고 official atlas input은 synchronized capture pair만 허용 |
+| External dataset mask를 official atlas input으로 오해 | invalid ARFace UV mapping | 외부 mask는 taxonomy/example로만 쓰고, 우리 synchronized frame 위에서 생성/재작성된 경우에만 후보 input으로 다룸 |
+| Mesh/HUD/debug overlay가 실제 lip, eye, cheek boundary를 가림 | noisy 또는 biased gold mask | official `frame.png`는 clean하게 유지하고 mesh/debug overlay는 별도 derived file로만 export |
+| Coordinate transform, mirroring, viewport, safe-area mismatch | 좋은 mask여도 round-trip 실패 | display metadata capture와 mesh overlay + one-frame round-trip을 필수화 |
+| Train-on-test offline scoring | 후보 점수가 과도하게 낙관적 | leave-one-frame-out 또는 calibration/eval score 분리 |
+| Perspective-incorrect UV interpolation | close/selfie geometry에서 boundary drift | `clipW` perspective-correct interpolation 또는 Unity-rendered UV/triangle-id buffer 사용 |
+| Occluded/back-facing triangle vote | yaw/profile에서 atlas 오염 | front-most visible triangle만 vote하고 back-facing/occluded triangle reject |
+| Grazing-angle triangle 불안정 | cheek/yaw coverage noise | projected area 또는 `abs(normal dot viewDir)` 기준 weight/reject |
 | Gold mask 생성이 느림 | atlas generation 지연 | region별 5 to 10 frame으로 시작하고 silver reference를 draft로 사용 |
 | Silver reference가 틀림 | 잘못된 atlas 생성 | human acceptance envelope가 model output을 override |
 | ARFace projection export가 부정확 | UV atlas vote가 틀어짐 | 먼저 projected mesh over frame debug checker로 검증 |
-| UV coverage가 sparse | atlas hole 발생 | 더 많은 frame 누적, triangle supersampling, unknown region 보존 |
+| UV coverage가 sparse | atlas hole 발생 | valid synchronized frame을 더 누적하고 unknown region과 coverage map을 보존 |
 | Lip spill 지속 | Q3 blocker | blendshape correction 후 MediaPipe/face parsing reference 추가 |
 | Eye 불안정 | Q3 blocker | broad eyeshadow target으로 좁히고 blink fade 후 semantic reference 비교 |
 | Cheek dataset class 부재 | target ambiguity | gold makeup placement를 수동 정의하고 soft-zone criteria 사용 |
@@ -1172,6 +1245,8 @@ License policy:
 
 - public dataset과 pretrained weights는 license review 전까지 reference-only다.
 - CelebAMask-HQ는 non-commercial/research restricted로 취급한다.
+- LaPa, BiSeNet, SegFace 및 generated silver output은 source license와 derivative-output constraint를 확인하기 전까지 reference-only다.
+- `masks_silver/` 또는 `references/` 아래 저장되는 모든 silver artifact는 source, version, command/tool, license note, human review status를 포함해야 한다.
 - commercial SDK material은 benchmark reference only다.
 - explicit license clearance 없이 third-party template asset을 source code로 옮기지 않는다.
 
@@ -1190,12 +1265,15 @@ License policy:
 그 다음 할 일:
 
 1. 현재 git diff를 확인하고 current atlas implementation을 heuristic baseline으로 label한다.
-2. 첫 frame pack source를 결정한다. 기존 recording 먼저, missing scenario가 blocker일 때만 새 recording.
-3. `evidence/e7-reference-atlas/` 아래 offline artifact layout을 만든다.
-4. representative frame을 추출하고 frame id를 정의한다.
-5. gold/silver mask generation workflow를 만들거나 scaffold한다.
-6. reference pack shape가 명확해진 뒤에만 ARFace projected mesh export instrumentation을 추가한다.
-7. Build Gate가 만족되기 전 Unity/RN build를 시작하지 않는다.
+2. `evidence/e7-reference-atlas/` 아래 offline artifact skeleton을 만든다.
+3. 기존 recording은 scenario review/practice material로만 취급한다.
+4. synchronized capture-pair contract와 manifest fields를 확정한다.
+5. Unity/RN build 전 Build Gate에서 멈추고 build purpose가 synchronized capture인지 runtime sweep인지 명시한다.
+6. 같은 runtime moment에서 official `lip` pair 1개를 capture한다.
+7. official annotation `frame.png`가 clean하고 mesh/debug overlay가 별도 derived file인지 확인한다.
+8. 그 synchronized frame 위에 official `lip` gold mask 1장을 작성한다.
+9. one-frame round-trip을 실행하고 `round_trip_overlay.png`를 inspect한다.
+10. round-trip gate가 통과하기 전 multi-frame atlas generation, scorer work, silver reference, runtime candidate sweep을 시작하지 않는다.
 
 ## 20. 최종 검토
 
@@ -1206,4 +1284,8 @@ License policy:
 - E7.4/E7.5/E7.6, product readiness, M7 Green, AI/backend/upload, Android, commercial SDK work를 도입하지 않는다.
 - MediaPipe/face parsing은 offline reference only로 다루며 runtime dependency가 아니다. Apple Vision은 future research/escalation note로만 남긴다.
 - hand-tuned ellipse logic을 measurable reference-driven UV atlas path로 대체한다.
+- external dataset mask는 우리 synchronized frame 위에서 생성/재작성되기 전까지 taxonomy/example로만 취급한다.
+- official annotation frame은 clean해야 하며 mesh/HUD/candidate/debug overlay는 별도 derived file로 분리한다.
+- official gold mask나 UV back-projection 전에 synchronized capture pair를 요구한다.
+- 모든 batch atlas/scoring/runtime sweep work를 one-frame `lip` round-trip gate 뒤로 둔다.
 - direct digital marking, existing mask datasets, mathematical UV projection, offline scoring, runtime candidate sweep, real-device evidence를 포함한다.
