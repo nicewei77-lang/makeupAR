@@ -249,9 +249,11 @@ public sealed class RNBridge : MonoBehaviour
     private E3RegionMaskOverlay regionMaskOverlay;
     private readonly Dictionary<Renderer, bool> suppressedFaceRendererStates =
         new Dictionary<Renderer, bool>();
+    private readonly Dictionary<ARFaceMeshVisualizer, bool> suppressedFaceVisualizerStates =
+        new Dictionary<ARFaceMeshVisualizer, bool>();
     private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
         new Dictionary<string, RegionFeatureState>();
-    private bool faceRenderersSuppressed;
+    private bool faceRenderersSuppressed = true;
     private float nextFaceRendererSuppressionRefreshTime;
     private int lastSuppressedFaceTrackableCount = -1;
 
@@ -265,6 +267,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshSceneReferences();
         EnsureRegionMaskOverlay();
         EnsureReferenceCaptureExporter();
+        SetFaceRenderersSuppressed(true);
     }
 
     private IEnumerator Start()
@@ -1920,13 +1923,12 @@ public sealed class RNBridge : MonoBehaviour
             return "e7-arface-authored-atlas";
         }
 
-        if (candidate == "e7-reference-uv-atlas"
-            || candidate == "arface-reference-uv-atlas"
-            || candidate == "reference-uv-atlas"
-            || candidate == "e7-reference-uv-alpha"
-            || candidate == "arface-reference-uv-alpha"
-            || candidate == "reference-uv-alpha"
-            || candidate == "soft-uv")
+        if (candidate == "e7-reference-uv-alpha" || candidate == "arface-reference-uv-alpha" || candidate == "reference-uv-alpha" || candidate == "soft-uv")
+        {
+            return "e7-reference-uv-alpha";
+        }
+
+        if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
         {
             return "e7-reference-uv-atlas";
         }

@@ -72,12 +72,7 @@ const E7_EVIDENCE_MODE = 'phase2-arface-manual-heuristic-baseline';
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
-type RendererMode =
-  | 'e7-reference-uv-alpha'
-  | 'e7-reference-uv-atlas'
-  | 'e3e4-baseline'
-  | 'e7-arface-uv-candidate'
-  | 'e7-arface-authored-atlas';
+type RendererMode = 'e7-reference-uv-alpha';
 type AtlasVariantId =
   | 'lip-uvref-v0-balanced'
   | 'cheek-uvref-v0-balanced'
@@ -130,7 +125,7 @@ const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
 };
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-const DEFAULT_RENDERER_MODE: RendererMode = 'e7-reference-uv-atlas';
+const DEFAULT_RENDERER_MODE: RendererMode = 'e7-reference-uv-alpha';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -491,31 +486,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       rendererMode: RendererMode,
       sentAtMs: number,
     ) => {
-      const isRegionPrecision = rendererMode !== 'e3e4-baseline';
-      const candidateId = getCandidateIdForRenderer(rendererMode);
-      const lookId = isRegionPrecision
-        ? 'e7_region_precision_debug'
-        : 'baseline_debug_mask';
-      const recipePrefix =
-        rendererMode === 'e7-reference-uv-alpha'
-          ? 'e7-reference-uv-alpha'
-          : rendererMode === 'e7-reference-uv-atlas'
-          ? 'e7-reference-uv-atlas'
-          : rendererMode === 'e7-arface-authored-atlas'
-          ? 'e7-region-precision-atlas'
-          : rendererMode === 'e7-arface-uv-candidate'
-          ? 'e7-region-precision'
-          : 'e7-baseline';
+      const lookId = 'smooth_region_mask';
+      const recipePrefix = 'smooth-mask';
       const recipeBatchId = `${recipePrefix}-batch-${Math.round(sentAtMs)}`;
       const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
       const enabledLayerCount = countActiveRegions(enabledRegions);
       const layers = RECIPE_REGION_OPTIONS.map(region => {
         const recipe = recipes[region];
-        const variantId = getVariantIdForRenderer(
-          rendererMode,
-          region,
-          DEFAULT_ATLAS_VARIANT_BY_REGION[region],
-        );
+        const variantId = DEFAULT_ATLAS_VARIANT_BY_REGION[region];
         const layerRecipeId = `${recipePrefix}-${region}-${
           recipe.textureSample.name
         }-${variantId}-${Math.round(sentAtMs)}`;
@@ -527,7 +505,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           lookId,
           sentAtMs,
           rendererMode,
-          candidateId,
           variantId,
           activeRegions: activeRegionSummary,
           layerCount: RECIPE_REGION_OPTIONS.length,
@@ -570,8 +547,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         lookId,
         sentAtMs,
         rendererMode,
-        candidateId,
-        variantId: 'balanced-by-region',
         region: focusRegion,
         activeRegions: activeRegionSummary,
         layerCount: layers.length,
@@ -617,18 +592,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         rendererMode,
         sentAtMs,
       );
-      const candidateId = getCandidateIdForRenderer(rendererMode);
       const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
-        `candidateId=${candidateId}`,
-        'variantId=balanced-by-region',
-        `lookId=${
-          rendererMode !== 'e3e4-baseline'
-            ? 'e7_region_precision_debug'
-            : 'baseline_debug_mask'
-        }`,
+        'lookId=smooth_region_mask',
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
@@ -652,10 +620,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         type: 'recipe_ack',
         runId: payload.runId ?? 'e7-baseline',
         phase: payload.phase ?? 'baseline',
-        rendererMode: payload.rendererMode ?? 'e3e4-baseline',
-        candidateId: payload.candidateId ?? 'e3e4-baseline',
-        variantId: payload.variantId ?? 'baseline-v0',
-        lookId: payload.lookId ?? 'baseline_debug_mask',
+        rendererMode: payload.rendererMode ?? DEFAULT_RENDERER_MODE,
+        candidateId: payload.candidateId,
+        variantId: payload.variantId,
+        lookId: payload.lookId ?? 'smooth_region_mask',
         recipeId: payload.recipeId ?? 'none',
         recipeBatchId: payload.recipeBatchId ?? payload.recipeId ?? 'none',
         activeRegions:
@@ -868,7 +836,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectedRecipe = regionRecipes[focusedRegion];
   const selectedColor = selectedRecipe.color;
   const selectedTextureSample = selectedRecipe.textureSample;
-  const selectedAtlasVariantId = DEFAULT_ATLAS_VARIANT_BY_REGION[focusedRegion];
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const opacity = selectedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
@@ -902,7 +869,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         mountedAt,
         validationViewMode,
         selectedRendererMode,
-        selectedAtlasVariantId,
         focusedRegion,
         activeRegions,
         latestMetric,
@@ -922,7 +888,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       latestSnapshot,
       mountedAt,
       focusedRegion,
-      selectedAtlasVariantId,
       selectedRendererMode,
       activeRegions,
       validationViewMode,
@@ -1477,16 +1442,12 @@ function E7StatusPanel({
       </View>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `phase=${String(metric.phase ?? 'baseline')} look=${String(
-              metric.lookId ?? 'baseline_debug_mask',
-            )} mode=${String(
-              metric.rendererMode ?? 'e3e4-baseline',
-            )} candidate=${String(
-              metric.candidateId ?? 'n/a',
-            )} variant=${String(metric.variantId ?? 'n/a')} active=${String(
+          ? `look=${String(
+              metric.lookId ?? 'smooth_region_mask',
+            )} active=${String(
               metric.activeRegionSummary ?? metric.activeRegions ?? currentRegions,
             )}`
-          : `look=baseline_debug_mask mode=e3e4-baseline active=${currentRegions}`}
+          : `look=smooth_region_mask active=${currentRegions}`}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
@@ -1519,16 +1480,10 @@ function E7StatusPanel({
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `mask=${String(metric.maskSource ?? 'centroid_broad')} uv=${String(
+          ? `mask=${String(metric.maskSource ?? 'smooth_uv_mask')} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
-            )} base=${String(
-              metric.regionBaselineTriangles ??
-                metric.baselineTriangles ??
-                'n/a',
-            )} cand=${String(
-              metric.regionCandidateTriangles ??
-                metric.candidateTriangles ??
-                'n/a',
+            )} triangles=${String(
+              metric.regionCandidateTriangles ?? metric.candidateTriangles ?? 'n/a',
             )}`
           : 'region metrics waiting'}
       </Text>
@@ -1538,23 +1493,8 @@ function E7StatusPanel({
               metric?.topologyAuditStatus ??
                 recipe?.topologyAuditStatus ??
                 'not_run',
-            )} atlas=${String(
-              metric?.atlasVersion ?? recipe?.atlasVersion ?? 'none',
-            )} hash=${String(
-              metric?.atlasConfigHash ?? recipe?.atlasConfigHash ?? 'none',
             )}`
           : 'heuristic audit waiting'}
-      </Text>
-      <Text style={styles.e7Text} numberOfLines={1}>
-        {metric || recipe
-          ? `label=${String(
-              metric?.atlasLabelGroup ?? recipe?.atlasLabelGroup ?? 'none',
-            )} fallback=${String(
-              metric?.atlasDataFallback ?? recipe?.atlasDataFallback ?? false,
-            )} reason=${String(
-              metric?.atlasFallbackReason ?? recipe?.atlasFallbackReason ?? 'none',
-            )}`
-          : 'manual label waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {recipe
@@ -1636,7 +1576,6 @@ type EvidenceMetadataInput = {
   mountedAt: string;
   validationViewMode: ValidationViewMode;
   selectedRendererMode: RendererMode;
-  selectedAtlasVariantId: AtlasVariantId;
   focusedRegion: RecipeRegion;
   activeRegions: ActiveRegionMap;
   latestMetric?: UnityEventPayload;
@@ -1652,7 +1591,6 @@ function buildEvidenceMetadataLines({
   mountedAt,
   validationViewMode,
   selectedRendererMode,
-  selectedAtlasVariantId,
   focusedRegion,
   activeRegions,
   latestMetric,
@@ -1662,12 +1600,6 @@ function buildEvidenceMetadataLines({
   latestSnapshot,
   lastUnityEvent,
 }: EvidenceMetadataInput) {
-  const candidateId = getCandidateIdForRenderer(selectedRendererMode);
-  const selectedVariantId = getVariantIdForRenderer(
-    selectedRendererMode,
-    focusedRegion,
-    selectedAtlasVariantId,
-  );
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const latencyMs = getRecipeAckLatencyMs(
     latestRecipe,
@@ -1678,10 +1610,7 @@ function buildEvidenceMetadataLines({
   return [
     `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
-    `candidateId=${candidateId} rendererMode=${selectedRendererMode}`,
-    `variantId=${selectedVariantId} eventVariant=${formatLifecycleValue(
-      latestRecipe?.variantId ?? latestMetric?.variantId,
-    )}`,
+    `rendererMode=${selectedRendererMode} look=smooth_region_mask`,
     `activeRegions=${activeRegionSummary} focusRegion=${focusedRegion}`,
     `metricRegion=${formatLifecycleValue(
       latestMetric?.region,
@@ -1702,21 +1631,10 @@ function buildEvidenceMetadataLines({
     `blendshapeFieldsUsed=${String(
       latestMetric?.blendshapeFieldsUsed ?? 'not_exposed_in_phase1_ui',
     )}`,
-    `atlas=${String(
-      latestMetric?.atlasVersion ?? latestRecipe?.atlasVersion ?? 'none',
-    )} labelMap=${String(
-      latestMetric?.atlasLabelMapVersion ??
-        latestRecipe?.atlasLabelMapVersion ??
-        'none',
-    )} labelGroup=${String(
-      latestMetric?.atlasLabelGroup ?? latestRecipe?.atlasLabelGroup ?? 'none',
-    )}`,
     `topology=${String(
       latestMetric?.topologyAuditStatus ??
         latestRecipe?.topologyAuditStatus ??
         'not_run',
-    )} atlasHash=${String(
-      latestMetric?.atlasConfigHash ?? latestRecipe?.atlasConfigHash ?? 'none',
     )}`,
     `fps=${formatMetricNumber(
       latestMetric?.averageFps,
@@ -1849,9 +1767,9 @@ function formatE7MetricSummary(event: UnityEventPayload) {
   )} frame=${formatMetricNumber(event.averageFrameTimeMs)}ms mem=${String(
     event.memoryMetricAvailable ?? false,
   )} thermal=${String(event.thermalEvidenceType ?? 'n/a')} phase=${String(
-    event.phase ?? 'baseline',
-  )} mode=${String(event.rendererMode ?? 'e3e4-baseline')} look=${String(
-    event.lookId ?? 'baseline_debug_mask',
+    event.phase ?? 'smooth_mask',
+  )} mode=${String(event.rendererMode ?? 'e7-reference-uv-alpha')} look=${String(
+    event.lookId ?? 'smooth_region_mask',
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
   )} enabled=${String(
@@ -1872,12 +1790,10 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
     `runId=${String(
       event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`,
     )}`,
-    `phase=${String(event.phase ?? 'baseline')}`,
+    `phase=${String(event.phase ?? 'smooth_mask')}`,
     `timestampMs=${receivedAtMs}`,
-    `rendererMode=${String(event.rendererMode ?? 'e3e4-baseline')}`,
-    `candidateId=${String(event.candidateId ?? 'e3e4-baseline')}`,
-    `variantId=${String(event.variantId ?? 'baseline-v0')}`,
-    `lookId=${String(event.lookId ?? 'baseline_debug_mask')}`,
+    `rendererMode=${String(event.rendererMode ?? 'e7-reference-uv-alpha')}`,
+    `lookId=${String(event.lookId ?? 'smooth_region_mask')}`,
     `recipeId=${String(event.recipeId ?? 'none')}`,
     `recipeBatchId=${String(event.recipeBatchId ?? event.recipeId ?? 'none')}`,
     `activeRegions=${String(
