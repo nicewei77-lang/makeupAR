@@ -200,8 +200,6 @@ type UnityEventPayload = {
   blendMode?: string;
   runId?: string;
   rendererMode?: string;
-  candidateId?: string;
-  variantId?: string;
   maskSource?: string;
   stateAction?: string;
   regionPrecisionStatus?: string;
@@ -493,10 +491,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const enabledLayerCount = countActiveRegions(enabledRegions);
       const layers = RECIPE_REGION_OPTIONS.map(region => {
         const recipe = recipes[region];
-        const variantId = DEFAULT_ATLAS_VARIANT_BY_REGION[region];
+        const maskTextureId = DEFAULT_ATLAS_VARIANT_BY_REGION[region];
         const layerRecipeId = `${recipePrefix}-${region}-${
           recipe.textureSample.name
-        }-${variantId}-${Math.round(sentAtMs)}`;
+        }-${Math.round(sentAtMs)}`;
 
         return {
           id: `${region}-${recipe.textureSample.name}`,
@@ -505,7 +503,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           lookId,
           sentAtMs,
           rendererMode,
-          variantId,
           activeRegions: activeRegionSummary,
           layerCount: RECIPE_REGION_OPTIONS.length,
           enabledLayerCount,
@@ -534,7 +531,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           materialId: `${recipe.textureSample.name}-validation-material`,
           shaderMode: 'unlit-alpha-validation',
           passCount: 1,
-          maskTextureId: variantId,
+          maskTextureId,
           cameraBackdropAvailable: false,
           lightEstimateAvailable: false,
         };
@@ -621,8 +618,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         runId: payload.runId ?? 'e7-baseline',
         phase: payload.phase ?? 'baseline',
         rendererMode: payload.rendererMode ?? DEFAULT_RENDERER_MODE,
-        candidateId: payload.candidateId,
-        variantId: payload.variantId,
         lookId: payload.lookId ?? 'smooth_region_mask',
         recipeId: payload.recipeId ?? 'none',
         recipeBatchId: payload.recipeBatchId ?? payload.recipeId ?? 'none',
@@ -1827,49 +1822,6 @@ function getRecipeAckLatencyMs(
   return receivedAtMs - sentAtMs;
 }
 
-function getCandidateIdForRenderer(rendererMode: RendererMode) {
-  switch (rendererMode) {
-    case 'e7-reference-uv-alpha':
-      return 'arface-reference-uv-alpha';
-    case 'e7-reference-uv-atlas':
-      return 'arface-reference-uv-atlas';
-    case 'e7-arface-authored-atlas':
-      return 'arface-authored-atlas';
-    case 'e7-arface-uv-candidate':
-      return 'e7-procedural-arface-uv';
-    default:
-      return 'e3e4-baseline';
-  }
-}
-
-function getVariantIdForRenderer(
-  rendererMode: RendererMode,
-  region: RecipeRegion,
-  atlasVariantId: AtlasVariantId,
-) {
-  if (rendererMode === 'e7-arface-authored-atlas') {
-    switch (region) {
-      case 'cheek':
-        return 'cheek-soft-v0-balanced';
-      case 'eye':
-        return 'eye-band-v0-balanced';
-      default:
-        return 'lip-ring-v0-balanced';
-    }
-  }
-
-  if (
-    rendererMode === 'e7-reference-uv-alpha' ||
-    rendererMode === 'e7-reference-uv-atlas'
-  ) {
-    return atlasVariantId ?? DEFAULT_ATLAS_VARIANT_BY_REGION[region];
-  }
-
-  return rendererMode === 'e7-arface-uv-candidate'
-    ? 'procedural-v0'
-    : 'baseline-v0';
-}
-
 function readTrackingState(
   lifecycleEvent?: UnityEventPayload,
   metricEvent?: UnityEventPayload,
@@ -2031,8 +1983,6 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.usedFallback ?? false,
   )} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
-  )} atlasHash=${String(
-    event.atlasConfigHash ?? 'none',
   )} latency=${formatMetricNumber(latencyMs)}ms`;
 }
 

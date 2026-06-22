@@ -237,10 +237,10 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
         string baselineLogFields = rnBridge != null
             ? rnBridge.BuildE7BaselineStateLogFields()
-            : " rendererMode=e3e4-baseline lookId=baseline_debug_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
+            : " rendererMode=e7-reference-uv-alpha lookId=smooth_region_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
         string baselineJsonFragment = rnBridge != null
             ? rnBridge.BuildE7BaselineStateJsonFragment()
-            : "\"rendererMode\":\"e3e4-baseline\",\"lookId\":\"baseline_debug_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
+            : "\"rendererMode\":\"e7-reference-uv-alpha\",\"lookId\":\"smooth_region_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
 
         Debug.Log(
             "[E7] metric_sample"

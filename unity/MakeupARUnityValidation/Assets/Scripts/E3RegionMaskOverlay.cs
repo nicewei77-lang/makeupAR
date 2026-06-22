@@ -75,10 +75,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Intensity = 1.0f;
         public float Feather = 0.0f;
         public string BlendMode = "normal";
-        public string RendererMode = "e3e4-baseline";
-        public string CandidateId = "e3e4-baseline";
-        public string VariantId = "baseline-v0";
-        public RegionMaskMode MaskMode = RegionMaskMode.BaselineCentroid;
+        public string RendererMode = "e7-reference-uv-alpha";
+        public string CandidateId = "smooth-mask";
+        public string VariantId = "lip-uvref-v0-balanced";
+        public RegionMaskMode MaskMode = RegionMaskMode.E7ReferenceUvAlpha;
     }
 
     private sealed class FaceOverlayState
@@ -328,8 +328,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     "[E3] applied_region_disabled"
                     + " region=" + region
                     + " rendererMode=" + recipe.RendererMode
-                    + " candidateId=" + recipe.CandidateId
-                    + " variantId=" + recipe.VariantId);
+                    + " maskTextureId=" + recipe.VariantId);
             }
 
             return result;
@@ -436,10 +435,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
                 + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant());
             Debug.Log(
-                "[E7] region_precision_compare"
+                "[E7] region_mask_apply"
                 + " rendererMode=" + result.RendererMode
-                + " candidateId=" + result.CandidateId
-                + " variantId=" + result.VariantId
+                + " maskTextureId=" + result.VariantId
                 + " maskSource=" + result.MaskSource
                 + " boundaryRenderer=" + result.BoundaryRenderer
                 + " region=" + region
@@ -451,31 +449,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + " meshIndexCount=" + result.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
                 + " meshUvCount=" + result.MeshUvCount.ToString(CultureInfo.InvariantCulture)
                 + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
-                + " baselineTriangles=" + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
-                + " candidateTriangles=" + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
                 + " appliedTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
                 + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant()
-                + " atlasDataFallback=" + result.AtlasDataFallback.ToString().ToLowerInvariant()
-                + " atlasFallbackReason=" + result.AtlasFallbackReason
-                + " atlasSourceFrameCount=" + result.AtlasSourceFrameCount.ToString(CultureInfo.InvariantCulture)
-                + " goldMaskCount=" + result.AtlasGoldMaskCount.ToString(CultureInfo.InvariantCulture)
-                + " silverReferenceCount=" + result.AtlasSilverReferenceCount.ToString(CultureInfo.InvariantCulture)
-                + " uvResolution=" + result.AtlasUvResolution.ToString(CultureInfo.InvariantCulture)
                 + " threshold=" + result.AtlasThreshold.ToString("0.###", CultureInfo.InvariantCulture)
-                + " featherUvPixels=" + result.AtlasFeatherUvPixels.ToString(CultureInfo.InvariantCulture)
                 + " featherUvNormalized=" + result.AtlasFeatherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
-                + " calibrationScore=" + SanitizeLogValue(result.AtlasCalibrationScoreSummary)
-                + " combineMode=" + result.AtlasCombineMode
-                + " morphology=" + result.AtlasMorphology
-                + " atlasVersion=" + result.AtlasVersion
-                + " atlasLabelMapVersion=" + result.AtlasLabelMapVersion
-                + " atlasLabelGroup=" + result.AtlasLabelGroup
-                + " atlasConfigHash=" + result.AtlasConfigHash
                 + " topologyAuditStatus=" + result.TopologyAuditStatus
-                + " topologyAuditSummary=" + result.TopologyAuditSummary
-                + " atlasVertexLabelSummary=" + result.AtlasVertexLabelSummary
-                + " regionDecision=yellow_pending_real_device_visual_review"
-                + " smoothing=visibility_hysteresis_only"
+                + " regionDecision=smooth_mask_runtime"
+                + " smoothing=shader_alpha_mask"
                 + " regionsInScope=lip,cheek,eye");
         }
 
@@ -1549,110 +1529,32 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private static RegionMaskMode NormalizeMaskMode(string rendererMode)
     {
-        string candidate = string.IsNullOrWhiteSpace(rendererMode)
-            ? "e3e4-baseline"
-            : rendererMode.Trim().ToLowerInvariant();
-
-        if (candidate == "e7-arface-authored-atlas" || candidate == "arface-authored-atlas" || candidate == "atlas")
-        {
-            return RegionMaskMode.E7ArFaceAuthoredAtlas;
-        }
-
-        if (candidate == "e7-reference-uv-atlas"
-            || candidate == "arface-reference-uv-atlas"
-            || candidate == "reference-uv-atlas"
-            || candidate == "e7-reference-uv-alpha"
-            || candidate == "arface-reference-uv-alpha"
-            || candidate == "reference-uv-alpha"
-            || candidate == "soft-uv")
-        {
-            return RegionMaskMode.E7ReferenceUvAtlas;
-        }
-
-        if (candidate == "e7-arface-uv-candidate" || candidate == "e7-candidate" || candidate == "candidate")
-        {
-            return RegionMaskMode.E7ArFaceUvCandidate;
-        }
-
-        return RegionMaskMode.BaselineCentroid;
+        return RegionMaskMode.E7ReferenceUvAlpha;
     }
 
     private static string FormatRendererMode(RegionMaskMode maskMode)
     {
-        switch (maskMode)
-        {
-            case RegionMaskMode.E7ArFaceAuthoredAtlas:
-                return "e7-arface-authored-atlas";
-            case RegionMaskMode.E7ReferenceUvAtlas:
-                return "e7-reference-uv-atlas";
-            case RegionMaskMode.E7ReferenceUvAlpha:
-                return "e7-reference-uv-alpha";
-            case RegionMaskMode.E7ArFaceUvCandidate:
-                return "e7-arface-uv-candidate";
-            default:
-                return "e3e4-baseline";
-        }
+        return "e7-reference-uv-alpha";
     }
 
     private static string GetMaskSource(RegionMaskMode maskMode)
     {
-        switch (maskMode)
-        {
-            case RegionMaskMode.E7ArFaceAuthoredAtlas:
-                return "arface_authored_atlas_manual_vertex_labels";
-            case RegionMaskMode.E7ReferenceUvAtlas:
-                return "arface_reference_uv_atlas_probability";
-            case RegionMaskMode.E7ReferenceUvAlpha:
-                return "arface_reference_uv_atlas_shader_alpha";
-            case RegionMaskMode.E7ArFaceUvCandidate:
-                return "arface_mesh_uv_procedural_candidate";
-            default:
-                return "centroid_broad";
-        }
+        return "smooth_uv_mask";
     }
 
     private static string GetBoundaryRenderer(RegionMaskMode maskMode)
     {
-        return maskMode == RegionMaskMode.E7ReferenceUvAlpha ? "shader_alpha" : "triangle_subset";
+        return "shader_alpha";
     }
 
     private static string NormalizeCandidateId(string candidateId, RegionMaskMode maskMode)
     {
-        string candidate = string.IsNullOrWhiteSpace(candidateId)
-            ? string.Empty
-            : candidateId.Trim().ToLowerInvariant();
-
-        if (maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas)
-        {
-            return candidate == "arface-authored-atlas" ? candidate : "arface-authored-atlas";
-        }
-
-        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas || maskMode == RegionMaskMode.E7ReferenceUvAlpha)
-        {
-            if (maskMode == RegionMaskMode.E7ReferenceUvAlpha)
-            {
-                return candidate == "arface-reference-uv-alpha" ? candidate : "arface-reference-uv-alpha";
-            }
-
-            return candidate == "arface-reference-uv-atlas" ? candidate : "arface-reference-uv-atlas";
-        }
-
-        if (maskMode == RegionMaskMode.E7ArFaceUvCandidate)
-        {
-            return candidate == "e7-procedural-arface-uv" ? candidate : "e7-procedural-arface-uv";
-        }
-
-        return "e3e4-baseline";
+        return "smooth-mask";
     }
 
     private static string NormalizeNonAtlasVariantId(string variantId, RegionMaskMode maskMode)
     {
-        if (maskMode == RegionMaskMode.E7ArFaceUvCandidate)
-        {
-            return "procedural-v0";
-        }
-
-        return "baseline-v0";
+        return "lip-uvref-v0-balanced";
     }
 
     private static bool IsAtlasMaskMode(RegionMaskMode maskMode)

@@ -189,6 +189,11 @@ test('does not render candidate or variant controls', async () => {
   expect(text).not.toContain('variant');
   expect(text).not.toContain('soft-wide');
   expect(text).not.toContain('core');
+
+  pressByText(renderer!, 'Debug');
+  const debugText = collectText(renderer!);
+  expect(debugText).not.toContain('candidateId');
+  expect(debugText).not.toContain('variantId');
 });
 
 test('keeps validation modes visually compact before build', async () => {
@@ -217,7 +222,7 @@ test('keeps validation modes visually compact before build', async () => {
   expect(collectText(renderer!)).toContain('Regions');
 });
 
-test('posts reference atlas renderer by default before build', async () => {
+test('posts smooth mask renderer by default before build', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -234,8 +239,9 @@ test('posts reference atlas renderer by default before build', async () => {
   );
 
   expect(recipePostCall).toBeTruthy();
-  expect(recipePostCall).toContain('rendererMode=e7-reference-uv-atlas');
-  expect(recipePostCall).not.toContain('rendererMode=e7-reference-uv-alpha');
+  expect(recipePostCall).toContain('rendererMode=e7-reference-uv-alpha');
+  expect(recipePostCall).not.toContain('candidateId=');
+  expect(recipePostCall).not.toContain('variantId=');
 });
 
 test('keeps Unity face debug surface disabled across view modes', async () => {
