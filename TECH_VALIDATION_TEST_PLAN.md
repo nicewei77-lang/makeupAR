@@ -559,6 +559,13 @@ React Native 앱 안에서 Unity AR Foundation 기반 iOS AR 화면을 열고, i
 
 순서를 바꾸지 않는다. 특히 Unity 단독 AR 검증과 RN 단독 iOS 검증이 실패한 상태에서 embed 작업으로 넘어가면 문제 원인을 분리하기 어렵다.
 
+### 빌드 게이트
+
+- Unity/RN 실기기 빌드는 구현 직후 바로 시작하지 않는다.
+- 빌드 전에는 build question, primary path, compare-only paths, validation contract, evidence matrix, out-of-scope를 보고하고 사용자 승인 후 진행한다.
+- UI/logging이 한 번의 실행으로 질문에 답하지 못하면 빌드 전에 검증 UX/증거 계획을 먼저 고친다.
+- E7 region precision은 one-build candidate sweep을 기본으로 하며 baseline/procedural은 명시 승격 전까지 compare-only다.
+
 ## 17. 최소 파일 구조 제안
 
 검증 repo는 아래처럼 단순하게 유지한다.

@@ -15,12 +15,12 @@
 - For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
 
 ## Build Loop
-- Every Unity/RN real-device validation session should regenerate and sync `UnityFramework.framework` before the RN iOS build.
-- Use `bash scripts/build_m3_unityframework.sh` from the repo root; do not hand-run raw Unity batchmode commands unless debugging the script itself.
+- Before Unity/RN real-device builds, stop and report the build question, primary path, compare-only paths, validation contract, evidence matrix, and out-of-scope items; build only after user approval.
+- If UI/logging cannot answer the build question in one run, fix validation UX/evidence first; for E7 region precision, candidate sweep is primary and baseline/procedural paths are compare-only unless promoted.
+- Every approved Unity/RN validation session should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
 - The script exports Unity iOS, verifies ARKit links, builds `UnityFramework` with signing disabled, copies Unity `Data`, and syncs RN/package framework paths.
 - After sync, run from `rn/MakeupARValidation`: `npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK`.
-- The 2026-06-21 Unity export blocker was stale/conflicting Unity Hub/Editor Licensing Client IPC, not E2 code (`Unsupported protocol version '1.18.1'`, lost client connection).
-- Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; if licensing blocks, remove `/tmp/Unity-LicenseClient*`, reopen Hub/Editor to confirm Personal license, then rerun the script.
+- Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; stale Licensing Client IPC can block export (`Unsupported protocol version '1.18.1'`).
 - Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable; stale package frameworks previously caused missing Unity objects/events.
 
 ## Document Rules

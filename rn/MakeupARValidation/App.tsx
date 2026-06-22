@@ -64,6 +64,63 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
 const RENDERER_MODE_OPTIONS = [
   { name: 'e3e4-baseline', label: 'Baseline' },
   { name: 'e7-arface-uv-candidate', label: 'E7 UV' },
+  { name: 'e7-arface-authored-atlas', label: 'Atlas' },
+] as const;
+const ATLAS_VARIANT_OPTIONS = [
+  {
+    id: 'lip-ring-v0-tight',
+    label: 'lip tight',
+    region: 'lip',
+    status: 'manual lip ring',
+  },
+  {
+    id: 'lip-ring-v0-balanced',
+    label: 'lip balanced',
+    region: 'lip',
+    status: 'default lip ring',
+  },
+  {
+    id: 'lip-ring-v0-wide',
+    label: 'lip wide',
+    region: 'lip',
+    status: 'stress spill check',
+  },
+  {
+    id: 'cheek-soft-v0-balanced',
+    label: 'cheek balanced',
+    region: 'cheek',
+    status: 'default soft cheek',
+  },
+  {
+    id: 'cheek-soft-v0-high',
+    label: 'cheek high',
+    region: 'cheek',
+    status: 'cheekbone emphasis',
+  },
+  {
+    id: 'cheek-soft-v0-wide',
+    label: 'cheek wide',
+    region: 'cheek',
+    status: 'soft-zone spill check',
+  },
+  {
+    id: 'eye-band-v0-tight',
+    label: 'eye tight',
+    region: 'eye',
+    status: 'manual eyelid band',
+  },
+  {
+    id: 'eye-band-v0-balanced',
+    label: 'eye balanced',
+    region: 'eye',
+    status: 'default eyelid band',
+  },
+  {
+    id: 'eye-band-v0-extended',
+    label: 'eye extended',
+    region: 'eye',
+    status: 'stress spill check',
+  },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'clean', label: 'Clean' },
@@ -71,12 +128,14 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Full Debug' },
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
-const E7_PHASE1_EVIDENCE_MODE = 'phase1-ui-evidence-hygiene';
+const E7_EVIDENCE_MODE = 'phase2-arface-authored-atlas-mvp';
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
 type RendererMode = (typeof RENDERER_MODE_OPTIONS)[number]['name'];
+type AtlasVariantOption = (typeof ATLAS_VARIANT_OPTIONS)[number];
+type AtlasVariantId = AtlasVariantOption['id'];
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 type RegionRecipe = {
   color: RecipeColor;
@@ -106,7 +165,8 @@ const VALIDATION_CANDIDATE_OPTIONS: ValidationCandidateOption[] = [
   {
     id: 'arface-authored-atlas',
     label: 'ARFace atlas',
-    status: 'Phase 2 pending',
+    status: 'selectable P2 MVP',
+    rendererMode: 'e7-arface-authored-atlas',
   },
   {
     id: 'arface-vertex-blendshape',
@@ -163,9 +223,14 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
 };
+const DEFAULT_ATLAS_VARIANT_BY_REGION: Record<RecipeRegion, AtlasVariantId> = {
+  lip: 'lip-ring-v0-balanced',
+  cheek: 'cheek-soft-v0-balanced',
+  eye: 'eye-band-v0-balanced',
+};
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-const DEFAULT_RENDERER_MODE: RendererMode = 'e7-arface-uv-candidate';
+const DEFAULT_RENDERER_MODE: RendererMode = 'e7-arface-authored-atlas';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -239,6 +304,8 @@ type UnityEventPayload = {
   blendMode?: string;
   runId?: string;
   rendererMode?: string;
+  candidateId?: string;
+  variantId?: string;
   maskSource?: string;
   stateAction?: string;
   regionPrecisionStatus?: string;
@@ -280,6 +347,16 @@ type UnityEventPayload = {
   visualLatencyObservation?: string;
   meshTriangles?: number;
   usedFallback?: boolean;
+  atlasVersion?: string;
+  atlasLabelMapVersion?: string;
+  atlasLabelGroup?: string;
+  atlasConfigSummary?: string;
+  atlasConfigHash?: string;
+  topologyAuditStatus?: string;
+  topologyAuditSummary?: string;
+  atlasVertexLabelSummary?: string;
+  atlasDataFallback?: boolean;
+  atlasFallbackReason?: string;
   [key: string]: unknown;
 };
 
@@ -443,6 +520,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [regionRecipes, setRegionRecipes] = useState<
     Record<RecipeRegion, RegionRecipe>
   >(DEFAULT_REGION_RECIPES);
+  const [selectedAtlasVariantByRegion, setSelectedAtlasVariantByRegion] =
+    useState<Record<RecipeRegion, AtlasVariantId>>(
+      DEFAULT_ATLAS_VARIANT_BY_REGION,
+    );
   const [sliderWidth, setSliderWidth] = useState(1);
   const [lastUnityEvent, setLastUnityEvent] = useState<UnityEventRecord | null>(
     null,
@@ -476,16 +557,28 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       region: RecipeRegion,
       recipe: RegionRecipe,
       rendererMode: RendererMode,
+      atlasVariantId: AtlasVariantId,
       sentAtMs: number,
     ) => {
-      const isCandidate = rendererMode === 'e7-arface-uv-candidate';
-      const lookId = isCandidate
+      const isRegionPrecision = rendererMode !== 'e3e4-baseline';
+      const candidateId = getCandidateIdForRenderer(rendererMode);
+      const variantId = getVariantIdForRenderer(
+        rendererMode,
+        region,
+        atlasVariantId,
+      );
+      const lookId = isRegionPrecision
         ? 'e7_region_precision_debug'
         : 'baseline_debug_mask';
-      const recipePrefix = isCandidate ? 'e7-region-precision' : 'e7-baseline';
+      const recipePrefix =
+        rendererMode === 'e7-arface-authored-atlas'
+          ? 'e7-region-precision-atlas'
+          : rendererMode === 'e7-arface-uv-candidate'
+          ? 'e7-region-precision'
+          : 'e7-baseline';
       const recipeId = `${recipePrefix}-${region}-${
         recipe.textureSample.name
-      }-${Math.round(sentAtMs)}`;
+      }-${variantId}-${Math.round(sentAtMs)}`;
 
       return JSON.stringify({
         version: 1,
@@ -493,6 +586,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         lookId,
         sentAtMs,
         rendererMode,
+        candidateId,
+        variantId,
         region,
         texture: recipe.textureSample.name,
         sample: recipe.textureSample.name,
@@ -504,6 +599,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             lookId,
             sentAtMs,
             rendererMode,
+            candidateId,
+            variantId,
             region,
             layer: region,
             color: recipe.color.color,
@@ -527,19 +624,29 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       region: RecipeRegion,
       recipe: RegionRecipe,
       rendererMode = selectedRendererMode,
+      atlasVariantId = selectedAtlasVariantByRegion[region],
     ) => {
       const sentAtMs = Date.now();
       const recipeJson = buildRecipeJson(
         region,
         recipe,
         rendererMode,
+        atlasVariantId,
         sentAtMs,
+      );
+      const candidateId = getCandidateIdForRenderer(rendererMode);
+      const variantId = getVariantIdForRenderer(
+        rendererMode,
+        region,
+        atlasVariantId,
       );
       console.log(
         '[E7] rn_texture_recipe_post',
         `rendererMode=${rendererMode}`,
+        `candidateId=${candidateId}`,
+        `variantId=${variantId}`,
         `lookId=${
-          rendererMode === 'e7-arface-uv-candidate'
+          rendererMode !== 'e3e4-baseline'
             ? 'e7_region_precision_debug'
             : 'baseline_debug_mask'
         }`,
@@ -553,7 +660,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
     },
-    [buildRecipeJson, selectedRendererMode],
+    [buildRecipeJson, selectedAtlasVariantByRegion, selectedRendererMode],
   );
 
   const postRecipeAck = useCallback(
@@ -563,6 +670,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         runId: payload.runId ?? 'e7-baseline',
         phase: payload.phase ?? 'baseline',
         rendererMode: payload.rendererMode ?? 'e3e4-baseline',
+        candidateId: payload.candidateId ?? 'e3e4-baseline',
+        variantId: payload.variantId ?? 'baseline-v0',
         lookId: payload.lookId ?? 'baseline_debug_mask',
         recipeId: payload.recipeId ?? 'none',
         region: payload.region ?? payload.appliedRegion ?? 'none',
@@ -686,6 +795,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectedRecipe = regionRecipes[selectedRegion];
   const selectedColor = selectedRecipe.color;
   const selectedTextureSample = selectedRecipe.textureSample;
+  const selectedAtlasVariantId = selectedAtlasVariantByRegion[selectedRegion];
+  const selectedAtlasVariant = getAtlasVariantOption(selectedAtlasVariantId);
+  const atlasVariantsForSelectedRegion =
+    getAtlasVariantsForRegion(selectedRegion);
   const opacity = selectedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
@@ -703,6 +816,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         mountedAt,
         validationViewMode,
         selectedRendererMode,
+        selectedAtlasVariantId,
         selectedRegion,
         latestMetric,
         latestLifecycle,
@@ -719,6 +833,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       latestSnapshot,
       mountedAt,
       selectedRegion,
+      selectedAtlasVariantId,
       selectedRendererMode,
       validationViewMode,
     ],
@@ -738,9 +853,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectRegion = useCallback(
     (region: RecipeRegion) => {
       setSelectedRegion(region);
-      postRecipe(region, regionRecipes[region]);
+      postRecipe(region, regionRecipes[region], selectedRendererMode);
     },
-    [postRecipe, regionRecipes],
+    [postRecipe, regionRecipes, selectedRendererMode],
   );
 
   const selectColor = useCallback(
@@ -791,6 +906,22 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       postRecipe(nextRegion, nextRecipe);
     },
     [postRecipe, regionRecipes],
+  );
+
+  const selectAtlasVariant = useCallback(
+    (variantId: AtlasVariantId) => {
+      const variant = getAtlasVariantOption(variantId);
+      if (!variant || variant.region !== selectedRegion) {
+        return;
+      }
+
+      setSelectedAtlasVariantByRegion(currentVariants => ({
+        ...currentVariants,
+        [selectedRegion]: variantId,
+      }));
+      postRecipe(selectedRegion, selectedRecipe, selectedRendererMode, variantId);
+    },
+    [postRecipe, selectedRecipe, selectedRegion, selectedRendererMode],
   );
 
   const opacityPercent = Math.round(opacity * 100);
@@ -859,6 +990,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         <CompactEvidenceHud
           validationViewMode={validationViewMode}
           selectedRendererMode={selectedRendererMode}
+          selectedAtlasVariantId={selectedAtlasVariantId}
           selectedRegion={selectedRegion}
           latestMetric={latestMetric}
           latestLifecycle={latestLifecycle}
@@ -946,6 +1078,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               <Text style={styles.recipePanelMetaText} numberOfLines={1}>
                 {`${formatSelectedCandidateId(
                   selectedRendererMode,
+                )} / variant=${getVariantIdForRenderer(
+                  selectedRendererMode,
+                  selectedRegion,
+                  selectedAtlasVariantId,
                 )} / region=${selectedRegion}`}
               </Text>
             </View>
@@ -1015,6 +1151,52 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 })}
               </View>
             )}
+
+            {showFullControls &&
+              selectedRendererMode === 'e7-arface-authored-atlas' && (
+                <View style={styles.variantPanel}>
+                  <Text style={styles.debugSubLabel}>Atlas variant</Text>
+                  <View style={styles.variantButtonRow}>
+                    {atlasVariantsForSelectedRegion.map(variantOption => {
+                      const isSelected =
+                        variantOption.id === selectedAtlasVariantId;
+
+                      return (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityState={{ selected: isSelected }}
+                          key={variantOption.id}
+                          style={({ pressed }) => [
+                            styles.variantButton,
+                            isSelected && styles.variantButtonSelected,
+                            pressed && styles.colorButtonPressed,
+                          ]}
+                          onPress={() => selectAtlasVariant(variantOption.id)}
+                        >
+                          <Text
+                            style={[
+                              styles.variantButtonText,
+                              isSelected && styles.variantButtonTextSelected,
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {variantOption.label}
+                          </Text>
+                          <Text
+                            style={styles.variantStatusText}
+                            numberOfLines={1}
+                          >
+                            {variantOption.status}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.recipePanelMetaText} numberOfLines={1}>
+                    {`selected=${selectedAtlasVariant?.id ?? selectedAtlasVariantId}`}
+                  </Text>
+                </View>
+              )}
 
             <View style={styles.regionButtonRow}>
               {RECIPE_REGION_OPTIONS.map(regionOption => {
@@ -1125,7 +1307,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedColor.name} {selectedColor.color} / opacity{' '}
                   {opacityPercent}% / texture {selectedTextureSample.name} /
                   mode {selectedTextureSample.textureMode} / intensity{' '}
-                  {selectedTextureSample.intensity.toFixed(2)}
+                  {selectedTextureSample.intensity.toFixed(2)} / variant{' '}
+                  {getVariantIdForRenderer(
+                    selectedRendererMode,
+                    selectedRegion,
+                    selectedAtlasVariantId,
+                  )}
                 </Text>
               </>
             )}
@@ -1301,7 +1488,11 @@ function E7StatusPanel({
               metric.lookId ?? 'baseline_debug_mask',
             )} mode=${String(
               metric.rendererMode ?? 'e3e4-baseline',
-            )} region=${String(metric.region ?? currentRegion)}`
+            )} candidate=${String(
+              metric.candidateId ?? 'n/a',
+            )} variant=${String(metric.variantId ?? 'n/a')} region=${String(
+              metric.region ?? currentRegion,
+            )}`
           : `look=baseline_debug_mask mode=e3e4-baseline region=${currentRegion}`}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
@@ -1349,6 +1540,30 @@ function E7StatusPanel({
           : 'region precision waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
+        {metric || recipe
+          ? `topology=${String(
+              metric?.topologyAuditStatus ??
+                recipe?.topologyAuditStatus ??
+                'not_run',
+            )} atlas=${String(
+              metric?.atlasVersion ?? recipe?.atlasVersion ?? 'none',
+            )} hash=${String(
+              metric?.atlasConfigHash ?? recipe?.atlasConfigHash ?? 'none',
+            )}`
+          : 'atlas audit waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric || recipe
+          ? `label=${String(
+              metric?.atlasLabelGroup ?? recipe?.atlasLabelGroup ?? 'none',
+            )} fallback=${String(
+              metric?.atlasDataFallback ?? recipe?.atlasDataFallback ?? false,
+            )} reason=${String(
+              metric?.atlasFallbackReason ?? recipe?.atlasFallbackReason ?? 'none',
+            )}`
+          : 'manual label waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
         {recipe
           ? `latency=${formatMetricNumber(
               latencyMs,
@@ -1366,6 +1581,7 @@ function E7StatusPanel({
 type CompactEvidenceHudProps = {
   validationViewMode: ValidationViewMode;
   selectedRendererMode: RendererMode;
+  selectedAtlasVariantId: AtlasVariantId;
   selectedRegion: RecipeRegion;
   latestMetric?: UnityEventPayload;
   latestLifecycle?: UnityEventPayload;
@@ -1376,6 +1592,7 @@ type CompactEvidenceHudProps = {
 function CompactEvidenceHud({
   validationViewMode,
   selectedRendererMode,
+  selectedAtlasVariantId,
   selectedRegion,
   latestMetric,
   latestLifecycle,
@@ -1387,6 +1604,11 @@ function CompactEvidenceHud({
   }
 
   const candidateId = formatSelectedCandidateId(selectedRendererMode);
+  const variantId = getVariantIdForRenderer(
+    selectedRendererMode,
+    selectedRegion,
+    selectedAtlasVariantId,
+  );
   const trackingState = readTrackingState(latestLifecycle, latestMetric);
   const faceCount = readFaceCount(latestLifecycle, latestMetric);
   const meshCounts = formatMeshCountSummary(latestMetric);
@@ -1406,7 +1628,7 @@ function CompactEvidenceHud({
         <Text style={styles.compactHudBadge}>{validationViewMode}</Text>
       </View>
       <Text style={styles.compactHudText} numberOfLines={1}>
-        {`candidate=${candidateId} region=${selectedRegion}`}
+        {`candidate=${candidateId} variant=${variantId} region=${selectedRegion}`}
       </Text>
       <Text style={styles.compactHudText} numberOfLines={1}>
         {`tracking=${trackingState} faces=${faceCount} mesh=${meshCounts}`}
@@ -1429,6 +1651,7 @@ type EvidenceMetadataInput = {
   mountedAt: string;
   validationViewMode: ValidationViewMode;
   selectedRendererMode: RendererMode;
+  selectedAtlasVariantId: AtlasVariantId;
   selectedRegion: RecipeRegion;
   latestMetric?: UnityEventPayload;
   latestLifecycle?: UnityEventPayload;
@@ -1442,6 +1665,7 @@ function buildEvidenceMetadataLines({
   mountedAt,
   validationViewMode,
   selectedRendererMode,
+  selectedAtlasVariantId,
   selectedRegion,
   latestMetric,
   latestLifecycle,
@@ -1450,6 +1674,11 @@ function buildEvidenceMetadataLines({
   lastUnityEvent,
 }: EvidenceMetadataInput) {
   const candidateId = formatSelectedCandidateId(selectedRendererMode);
+  const selectedVariantId = getVariantIdForRenderer(
+    selectedRendererMode,
+    selectedRegion,
+    selectedAtlasVariantId,
+  );
   const latencyMs = getRecipeAckLatencyMs(
     latestRecipe,
     latestRecipe?.receivedAtMs,
@@ -1458,11 +1687,14 @@ function buildEvidenceMetadataLines({
   const candidateOption = getValidationCandidateOption(selectedRendererMode);
 
   return [
-    `evidenceMode=${E7_PHASE1_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
+    `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
     `candidateId=${candidateId} rendererMode=${selectedRendererMode} status=${
       candidateOption?.status ?? 'unknown'
     }`,
+    `variantId=${selectedVariantId} eventVariant=${formatLifecycleValue(
+      latestRecipe?.variantId ?? latestMetric?.variantId,
+    )}`,
     `region=${selectedRegion} metricRegion=${formatLifecycleValue(
       latestMetric?.region,
     )}`,
@@ -1481,6 +1713,22 @@ function buildEvidenceMetadataLines({
     )} uv=${formatMeshCountValue(meshSource, latestSnapshot, 'uv')}`,
     `blendshapeFieldsUsed=${String(
       latestMetric?.blendshapeFieldsUsed ?? 'not_exposed_in_phase1_ui',
+    )}`,
+    `atlas=${String(
+      latestMetric?.atlasVersion ?? latestRecipe?.atlasVersion ?? 'none',
+    )} labelMap=${String(
+      latestMetric?.atlasLabelMapVersion ??
+        latestRecipe?.atlasLabelMapVersion ??
+        'none',
+    )} labelGroup=${String(
+      latestMetric?.atlasLabelGroup ?? latestRecipe?.atlasLabelGroup ?? 'none',
+    )}`,
+    `topology=${String(
+      latestMetric?.topologyAuditStatus ??
+        latestRecipe?.topologyAuditStatus ??
+        'not_run',
+    )} atlasHash=${String(
+      latestMetric?.atlasConfigHash ?? latestRecipe?.atlasConfigHash ?? 'none',
     )}`,
     `fps=${formatMetricNumber(
       latestMetric?.averageFps,
@@ -1584,6 +1832,10 @@ function formatE7MetricSummary(event: UnityEventPayload) {
     event.phase ?? 'baseline',
   )} mode=${String(event.rendererMode ?? 'e3e4-baseline')} look=${String(
     event.lookId ?? 'baseline_debug_mask',
+  )} candidate=${String(event.candidateId ?? 'n/a')} variant=${String(
+    event.variantId ?? 'n/a',
+  )} topology=${String(
+    event.topologyAuditStatus ?? 'not_run',
   )} uv=${String(event.regionUvAvailable ?? event.uvAvailable ?? false)}`;
 }
 
@@ -1601,6 +1853,8 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
     `phase=${String(event.phase ?? 'baseline')}`,
     `timestampMs=${receivedAtMs}`,
     `rendererMode=${String(event.rendererMode ?? 'e3e4-baseline')}`,
+    `candidateId=${String(event.candidateId ?? 'e3e4-baseline')}`,
+    `variantId=${String(event.variantId ?? 'baseline-v0')}`,
     `lookId=${String(event.lookId ?? 'baseline_debug_mask')}`,
     `recipeId=${String(event.recipeId ?? 'none')}`,
     `region=${String(event.region ?? event.layer ?? 'none')}`,
@@ -1637,6 +1891,46 @@ function getValidationCandidateOption(rendererMode: RendererMode) {
 
 function formatSelectedCandidateId(rendererMode: RendererMode) {
   return getValidationCandidateOption(rendererMode)?.id ?? rendererMode;
+}
+
+function getCandidateIdForRenderer(rendererMode: RendererMode) {
+  switch (rendererMode) {
+    case 'e7-arface-authored-atlas':
+      return 'arface-authored-atlas';
+    case 'e7-arface-uv-candidate':
+      return 'e7-procedural-arface-uv';
+    default:
+      return 'e3e4-baseline';
+  }
+}
+
+function getVariantIdForRenderer(
+  rendererMode: RendererMode,
+  region: RecipeRegion,
+  atlasVariantId: AtlasVariantId,
+) {
+  if (rendererMode === 'e7-arface-authored-atlas') {
+    const atlasVariant = getAtlasVariantOption(atlasVariantId);
+    return atlasVariant?.region === region
+      ? atlasVariant.id
+      : DEFAULT_ATLAS_VARIANT_BY_REGION[region];
+  }
+
+  return rendererMode === 'e7-arface-uv-candidate'
+    ? 'procedural-v0'
+    : 'baseline-v0';
+}
+
+function getAtlasVariantsForRegion(region: RecipeRegion) {
+  return ATLAS_VARIANT_OPTIONS.filter(
+    variantOption => variantOption.region === region,
+  );
+}
+
+function getAtlasVariantOption(variantId: AtlasVariantId) {
+  return ATLAS_VARIANT_OPTIONS.find(
+    variantOption => variantOption.id === variantId,
+  );
 }
 
 function readTrackingState(
@@ -1786,6 +2080,8 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.region ?? event.layer,
   )} texture=${texture} mode=${String(
     event.rendererMode ?? event.textureMode ?? 'n/a',
+  )} candidate=${String(event.candidateId ?? 'n/a')} variant=${String(
+    event.variantId ?? 'n/a',
   )} color=${String(event.color)} opacity=${String(
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} applied=${String(
@@ -1798,6 +2094,10 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.stateAction ?? 'n/a',
   )} fallback=${String(
     event.usedFallback ?? false,
+  )} topology=${String(
+    event.topologyAuditStatus ?? 'not_run',
+  )} atlasHash=${String(
+    event.atlasConfigHash ?? 'none',
   )} latency=${formatMetricNumber(latencyMs)}ms`;
 }
 
@@ -2384,6 +2684,50 @@ const styles = StyleSheet.create({
     lineHeight: 12,
     letterSpacing: 0,
     textAlign: 'right',
+  },
+  variantPanel: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.14)',
+    paddingTop: 6,
+    gap: 6,
+  },
+  variantButtonRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  variantButton: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 4,
+  },
+  variantButtonSelected: {
+    backgroundColor: '#ECFDF5',
+    borderColor: '#D1FAE5',
+    borderWidth: 2,
+  },
+  variantButtonText: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  variantButtonTextSelected: {
+    color: '#064E3B',
+  },
+  variantStatusText: {
+    color: '#BAE6FD',
+    fontSize: 8,
+    lineHeight: 11,
+    letterSpacing: 0,
+    marginTop: 2,
+    textAlign: 'center',
   },
   regionButtonRow: {
     flexDirection: 'row',

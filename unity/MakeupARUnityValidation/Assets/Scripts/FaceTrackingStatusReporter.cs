@@ -198,11 +198,12 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
         long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
         string metricPhase = rnBridge != null ? rnBridge.GetE7MetricPhase() : "baseline";
-        string metricRunId = metricPhase == "region_precision"
-            ? "e7-region-precision-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        bool isRegionPrecisionPhase = metricPhase.StartsWith("region_precision", StringComparison.Ordinal);
+        string metricRunId = isRegionPrecisionPhase
+            ? "e7-" + metricPhase.Replace("_", "-") + "-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
             : e7RunId;
-        string unityFrameworkBuildLabel = metricPhase == "region_precision"
-            ? "e7.3-region-precision"
+        string unityFrameworkBuildLabel = isRegionPrecisionPhase
+            ? "e7.3-" + metricPhase.Replace("_", "-")
             : "e7.2-baseline";
         int sampleWindowMs = Mathf.RoundToInt(elapsedSeconds * 1000.0f);
         float averageFrameTimeMs = e7MetricFrameTimeTotalMs / Mathf.Max(1, e7MetricFrameCount);
