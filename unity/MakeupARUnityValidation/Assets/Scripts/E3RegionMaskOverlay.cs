@@ -7,13 +7,29 @@ using UnityEngine.XR.ARSubsystems;
 
 public sealed class E3RegionMaskOverlay : MonoBehaviour
 {
+    private enum RegionMaskMode
+    {
+        BaselineCentroid,
+        E7ArFaceUvCandidate
+    }
+
     public struct RegionApplyResult
     {
         public string Region;
         public bool Applied;
         public int FaceCount;
         public int MeshTriangleCount;
+        public int BaselineTriangleCount;
+        public int CandidateTriangleCount;
         public bool UsedFallback;
+        public bool UvAvailable;
+        public int MeshVertexCount;
+        public int MeshIndexCount;
+        public int MeshUvCount;
+        public string RendererMode;
+        public string MaskSource;
+        public string TrackingState;
+        public string StateAction;
         public string TextureSample;
         public string TextureMode;
         public float Intensity;
@@ -33,12 +49,25 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Intensity = 1.0f;
         public float Feather = 0.0f;
         public string BlendMode = "normal";
+        public string RendererMode = "e3e4-baseline";
+        public RegionMaskMode MaskMode = RegionMaskMode.BaselineCentroid;
     }
 
     private sealed class FaceOverlayState
     {
         public readonly Dictionary<string, RegionOverlayView> Regions =
             new Dictionary<string, RegionOverlayView>();
+        public readonly Dictionary<string, string> LastLoggedStateActionByRegion =
+            new Dictionary<string, string>();
+        public float LastTrackedTime = float.NegativeInfinity;
+        public bool WasLimitedOrLost;
+    }
+
+    private struct TrackingVisibility
+    {
+        public bool ShouldRender;
+        public float AlphaMultiplier;
+        public string Action;
     }
 
     private sealed class RegionOverlayView
@@ -90,11 +119,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string textureMode,
         float intensity,
         float feather,
-        string blendMode)
+        string blendMode,
+        string rendererMode)
     {
         region = NormalizeRegion(region);
         opacity = Mathf.Clamp01(opacity);
         textureSample = NormalizeTextureSample(region, textureSample);
+        RegionMaskMode maskMode = NormalizeMaskMode(rendererMode);
+        string normalizedRendererMode = FormatRendererMode(maskMode);
 
         recipes[region] = new RegionRecipeState
         {
@@ -107,7 +139,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             TextureMode = string.IsNullOrWhiteSpace(textureMode) ? "sample" : textureMode,
             Intensity = intensity <= 0.0f ? 1.0f : Mathf.Clamp01(intensity),
             Feather = Mathf.Clamp01(feather),
-            BlendMode = string.IsNullOrWhiteSpace(blendMode) ? "normal" : blendMode
+            BlendMode = string.IsNullOrWhiteSpace(blendMode) ? "normal" : blendMode,
+            RendererMode = normalizedRendererMode,
+            MaskMode = maskMode
         };
 
         return ApplyRegionToTrackedFaces(region, true);
@@ -123,7 +157,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Applied = false,
             FaceCount = 0,
             MeshTriangleCount = 0,
+            BaselineTriangleCount = 0,
+            CandidateTriangleCount = 0,
             UsedFallback = false,
+            UvAvailable = false,
+            MeshVertexCount = 0,
+            MeshIndexCount = 0,
+            MeshUvCount = 0,
+            RendererMode = "e3e4-baseline",
+            MaskSource = "centroid_broad",
+            TrackingState = "None",
+            StateAction = "not_started",
             TextureSample = string.Empty,
             TextureMode = string.Empty,
             Intensity = 0.0f,
@@ -141,6 +185,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.Intensity = recipe.Intensity;
         result.Feather = recipe.Feather;
         result.BlendMode = recipe.BlendMode;
+        result.RendererMode = recipe.RendererMode;
+        result.MaskSource = GetMaskSource(recipe.MaskMode);
 
         if (faceManager == null)
         {
@@ -159,13 +205,21 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 continue;
             }
 
-            bool faceUsable = face.trackingState == TrackingState.Tracking
-                || face.trackingState == TrackingState.Limited;
             FaceOverlayState faceState = EnsureFaceOverlayState(face);
             RegionOverlayView view = EnsureRegionOverlayView(face.transform, faceState, region);
             ApplyRecipeAppearance(view, recipe);
+            TrackingVisibility visibility = ResolveTrackingVisibility(face, faceState);
+            ApplyViewAlphaMultiplier(view, visibility.AlphaMultiplier);
+            MaybeLogE7RegionPrecisionState(face, faceState, region, recipe, visibility);
 
-            if (!faceUsable || !recipe.Enabled)
+            result.TrackingState = face.trackingState.ToString();
+            result.StateAction = visibility.Action;
+            result.UvAvailable = result.UvAvailable || HasUsableUv(face);
+            result.MeshVertexCount = Mathf.Max(result.MeshVertexCount, GetVertexCount(face));
+            result.MeshIndexCount = Mathf.Max(result.MeshIndexCount, GetIndexCount(face));
+            result.MeshUvCount = Mathf.Max(result.MeshUvCount, GetUvCount(face));
+
+            if (!visibility.ShouldRender || !recipe.Enabled)
             {
                 SetViewVisibility(view, false, false);
                 continue;
@@ -173,17 +227,26 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
             result.FaceCount++;
             int triangleCount = 0;
+            int baselineTriangles = CountRegionTriangles(face, region, RegionMaskMode.BaselineCentroid);
+            int candidateTriangles = CountRegionTriangles(face, region, RegionMaskMode.E7ArFaceUvCandidate);
             bool meshApplied = useMeshMasks
-                && TryUpdateMeshMask(face, view, region, out triangleCount);
+                && TryUpdateMeshMask(face, view, region, recipe.MaskMode, out triangleCount);
             result.MeshTriangleCount += triangleCount;
+            result.BaselineTriangleCount += baselineTriangles;
+            result.CandidateTriangleCount += candidateTriangles;
 
             if (meshApplied)
             {
                 SetViewVisibility(view, true, false);
             }
-            else
+            else if (recipe.MaskMode == RegionMaskMode.BaselineCentroid)
             {
                 SetViewVisibility(view, false, true);
+                result.UsedFallback = true;
+            }
+            else
+            {
+                SetViewVisibility(view, false, false);
                 result.UsedFallback = true;
             }
 
@@ -215,6 +278,26 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
                 + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
                 + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant());
+            Debug.Log(
+                "[E7] region_precision_compare"
+                + " rendererMode=" + result.RendererMode
+                + " maskSource=" + result.MaskSource
+                + " region=" + region
+                + " activeRegion=" + region
+                + " trackingState=" + result.TrackingState
+                + " stateAction=" + result.StateAction
+                + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
+                + " meshVertexCount=" + result.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+                + " meshIndexCount=" + result.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+                + " meshUvCount=" + result.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+                + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
+                + " baselineTriangles=" + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + " candidateTriangles=" + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + " appliedTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant()
+                + " regionDecision=yellow_pending_real_device_visual_review"
+                + " smoothing=visibility_hysteresis_only"
+                + " regionsInScope=lip,cheek,eye");
         }
 
         return result;
@@ -345,6 +428,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         ARFace face,
         RegionOverlayView view,
         string region,
+        RegionMaskMode maskMode,
         out int triangleCount)
     {
         triangleCount = 0;
@@ -355,7 +439,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return false;
         }
 
-        bool hasTextureCoordinates = face.uvs.IsCreated && face.uvs.Length == face.vertices.Length;
+        bool hasTextureCoordinates = HasUsableUv(face);
         List<Vector3> vertices = new List<Vector3>(256);
         List<Vector2> textureCoordinates = new List<Vector2>(256);
         List<int> triangles = new List<int>(384);
@@ -379,8 +463,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Vector3 b = face.vertices[sourceB];
             Vector3 c = face.vertices[sourceC];
             Vector3 centroid = (a + b + c) / 3.0f;
+            Vector2 uvCentroid = hasTextureCoordinates
+                ? (face.uvs[sourceA] + face.uvs[sourceB] + face.uvs[sourceC]) / 3.0f
+                : Vector2.zero;
 
-            if (!IsCentroidInRegion(region, centroid))
+            if (!IsTriangleInRegion(region, centroid, uvCentroid, hasTextureCoordinates, maskMode))
             {
                 continue;
             }
@@ -424,6 +511,43 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return true;
     }
 
+    private static int CountRegionTriangles(ARFace face, string region, RegionMaskMode maskMode)
+    {
+        if (!face.vertices.IsCreated || !face.indices.IsCreated || face.vertices.Length == 0 || face.indices.Length < 3)
+        {
+            return 0;
+        }
+
+        bool hasTextureCoordinates = HasUsableUv(face);
+        int count = 0;
+        for (int index = 0; index + 2 < face.indices.Length; index += 3)
+        {
+            int sourceA = face.indices[index];
+            int sourceB = face.indices[index + 1];
+            int sourceC = face.indices[index + 2];
+
+            if (sourceA < 0 || sourceB < 0 || sourceC < 0
+                || sourceA >= face.vertices.Length
+                || sourceB >= face.vertices.Length
+                || sourceC >= face.vertices.Length)
+            {
+                continue;
+            }
+
+            Vector3 centroid = (face.vertices[sourceA] + face.vertices[sourceB] + face.vertices[sourceC]) / 3.0f;
+            Vector2 uvCentroid = hasTextureCoordinates
+                ? (face.uvs[sourceA] + face.uvs[sourceB] + face.uvs[sourceC]) / 3.0f
+                : Vector2.zero;
+
+            if (IsTriangleInRegion(region, centroid, uvCentroid, hasTextureCoordinates, maskMode))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private static int GetOrAddVertex(
         int sourceIndex,
         Vector3 value,
@@ -459,6 +583,55 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             default:
                 return false;
         }
+    }
+
+    private static bool IsTriangleInRegion(
+        string region,
+        Vector3 centroid,
+        Vector2 uvCentroid,
+        bool hasTextureCoordinates,
+        RegionMaskMode maskMode)
+    {
+        if (maskMode == RegionMaskMode.BaselineCentroid)
+        {
+            return IsCentroidInRegion(region, centroid);
+        }
+
+        return hasTextureCoordinates
+            && IsUsableTextureCoordinate(uvCentroid)
+            && IsE7CandidateRegion(region, centroid);
+    }
+
+    private static bool IsE7CandidateRegion(string region, Vector3 point)
+    {
+        switch (region)
+        {
+            case "lip":
+                return IsEllipse(point, 0.0f, -0.036f, 0.052f, 0.024f);
+            case "cheek":
+                return IsEllipse(point, -0.083f, -0.002f, 0.043f, 0.033f)
+                    || IsEllipse(point, 0.083f, -0.002f, 0.043f, 0.033f);
+            case "eye":
+                return IsEllipse(point, -0.047f, 0.045f, 0.044f, 0.021f)
+                    || IsEllipse(point, 0.047f, 0.045f, 0.044f, 0.021f);
+            default:
+                return false;
+        }
+    }
+
+    private static bool IsEllipse(Vector3 point, float centerX, float centerY, float radiusX, float radiusY)
+    {
+        float dx = (point.x - centerX) / Mathf.Max(0.0001f, radiusX);
+        float dy = (point.y - centerY) / Mathf.Max(0.0001f, radiusY);
+        return (dx * dx) + (dy * dy) <= 1.0f;
+    }
+
+    private static bool IsUsableTextureCoordinate(Vector2 uv)
+    {
+        return !float.IsNaN(uv.x)
+            && !float.IsNaN(uv.y)
+            && !float.IsInfinity(uv.x)
+            && !float.IsInfinity(uv.y);
     }
 
     private void ApplyRecipeAppearance(RegionOverlayView view, RegionRecipeState recipe)
@@ -599,6 +772,28 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 renderer.enabled = showFallback;
             }
         }
+    }
+
+    private static void ApplyViewAlphaMultiplier(RegionOverlayView view, float alphaMultiplier)
+    {
+        ApplyMaterialAlphaMultiplier(view.MeshRenderer != null ? view.MeshRenderer.sharedMaterial : null, alphaMultiplier);
+
+        foreach (MeshRenderer renderer in view.FallbackRenderers)
+        {
+            ApplyMaterialAlphaMultiplier(renderer != null ? renderer.sharedMaterial : null, alphaMultiplier);
+        }
+    }
+
+    private static void ApplyMaterialAlphaMultiplier(Material material, float alphaMultiplier)
+    {
+        if (material == null)
+        {
+            return;
+        }
+
+        Color color = material.color;
+        color.a = Mathf.Clamp01(color.a * Mathf.Clamp01(alphaMultiplier));
+        ApplyMaterialColor(material, color);
     }
 
     private static Material CreateRegionMaterial(string region, Color color)
@@ -758,6 +953,140 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         return "lip";
+    }
+
+    private static RegionMaskMode NormalizeMaskMode(string rendererMode)
+    {
+        string candidate = string.IsNullOrWhiteSpace(rendererMode)
+            ? "e3e4-baseline"
+            : rendererMode.Trim().ToLowerInvariant();
+
+        if (candidate == "e7-arface-uv-candidate" || candidate == "e7-candidate" || candidate == "candidate")
+        {
+            return RegionMaskMode.E7ArFaceUvCandidate;
+        }
+
+        return RegionMaskMode.BaselineCentroid;
+    }
+
+    private static string FormatRendererMode(RegionMaskMode maskMode)
+    {
+        return maskMode == RegionMaskMode.E7ArFaceUvCandidate
+            ? "e7-arface-uv-candidate"
+            : "e3e4-baseline";
+    }
+
+    private static string GetMaskSource(RegionMaskMode maskMode)
+    {
+        return maskMode == RegionMaskMode.E7ArFaceUvCandidate
+            ? "arface_mesh_uv_procedural_candidate"
+            : "centroid_broad";
+    }
+
+    private static bool HasUsableUv(ARFace face)
+    {
+        return face != null
+            && face.vertices.IsCreated
+            && face.uvs.IsCreated
+            && face.uvs.Length == face.vertices.Length
+            && face.uvs.Length > 0;
+    }
+
+    private static int GetVertexCount(ARFace face)
+    {
+        return face != null && face.vertices.IsCreated ? face.vertices.Length : 0;
+    }
+
+    private static int GetIndexCount(ARFace face)
+    {
+        return face != null && face.indices.IsCreated ? face.indices.Length : 0;
+    }
+
+    private static int GetUvCount(ARFace face)
+    {
+        return face != null && face.uvs.IsCreated ? face.uvs.Length : 0;
+    }
+
+    private static TrackingVisibility ResolveTrackingVisibility(ARFace face, FaceOverlayState state)
+    {
+        const float limitedHoldSeconds = 0.35f;
+        const float limitedFadeSeconds = 1.2f;
+        float now = Time.unscaledTime;
+
+        if (face.trackingState == TrackingState.Tracking)
+        {
+            bool recovered = state.WasLimitedOrLost;
+            state.LastTrackedTime = now;
+            state.WasLimitedOrLost = false;
+
+            return new TrackingVisibility
+            {
+                ShouldRender = true,
+                AlphaMultiplier = 1.0f,
+                Action = recovered ? "recovered_restore" : "tracking_render"
+            };
+        }
+
+        state.WasLimitedOrLost = true;
+        float age = now - state.LastTrackedTime;
+        string statePrefix = face.trackingState == TrackingState.Limited ? "limited" : "lost";
+
+        if (age <= limitedHoldSeconds)
+        {
+            return new TrackingVisibility
+            {
+                ShouldRender = true,
+                AlphaMultiplier = 0.72f,
+                Action = statePrefix + "_short_hold"
+            };
+        }
+
+        if (age <= limitedFadeSeconds)
+        {
+            return new TrackingVisibility
+            {
+                ShouldRender = true,
+                AlphaMultiplier = 0.32f,
+                Action = statePrefix + "_fade"
+            };
+        }
+
+        return new TrackingVisibility
+        {
+            ShouldRender = false,
+            AlphaMultiplier = 0.0f,
+            Action = statePrefix + "_extended_hide"
+        };
+    }
+
+    private static void MaybeLogE7RegionPrecisionState(
+        ARFace face,
+        FaceOverlayState state,
+        string region,
+        RegionRecipeState recipe,
+        TrackingVisibility visibility)
+    {
+        if (state.LastLoggedStateActionByRegion.TryGetValue(region, out string lastAction)
+            && lastAction == visibility.Action)
+        {
+            return;
+        }
+
+        state.LastLoggedStateActionByRegion[region] = visibility.Action;
+        Debug.Log(
+            "[E7] region_precision_state"
+            + " rendererMode=" + recipe.RendererMode
+            + " maskSource=" + GetMaskSource(recipe.MaskMode)
+            + " region=" + region
+            + " trackingState=" + face.trackingState
+            + " stateAction=" + visibility.Action
+            + " alphaMultiplier=" + visibility.AlphaMultiplier.ToString("0.##", CultureInfo.InvariantCulture)
+            + " holdSeconds=0.35"
+            + " fadeSeconds=1.2"
+            + " uvAvailable=" + HasUsableUv(face).ToString().ToLowerInvariant()
+            + " meshVertexCount=" + GetVertexCount(face).ToString(CultureInfo.InvariantCulture)
+            + " meshIndexCount=" + GetIndexCount(face).ToString(CultureInfo.InvariantCulture)
+            + " meshUvCount=" + GetUvCount(face).ToString(CultureInfo.InvariantCulture));
     }
 
     private static string NormalizeTextureSample(string region, string textureSample)

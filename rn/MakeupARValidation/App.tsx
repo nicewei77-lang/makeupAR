@@ -58,10 +58,15 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     feather: 0.08,
   },
 ] as const;
+const RENDERER_MODE_OPTIONS = [
+  { name: 'e3e4-baseline', label: 'Baseline' },
+  { name: 'e7-arface-uv-candidate', label: 'E7 UV' },
+] as const;
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
+type RendererMode = (typeof RENDERER_MODE_OPTIONS)[number]['name'];
 type RegionRecipe = {
   color: RecipeColor;
   opacity: number;
@@ -98,6 +103,7 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
 };
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
+const DEFAULT_RENDERER_MODE: RendererMode = 'e7-arface-uv-candidate';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -171,6 +177,20 @@ type UnityEventPayload = {
   blendMode?: string;
   runId?: string;
   rendererMode?: string;
+  maskSource?: string;
+  stateAction?: string;
+  regionPrecisionStatus?: string;
+  regionUvAvailable?: boolean;
+  regionBaselineTriangles?: number;
+  regionCandidateTriangles?: number;
+  regionAppliedTriangles?: number;
+  uvAvailable?: boolean;
+  baselineTriangles?: number;
+  candidateTriangles?: number;
+  meshVertexCount?: number;
+  meshIndexCount?: number;
+  meshUvCount?: number;
+  unityFrameworkBuildLabel?: string;
   lookId?: string;
   recipeId?: string;
   sentAtMs?: number;
@@ -319,8 +339,8 @@ function HomeScreen({
       ]}
     >
       <View style={styles.homeBody}>
-        <Text style={styles.kicker}>E7.2</Text>
-        <Text style={styles.title}>Baseline Instrumentation</Text>
+        <Text style={styles.kicker}>E7.3</Text>
+        <Text style={styles.title}>Region Precision</Text>
         <Text style={styles.statusLabel}>Validation status</Text>
         <Text style={styles.statusText}>
           {`Ready for entry #${nextEntryCount}. Completed exits ${completedCycles}/3.`}
@@ -351,6 +371,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const mountedAt = useMemo(() => new Date().toLocaleTimeString(), []);
   const unityRef = useRef<UnityView>(null);
+  const [selectedRendererMode, setSelectedRendererMode] =
+    useState<RendererMode>(DEFAULT_RENDERER_MODE);
   const [selectedRegion, setSelectedRegion] = useState<RecipeRegion>(
     DEFAULT_RECIPE_REGION,
   );
@@ -386,16 +408,27 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   }, [entryCount, onClose]);
 
   const buildRecipeJson = useCallback(
-    (region: RecipeRegion, recipe: RegionRecipe, sentAtMs: number) => {
-      const recipeId = `e7-baseline-${region}-${recipe.textureSample.name}-${Math.round(
+    (
+      region: RecipeRegion,
+      recipe: RegionRecipe,
+      rendererMode: RendererMode,
+      sentAtMs: number,
+    ) => {
+      const isCandidate = rendererMode === 'e7-arface-uv-candidate';
+      const lookId = isCandidate
+        ? 'e7_region_precision_debug'
+        : 'baseline_debug_mask';
+      const recipePrefix = isCandidate ? 'e7-region-precision' : 'e7-baseline';
+      const recipeId = `${recipePrefix}-${region}-${recipe.textureSample.name}-${Math.round(
         sentAtMs,
       )}`;
 
       return JSON.stringify({
         version: 1,
         recipeId,
-        lookId: 'baseline_debug_mask',
+        lookId,
         sentAtMs,
+        rendererMode,
         region,
         texture: recipe.textureSample.name,
         sample: recipe.textureSample.name,
@@ -404,8 +437,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           {
             id: `${region}-${recipe.textureSample.name}`,
             recipeId,
-            lookId: 'baseline_debug_mask',
+            lookId,
             sentAtMs,
+            rendererMode,
             region,
             layer: region,
             color: recipe.color.color,
@@ -425,12 +459,26 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const postRecipe = useCallback(
-    (region: RecipeRegion, recipe: RegionRecipe) => {
+    (
+      region: RecipeRegion,
+      recipe: RegionRecipe,
+      rendererMode = selectedRendererMode,
+    ) => {
       const sentAtMs = Date.now();
-      const recipeJson = buildRecipeJson(region, recipe, sentAtMs);
+      const recipeJson = buildRecipeJson(
+        region,
+        recipe,
+        rendererMode,
+        sentAtMs,
+      );
       console.log(
         '[E7] rn_texture_recipe_post',
-        'lookId=baseline_debug_mask',
+        `rendererMode=${rendererMode}`,
+        `lookId=${
+          rendererMode === 'e7-arface-uv-candidate'
+            ? 'e7_region_precision_debug'
+            : 'baseline_debug_mask'
+        }`,
         `region=${region}`,
         `color=${recipe.color.color}`,
         `opacity=${recipe.opacity}`,
@@ -441,7 +489,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
     },
-    [buildRecipeJson],
+    [buildRecipeJson, selectedRendererMode],
   );
 
   const postRecipeAck = useCallback(
@@ -557,16 +605,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       postRecipe(
         DEFAULT_RECIPE_REGION,
         DEFAULT_REGION_RECIPES[DEFAULT_RECIPE_REGION],
+        selectedRendererMode,
       );
     }, 1000);
 
     return () => clearTimeout(initialPostTimer);
-  }, [postRecipe]);
+  }, [postRecipe, selectedRendererMode]);
 
   const selectedRecipe = regionRecipes[selectedRegion];
   const selectedColor = selectedRecipe.color;
   const selectedTextureSample = selectedRecipe.textureSample;
   const opacity = selectedRecipe.opacity;
+
+  const selectRendererMode = useCallback(
+    (rendererMode: RendererMode) => {
+      setSelectedRendererMode(rendererMode);
+      postRecipe(selectedRegion, selectedRecipe, rendererMode);
+    },
+    [postRecipe, selectedRecipe, selectedRegion],
+  );
 
   const selectRegion = useCallback(
     (region: RecipeRegion) => {
@@ -660,7 +717,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
         <View style={styles.debugPanel}>
           <Text style={styles.debugMetaText}>
-            {`E5 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
+            {`E7.3 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
           </Text>
           <Text style={styles.debugLabel}>Latest Unity event</Text>
           <Text style={styles.debugText} numberOfLines={2}>
@@ -715,6 +772,35 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         </View>
 
         <View style={styles.recipePanel}>
+          <View style={styles.modeButtonRow}>
+            {RENDERER_MODE_OPTIONS.map(modeOption => {
+              const isSelected = modeOption.name === selectedRendererMode;
+
+              return (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: isSelected }}
+                  key={modeOption.name}
+                  style={({ pressed }) => [
+                    styles.modeButton,
+                    isSelected && styles.modeButtonSelected,
+                    pressed && styles.colorButtonPressed,
+                  ]}
+                  onPress={() => selectRendererMode(modeOption.name)}
+                >
+                  <Text
+                    style={[
+                      styles.modeButtonText,
+                      isSelected && styles.modeButtonTextSelected,
+                    ]}
+                  >
+                    {modeOption.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
           <View style={styles.regionButtonRow}>
             {RECIPE_REGION_OPTIONS.map(regionOption => {
               const isSelected = regionOption === selectedRegion;
@@ -815,9 +901,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           />
 
           <Text style={styles.recipeValueText} numberOfLines={3}>
-            region {selectedRegion} / {selectedColor.name} {selectedColor.color}{' '}
-            / opacity {opacityPercent}% / texture {selectedTextureSample.name} /
-            mode {selectedTextureSample.textureMode} / intensity{' '}
+            renderer {selectedRendererMode} / region {selectedRegion} /{' '}
+            {selectedColor.name} {selectedColor.color} / opacity{' '}
+            {opacityPercent}% / texture {selectedTextureSample.name} / mode{' '}
+            {selectedTextureSample.textureMode} / intensity{' '}
             {selectedTextureSample.intensity.toFixed(2)}
           </Text>
           <Text style={styles.recipeAppliedText} numberOfLines={2}>
@@ -977,7 +1064,7 @@ function E7StatusPanel({
   return (
     <View style={styles.e7Panel}>
       <View style={styles.e7Header}>
-        <Text style={styles.e7Label}>E7 baseline</Text>
+        <Text style={styles.e7Label}>E7.3 precision</Text>
         <Text
           style={[
             styles.e7Badge,
@@ -989,7 +1076,9 @@ function E7StatusPanel({
       </View>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `look=${String(metric.lookId ?? 'baseline_debug_mask')} mode=${String(
+          ? `phase=${String(metric.phase ?? 'baseline')} look=${String(
+              metric.lookId ?? 'baseline_debug_mask',
+            )} mode=${String(
               metric.rendererMode ?? 'e3e4-baseline',
             )} region=${String(metric.region ?? currentRegion)}`
           : `look=baseline_debug_mask mode=e3e4-baseline region=${currentRegion}`}
@@ -1026,13 +1115,28 @@ function E7StatusPanel({
           : 'thermal waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `mask=${String(metric.maskSource ?? 'centroid_broad')} uv=${String(
+              metric.regionUvAvailable ?? metric.uvAvailable ?? false,
+            )} base=${String(
+              metric.regionBaselineTriangles ?? metric.baselineTriangles ?? 'n/a',
+            )} cand=${String(
+              metric.regionCandidateTriangles ??
+                metric.candidateTriangles ??
+                'n/a',
+            )}`
+          : 'region precision waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
         {recipe
           ? `latency=${formatMetricNumber(
               latencyMs,
             )}ms sent=${formatMetricNumber(
               recipe.sentAtMs,
               0,
-            )} appliedFrame=${String(recipe.appliedFrame ?? 'n/a')} ${
+            )} state=${String(recipe.stateAction ?? 'n/a')} frame=${String(
+              recipe.appliedFrame ?? 'n/a',
+            )} ${
               recipeRecord?.receivedAt ?? ''
             }`
           : 'latency waiting'}
@@ -1115,7 +1219,11 @@ function formatE7MetricSummary(event: UnityEventPayload) {
     event.averageFrameTimeMs,
   )}ms mem=${String(event.memoryMetricAvailable ?? false)} thermal=${String(
     event.thermalEvidenceType ?? 'n/a',
-  )} look=${String(event.lookId ?? 'baseline_debug_mask')}`;
+  )} phase=${String(event.phase ?? 'baseline')} mode=${String(
+    event.rendererMode ?? 'e3e4-baseline',
+  )} look=${String(event.lookId ?? 'baseline_debug_mask')} uv=${String(
+    event.regionUvAvailable ?? event.uvAvailable ?? false,
+  )}`;
 }
 
 function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
@@ -1127,7 +1235,7 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
   console.log(
     '[E7] recipe_latency',
     `runId=${String(event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`)}`,
-    'phase=baseline',
+    `phase=${String(event.phase ?? 'baseline')}`,
     `timestampMs=${receivedAtMs}`,
     `rendererMode=${String(event.rendererMode ?? 'e3e4-baseline')}`,
     `lookId=${String(event.lookId ?? 'baseline_debug_mask')}`,
@@ -1234,13 +1342,17 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
   return `recipe_applied region=${String(
     event.region ?? event.layer,
   )} texture=${texture} mode=${String(
-    event.textureMode ?? 'n/a',
+    event.rendererMode ?? event.textureMode ?? 'n/a',
   )} color=${String(event.color)} opacity=${String(
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} applied=${String(
     event.applied ?? false,
   )} faceCount=${String(event.faceCount ?? 'n/a')} meshTriangles=${String(
     event.meshTriangles ?? 'n/a',
+  )} base=${String(event.baselineTriangles ?? 'n/a')} cand=${String(
+    event.candidateTriangles ?? 'n/a',
+  )} uv=${String(event.uvAvailable ?? false)} state=${String(
+    event.stateAction ?? 'n/a',
   )} fallback=${String(event.usedFallback ?? false)} latency=${formatMetricNumber(
     latencyMs,
   )}ms`;
@@ -1652,6 +1764,34 @@ const styles = StyleSheet.create({
     gap: 12,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
+  },
+  modeButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(15, 23, 42, 0.82)',
+  },
+  modeButtonSelected: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#ECFDF5',
+  },
+  modeButtonText: {
+    color: '#F9FAFB',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  modeButtonTextSelected: {
+    color: '#064E3B',
   },
   regionButtonRow: {
     flexDirection: 'row',

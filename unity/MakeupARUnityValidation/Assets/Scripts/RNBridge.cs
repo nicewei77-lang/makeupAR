@@ -28,6 +28,7 @@ public sealed class RNBridge : MonoBehaviour
         public float intensity;
         public float feather;
         public string blendMode;
+        public string rendererMode;
         public RecipeLayerPayload[] layers;
     }
 
@@ -48,6 +49,7 @@ public sealed class RNBridge : MonoBehaviour
         public float intensity;
         public float feather;
         public string blendMode;
+        public string rendererMode;
         public bool enabled;
     }
 
@@ -86,6 +88,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Intensity;
         public float Feather;
         public string BlendMode;
+        public string RendererMode;
         public bool Enabled;
     }
 
@@ -101,6 +104,16 @@ public sealed class RNBridge : MonoBehaviour
         public string BlendMode = string.Empty;
         public float Intensity;
         public float Feather;
+        public string RendererMode = "e3e4-baseline";
+        public string MaskSource = "centroid_broad";
+        public string TrackingState = "None";
+        public string StateAction = "not_started";
+        public int BaselineTriangleCount;
+        public int CandidateTriangleCount;
+        public bool UvAvailable;
+        public int MeshVertexCount;
+        public int MeshIndexCount;
+        public int MeshUvCount;
         public int FaceCount;
         public int MeshTriangleCount;
         public bool UsedFallback;
@@ -343,7 +356,8 @@ public sealed class RNBridge : MonoBehaviour
             layer.TextureMode,
             layer.Intensity,
             layer.Feather,
-            layer.BlendMode);
+            layer.BlendMode,
+            layer.RendererMode);
     }
 
     private void RememberRegionFeatureState(
@@ -362,6 +376,16 @@ public sealed class RNBridge : MonoBehaviour
             BlendMode = result.BlendMode,
             Intensity = result.Intensity,
             Feather = result.Feather,
+            RendererMode = result.RendererMode,
+            MaskSource = result.MaskSource,
+            TrackingState = result.TrackingState,
+            StateAction = result.StateAction,
+            BaselineTriangleCount = result.BaselineTriangleCount,
+            CandidateTriangleCount = result.CandidateTriangleCount,
+            UvAvailable = result.UvAvailable,
+            MeshVertexCount = result.MeshVertexCount,
+            MeshIndexCount = result.MeshIndexCount,
+            MeshUvCount = result.MeshUvCount,
             FaceCount = result.FaceCount,
             MeshTriangleCount = result.MeshTriangleCount,
             UsedFallback = result.UsedFallback,
@@ -431,11 +455,21 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"sample\":\"" + EscapeJsonString(state.TextureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
                 + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
+                + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
+                + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
+                + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
+                + ",\"stateAction\":\"" + EscapeJsonString(state.StateAction) + "\""
                 + ",\"intensity\":" + state.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"feather\":" + state.Feather.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"applied\":" + state.Applied.ToString().ToLowerInvariant()
                 + ",\"faceCount\":" + state.FaceCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"meshTriangles\":" + state.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"baselineTriangles\":" + state.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"candidateTriangles\":" + state.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"uvAvailable\":" + state.UvAvailable.ToString().ToLowerInvariant()
+                + ",\"meshVertexCount\":" + state.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"meshIndexCount\":" + state.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"meshUvCount\":" + state.MeshUvCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"usedFallback\":" + state.UsedFallback.ToString().ToLowerInvariant()
                 + "}");
         }
@@ -456,18 +490,31 @@ public sealed class RNBridge : MonoBehaviour
             string textureMode = state != null && !string.IsNullOrWhiteSpace(state.TextureMode)
                 ? state.TextureMode
                 : "sample";
+            string rendererMode = state != null && !string.IsNullOrWhiteSpace(state.RendererMode)
+                ? state.RendererMode
+                : "e3e4-baseline";
+            string maskSource = state != null && !string.IsNullOrWhiteSpace(state.MaskSource)
+                ? state.MaskSource
+                : "centroid_broad";
+            string qaStatus = rendererMode == "e7-arface-uv-candidate"
+                ? "yellow_pending_real_device_visual_review"
+                : "green_validation_baseline";
 
             regions.Add("\"" + EscapeJsonString(region) + "\":{"
                 + "\"available\":true"
                 + ",\"active\":" + active.ToString().ToLowerInvariant()
                 + ",\"lastApplied\":" + (state != null && state.Applied).ToString().ToLowerInvariant()
-                + ",\"maskSource\":\"arface_uv\""
-                + ",\"qaStatus\":\"green\""
+                + ",\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
+                + ",\"maskSource\":\"" + EscapeJsonString(maskSource) + "\""
+                + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
                 + ",\"validationScope\":\"debug\""
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
                 + ",\"meshTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"baselineTriangles\":" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"candidateTriangles\":" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"uvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
                 + ",\"usedFallback\":" + (state != null && state.UsedFallback).ToString().ToLowerInvariant()
                 + ",\"lastUpdatedMs\":" + (state != null ? state.LastUpdatedMs : 0L).ToString(CultureInfo.InvariantCulture)
                 + "}");
@@ -488,15 +535,29 @@ public sealed class RNBridge : MonoBehaviour
             ? state.ColorHex
             : "none";
         float opacity = state != null ? state.Opacity : 0.0f;
+        string rendererMode = state != null && !string.IsNullOrWhiteSpace(state.RendererMode)
+            ? state.RendererMode
+            : "e3e4-baseline";
+        string lookId = rendererMode == "e7-arface-uv-candidate"
+            ? "e7_region_precision_debug"
+            : "baseline_debug_mask";
 
-        return " rendererMode=e3e4-baseline"
-            + " lookId=baseline_debug_mask"
+        return " rendererMode=" + rendererMode
+            + " lookId=" + lookId
             + " region=" + region
             + " activeRegions=" + activeRegions
             + " texture=" + textureSample
             + " sample=" + textureSample
             + " color=" + colorHex
-            + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture);
+            + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
+            + " maskSource=" + (state != null ? state.MaskSource : "centroid_broad")
+            + " regionPrecisionStatus=" + (rendererMode == "e7-arface-uv-candidate" ? "yellow_pending_real_device_visual_review" : "baseline_preserved")
+            + " regionTrackingState=" + (state != null ? state.TrackingState : "None")
+            + " regionStateAction=" + (state != null ? state.StateAction : "not_started")
+            + " regionUvAvailable=" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
+            + " regionBaselineTriangles=" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " regionCandidateTriangles=" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " regionAppliedTriangles=" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture);
     }
 
     public string BuildE7BaselineStateJsonFragment()
@@ -511,15 +572,37 @@ public sealed class RNBridge : MonoBehaviour
             ? state.ColorHex
             : "none";
         float opacity = state != null ? state.Opacity : 0.0f;
+        string rendererMode = state != null && !string.IsNullOrWhiteSpace(state.RendererMode)
+            ? state.RendererMode
+            : "e3e4-baseline";
+        string lookId = rendererMode == "e7-arface-uv-candidate"
+            ? "e7_region_precision_debug"
+            : "baseline_debug_mask";
 
-        return "\"rendererMode\":\"e3e4-baseline\""
-            + ",\"lookId\":\"baseline_debug_mask\""
+        return "\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
+            + ",\"lookId\":\"" + EscapeJsonString(lookId) + "\""
             + ",\"region\":\"" + EscapeJsonString(region) + "\""
             + ",\"activeRegions\":\"" + EscapeJsonString(activeRegions) + "\""
             + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
             + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
-            + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture);
+            + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "centroid_broad") + "\""
+            + ",\"regionPrecisionStatus\":\"" + EscapeJsonString(rendererMode == "e7-arface-uv-candidate" ? "yellow_pending_real_device_visual_review" : "baseline_preserved") + "\""
+            + ",\"regionTrackingState\":\"" + EscapeJsonString(state != null ? state.TrackingState : "None") + "\""
+            + ",\"regionStateAction\":\"" + EscapeJsonString(state != null ? state.StateAction : "not_started") + "\""
+            + ",\"regionUvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
+            + ",\"regionBaselineTriangles\":" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"regionCandidateTriangles\":" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"regionAppliedTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture);
+    }
+
+    public string GetE7MetricPhase()
+    {
+        RegionFeatureState state = GetLatestActiveRegionFeatureState();
+        return state != null && state.RendererMode == "e7-arface-uv-candidate"
+            ? "region_precision"
+            : "baseline";
     }
 
     private RegionFeatureState GetLatestActiveRegionFeatureState()
@@ -550,6 +633,11 @@ public sealed class RNBridge : MonoBehaviour
         int appliedFrame)
     {
         string applied = result.Applied ? "true" : "false";
+        string phase = GetPhaseForRenderer(layer.RendererMode);
+        string runId = GetRunIdForRenderer(layer.RendererMode);
+        string visualLatencyObservation = layer.RendererMode == "e7-arface-uv-candidate"
+            ? "pending_region_precision_visual_review"
+            : "pending_recording_review";
         Debug.Log(
             "[E4] recipe_applied"
             + " source=" + source
@@ -565,17 +653,24 @@ public sealed class RNBridge : MonoBehaviour
             + " opacity=" + layer.Opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " applied=" + applied
             + " appliedRegion=" + result.Region
+            + " rendererMode=" + result.RendererMode
+            + " maskSource=" + result.MaskSource
+            + " trackingState=" + result.TrackingState
+            + " stateAction=" + result.StateAction
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " baselineTriangles=" + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " candidateTriangles=" + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
             + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant());
 
         Debug.Log(
             "[E7] recipe_latency"
             + " source=unity_applied"
-            + " runId=e7-baseline-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            + " phase=baseline"
+            + " runId=" + runId
+            + " phase=" + phase
             + " timestampMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
-            + " rendererMode=e3e4-baseline"
+            + " rendererMode=" + result.RendererMode
             + " lookId=" + layer.LookId
             + " recipeId=" + layer.RecipeId
             + " region=" + layer.Region
@@ -586,7 +681,7 @@ public sealed class RNBridge : MonoBehaviour
             + " receivedAtMs=0"
             + " sendToAckLatencyMs=0"
             + " visualLatencyConfirmedByRecording=false"
-            + " visualLatencyObservation=pending_recording_review");
+            + " visualLatencyObservation=" + visualLatencyObservation);
     }
 
     private void SendRecipeAppliedEvent(
@@ -614,8 +709,19 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(layer.BlendMode)
             + "\",\"applied\":"
             + result.Applied.ToString().ToLowerInvariant()
-            + ",\"rendererMode\":\"e3e4-baseline\""
-            + ",\"lookId\":\""
+            + ",\"rendererMode\":\""
+            + EscapeJsonString(result.RendererMode)
+            + "\",\"runId\":\""
+            + EscapeJsonString(GetRunIdForRenderer(layer.RendererMode))
+            + "\",\"phase\":\""
+            + EscapeJsonString(GetPhaseForRenderer(layer.RendererMode))
+            + "\",\"maskSource\":\""
+            + EscapeJsonString(result.MaskSource)
+            + "\",\"trackingState\":\""
+            + EscapeJsonString(result.TrackingState)
+            + "\",\"stateAction\":\""
+            + EscapeJsonString(result.StateAction)
+            + "\",\"lookId\":\""
             + EscapeJsonString(layer.LookId)
             + "\",\"recipeId\":\""
             + EscapeJsonString(layer.RecipeId)
@@ -626,11 +732,27 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"appliedFrame\":"
             + appliedFrame.ToString(CultureInfo.InvariantCulture)
             + ",\"visualLatencyConfirmedByRecording\":false"
-            + ",\"visualLatencyObservation\":\"pending_recording_review\""
+            + ",\"visualLatencyObservation\":\""
+            + EscapeJsonString(result.RendererMode == "e7-arface-uv-candidate"
+                ? "pending_region_precision_visual_review"
+                : "pending_recording_review")
+            + "\""
             + ",\"faceCount\":"
             + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshTriangles\":"
             + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"baselineTriangles\":"
+            + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"candidateTriangles\":"
+            + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"uvAvailable\":"
+            + result.UvAvailable.ToString().ToLowerInvariant()
+            + ",\"meshVertexCount\":"
+            + result.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"meshIndexCount\":"
+            + result.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"meshUvCount\":"
+            + result.MeshUvCount.ToString(CultureInfo.InvariantCulture)
             + ",\"usedFallback\":"
             + result.UsedFallback.ToString().ToLowerInvariant()
             + ",\"color\":\""
@@ -696,6 +818,7 @@ public sealed class RNBridge : MonoBehaviour
             Intensity = NormalizeIntensity(layer.intensity),
             Feather = NormalizeFeather(layer.feather),
             BlendMode = NormalizeBlendMode(layer.blendMode, textureSample),
+            RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
             Enabled = layer.enabled
         };
     }
@@ -728,6 +851,7 @@ public sealed class RNBridge : MonoBehaviour
             Intensity = NormalizeIntensity(recipe.intensity),
             Feather = NormalizeFeather(recipe.feather),
             BlendMode = NormalizeBlendMode(recipe.blendMode, textureSample),
+            RendererMode = NormalizeRendererMode(recipe.rendererMode, string.Empty),
             Enabled = true
         };
     }
@@ -871,6 +995,39 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         throw new ArgumentException("Unsupported E4 blend mode: " + candidate);
+    }
+
+    private static string NormalizeRendererMode(string preferred, string fallback)
+    {
+        string candidate = !string.IsNullOrWhiteSpace(preferred) ? preferred : fallback;
+        candidate = string.IsNullOrWhiteSpace(candidate)
+            ? "e3e4-baseline"
+            : candidate.Trim().ToLowerInvariant();
+
+        if (candidate == "e3e4-baseline" || candidate == "baseline")
+        {
+            return "e3e4-baseline";
+        }
+
+        if (candidate == "e7-arface-uv-candidate" || candidate == "e7-candidate" || candidate == "candidate")
+        {
+            return "e7-arface-uv-candidate";
+        }
+
+        throw new ArgumentException("Unsupported E7 renderer mode: " + candidate);
+    }
+
+    private static string GetPhaseForRenderer(string rendererMode)
+    {
+        return rendererMode == "e7-arface-uv-candidate" ? "region_precision" : "baseline";
+    }
+
+    private static string GetRunIdForRenderer(string rendererMode)
+    {
+        string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        return rendererMode == "e7-arface-uv-candidate"
+            ? "e7-region-precision-" + date
+            : "e7-baseline-" + date;
     }
 
     private static double CalculateLatencyMs(double startMs, double endMs)

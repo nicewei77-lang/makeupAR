@@ -197,6 +197,13 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         }
 
         long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        string metricPhase = rnBridge != null ? rnBridge.GetE7MetricPhase() : "baseline";
+        string metricRunId = metricPhase == "region_precision"
+            ? "e7-region-precision-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            : e7RunId;
+        string unityFrameworkBuildLabel = metricPhase == "region_precision"
+            ? "e7.3-region-precision"
+            : "e7.2-baseline";
         int sampleWindowMs = Mathf.RoundToInt(elapsedSeconds * 1000.0f);
         float averageFrameTimeMs = e7MetricFrameTimeTotalMs / Mathf.Max(1, e7MetricFrameCount);
         float averageFps = e7MetricFrameCount / Mathf.Max(0.001f, elapsedSeconds);
@@ -226,12 +233,12 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
         Debug.Log(
             "[E7] metric_sample"
-            + " runId=" + e7RunId
-            + " phase=baseline"
+            + " runId=" + metricRunId
+            + " phase=" + metricPhase
             + " timestampMs=" + timestampMs.ToString(CultureInfo.InvariantCulture)
             + " deviceName=" + SanitizeLogValue(SystemInfo.deviceName)
             + " appBuildLabel=" + SanitizeLogValue(Application.version)
-            + " unityFrameworkBuildLabel=e7.2-baseline"
+            + " unityFrameworkBuildLabel=" + unityFrameworkBuildLabel
             + baselineLogFields
             + " trackingState=" + lifecycle.TrackingState
             + " faceCount=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
@@ -265,12 +272,12 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             rnBridge.SendE7MetricSampleEvent(
                 "{"
                 + "\"type\":\"e7_metric_sample\""
-                + ",\"runId\":\"" + EscapeJsonString(e7RunId) + "\""
-                + ",\"phase\":\"baseline\""
+                + ",\"runId\":\"" + EscapeJsonString(metricRunId) + "\""
+                + ",\"phase\":\"" + EscapeJsonString(metricPhase) + "\""
                 + ",\"timestampMs\":" + timestampMs.ToString(CultureInfo.InvariantCulture)
                 + ",\"deviceName\":\"" + EscapeJsonString(SystemInfo.deviceName) + "\""
                 + ",\"appBuildLabel\":\"" + EscapeJsonString(Application.version) + "\""
-                + ",\"unityFrameworkBuildLabel\":\"e7.2-baseline\""
+                + ",\"unityFrameworkBuildLabel\":\"" + EscapeJsonString(unityFrameworkBuildLabel) + "\""
                 + "," + baselineJsonFragment
                 + ",\"trackingState\":\"" + EscapeJsonString(lifecycle.TrackingState) + "\""
                 + ",\"faceCount\":" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)

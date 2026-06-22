@@ -2,7 +2,7 @@
 
 Date: 2026-06-21
 
-Latest re-check: 2026-06-22 04:32 KST
+Latest re-check: 2026-06-22 11:18 KST
 
 Latest document cleanup: 2026-06-22 KST
 
@@ -12,10 +12,10 @@ This snapshot is the default entry point for future Codex sessions. Read this se
 
 Current boundary:
 
-- Primary path: E7.3 Region Precision sub-spike planning/validation.
-- E7.3 has not started.
+- Primary path: E7.3 Region Precision candidate correction and re-recording.
+- E7.3 visual evidence has been reviewed from the user-provided screen recording. ARFace mesh/UV is live on-device, but the current procedural candidate is not visually acceptable for `lip` or `eye`; `cheek` lacks a clean E7 candidate sample. Overall E7.3 remains Yellow because the ARFace substrate is viable, but the current candidate masks block E7.4.
 - Conservative alternative: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow lifecycle risk with formal 3-cycle evidence.
-- Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode and create the required E7 sub-spike documents before E7.3, E7.4, and E7.6.
+- Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode inside E7.3; do not enter E7.4/E7.5/E7.6 until the region candidate is fixed or the E7.3 risk is explicitly accepted.
 
 Current status:
 
@@ -30,13 +30,15 @@ Current status:
 - E6 Engine Decision: Yellow; continue the RN + Unity + ARKit direction, but do not claim product-v1 readiness.
 - E7.0/E7.1 Preflight: Green for preflight only.
 - E7.2 Baseline Instrumentation: Green for baseline instrumentation; decision recording was explicitly waived only for E7.2.
+- E7.3 Region Precision: Yellow overall / blocked from E7.4. Region decisions from video review are `lip` Red, `cheek` Yellow / insufficient E7-candidate sample, and `eye` Red.
 - Full E7 visual product-readiness: incomplete.
 
 Active temporary docs:
 
 - `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
+- `E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.3 session plan; keep until the current candidate-mask issue is fixed/retested or the team explicitly closes E7.3 as Yellow.
 - `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
-- Deferred docs to create only when needed: `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` before E7.3, `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
+- Deferred docs to create only when needed: `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
 
 Default reading route:
 
@@ -50,7 +52,8 @@ Default reading route:
 Stop rules:
 
 - Do not mark M7 Green unless formal 3-cycle re-entry evidence is collected.
-- Do not proceed to E7.4 or E7.6 from E7.2 logs alone.
+- Do not proceed to E7.4 or E7.6 from E7.2 logs or E7.3 build/install logs alone.
+- Do not mark any E7.3 region Green without real-device runtime compare logs and representative visual evidence for that region.
 - Do not claim full E7, visual product readiness, product-v1 readiness, or product-quality makeup from E7.0/E7.1 preflight or E7.2 instrumentation logs.
 - Do not treat E3 as product-quality makeup accuracy; it proves validation-level region independence only.
 - Do not treat E4 as product-quality makeup fidelity; it proves validation/debug texture sample dispatch and visual distinction only.
@@ -65,12 +68,69 @@ Evidence media policy:
 
 Key evidence:
 
+- E7.3 region precision implementation/build/video review: `evidence/logs/m3-repro-unity-export-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-region-precision-2026-06-22.log`, `evidence/logs/e7-region-precision-rn-ios-run-default-candidate-2026-06-22.log`, `evidence/logs/e7-region-precision-summary-2026-06-22.md`, `evidence/logs/e7-region-precision-video-analysis-2026-06-22.md`, `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg`.
 - E7.2 build/runtime: `evidence/logs/m3-repro-unity-export-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/e7-baseline-rn-ios-run-ack-2026-06-22.log`, `evidence/logs/e7-baseline-runtime-console-ack-2026-06-22.log`, `evidence/logs/e7-baseline-summary-2026-06-22.md`, `evidence/screenshots/e7-baseline-status-panel-2026-06-22.jpg`.
 - E7.0/E7.1 preflight: `evidence/logs/e7-unity-process-cleanup-2026-06-22.log`, `evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log`, `evidence/logs/e7-build-install-run-2026-06-22.log`, `evidence/logs/e7-runtime-event-preflight-2026-06-22.log`.
 - E5 no-inference snapshot: `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`, `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`.
 - E4 texture samples: `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`, `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`, `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
 - E3 region mask: `evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log`, `evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4`, `evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg`.
 - M6 Unity -> RN events: `evidence/logs/m6-face-state-fix-runtime-2026-06-21.log`, `evidence/screen-recordings/m6-unity-to-rn-events-2026-06-21.mp4`, `evidence/screenshots/m6-rn-face-lost-latest-event-2026-06-21.jpg`, `evidence/screenshots/m6-rn-face-tracked-recipe-event-2026-06-21.jpg`.
+
+## E7.3 Region Precision
+
+Status: Yellow overall / blocked from E7.4. Implementation/build/install evidence is present and the screen recording confirms ARFace mesh/UV candidate mode runs on-device, but the current procedural candidate fails visual precision for `lip` and `eye`; `cheek` remains Yellow because the recording does not include a clean E7 candidate sample.
+
+Decision:
+
+- Keep E3/E4 baseline renderer available as `e3e4-baseline`.
+- Add the E7 validation candidate renderer as `e7-arface-uv-candidate`, default-selected for E7.3 validation.
+- Keep ARFace mesh/UV as a viable runtime substrate, but reject the current procedural candidate mask output for `lip` and `eye` until the candidate basis is replaced or tuned.
+- Continue RN + Unity + ARKit validation only. Do not claim product-readiness, product-quality makeup, M7 Green, E7.4/E7.5/E7.6 readiness, AI/backend/upload, MediaPipe live runtime, SDK, or Android scope from this result.
+
+Confirmed implementation:
+
+- Unity `E3RegionMaskOverlay` now supports baseline-vs-E7 candidate modes while preserving the E3/E4 centroid baseline path.
+- E7 candidate mode uses ARFace mesh availability plus UV-aware candidate evidence fields and face-local mesh regions for `lip`, `cheek`, and `eye`.
+- Unity emits E7 comparison/state fields for renderer mode, mask source, tracking state, state action, mesh/UV counts, baseline triangle count, candidate triangle count, and applied triangle count.
+- Tracking, Limited, lost, and recovered states now map to explicit actions such as render, short hold, fade, extended hide, and recovered restore.
+- RN sends `rendererMode`, exposes a Baseline/E7 UV segmented control, defaults E7.3 to `E7 UV`, and surfaces phase/mask/UV/triangle/state fields in the E7 status panel and event summaries.
+
+Evidence:
+
+- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
+- Lint: `npm run lint` passed.
+- UnityFramework build/sync: `evidence/logs/m3-repro-xcodebuild-unityframework-e7-region-precision-2026-06-22.log` line `2264` records `** BUILD SUCCEEDED **`.
+- Artifact verification: `evidence/logs/m3-repro-artifact-verification-e7-region-precision-2026-06-22.log` records arm64 Mach-O RN/package frameworks and copied Unity Data.
+- Real-device RN build/install/launch after E7 default renderer change: `evidence/logs/e7-region-precision-rn-ios-run-default-candidate-2026-06-22.log` records successful build, install, and launch on `위승철의 iPhone`.
+- Summary: `evidence/logs/e7-region-precision-summary-2026-06-22.md`.
+- User-provided recording analysis: `evidence/logs/e7-region-precision-video-analysis-2026-06-22.md` records 28.46s / 59.45 FPS / 1180x2556 metadata and region verdicts.
+- Contact sheet: `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg`.
+- Representative visual evidence:
+  - `eye`: `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/frame_001_01.35s.jpg` shows `E7 UV` + `eye` + `phase=region_precision`, but the mask is broad face/lower-face coverage instead of an eye zone.
+  - `cheek`: `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/frame_015_15.35s.jpg` shows cheek selection, but the metric is `phase=baseline`, `mask=centroid_broad`, so this is not a clean E7 candidate sample.
+  - `lip`: `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/frame_020_20.35s.jpg` and `frame_028_28.35s.jpg` show `E7 UV` + `lip` + `phase=region_precision`, but the mask spills across lower-face/cheek/chin-side skin.
+
+Region G/Y/R:
+
+- `lip`: Red. E7 candidate mode is live, but the selected `lip` candidate repeatedly paints surrounding lower-face skin in normal tracking frames.
+- `cheek`: Yellow / insufficient E7-candidate sample. Cheek selection is present, but the visible metric is baseline or transition-stale, so no region Green/Red is justified yet.
+- `eye`: Red. E7 candidate mode is live, but the selected `eye` candidate is not confined to an eyeshadow/eye region and covers broad non-eye areas.
+
+Known limitations:
+
+- No full runtime console stream was captured with `tee`; the screen recording provides on-screen visual and metric evidence only.
+- No `[E7] region_precision_compare` runtime stream was captured during this pass.
+- Cheek still needs a clean `phase=region_precision` sample before final region scoring.
+- Lost, Limited, and recovered behavior were not exercised in this recording.
+- On-screen FPS/frame-time values are visible, but this is not E7.6 performance evidence.
+- The candidate is a validation candidate, not product-quality region segmentation or cosmetic rendering.
+- E7.3 evidence does not resolve the accepted M7 Yellow lifecycle risk.
+
+Next boundary:
+
+- Stay inside E7.3 and replace/tune the current procedural ARFace mesh/UV candidate, preferably with an authored UV atlas or fixed validated vertex sets.
+- Re-record `lip`, `cheek`, and `eye` with `E7 UV`, full runtime console capture, representative visual evidence, and explicit tracking/Limited/lost/recovered notes.
+- Do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has a clean E7 candidate sample, or until the team explicitly accepts E7.3 as Yellow and records the risk.
 
 ## E7.2 Baseline Instrumentation
 
@@ -137,10 +197,10 @@ Token policy:
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: E7.3 Region Precision sub-spike planning/validation.
+- Primary path: stay in E7.3, replace/tune the current procedural ARFace mesh/UV candidate, then re-record `lip`, `cheek`, and `eye`.
 - Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
-- Renderer path: if the team continues with accepted M7 risk, stay in validation/hardening mode and create the required E7 sub-spike documents before E7.3, E7.4, and E7.6 instead of jumping directly into product renderer claims.
+- Renderer path: do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has clean region-specific runtime/visual evidence, or until the team explicitly accepts E7.3 as Yellow and records the risk.
