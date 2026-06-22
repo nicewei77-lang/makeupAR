@@ -47,7 +47,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Intensity = 1.0f;
         public float Feather = 0.0f;
         public string BlendMode = "normal";
-        public string MaskTextureId = "lip-uvref-v0-balanced";
+        public string MaskTextureId = "lip-smooth-mask-v1";
     }
 
     private sealed class FaceOverlayState
@@ -462,9 +462,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             Region = region,
             MaskTextureId = maskTextureId,
-            ResourcePath = "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/" + maskTextureId,
-            Threshold = 0.45f,
-            FeatherUvNormalized = 2.0f / 512.0f
+            ResourcePath = "SmoothRegionMasks/" + maskTextureId,
+            Threshold = 0.04f,
+            FeatherUvNormalized = 0.56f
         };
     }
 
@@ -473,11 +473,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (NormalizeRegion(region))
         {
             case "cheek":
-                return "cheek-uvref-v0-balanced";
+                return "cheek-smooth-mask-v1";
             case "eye":
-                return "eye-uvref-v0-balanced";
+                return "eye-smooth-mask-v1";
             default:
-                return "lip-uvref-v0-balanced";
+                return "lip-smooth-mask-v1";
         }
     }
 
@@ -564,7 +564,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return view.MaskMaterial;
         }
 
-        Material template = Resources.Load<Material>("E7ReferenceUvAlphaMaskMaterial");
+        Material template = Resources.Load<Material>("SmoothRegionMaskMaterial");
         if (template != null)
         {
             view.MaskMaterial = new Material(template)
@@ -575,7 +575,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return view.MaskMaterial;
         }
 
-        Shader shader = Shader.Find("MakeupAR/E7ReferenceUvAlphaMask");
+        Shader shader = Shader.Find("MakeupAR/SmoothRegionMask");
         if (shader == null)
         {
             Debug.LogWarning(
@@ -601,15 +601,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (recipe.TextureSample)
         {
             case "soft_blush":
-                sampleAlphaScale = Mathf.Lerp(0.58f, 0.9f, recipe.Intensity);
-                brightnessScale = 1.06f;
+                sampleAlphaScale = Mathf.Lerp(0.32f, 0.52f, recipe.Intensity);
+                brightnessScale = 1.02f;
                 break;
             case "shimmer_eye":
-                sampleAlphaScale = Mathf.Lerp(0.72f, 1.0f, recipe.Intensity);
-                brightnessScale = Mathf.Lerp(1.05f, 1.35f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.36f, 0.58f, recipe.Intensity);
+                brightnessScale = Mathf.Lerp(1.0f, 1.12f, recipe.Intensity);
                 break;
             default:
-                sampleAlphaScale = Mathf.Lerp(0.78f, 1.0f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.55f, 0.76f, recipe.Intensity);
                 brightnessScale = 0.96f;
                 break;
         }

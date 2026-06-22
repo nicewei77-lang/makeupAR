@@ -1205,9 +1205,7 @@ public sealed class RNBridge : MonoBehaviour
         string applied = result.Applied ? "true" : "false";
         string phase = GetPhaseForRenderer(layer.RendererMode);
         string runId = GetRunIdForRenderer(layer.RendererMode);
-        string visualLatencyObservation = IsRegionPrecisionRenderer(layer.RendererMode)
-            ? "pending_region_precision_visual_review"
-            : "pending_recording_review";
+        string visualLatencyObservation = "pending_smooth_mask_visual_review";
         Debug.Log(
             "[E4] recipe_applied"
             + " source=" + source
@@ -1820,11 +1818,11 @@ public sealed class RNBridge : MonoBehaviour
         switch (region)
         {
             case "cheek":
-                return "cheek-uvref-v0-balanced";
+                return "cheek-smooth-mask-v1";
             case "eye":
-                return "eye-uvref-v0-balanced";
+                return "eye-smooth-mask-v1";
             default:
-                return "lip-uvref-v0-balanced";
+                return "lip-smooth-mask-v1";
         }
     }
 

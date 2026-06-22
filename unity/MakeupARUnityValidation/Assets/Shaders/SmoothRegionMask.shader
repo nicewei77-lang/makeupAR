@@ -1,14 +1,13 @@
-Shader "MakeupAR/E7ReferenceUvAlphaMask"
+Shader "MakeupAR/SmoothRegionMask"
 {
     Properties
     {
         _MaskTex ("Mask Texture", 2D) = "black" {}
         _RegionColor ("Region Color", Color) = (0.85, 0.29, 0.45, 1)
         _Opacity ("Opacity", Range(0, 1)) = 0.65
-        _Threshold ("Threshold", Range(0, 1)) = 0.45
-        _Feather ("Feather", Range(0, 0.1)) = 0.00390625
+        _Threshold ("Threshold", Range(0, 1)) = 0.04
+        _Feather ("Feather", Range(0, 1)) = 0.5
         _VisibilityAlpha ("Visibility Alpha", Range(0, 1)) = 1
-        _VisibilityBoost ("Validation Visibility Boost", Range(1, 2)) = 1.35
     }
 
     SubShader
@@ -42,7 +41,6 @@ Shader "MakeupAR/E7ReferenceUvAlphaMask"
             float _Threshold;
             float _Feather;
             float _VisibilityAlpha;
-            float _VisibilityBoost;
 
             struct appdata
             {
@@ -67,11 +65,10 @@ Shader "MakeupAR/E7ReferenceUvAlphaMask"
             fixed4 frag(v2f input) : SV_Target
             {
                 float probability = tex2D(_MaskTex, input.uv).r;
-                float feather = max(_Feather, 0.00001);
-                float alpha = smoothstep(_Threshold - feather, _Threshold + feather, probability)
+                float high = min(1.0, _Threshold + max(_Feather, 0.00001));
+                float alpha = smoothstep(_Threshold, high, probability)
                     * _Opacity
-                    * _VisibilityAlpha
-                    * _VisibilityBoost;
+                    * _VisibilityAlpha;
                 return fixed4(_RegionColor.rgb, saturate(alpha));
             }
             ENDCG

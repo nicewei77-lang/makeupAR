@@ -1,13 +1,13 @@
 using UnityEditor;
 
-public sealed class E7ReferenceAtlasTextureImporter : AssetPostprocessor
+public sealed class SmoothRegionMaskTextureImporter : AssetPostprocessor
 {
-    private const string ReferenceAtlasPath =
-        "Assets/Resources/E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/";
+    private const string SmoothMaskPath =
+        "Assets/Resources/SmoothRegionMasks/";
 
     private void OnPreprocessTexture()
     {
-        if (!assetPath.StartsWith(ReferenceAtlasPath, System.StringComparison.Ordinal)
+        if (!assetPath.StartsWith(SmoothMaskPath, System.StringComparison.Ordinal)
             || !assetPath.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
         {
             return;

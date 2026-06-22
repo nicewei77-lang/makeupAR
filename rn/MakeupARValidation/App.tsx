@@ -74,9 +74,9 @@ type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
 type RendererMode = 'e7-reference-uv-alpha';
 type MaskTextureId =
-  | 'lip-uvref-v0-balanced'
-  | 'cheek-uvref-v0-balanced'
-  | 'eye-uvref-v0-balanced';
+  | 'lip-smooth-mask-v1'
+  | 'cheek-smooth-mask-v1'
+  | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 type RegionRecipe = {
   color: RecipeColor;
@@ -114,9 +114,9 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   },
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
-  lip: 'lip-uvref-v0-balanced',
-  cheek: 'cheek-uvref-v0-balanced',
-  eye: 'eye-uvref-v0-balanced',
+  lip: 'lip-smooth-mask-v1',
+  cheek: 'cheek-smooth-mask-v1',
+  eye: 'eye-smooth-mask-v1',
 };
 const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,

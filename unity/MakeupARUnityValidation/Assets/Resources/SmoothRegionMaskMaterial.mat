@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: E7ReferenceUvAlphaMaskMaterial
+  m_Name: SmoothRegionMaskMaterial
   m_Shader: {fileID: 4800000, guid: 2a2c2f31cf3c4cd9b68fb18da09df2f4, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -29,11 +29,10 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Feather: 0.00390625
+    - _Feather: 0.5
     - _Opacity: 0.65
-    - _Threshold: 0.45
+    - _Threshold: 0.04
     - _VisibilityAlpha: 1
-    - _VisibilityBoost: 1.35
     m_Colors:
     - _RegionColor: {r: 0.85, g: 0.29, b: 0.45, a: 1}
   m_BuildTextureStacks: []
