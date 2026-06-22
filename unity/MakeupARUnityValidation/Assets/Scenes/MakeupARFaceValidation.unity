@@ -372,7 +372,7 @@ MonoBehaviour:
   drawDebugOverlay: 1
   logE1Diagnostics: 1
   logE2LifecycleDiagnostics: 1
-  logE7BaselineMetrics: 1
+  logE7MetricSamples: 1
   e7MetricIntervalSeconds: 2
 --- !u!4 &1583659258
 Transform:

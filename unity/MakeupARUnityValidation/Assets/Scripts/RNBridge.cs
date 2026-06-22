@@ -33,8 +33,6 @@ public sealed class RNBridge : MonoBehaviour
         public float feather;
         public string blendMode;
         public string rendererMode;
-        public string candidateId;
-        public string variantId;
         public float coverage;
         public string finish;
         public float textureAmount;
@@ -77,8 +75,6 @@ public sealed class RNBridge : MonoBehaviour
         public float feather;
         public string blendMode;
         public string rendererMode;
-        public string candidateId;
-        public string variantId;
         public bool enabled;
         public float coverage;
         public string finish;
@@ -106,8 +102,6 @@ public sealed class RNBridge : MonoBehaviour
         public string runId;
         public string phase;
         public string rendererMode;
-        public string candidateId;
-        public string variantId;
         public string lookId;
         public string recipeId;
         public string recipeBatchId;
@@ -156,8 +150,6 @@ public sealed class RNBridge : MonoBehaviour
         public float Feather;
         public string BlendMode;
         public string RendererMode;
-        public string CandidateId;
-        public string VariantId;
         public bool Enabled;
         public float Coverage;
         public string Finish;
@@ -195,9 +187,7 @@ public sealed class RNBridge : MonoBehaviour
         public int LayerCount;
         public int EnabledLayerCount;
         public int PayloadBytes;
-        public string RendererMode = "e3e4-baseline";
-        public string CandidateId = "e3e4-baseline";
-        public string VariantId = "baseline-v0";
+        public string RendererMode = "e7-reference-uv-alpha";
         public float Coverage;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
@@ -215,29 +205,19 @@ public sealed class RNBridge : MonoBehaviour
         public string MaskTextureId = "none";
         public bool CameraBackdropAvailable;
         public bool LightEstimateAvailable;
-        public string MaskSource = "centroid_broad";
-        public string BoundaryRenderer = "triangle_subset";
+        public string MaskSource = "smooth_uv_mask";
+        public string BoundaryRenderer = "shader_alpha";
         public string TrackingState = "None";
         public string StateAction = "not_started";
-        public int BaselineTriangleCount;
-        public int CandidateTriangleCount;
+        public int MaskTriangleCount;
         public bool UvAvailable;
         public int MeshVertexCount;
         public int MeshIndexCount;
         public int MeshUvCount;
         public int FaceCount;
         public int MeshTriangleCount;
-        public bool UsedFallback;
-        public string AtlasVersion = "none";
-        public string AtlasLabelMapVersion = "none";
-        public string AtlasLabelGroup = "none";
-        public string AtlasConfigSummary = "none";
-        public string AtlasConfigHash = "none";
         public string TopologyAuditStatus = "not_run";
         public string TopologyAuditSummary = "none";
-        public string AtlasVertexLabelSummary = "none";
-        public bool AtlasDataFallback;
-        public string AtlasFallbackReason = "none";
         public long LastUpdatedMs;
     }
 
@@ -811,8 +791,7 @@ public sealed class RNBridge : MonoBehaviour
             layer.Feather,
             layer.BlendMode,
             layer.RendererMode,
-            layer.CandidateId,
-            layer.VariantId);
+            layer.MaskTextureId);
     }
 
     private void RememberRegionFeatureState(
@@ -837,8 +816,6 @@ public sealed class RNBridge : MonoBehaviour
             EnabledLayerCount = layer.EnabledLayerCount,
             PayloadBytes = layer.PayloadBytes,
             RendererMode = result.RendererMode,
-            CandidateId = result.CandidateId,
-            VariantId = result.VariantId,
             Coverage = layer.Coverage,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
@@ -860,25 +837,15 @@ public sealed class RNBridge : MonoBehaviour
             BoundaryRenderer = result.BoundaryRenderer,
             TrackingState = result.TrackingState,
             StateAction = result.StateAction,
-            BaselineTriangleCount = result.BaselineTriangleCount,
-            CandidateTriangleCount = result.CandidateTriangleCount,
+            MaskTriangleCount = result.MaskTriangleCount,
             UvAvailable = result.UvAvailable,
             MeshVertexCount = result.MeshVertexCount,
             MeshIndexCount = result.MeshIndexCount,
             MeshUvCount = result.MeshUvCount,
             FaceCount = result.FaceCount,
             MeshTriangleCount = result.MeshTriangleCount,
-            UsedFallback = result.UsedFallback,
-            AtlasVersion = result.AtlasVersion,
-            AtlasLabelMapVersion = result.AtlasLabelMapVersion,
-            AtlasLabelGroup = result.AtlasLabelGroup,
-            AtlasConfigSummary = result.AtlasConfigSummary,
-            AtlasConfigHash = result.AtlasConfigHash,
             TopologyAuditStatus = result.TopologyAuditStatus,
             TopologyAuditSummary = result.TopologyAuditSummary,
-            AtlasVertexLabelSummary = result.AtlasVertexLabelSummary,
-            AtlasDataFallback = result.AtlasDataFallback,
-            AtlasFallbackReason = result.AtlasFallbackReason,
             LastUpdatedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
         };
     }
@@ -906,31 +873,19 @@ public sealed class RNBridge : MonoBehaviour
             state.Intensity = result.Intensity;
             state.Feather = result.Feather;
             state.RendererMode = result.RendererMode;
-            state.CandidateId = result.CandidateId;
-            state.VariantId = result.VariantId;
             state.MaskSource = result.MaskSource;
             state.BoundaryRenderer = result.BoundaryRenderer;
             state.TrackingState = result.TrackingState;
             state.StateAction = result.StateAction;
-            state.BaselineTriangleCount = result.BaselineTriangleCount;
-            state.CandidateTriangleCount = result.CandidateTriangleCount;
+            state.MaskTriangleCount = result.MaskTriangleCount;
             state.UvAvailable = result.UvAvailable;
             state.MeshVertexCount = result.MeshVertexCount;
             state.MeshIndexCount = result.MeshIndexCount;
             state.MeshUvCount = result.MeshUvCount;
             state.FaceCount = result.FaceCount;
             state.MeshTriangleCount = result.MeshTriangleCount;
-            state.UsedFallback = result.UsedFallback;
-            state.AtlasVersion = result.AtlasVersion;
-            state.AtlasLabelMapVersion = result.AtlasLabelMapVersion;
-            state.AtlasLabelGroup = result.AtlasLabelGroup;
-            state.AtlasConfigSummary = result.AtlasConfigSummary;
-            state.AtlasConfigHash = result.AtlasConfigHash;
             state.TopologyAuditStatus = result.TopologyAuditStatus;
             state.TopologyAuditSummary = result.TopologyAuditSummary;
-            state.AtlasVertexLabelSummary = result.AtlasVertexLabelSummary;
-            state.AtlasDataFallback = result.AtlasDataFallback;
-            state.AtlasFallbackReason = result.AtlasFallbackReason;
         }
     }
 
@@ -1005,8 +960,7 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
                 + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
-                + ",\"candidateId\":\"" + EscapeJsonString(state.CandidateId) + "\""
-                + ",\"variantId\":\"" + EscapeJsonString(state.VariantId) + "\""
+                + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(state.BoundaryRenderer) + "\""
                 + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
@@ -1016,23 +970,13 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"applied\":" + state.Applied.ToString().ToLowerInvariant()
                 + ",\"faceCount\":" + state.FaceCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"meshTriangles\":" + state.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
-                + ",\"baselineTriangles\":" + state.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
-                + ",\"candidateTriangles\":" + state.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"appliedTriangles\":" + state.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"uvAvailable\":" + state.UvAvailable.ToString().ToLowerInvariant()
                 + ",\"meshVertexCount\":" + state.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"meshIndexCount\":" + state.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"meshUvCount\":" + state.MeshUvCount.ToString(CultureInfo.InvariantCulture)
-                + ",\"usedFallback\":" + state.UsedFallback.ToString().ToLowerInvariant()
-                + ",\"atlasVersion\":\"" + EscapeJsonString(state.AtlasVersion) + "\""
-                + ",\"atlasLabelMapVersion\":\"" + EscapeJsonString(state.AtlasLabelMapVersion) + "\""
-                + ",\"atlasLabelGroup\":\"" + EscapeJsonString(state.AtlasLabelGroup) + "\""
-                + ",\"atlasConfigSummary\":\"" + EscapeJsonString(state.AtlasConfigSummary) + "\""
-                + ",\"atlasConfigHash\":\"" + EscapeJsonString(state.AtlasConfigHash) + "\""
                 + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state.TopologyAuditStatus) + "\""
                 + ",\"topologyAuditSummary\":\"" + EscapeJsonString(state.TopologyAuditSummary) + "\""
-                + ",\"atlasVertexLabelSummary\":\"" + EscapeJsonString(state.AtlasVertexLabelSummary) + "\""
-                + ",\"atlasDataFallback\":" + state.AtlasDataFallback.ToString().ToLowerInvariant()
-                + ",\"atlasFallbackReason\":\"" + EscapeJsonString(state.AtlasFallbackReason) + "\""
                 + "}");
         }
 
@@ -1056,22 +1000,14 @@ public sealed class RNBridge : MonoBehaviour
                 : "sample";
             string rendererMode = state != null && !string.IsNullOrWhiteSpace(state.RendererMode)
                 ? state.RendererMode
-                : "e3e4-baseline";
-            string candidateId = state != null && !string.IsNullOrWhiteSpace(state.CandidateId)
-                ? state.CandidateId
-                : GetCandidateIdForRenderer(rendererMode);
-            string variantId = state != null && !string.IsNullOrWhiteSpace(state.VariantId)
-                ? state.VariantId
-                : GetDefaultVariantId(region, rendererMode);
+                : "e7-reference-uv-alpha";
             string maskSource = state != null && !string.IsNullOrWhiteSpace(state.MaskSource)
                 ? state.MaskSource
-                : "centroid_broad";
+                : "smooth_uv_mask";
             string boundaryRenderer = state != null && !string.IsNullOrWhiteSpace(state.BoundaryRenderer)
                 ? state.BoundaryRenderer
-                : "triangle_subset";
-            string qaStatus = IsRegionPrecisionRenderer(rendererMode)
-                ? "yellow_pending_real_device_visual_review"
-                : "green_validation_baseline";
+                : "shader_alpha";
+            string qaStatus = "smooth_mask_runtime";
 
             regions.Add("\"" + EscapeJsonString(region) + "\":{"
                 + "\"available\":true"
@@ -1086,10 +1022,8 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
                 + ",\"meshTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
-                + ",\"baselineTriangles\":" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
-                + ",\"candidateTriangles\":" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"appliedTriangles\":" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"uvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
-                + ",\"usedFallback\":" + (state != null && state.UsedFallback).ToString().ToLowerInvariant()
                 + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state != null ? state.TopologyAuditStatus : "not_run") + "\""
                 + ",\"lastUpdatedMs\":" + (state != null ? state.LastUpdatedMs : 0L).ToString(CultureInfo.InvariantCulture)
                 + "}");
@@ -1098,7 +1032,7 @@ public sealed class RNBridge : MonoBehaviour
         return "{" + string.Join(",", regions) + "}";
     }
 
-    public string BuildE7BaselineStateLogFields()
+    public string BuildE7SmoothMaskStateLogFields()
     {
         RefreshLatestOverlayRegionResults();
 
@@ -1143,18 +1077,17 @@ public sealed class RNBridge : MonoBehaviour
             + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSource=" + (state != null ? state.MaskSource : "smooth_uv_mask")
             + " boundaryRenderer=" + (state != null ? state.BoundaryRenderer : "shader_alpha")
-            + " regionPrecisionStatus=smooth_mask_runtime"
+            + " maskStatus=smooth_mask_runtime"
             + " regionTrackingState=" + (state != null ? state.TrackingState : "None")
             + " regionStateAction=" + (state != null ? state.StateAction : "not_started")
             + " regionUvAvailable=" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
-            + " regionBaselineTriangles=" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
-            + " regionCandidateTriangles=" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " regionMaskTriangles=" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + " regionAppliedTriangles=" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + " topologyAuditStatus=" + (state != null ? state.TopologyAuditStatus : "not_run")
             + " topologyAuditSummary=" + SanitizeLogValue(state != null ? state.TopologyAuditSummary : "none");
     }
 
-    public string BuildE7BaselineStateJsonFragment()
+    public string BuildE7SmoothMaskStateJsonFragment()
     {
         RefreshLatestOverlayRegionResults();
 
@@ -1199,12 +1132,11 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "smooth_uv_mask") + "\""
             + ",\"boundaryRenderer\":\"" + EscapeJsonString(state != null ? state.BoundaryRenderer : "shader_alpha") + "\""
-            + ",\"regionPrecisionStatus\":\"smooth_mask_runtime\""
+            + ",\"maskStatus\":\"smooth_mask_runtime\""
             + ",\"regionTrackingState\":\"" + EscapeJsonString(state != null ? state.TrackingState : "None") + "\""
             + ",\"regionStateAction\":\"" + EscapeJsonString(state != null ? state.StateAction : "not_started") + "\""
             + ",\"regionUvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
-            + ",\"regionBaselineTriangles\":" + (state != null ? state.BaselineTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
-            + ",\"regionCandidateTriangles\":" + (state != null ? state.CandidateTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"regionMaskTriangles\":" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"regionAppliedTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state != null ? state.TopologyAuditStatus : "not_run") + "\""
             + ",\"topologyAuditSummary\":\"" + EscapeJsonString(state != null ? state.TopologyAuditSummary : "none") + "\"";
@@ -1321,10 +1253,8 @@ public sealed class RNBridge : MonoBehaviour
             + " stateAction=" + result.StateAction
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
-            + " baselineTriangles=" + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
-            + " candidateTriangles=" + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " maskTriangles=" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
-            + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant()
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " topologyAuditSummary=" + SanitizeLogValue(result.TopologyAuditSummary));
 
@@ -1421,10 +1351,8 @@ public sealed class RNBridge : MonoBehaviour
             + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshTriangles\":"
             + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
-            + ",\"baselineTriangles\":"
-            + result.BaselineTriangleCount.ToString(CultureInfo.InvariantCulture)
-            + ",\"candidateTriangles\":"
-            + result.CandidateTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTriangles\":"
+            + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
             + ",\"uvAvailable\":"
             + result.UvAvailable.ToString().ToLowerInvariant()
             + ",\"meshVertexCount\":"
@@ -1433,8 +1361,6 @@ public sealed class RNBridge : MonoBehaviour
             + result.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshUvCount\":"
             + result.MeshUvCount.ToString(CultureInfo.InvariantCulture)
-            + ",\"usedFallback\":"
-            + result.UsedFallback.ToString().ToLowerInvariant()
             + ",\"topologyAuditStatus\":\""
             + EscapeJsonString(result.TopologyAuditStatus)
             + "\",\"topologyAuditSummary\":\""
@@ -1579,12 +1505,6 @@ public sealed class RNBridge : MonoBehaviour
             Feather = NormalizeFeather(layer.feather),
             BlendMode = NormalizeBlendMode(layer.blendMode, textureSample),
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
-            CandidateId = NormalizeCandidateId(layer.candidateId, recipe.candidateId, NormalizeRendererMode(layer.rendererMode, recipe.rendererMode)),
-            VariantId = NormalizeVariantId(
-                string.IsNullOrWhiteSpace(layer.maskTextureId) ? layer.variantId : layer.maskTextureId,
-                string.IsNullOrWhiteSpace(recipe.maskTextureId) ? recipe.variantId : recipe.maskTextureId,
-                region,
-                NormalizeRendererMode(layer.rendererMode, recipe.rendererMode)),
             Enabled = layer.enabled,
             Coverage = NormalizeNonNegativeFloat(layer.coverage, recipe.coverage),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
@@ -1600,7 +1520,7 @@ public sealed class RNBridge : MonoBehaviour
             MaterialId = NormalizeOptional(layer.materialId, recipe.materialId, textureSample + "-validation-material"),
             ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
             PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
-            MaskTextureId = NormalizeOptional(layer.maskTextureId, recipe.maskTextureId, NormalizeVariantId(layer.variantId, recipe.variantId, region, NormalizeRendererMode(layer.rendererMode, recipe.rendererMode))),
+            MaskTextureId = NormalizeMaskTextureId(layer.maskTextureId, recipe.maskTextureId, region),
             CameraBackdropAvailable = layer.cameraBackdropAvailable || recipe.cameraBackdropAvailable,
             LightEstimateAvailable = layer.lightEstimateAvailable || recipe.lightEstimateAvailable
         };
@@ -1640,8 +1560,6 @@ public sealed class RNBridge : MonoBehaviour
             Feather = NormalizeFeather(recipe.feather),
             BlendMode = NormalizeBlendMode(recipe.blendMode, textureSample),
             RendererMode = NormalizeRendererMode(recipe.rendererMode, string.Empty),
-            CandidateId = NormalizeCandidateId(recipe.candidateId, string.Empty, NormalizeRendererMode(recipe.rendererMode, string.Empty)),
-            VariantId = NormalizeVariantId(recipe.variantId, string.Empty, region, NormalizeRendererMode(recipe.rendererMode, string.Empty)),
             Enabled = true,
             Coverage = NormalizeNonNegativeFloat(recipe.coverage, 0.0f),
             Finish = NormalizeOptional(recipe.finish, string.Empty, "validation-placeholder"),
@@ -1657,7 +1575,7 @@ public sealed class RNBridge : MonoBehaviour
             MaterialId = NormalizeOptional(recipe.materialId, string.Empty, textureSample + "-validation-material"),
             ShaderMode = NormalizeOptional(recipe.shaderMode, string.Empty, "unlit-alpha-validation"),
             PassCount = recipe.passCount > 0 ? recipe.passCount : 1,
-            MaskTextureId = NormalizeOptional(recipe.maskTextureId, string.Empty, NormalizeVariantId(recipe.variantId, string.Empty, region, NormalizeRendererMode(recipe.rendererMode, string.Empty))),
+            MaskTextureId = NormalizeMaskTextureId(recipe.maskTextureId, string.Empty, region),
             CameraBackdropAvailable = recipe.cameraBackdropAvailable,
             LightEstimateAvailable = recipe.lightEstimateAvailable
         };
@@ -1665,17 +1583,17 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeRegion(string region, string legacyLayer)
     {
-        string candidate = !string.IsNullOrWhiteSpace(region) ? region : legacyLayer;
-        candidate = string.IsNullOrWhiteSpace(candidate)
+        string value = !string.IsNullOrWhiteSpace(region) ? region : legacyLayer;
+        value = string.IsNullOrWhiteSpace(value)
             ? string.Empty
-            : candidate.Trim().ToLowerInvariant();
+            : value.Trim().ToLowerInvariant();
 
-        if (candidate == "lip" || candidate == "cheek" || candidate == "eye")
+        if (value == "lip" || value == "cheek" || value == "eye")
         {
-            return candidate;
+            return value;
         }
 
-        throw new ArgumentException("Unsupported E4 region: " + candidate);
+        throw new ArgumentException("Unsupported E4 region: " + value);
     }
 
     private static string NormalizeColor(string color)
@@ -1688,44 +1606,44 @@ public sealed class RNBridge : MonoBehaviour
         return color.Trim();
     }
 
-    private static string NormalizeRecipeId(string preferred, string fallback, string region, int index)
+    private static string NormalizeRecipeId(string preferred, string secondaryRecipeId, string region, int index)
     {
         if (!string.IsNullOrWhiteSpace(preferred))
         {
             return preferred.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(fallback))
+        if (!string.IsNullOrWhiteSpace(secondaryRecipeId))
         {
-            return fallback.Trim();
+            return secondaryRecipeId.Trim();
         }
 
-        return "e7-baseline-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
+        return "smooth-mask-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
     }
 
-    private static string NormalizeRecipeBatchId(params string[] candidates)
+    private static string NormalizeRecipeBatchId(params string[] values)
     {
-        foreach (string candidate in candidates)
+        foreach (string value in values)
         {
-            if (!string.IsNullOrWhiteSpace(candidate))
+            if (!string.IsNullOrWhiteSpace(value))
             {
-                return candidate.Trim();
+                return value.Trim();
             }
         }
 
         return "none";
     }
 
-    private static string NormalizeActiveRegions(string preferred, string fallback)
+    private static string NormalizeActiveRegions(string preferred, string secondarySummary)
     {
         if (!string.IsNullOrWhiteSpace(preferred))
         {
             return SanitizeLogValue(preferred);
         }
 
-        if (!string.IsNullOrWhiteSpace(fallback))
+        if (!string.IsNullOrWhiteSpace(secondarySummary))
         {
-            return SanitizeLogValue(fallback);
+            return SanitizeLogValue(secondarySummary);
         }
 
         return "none";
@@ -1750,46 +1668,46 @@ public sealed class RNBridge : MonoBehaviour
         return activeRegions.Count > 0 ? string.Join(",", activeRegions) : "none";
     }
 
-    private static string NormalizeLookId(string preferred, string fallback)
+    private static string NormalizeLookId(string preferred, string secondaryLookId)
     {
         if (!string.IsNullOrWhiteSpace(preferred))
         {
             return preferred.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(fallback))
+        if (!string.IsNullOrWhiteSpace(secondaryLookId))
         {
-            return fallback.Trim();
+            return secondaryLookId.Trim();
         }
 
         return "smooth_region_mask";
     }
 
-    private static double NormalizeSentAtMs(double preferred, double fallback)
+    private static double NormalizeSentAtMs(double preferred, double secondarySentAtMs)
     {
         if (preferred > 0.0)
         {
             return preferred;
         }
 
-        return fallback > 0.0 ? fallback : 0.0;
+        return secondarySentAtMs > 0.0 ? secondarySentAtMs : 0.0;
     }
 
     private static string NormalizeTextureSample(string region, string texture, string sample)
     {
-        string candidate = !string.IsNullOrWhiteSpace(texture) ? texture : sample;
-        candidate = string.IsNullOrWhiteSpace(candidate)
+        string value = !string.IsNullOrWhiteSpace(texture) ? texture : sample;
+        value = string.IsNullOrWhiteSpace(value)
             ? GetDefaultTextureSample(region)
-            : candidate.Trim().ToLowerInvariant();
+            : value.Trim().ToLowerInvariant();
 
-        if ((region == "lip" && candidate == "matte_lip")
-            || (region == "cheek" && candidate == "soft_blush")
-            || (region == "eye" && candidate == "shimmer_eye"))
+        if ((region == "lip" && value == "matte_lip")
+            || (region == "cheek" && value == "soft_blush")
+            || (region == "eye" && value == "shimmer_eye"))
         {
-            return candidate;
+            return value;
         }
 
-        throw new ArgumentException("Unsupported E4 texture sample for region " + region + ": " + candidate);
+        throw new ArgumentException("Unsupported E4 texture sample for region " + region + ": " + value);
     }
 
     private static string GetDefaultTextureSample(string region)
@@ -1809,16 +1727,16 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeTextureMode(string textureMode)
     {
-        string candidate = string.IsNullOrWhiteSpace(textureMode)
+        string value = string.IsNullOrWhiteSpace(textureMode)
             ? "sample"
             : textureMode.Trim().ToLowerInvariant();
 
-        if (candidate == "sample")
+        if (value == "sample")
         {
-            return candidate;
+            return value;
         }
 
-        throw new ArgumentException("Unsupported E4 texture mode: " + candidate);
+        throw new ArgumentException("Unsupported E4 texture mode: " + value);
     }
 
     private static float NormalizeIntensity(float intensity)
@@ -1831,22 +1749,22 @@ public sealed class RNBridge : MonoBehaviour
         return Mathf.Clamp01(intensity);
     }
 
-    private static float NormalizeNonNegativeFloat(float preferred, float fallback)
+    private static float NormalizeNonNegativeFloat(float preferred, float secondary)
     {
-        float value = preferred > 0.0f ? preferred : fallback;
+        float value = preferred > 0.0f ? preferred : secondary;
         return Mathf.Max(0.0f, value);
     }
 
-    private static float NormalizeTextureAmount(float preferred, float fallback, float defaultValue)
+    private static float NormalizeTextureAmount(float preferred, float secondary, float defaultValue)
     {
         if (preferred > 0.0f)
         {
             return Mathf.Clamp01(preferred);
         }
 
-        if (fallback > 0.0f)
+        if (secondary > 0.0f)
         {
-            return Mathf.Clamp01(fallback);
+            return Mathf.Clamp01(secondary);
         }
 
         return Mathf.Clamp01(defaultValue);
@@ -1859,20 +1777,20 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeBlendMode(string blendMode, string textureSample)
     {
-        string fallback = textureSample == "shimmer_eye" ? "screen" : "normal";
-        string candidate = string.IsNullOrWhiteSpace(blendMode)
-            ? fallback
+        string defaultBlendMode = textureSample == "shimmer_eye" ? "screen" : "normal";
+        string value = string.IsNullOrWhiteSpace(blendMode)
+            ? defaultBlendMode
             : blendMode.Trim().ToLowerInvariant();
 
-        if (candidate == "normal" || candidate == "multiply" || candidate == "screen")
+        if (value == "normal" || value == "multiply" || value == "screen")
         {
-            return candidate;
+            return value;
         }
 
-        throw new ArgumentException("Unsupported E4 blend mode: " + candidate);
+        throw new ArgumentException("Unsupported E4 blend mode: " + value);
     }
 
-    private static string NormalizeRendererMode(string preferred, string fallback)
+    private static string NormalizeRendererMode(string preferred, string secondary)
     {
         return "e7-reference-uv-alpha";
     }
@@ -1893,37 +1811,12 @@ public sealed class RNBridge : MonoBehaviour
         return true;
     }
 
-    private static string GetCandidateIdForRenderer(string rendererMode)
+    private static string NormalizeMaskTextureId(string preferred, string secondary, string region)
     {
-        return "smooth-mask";
+        return GetDefaultMaskTextureId(region);
     }
 
-    private static string NormalizeCandidateId(string preferred, string fallback, string rendererMode)
-    {
-        return "smooth-mask";
-    }
-
-    private static string NormalizeVariantId(string preferred, string fallback, string region, string rendererMode)
-    {
-        string candidate = !string.IsNullOrWhiteSpace(preferred) ? preferred : fallback;
-        candidate = string.IsNullOrWhiteSpace(candidate)
-            ? GetDefaultVariantId(region, rendererMode)
-            : candidate.Trim().ToLowerInvariant();
-
-        switch (region)
-        {
-            case "lip":
-                return candidate == "lip-uvref-v0-balanced" ? candidate : "lip-uvref-v0-balanced";
-            case "cheek":
-                return candidate == "cheek-uvref-v0-balanced" ? candidate : "cheek-uvref-v0-balanced";
-            case "eye":
-                return candidate == "eye-uvref-v0-balanced" ? candidate : "eye-uvref-v0-balanced";
-            default:
-                return "lip-uvref-v0-balanced";
-        }
-    }
-
-    private static string GetDefaultVariantId(string region, string rendererMode)
+    private static string GetDefaultMaskTextureId(string region)
     {
         switch (region)
         {
@@ -1951,16 +1844,16 @@ public sealed class RNBridge : MonoBehaviour
         return string.IsNullOrWhiteSpace(value) ? "none" : value.Trim();
     }
 
-    private static string NormalizeOptional(string preferred, string fallback, string defaultValue)
+    private static string NormalizeOptional(string preferred, string secondary, string defaultValue)
     {
         if (!string.IsNullOrWhiteSpace(preferred))
         {
             return preferred.Trim();
         }
 
-        if (!string.IsNullOrWhiteSpace(fallback))
+        if (!string.IsNullOrWhiteSpace(secondary))
         {
-            return fallback.Trim();
+            return secondary.Trim();
         }
 
         return defaultValue;
@@ -1991,7 +1884,7 @@ public sealed class RNBridge : MonoBehaviour
             Debug.LogError(logPrefix + " unity_to_rn_send_failed error=" + exception.Message + " " + logSummary);
         }
 #else
-        Debug.Log(logPrefix + " unity_to_rn_editor_fallback " + logSummary);
+            Debug.Log(logPrefix + " unity_to_rn_editor_event " + logSummary);
 #endif
     }
 

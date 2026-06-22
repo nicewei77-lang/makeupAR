@@ -21,7 +21,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     [SerializeField] private bool drawDebugOverlay;
     [SerializeField] private bool logE1Diagnostics = true;
     [SerializeField] private bool logE2LifecycleDiagnostics = true;
-    [SerializeField] private bool logE7BaselineMetrics = true;
+    [SerializeField] private bool logE7MetricSamples = true;
     [SerializeField] private float e7MetricIntervalSeconds = 2.0f;
 
     private int lastFaceCount = -1;
@@ -101,7 +101,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     {
         RefreshSceneReferences();
         RefreshFaceSupportState();
-        InitializeE7BaselineMetrics();
+        InitializeE7MetricSamples();
         LogStatus(true);
     }
 
@@ -141,14 +141,14 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         }
     }
 
-    private void InitializeE7BaselineMetrics()
+    private void InitializeE7MetricSamples()
     {
         if (!string.IsNullOrWhiteSpace(e7RunId))
         {
             return;
         }
 
-        e7RunId = "e7-baseline-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        e7RunId = "smooth-mask-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
         e7MetricWindowStartTime = Time.unscaledTime;
         e7MetricFrameCount = 0;
         e7MetricFrameTimeTotalMs = 0.0f;
@@ -159,12 +159,12 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
     private void UpdateE7MetricSampler()
     {
-        if (!logE7BaselineMetrics)
+        if (!logE7MetricSamples)
         {
             return;
         }
 
-        InitializeE7BaselineMetrics();
+        InitializeE7MetricSamples();
 
         float frameTimeMs = Mathf.Max(0.0f, Time.unscaledDeltaTime * 1000.0f);
         e7MetricFrameCount++;
@@ -179,7 +179,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             return;
         }
 
-        LogE7BaselineMetricSample(elapsedSeconds);
+        LogE7MetricSample(elapsedSeconds);
 
         e7MetricWindowStartTime = Time.unscaledTime;
         e7MetricFrameCount = 0;
@@ -188,7 +188,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         e7SustainedSub20FpsObserved = false;
     }
 
-    private void LogE7BaselineMetricSample(float elapsedSeconds)
+    private void LogE7MetricSample(float elapsedSeconds)
     {
         RefreshFaceSupportState();
 
@@ -207,14 +207,11 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         }
 
         long timestampMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        string metricPhase = rnBridge != null ? rnBridge.GetE7MetricPhase() : "baseline";
-        bool isRegionPrecisionPhase = metricPhase.StartsWith("region_precision", StringComparison.Ordinal);
-        string metricRunId = isRegionPrecisionPhase
-            ? "e7-" + metricPhase.Replace("_", "-") + "-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
-            : e7RunId;
-        string unityFrameworkBuildLabel = isRegionPrecisionPhase
-            ? "e7.3-" + metricPhase.Replace("_", "-")
-            : "e7.2-baseline";
+        string metricPhase = rnBridge != null ? rnBridge.GetE7MetricPhase() : "smooth_mask";
+        string metricRunId = !string.IsNullOrWhiteSpace(e7RunId)
+            ? e7RunId
+            : "smooth-mask-" + DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        string unityFrameworkBuildLabel = "e7-smooth-mask";
         int sampleWindowMs = Mathf.RoundToInt(elapsedSeconds * 1000.0f);
         float averageFrameTimeMs = e7MetricFrameTimeTotalMs / Mathf.Max(1, e7MetricFrameCount);
         float averageFps = e7MetricFrameCount / Mathf.Max(0.001f, elapsedSeconds);
@@ -235,11 +232,11 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
         LogE7ThermalUnavailableOnce();
 
-        string baselineLogFields = rnBridge != null
-            ? rnBridge.BuildE7BaselineStateLogFields()
+        string smoothMaskLogFields = rnBridge != null
+            ? rnBridge.BuildE7SmoothMaskStateLogFields()
             : " rendererMode=e7-reference-uv-alpha lookId=smooth_region_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
-        string baselineJsonFragment = rnBridge != null
-            ? rnBridge.BuildE7BaselineStateJsonFragment()
+        string smoothMaskJsonFragment = rnBridge != null
+            ? rnBridge.BuildE7SmoothMaskStateJsonFragment()
             : "\"rendererMode\":\"e7-reference-uv-alpha\",\"lookId\":\"smooth_region_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
 
         Debug.Log(
@@ -250,7 +247,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + " deviceName=" + SanitizeLogValue(SystemInfo.deviceName)
             + " appBuildLabel=" + SanitizeLogValue(Application.version)
             + " unityFrameworkBuildLabel=" + unityFrameworkBuildLabel
-            + baselineLogFields
+            + smoothMaskLogFields
             + " trackingState=" + lifecycle.TrackingState
             + " faceCount=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
             + " totalTrackables=" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
@@ -289,7 +286,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
                 + ",\"deviceName\":\"" + EscapeJsonString(SystemInfo.deviceName) + "\""
                 + ",\"appBuildLabel\":\"" + EscapeJsonString(Application.version) + "\""
                 + ",\"unityFrameworkBuildLabel\":\"" + EscapeJsonString(unityFrameworkBuildLabel) + "\""
-                + "," + baselineJsonFragment
+                + "," + smoothMaskJsonFragment
                 + ",\"trackingState\":\"" + EscapeJsonString(lifecycle.TrackingState) + "\""
                 + ",\"faceCount\":" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"totalTrackables\":" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
@@ -353,7 +350,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         Debug.Log(
             "[E7] metric_unavailable"
             + " runId=" + e7RunId
-            + " phase=baseline"
+            + " phase=smooth_mask"
             + " metric=memory"
             + " reason=Profiler_counter_unavailable_in_current_build"
             + " memoryMetricAvailable=false"
@@ -371,7 +368,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         Debug.Log(
             "[E7] metric_unavailable"
             + " runId=" + e7RunId
-            + " phase=baseline"
+            + " phase=smooth_mask"
             + " metric=thermal"
             + " reason=native_thermal_api_not_configured"
             + " thermalEvidenceType=manual-device-heat"
@@ -602,7 +599,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             return null;
         }
 
-        ARFace fallbackFace = null;
+        ARFace firstUsableFace = null;
         ARFace limitedFace = null;
 
         foreach (ARFace face in faceManager.trackables)
@@ -617,13 +614,13 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
                 limitedFace = face;
             }
 
-            if (fallbackFace == null)
+            if (firstUsableFace == null)
             {
-                fallbackFace = face;
+                firstUsableFace = face;
             }
         }
 
-        return limitedFace != null ? limitedFace : fallbackFace;
+        return limitedFace != null ? limitedFace : firstUsableFace;
     }
 
     private string BuildFaceDiagnosticsSummary()

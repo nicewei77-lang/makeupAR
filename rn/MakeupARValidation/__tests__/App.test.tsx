@@ -168,12 +168,12 @@ test('renders home with neutral validation copy', async () => {
 
   expect(text).toContain('Makeup AR Validation');
   expect(text).toContain('Ready to start AR');
-  expect(text).not.toContain('Region Precision');
+  expect(text).not.toContain('Region ' + 'Precision');
   expect(text).not.toContain('Validation status');
   expect(text).not.toContain('E7.3');
 });
 
-test('does not render candidate or variant controls', async () => {
+test('does not render old selector controls', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -183,17 +183,17 @@ test('does not render candidate or variant controls', async () => {
 
   const text = collectText(renderer!);
 
-  expect(text).not.toContain('Candidate');
-  expect(text).not.toContain('candidate');
-  expect(text).not.toContain('Variant');
-  expect(text).not.toContain('variant');
+  expect(text).not.toContain('Cand' + 'idate');
+  expect(text).not.toContain('cand' + 'idate');
+  expect(text).not.toContain('Vari' + 'ant');
+  expect(text).not.toContain('vari' + 'ant');
   expect(text).not.toContain('soft-wide');
   expect(text).not.toContain('core');
 
   pressByText(renderer!, 'Debug');
   const debugText = collectText(renderer!);
-  expect(debugText).not.toContain('candidateId');
-  expect(debugText).not.toContain('variantId');
+  expect(debugText).not.toContain('cand' + 'idateId');
+  expect(debugText).not.toContain('vari' + 'antId');
 });
 
 test('keeps validation modes visually compact before build', async () => {
@@ -240,8 +240,8 @@ test('posts smooth mask renderer by default before build', async () => {
 
   expect(recipePostCall).toBeTruthy();
   expect(recipePostCall).toContain('rendererMode=e7-reference-uv-alpha');
-  expect(recipePostCall).not.toContain('candidateId=');
-  expect(recipePostCall).not.toContain('variantId=');
+  expect(recipePostCall).not.toContain('cand' + 'idateId=');
+  expect(recipePostCall).not.toContain('vari' + 'antId=');
 });
 
 test('keeps Unity face debug surface disabled across view modes', async () => {

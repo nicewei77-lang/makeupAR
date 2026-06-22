@@ -67,13 +67,13 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Debug' },
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
-const E7_EVIDENCE_MODE = 'phase2-arface-manual-heuristic-baseline';
+const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
 type RendererMode = 'e7-reference-uv-alpha';
-type AtlasVariantId =
+type MaskTextureId =
   | 'lip-uvref-v0-balanced'
   | 'cheek-uvref-v0-balanced'
   | 'eye-uvref-v0-balanced';
@@ -113,7 +113,7 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
 };
-const DEFAULT_ATLAS_VARIANT_BY_REGION: Record<RecipeRegion, AtlasVariantId> = {
+const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-uvref-v0-balanced',
   cheek: 'cheek-uvref-v0-balanced',
   eye: 'eye-uvref-v0-balanced',
@@ -202,14 +202,12 @@ type UnityEventPayload = {
   rendererMode?: string;
   maskSource?: string;
   stateAction?: string;
-  regionPrecisionStatus?: string;
+  maskStatus?: string;
   regionUvAvailable?: boolean;
-  regionBaselineTriangles?: number;
-  regionCandidateTriangles?: number;
+  regionMaskTriangles?: number;
   regionAppliedTriangles?: number;
   uvAvailable?: boolean;
-  baselineTriangles?: number;
-  candidateTriangles?: number;
+  maskTriangles?: number;
   meshVertexCount?: number;
   meshIndexCount?: number;
   meshUvCount?: number;
@@ -261,17 +259,8 @@ type UnityEventPayload = {
   visualLatencyConfirmedByRecording?: boolean;
   visualLatencyObservation?: string;
   meshTriangles?: number;
-  usedFallback?: boolean;
-  atlasVersion?: string;
-  atlasLabelMapVersion?: string;
-  atlasLabelGroup?: string;
-  atlasConfigSummary?: string;
-  atlasConfigHash?: string;
   topologyAuditStatus?: string;
   topologyAuditSummary?: string;
-  atlasVertexLabelSummary?: string;
-  atlasDataFallback?: boolean;
-  atlasFallbackReason?: string;
   boundaryRenderer?: string;
   capturePairId?: string;
   relativeDirectory?: string;
@@ -491,7 +480,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const enabledLayerCount = countActiveRegions(enabledRegions);
       const layers = RECIPE_REGION_OPTIONS.map(region => {
         const recipe = recipes[region];
-        const maskTextureId = DEFAULT_ATLAS_VARIANT_BY_REGION[region];
+        const maskTextureId = DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
         const layerRecipeId = `${recipePrefix}-${region}-${
           recipe.textureSample.name
         }-${Math.round(sentAtMs)}`;
@@ -565,7 +554,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         materialId: `${recipes[focusRegion].textureSample.name}-validation-material`,
         shaderMode: 'unlit-alpha-validation',
         passCount: 1,
-        maskTextureId: DEFAULT_ATLAS_VARIANT_BY_REGION[focusRegion],
+        maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion],
         cameraBackdropAvailable: false,
         lightEstimateAvailable: false,
         layers,
@@ -615,8 +604,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     (payload: UnityEventPayload, receivedAtMs: number) => {
       const ackJson = JSON.stringify({
         type: 'recipe_ack',
-        runId: payload.runId ?? 'e7-baseline',
-        phase: payload.phase ?? 'baseline',
+        runId: payload.runId ?? 'smooth-mask',
+        phase: payload.phase ?? 'smooth_mask',
         rendererMode: payload.rendererMode ?? DEFAULT_RENDERER_MODE,
         lookId: payload.lookId ?? 'smooth_region_mask',
         recipeId: payload.recipeId ?? 'none',
@@ -1478,7 +1467,7 @@ function E7StatusPanel({
           ? `mask=${String(metric.maskSource ?? 'smooth_uv_mask')} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
             )} triangles=${String(
-              metric.regionCandidateTriangles ?? metric.candidateTriangles ?? 'n/a',
+              metric.regionMaskTriangles ?? metric.maskTriangles ?? 'n/a',
             )}`
           : 'region metrics waiting'}
       </Text>
@@ -1783,7 +1772,7 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
   console.log(
     '[E7] recipe_latency',
     `runId=${String(
-      event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`,
+      event.runId ?? `smooth-mask-rn-${new Date().toISOString().slice(0, 10)}`,
     )}`,
     `phase=${String(event.phase ?? 'smooth_mask')}`,
     `timestampMs=${receivedAtMs}`,
@@ -1862,7 +1851,7 @@ function formatMeshCountSummary(event?: UnityEventPayload) {
 
 function formatMeshCountValue(
   primaryEvent: UnityEventPayload | undefined,
-  fallbackEvent: UnityEventPayload | undefined,
+  secondaryEvent: UnityEventPayload | undefined,
   key: 'vertex' | 'index' | 'uv',
 ) {
   const directKeys = {
@@ -1877,16 +1866,16 @@ function formatMeshCountValue(
   } as const;
 
   const directValue =
-    primaryEvent?.[directKeys[key]] ?? fallbackEvent?.[directKeys[key]];
+    primaryEvent?.[directKeys[key]] ?? secondaryEvent?.[directKeys[key]];
   const directNumber = readNumber(directValue);
   if (directNumber !== undefined) {
     return directNumber.toFixed(0);
   }
 
   const primaryMesh = asRecord(primaryEvent?.mesh);
-  const fallbackMesh = asRecord(fallbackEvent?.mesh);
+  const secondaryMesh = asRecord(secondaryEvent?.mesh);
   const nestedValue =
-    primaryMesh?.[nestedKeys[key]] ?? fallbackMesh?.[nestedKeys[key]];
+    primaryMesh?.[nestedKeys[key]] ?? secondaryMesh?.[nestedKeys[key]];
   const nestedNumber = readNumber(nestedValue);
 
   return nestedNumber === undefined ? 'n/a' : nestedNumber.toFixed(0);
@@ -1975,12 +1964,10 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.applied ?? false,
   )} faceCount=${String(event.faceCount ?? 'n/a')} meshTriangles=${String(
     event.meshTriangles ?? 'n/a',
-  )} base=${String(event.baselineTriangles ?? 'n/a')} cand=${String(
-    event.candidateTriangles ?? 'n/a',
+  )} mask=${String(
+    event.maskTriangles ?? event.regionMaskTriangles ?? 'n/a',
   )} uv=${String(event.uvAvailable ?? false)} state=${String(
     event.stateAction ?? 'n/a',
-  )} fallback=${String(
-    event.usedFallback ?? false,
   )} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
   )} latency=${formatMetricNumber(latencyMs)}ms`;
