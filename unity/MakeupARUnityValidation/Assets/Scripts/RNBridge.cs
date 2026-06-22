@@ -233,7 +233,6 @@ public sealed class RNBridge : MonoBehaviour
     private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
         new Dictionary<string, RegionFeatureState>();
     private bool faceRenderersSuppressed = true;
-    private float nextFaceRendererSuppressionRefreshTime;
     private int lastSuppressedFaceTrackableCount = -1;
 
 #if UNITY_IOS && !UNITY_EDITOR
@@ -348,6 +347,11 @@ public sealed class RNBridge : MonoBehaviour
         }
         catch (Exception exception)
         {
+            if (regionMaskOverlay != null)
+            {
+                regionMaskOverlay.ClearRecipesAndHideOverlays();
+            }
+
             Debug.LogError("[E4] recipe_parse_failed raw=" + json + " error=" + exception.Message);
         }
     }
@@ -543,7 +547,6 @@ public sealed class RNBridge : MonoBehaviour
 
         if (suppressed)
         {
-            nextFaceRendererSuppressionRefreshTime = 0.0f;
             lastSuppressedFaceTrackableCount = -1;
             ApplyFaceRendererSuppression();
             return;
@@ -567,7 +570,6 @@ public sealed class RNBridge : MonoBehaviour
 
         suppressedFaceRendererStates.Clear();
         suppressedFaceVisualizerStates.Clear();
-        nextFaceRendererSuppressionRefreshTime = 0.0f;
         lastSuppressedFaceTrackableCount = -1;
     }
 
@@ -585,11 +587,6 @@ public sealed class RNBridge : MonoBehaviour
             return true;
         }
 
-        if (Time.unscaledTime >= nextFaceRendererSuppressionRefreshTime)
-        {
-            return true;
-        }
-
         return false;
     }
 
@@ -601,7 +598,6 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         lastSuppressedFaceTrackableCount = CountFaceTrackables();
-        nextFaceRendererSuppressionRefreshTime = Time.unscaledTime + 0.25f;
 
         foreach (ARFace face in faceManager.trackables)
         {
@@ -930,7 +926,7 @@ public sealed class RNBridge : MonoBehaviour
             bool active = state != null && state.Enabled;
             string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
                 ? state.TextureSample
-                : GetDefaultTextureSample(region);
+                : "none";
             string textureMode = state != null && !string.IsNullOrWhiteSpace(state.TextureMode)
                 ? state.TextureMode
                 : "sample";
@@ -1349,16 +1345,20 @@ public sealed class RNBridge : MonoBehaviour
     {
         List<ParsedRecipeLayer> layers = new List<ParsedRecipeLayer>();
 
-        if (recipe.layers != null && recipe.layers.Length > 0)
+        if (recipe.layers == null || recipe.layers.Length != FeatureSnapshotRegions.Length)
         {
-            for (int index = 0; index < recipe.layers.Length; index++)
-            {
-                layers.Add(ParseRecipeLayer(recipe.layers[index], recipe, index, payloadBytes));
-            }
+            int actualLayerCount = recipe.layers != null ? recipe.layers.Length : 0;
+            throw new ArgumentException(
+                "Recipe batch must include exactly "
+                + FeatureSnapshotRegions.Length.ToString(CultureInfo.InvariantCulture)
+                + " layers; received "
+                + actualLayerCount.ToString(CultureInfo.InvariantCulture)
+                + ".");
         }
-        else
+
+        for (int index = 0; index < recipe.layers.Length; index++)
         {
-            layers.Add(ParseLegacyRecipeLayer(recipe, payloadBytes));
+            layers.Add(ParseRecipeLayer(recipe.layers[index], recipe, index, payloadBytes));
         }
 
         return layers;
@@ -1457,61 +1457,6 @@ public sealed class RNBridge : MonoBehaviour
             MaskTextureId = NormalizeMaskTextureId(layer.maskTextureId, recipe.maskTextureId, region),
             CameraBackdropAvailable = layer.cameraBackdropAvailable || recipe.cameraBackdropAvailable,
             LightEstimateAvailable = layer.lightEstimateAvailable || recipe.lightEstimateAvailable
-        };
-    }
-
-    private static ParsedRecipeLayer ParseLegacyRecipeLayer(RecipePayload recipe, int payloadBytes)
-    {
-        string region = NormalizeRegion(recipe.region, recipe.layer);
-        string colorHex = NormalizeColor(recipe.color);
-        float opacity = Mathf.Clamp01(recipe.opacity);
-        string textureSample = NormalizeTextureSample(region, recipe.texture, recipe.sample);
-
-        if (!ColorUtility.TryParseHtmlString(colorHex, out Color parsedColor))
-        {
-            throw new ArgumentException("Recipe color is not a valid HTML color: " + colorHex);
-        }
-
-        return new ParsedRecipeLayer
-        {
-            Id = region + "-legacy",
-            Region = region,
-            LegacyLayer = string.IsNullOrWhiteSpace(recipe.layer) ? region : recipe.layer,
-            ColorHex = colorHex,
-            Color = parsedColor,
-            Opacity = opacity,
-            RecipeId = NormalizeRecipeId(recipe.recipeId, string.Empty, region, 0),
-            RecipeBatchId = NormalizeRecipeBatchId(recipe.recipeBatchId, recipe.recipeId),
-            LookId = NormalizeLookId(recipe.lookId, string.Empty),
-            SentAtMs = NormalizeSentAtMs(recipe.sentAtMs, 0.0),
-            ActiveRegions = NormalizeActiveRegions(recipe.activeRegions, string.Empty),
-            LayerCount = recipe.layerCount > 0 ? recipe.layerCount : 1,
-            EnabledLayerCount = recipe.enabledLayerCount > 0 ? recipe.enabledLayerCount : 1,
-            PayloadBytes = payloadBytes,
-            TextureSample = textureSample,
-            TextureMode = NormalizeTextureMode(recipe.textureMode),
-            Intensity = NormalizeIntensity(recipe.intensity),
-            Feather = NormalizeFeather(recipe.feather),
-            BlendMode = NormalizeBlendMode(recipe.blendMode, textureSample),
-            RendererMode = NormalizeRendererMode(recipe.rendererMode, string.Empty),
-            Enabled = true,
-            Coverage = NormalizeNonNegativeFloat(recipe.coverage, 0.0f),
-            Finish = NormalizeOptional(recipe.finish, string.Empty, "validation-placeholder"),
-            TextureAmount = NormalizeTextureAmount(recipe.textureAmount, 0.0f, NormalizeIntensity(recipe.intensity)),
-            Roughness = NormalizeNonNegativeFloat(recipe.roughness, 0.0f),
-            Specular = NormalizeNonNegativeFloat(recipe.specular, 0.0f),
-            SpecularPower = NormalizeNonNegativeFloat(recipe.specularPower, 0.0f),
-            GlossBoost = NormalizeNonNegativeFloat(recipe.glossBoost, 0.0f),
-            Shimmer = NormalizeNonNegativeFloat(recipe.shimmer, 0.0f),
-            ShimmerColor = NormalizeOptional(recipe.shimmerColor, string.Empty, "#FFFFFF"),
-            SkinAdaptive = recipe.skinAdaptive,
-            PreserveDetail = true,
-            MaterialId = NormalizeOptional(recipe.materialId, string.Empty, textureSample + "-validation-material"),
-            ShaderMode = NormalizeOptional(recipe.shaderMode, string.Empty, "unlit-alpha-validation"),
-            PassCount = recipe.passCount > 0 ? recipe.passCount : 1,
-            MaskTextureId = NormalizeMaskTextureId(recipe.maskTextureId, string.Empty, region),
-            CameraBackdropAvailable = recipe.cameraBackdropAvailable,
-            LightEstimateAvailable = recipe.lightEstimateAvailable
         };
     }
 
@@ -1629,10 +1574,18 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeTextureSample(string region, string texture, string sample)
     {
-        string value = !string.IsNullOrWhiteSpace(texture) ? texture : sample;
-        value = string.IsNullOrWhiteSpace(value)
-            ? GetDefaultTextureSample(region)
-            : value.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(texture))
+        {
+            throw new ArgumentException("Recipe texture is missing for region " + region + ".");
+        }
+
+        string value = texture.Trim().ToLowerInvariant();
+        if (!string.IsNullOrWhiteSpace(sample)
+            && sample.Trim().ToLowerInvariant() != value)
+        {
+            throw new ArgumentException(
+                "Recipe sample does not match texture for region " + region + ": " + sample);
+        }
 
         if ((region == "lip" && value == "matte_lip")
             || (region == "cheek" && value == "soft_blush")
@@ -1642,21 +1595,6 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         throw new ArgumentException("Unsupported E4 texture sample for region " + region + ": " + value);
-    }
-
-    private static string GetDefaultTextureSample(string region)
-    {
-        switch (region)
-        {
-            case "lip":
-                return "matte_lip";
-            case "cheek":
-                return "soft_blush";
-            case "eye":
-                return "shimmer_eye";
-            default:
-                return "matte_lip";
-        }
     }
 
     private static string NormalizeTextureMode(string textureMode)
@@ -1711,10 +1649,12 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeBlendMode(string blendMode, string textureSample)
     {
-        string defaultBlendMode = textureSample == "shimmer_eye" ? "screen" : "normal";
-        string value = string.IsNullOrWhiteSpace(blendMode)
-            ? defaultBlendMode
-            : blendMode.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(blendMode))
+        {
+            throw new ArgumentException("Recipe blend mode is missing for texture " + textureSample + ".");
+        }
+
+        string value = blendMode.Trim().ToLowerInvariant();
 
         if (value == "normal" || value == "multiply" || value == "screen")
         {
@@ -1726,7 +1666,14 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeRendererMode(string preferred, string secondary)
     {
-        return "smooth-region-mask";
+        string value = !string.IsNullOrWhiteSpace(preferred) ? preferred : secondary;
+        value = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
+        if (value == "smooth-region-mask")
+        {
+            return value;
+        }
+
+        throw new ArgumentException("Unsupported renderer mode: " + value);
     }
 
     private static string GetPhaseForRenderer(string rendererMode)
@@ -1742,7 +1689,20 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string NormalizeMaskTextureId(string preferred, string secondary, string region)
     {
-        return GetDefaultMaskTextureId(region);
+        if (string.IsNullOrWhiteSpace(preferred))
+        {
+            throw new ArgumentException("Recipe mask texture id is missing for region " + region + ".");
+        }
+
+        string value = preferred.Trim();
+        string expected = GetDefaultMaskTextureId(region);
+        if (value == expected)
+        {
+            return value;
+        }
+
+        throw new ArgumentException(
+            "Unsupported mask texture id for region " + region + ": " + value);
     }
 
     private static string GetDefaultMaskTextureId(string region)

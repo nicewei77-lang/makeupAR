@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using UnityEngine;
@@ -125,6 +126,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " suppressed=" + overlayRenderingSuppressed.ToString().ToLowerInvariant());
     }
 
+    public void ClearRecipesAndHideOverlays()
+    {
+        recipes.Clear();
+        latestRegionResults.Clear();
+        HideAllOverlayViews();
+    }
+
     private void Update()
     {
         if (recipes.Count == 0)
@@ -165,11 +173,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Opacity = opacity,
             Enabled = enabled,
             TextureSample = NormalizeTextureSample(region, textureSample),
-            TextureMode = string.IsNullOrWhiteSpace(textureMode) ? "sample" : textureMode,
-            Intensity = intensity <= 0.0f ? 1.0f : Mathf.Clamp01(intensity),
+            TextureMode = NormalizeTextureMode(textureMode),
+            Intensity = Mathf.Clamp01(intensity),
             Feather = Mathf.Clamp01(feather),
-            BlendMode = string.IsNullOrWhiteSpace(blendMode) ? "normal" : blendMode,
-            MaskTextureId = GetDefaultMaskTextureId(region)
+            BlendMode = NormalizeBlendMode(blendMode),
+            MaskTextureId = NormalizeMaskTextureId(region, maskTextureId)
         };
 
         return ApplyRegionToTrackedFaces(region, true);
@@ -472,12 +480,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         switch (NormalizeRegion(region))
         {
+            case "lip":
+                return "lip-smooth-mask-v1";
             case "cheek":
                 return "cheek-smooth-mask-v1";
             case "eye":
                 return "eye-smooth-mask-v1";
             default:
-                return "lip-smooth-mask-v1";
+                throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
     }
 
@@ -601,16 +611,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (recipe.TextureSample)
         {
             case "soft_blush":
-                sampleAlphaScale = Mathf.Lerp(0.18f, 0.3f, recipe.Intensity);
-                brightnessScale = 0.98f;
+                sampleAlphaScale = Mathf.Lerp(0.26f, 0.42f, recipe.Intensity);
+                brightnessScale = 1.02f;
                 break;
             case "shimmer_eye":
-                sampleAlphaScale = Mathf.Lerp(0.16f, 0.28f, recipe.Intensity);
-                brightnessScale = Mathf.Lerp(0.92f, 1.02f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.24f, 0.42f, recipe.Intensity);
+                brightnessScale = Mathf.Lerp(1.0f, 1.08f, recipe.Intensity);
                 break;
             default:
-                sampleAlphaScale = Mathf.Lerp(0.26f, 0.42f, recipe.Intensity);
-                brightnessScale = 0.9f;
+                sampleAlphaScale = Mathf.Lerp(0.34f, 0.52f, recipe.Intensity);
+                brightnessScale = 0.95f;
                 break;
         }
 
@@ -745,7 +755,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return region;
         }
 
-        return "lip";
+        throw new ArgumentException("Unsupported smooth mask region: " + region);
     }
 
     private static string NormalizeTextureSample(string region, string textureSample)
@@ -761,17 +771,52 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return textureSample;
         }
 
-        switch (region)
+        throw new ArgumentException(
+            "Unsupported smooth mask texture for region " + region + ": " + textureSample);
+    }
+
+    private static string NormalizeTextureMode(string textureMode)
+    {
+        textureMode = string.IsNullOrWhiteSpace(textureMode)
+            ? string.Empty
+            : textureMode.Trim().ToLowerInvariant();
+
+        if (textureMode == "sample")
         {
-            case "lip":
-                return "matte_lip";
-            case "cheek":
-                return "soft_blush";
-            case "eye":
-                return "shimmer_eye";
-            default:
-                return "matte_lip";
+            return textureMode;
         }
+
+        throw new ArgumentException("Unsupported smooth mask texture mode: " + textureMode);
+    }
+
+    private static string NormalizeBlendMode(string blendMode)
+    {
+        blendMode = string.IsNullOrWhiteSpace(blendMode)
+            ? string.Empty
+            : blendMode.Trim().ToLowerInvariant();
+
+        if (blendMode == "normal" || blendMode == "screen" || blendMode == "multiply")
+        {
+            return blendMode;
+        }
+
+        throw new ArgumentException("Unsupported smooth mask blend mode: " + blendMode);
+    }
+
+    private static string NormalizeMaskTextureId(string region, string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        string expected = GetDefaultMaskTextureId(region);
+        if (maskTextureId == expected)
+        {
+            return maskTextureId;
+        }
+
+        throw new ArgumentException(
+            "Unsupported smooth mask texture id for region " + region + ": " + maskTextureId);
     }
 
     private static bool HasUsableUv(ARFace face)

@@ -3,7 +3,7 @@
 Date: 2026-06-22 KST
 Last updated: 2026-06-23 KST
 
-Status: Temporary E7 master plan / E7.0-E7.2 complete / E7.03 P8 runtime sweep evidence collected / E7.3 remains Yellow / E7.4 deferred until gate is satisfied
+Status: Temporary E7 master plan / E7.0-E7.2 complete / E7.03 smooth-mask validation app cleanup accepted / E7.3 remains Yellow / E7.4 requires a new cosmetic-rendering sub-spike plan or explicit Yellow-risk acceptance
 
 ## 0. Purpose
 
@@ -14,6 +14,8 @@ This plan answers:
 > Can the current RN + embedded Unity + AR Foundation + ARKit path produce a visually credible `lip`, `cheek`, and `eye` AR makeup demo if we harden region precision, cosmetic rendering, and performance evidence?
 
 E7 must not claim product-v1 readiness. A Green E7 means the renderer path is strong enough to continue product-readiness hardening. It does not close the accepted M7 lifecycle risk, does not prove commercial color fidelity, and does not start AI/backend/product work.
+
+Latest 2026-06-23 note: the current validation app optimization goal is closed by user acceptance with three retained screenshots at `evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/`. User feedback says the makeup is still generally hard to see and the eye boundary is somewhat lacking, while accepting this level for the current step and deferring the remaining visibility/boundary polish to cosmetic expression/modeling. This accepts the simplified smooth-mask validation app state for the next working baseline; it does not make E7.3 Green or start E7.4 cosmetic rendering.
 
 ## 1. Required Reading
 

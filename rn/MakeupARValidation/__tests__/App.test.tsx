@@ -204,13 +204,17 @@ test('keeps validation modes visually compact before build', async () => {
   });
   enterUnityScreen(renderer!);
 
-  expect(collectText(renderer!)).toContain('Clean');
-  expect(collectText(renderer!)).toContain('HUD');
-  expect(collectText(renderer!)).toContain('Debug');
-  expect(collectText(renderer!)).toContain('Regions');
-  expect(collectText(renderer!)).toContain('AR Status');
-  expect(collectText(renderer!)).toContain('active=lip,cheek,eye');
-  expect(collectText(renderer!)).not.toContain('E7.03 HUD');
+  const hudText = collectText(renderer!);
+  expect(hudText).toContain('Clean');
+  expect(hudText).toContain('HUD');
+  expect(hudText).toContain('Debug');
+  expect(hudText).toContain('Regions');
+  expect(hudText).toContain('AR Status');
+  expect(hudText.indexOf('Regions')).toBeLessThan(
+    hudText.indexOf('AR Status'),
+  );
+  expect(hudText).toContain('active=lip,cheek,eye');
+  expect(hudText).not.toContain('E7.03 HUD');
 
   pressByText(renderer!, 'Clean');
   expect(collectText(renderer!)).not.toContain('Capture ' + 'Pair');

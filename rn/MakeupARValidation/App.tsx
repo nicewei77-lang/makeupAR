@@ -39,7 +39,7 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'normal',
-    intensity: 0.46,
+    intensity: 0.58,
     feather: 0.18,
   },
   {
@@ -48,8 +48,8 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'normal',
-    intensity: 0.38,
-    feather: 0.42,
+    intensity: 0.56,
+    feather: 0.46,
   },
   {
     name: 'shimmer_eye',
@@ -57,8 +57,8 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'eye',
     textureMode: 'sample',
     blendMode: 'screen',
-    intensity: 0.36,
-    feather: 0.34,
+    intensity: 0.58,
+    feather: 0.38,
   },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
@@ -98,17 +98,17 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
 const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.38,
+    opacity: 0.52,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
-    opacity: 0.28,
+    opacity: 0.44,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
   eye: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.3,
+    opacity: 0.48,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
 };
@@ -961,16 +961,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           </View>
         </View>
 
-        <CompactEvidenceHud
-          validationViewMode={validationViewMode}
-          activeRegionSummary={activeRegionSummary}
-          focusedRegion={focusedRegion}
-          latestMetric={latestMetric}
-          latestLifecycle={latestLifecycle}
-          latestRecipe={latestRecipe}
-          recipeLatencyMs={recipeLatencyMs}
-        />
-
         {showFullDebug && (
           <View style={styles.debugPanel}>
             <Text style={styles.debugMetaText}>
@@ -1052,6 +1042,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 {`active=${activeRegionSummary} / focus=${focusedRegion}`}
               </Text>
             </View>
+
+            <CompactEvidenceHud
+              validationViewMode={validationViewMode}
+              activeRegionSummary={activeRegionSummary}
+              focusedRegion={focusedRegion}
+              latestMetric={latestMetric}
+              latestLifecycle={latestLifecycle}
+              latestRecipe={latestRecipe}
+              recipeLatencyMs={recipeLatencyMs}
+            />
 
             <View style={styles.regionButtonRow}>
               {RECIPE_REGION_OPTIONS.map(regionOption => {
@@ -2082,33 +2082,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0,
   },
-  captureButton: {
-    alignSelf: 'stretch',
-    minHeight: 44,
-    minWidth: 0,
-    borderRadius: 8,
-    backgroundColor: 'rgba(217, 75, 116, 0.88)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.48)',
-    paddingHorizontal: 8,
-  },
-  captureDock: {
-    alignSelf: 'stretch',
-    marginBottom: 16,
-  },
-  captureButtonPending: {
-    backgroundColor: 'rgba(55, 65, 81, 0.88)',
-  },
-  captureButtonText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 0,
-    textAlign: 'center',
-    textTransform: 'uppercase',
-  },
   viewModeRow: {
     minHeight: 40,
     flexDirection: 'row',
@@ -2143,19 +2116,17 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   compactHud: {
-    alignSelf: 'flex-start',
-    width: '58%',
-    maxWidth: 320,
-    borderRadius: 8,
-    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+    alignSelf: 'stretch',
+    borderRadius: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.22)',
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    gap: 2,
+    borderColor: 'rgba(255, 255, 255, 0.16)',
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    gap: 1,
   },
   compactHudFull: {
-    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
   },
   compactHudHeader: {
     flexDirection: 'row',
@@ -2165,25 +2136,25 @@ const styles = StyleSheet.create({
   },
   compactHudLabel: {
     color: '#D1FAE5',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0,
   },
   compactHudBadge: {
     color: '#111827',
     backgroundColor: '#FDE68A',
-    borderRadius: 8,
+    borderRadius: 6,
     overflow: 'hidden',
     paddingHorizontal: 6,
     paddingVertical: 2,
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: '900',
     letterSpacing: 0,
   },
   compactHudText: {
     color: '#F9FAFB',
-    fontSize: 10,
-    lineHeight: 14,
+    fontSize: 9,
+    lineHeight: 12,
     letterSpacing: 0,
   },
   debugPanel: {

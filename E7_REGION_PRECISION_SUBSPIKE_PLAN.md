@@ -1,8 +1,18 @@
 # E7.03 Boundary Engine Quality Experiment Plan
 
 Date: 2026-06-22 KST
+Last updated: 2026-06-23 KST
 
-Status: Temporary E7.03 / E7.3 v2.1 planning document / Phase 0 Contract Reset complete
+Status: Temporary E7.03 / E7.3 v2.1 planning document / smooth-mask validation app cleanup accepted for current goal / E7.3 remains Yellow
+
+Latest result:
+
+- The 2026-06-23 smooth-mask validation app cleanup is accepted by the user for the current optimization goal.
+- Retained media for this acceptance pass is limited to three screenshots under `evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/`.
+- The accepted app surface uses fixed `smooth-region-mask`, no candidate/variant UI, three batched `lip`/`cheek`/`eye` layers, independent region toggles, and Compact HUD inside the bottom `Regions` panel.
+- User feedback on the retained screenshots: the makeup is still generally hard to see and the eye boundary is a little weak; this stage ideally should make covered region scope obvious. The user accepts the result for now and defers the remaining visibility/boundary polish to the next cosmetic expression/modeling work.
+- This closes the app cleanup goal, not the full E7.03 Q3 overlay-ready Green gate. Structured motion/scenario review is still required before promoting E7.3.
+- Before E7.4 cosmetic modeling starts, create or update `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` and explicitly record the accepted E7.3 Yellow boundary risk.
 
 ## 1. One-line Decision
 
