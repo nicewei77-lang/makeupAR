@@ -123,7 +123,6 @@ public sealed class RNBridge : MonoBehaviour
     private sealed class RegionOverlayVisibilityPayload
     {
         public bool visible = true;
-        public bool faceDebugSurfaceVisible = true;
         public string validationViewMode;
         public string reason;
     }
@@ -183,6 +182,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Intensity;
         public float Feather;
         public string RecipeBatchId = "none";
+        public string LookId = "smooth_region_mask";
         public string ActiveRegions = "none";
         public int LayerCount;
         public int EnabledLayerCount;
@@ -400,7 +400,6 @@ public sealed class RNBridge : MonoBehaviour
             RegionOverlayVisibilityPayload payload =
                 JsonUtility.FromJson<RegionOverlayVisibilityPayload>(json);
             bool visible = payload == null || payload.visible;
-            bool faceDebugSurfaceVisible = visible && (payload == null || payload.faceDebugSurfaceVisible);
             string validationViewMode = payload != null ? NormalizeOptional(payload.validationViewMode) : "unknown";
             bool unityDebugVisible = visible && validationViewMode == "full";
 
@@ -411,7 +410,7 @@ public sealed class RNBridge : MonoBehaviour
             }
 
             regionMaskOverlay.SetOverlayRenderingSuppressed(!visible);
-            SetFaceRenderersSuppressed(!faceDebugSurfaceVisible);
+            SetFaceRenderersSuppressed(true);
 
             if (statusReporter != null)
             {
@@ -421,8 +420,7 @@ public sealed class RNBridge : MonoBehaviour
             Debug.Log(
                 "[E7] region_overlay_visibility"
                 + " visible=" + visible.ToString().ToLowerInvariant()
-                + " faceDebugSurfaceVisible=" + faceDebugSurfaceVisible.ToString().ToLowerInvariant()
-                + " faceRenderersSuppressed=" + (!faceDebugSurfaceVisible).ToString().ToLowerInvariant()
+                + " faceDebugSurfaceSuppressed=true"
                 + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
                 + " validationViewMode=" + validationViewMode
                 + " reason=" + NormalizeOptional(payload != null ? payload.reason : string.Empty));
@@ -811,6 +809,7 @@ public sealed class RNBridge : MonoBehaviour
             Intensity = result.Intensity,
             Feather = result.Feather,
             RecipeBatchId = layer.RecipeBatchId,
+            LookId = layer.LookId,
             ActiveRegions = layer.ActiveRegions,
             LayerCount = layer.LayerCount,
             EnabledLayerCount = layer.EnabledLayerCount,

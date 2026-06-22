@@ -260,7 +260,7 @@ test('keeps Unity face debug surface disabled across view modes', async () => {
 
   expect(latestVisibilityPostCall).toBeTruthy();
   expect(latestVisibilityPostCall).toContain('visible=true');
-  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceVisible=false');
+  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceSuppressed=true');
   expect(latestVisibilityPostCall).toContain('validationViewMode=full');
 
   pressByText(renderer!, 'Clean');
@@ -271,7 +271,7 @@ test('keeps Unity face debug surface disabled across view modes', async () => {
 
   expect(latestVisibilityPostCall).toBeTruthy();
   expect(latestVisibilityPostCall).toContain('visible=false');
-  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceVisible=false');
+  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceSuppressed=true');
   expect(latestVisibilityPostCall).toContain('validationViewMode=clean');
 });
 

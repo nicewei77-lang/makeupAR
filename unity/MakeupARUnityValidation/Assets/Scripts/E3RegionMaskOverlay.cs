@@ -248,7 +248,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             }
 
             result.FaceCount++;
-            int triangleCount;
+            int triangleCount = 0;
             bool meshApplied = useMeshMasks && TryUpdateFullFaceUvMesh(face, view, recipe, out triangleCount);
             result.MeshTriangleCount += triangleCount;
             result.MaskTriangleCount += triangleCount;

@@ -634,10 +634,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const postRegionOverlayVisibility = useCallback(
     (visible: boolean, reason: string) => {
-      const faceDebugSurfaceVisible = false;
       const payloadJson = JSON.stringify({
         visible,
-        faceDebugSurfaceVisible,
         validationViewMode,
         reason,
         entryCount,
@@ -646,7 +644,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       console.log(
         '[E7] rn_region_overlay_visibility_post',
         `visible=${visible}`,
-        `faceDebugSurfaceVisible=${faceDebugSurfaceVisible}`,
+        'faceDebugSurfaceSuppressed=true',
         `validationViewMode=${validationViewMode}`,
         `reason=${reason}`,
       );
