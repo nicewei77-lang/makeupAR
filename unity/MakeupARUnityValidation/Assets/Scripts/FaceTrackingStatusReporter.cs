@@ -234,10 +234,10 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
         string smoothMaskLogFields = rnBridge != null
             ? rnBridge.BuildE7SmoothMaskStateLogFields()
-            : " rendererMode=e7-reference-uv-alpha lookId=smooth_region_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
+            : " rendererMode=smooth-region-mask lookId=smooth_region_mask region=none activeRegions=none texture=none sample=none color=none opacity=0";
         string smoothMaskJsonFragment = rnBridge != null
             ? rnBridge.BuildE7SmoothMaskStateJsonFragment()
-            : "\"rendererMode\":\"e7-reference-uv-alpha\",\"lookId\":\"smooth_region_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
+            : "\"rendererMode\":\"smooth-region-mask\",\"lookId\":\"smooth_region_mask\",\"region\":\"none\",\"activeRegions\":\"none\",\"texture\":\"none\",\"sample\":\"none\",\"color\":\"none\",\"opacity\":0";
 
         Debug.Log(
             "[E7] metric_sample"
@@ -1012,9 +1012,9 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + ",\"activeRegionSummary\":\"none\""
             + ",\"appliedTextureSampleSummary\":\"none\""
             + ",\"regions\":{"
-            + "\"lip\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
-            + ",\"cheek\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
-            + ",\"eye\":{\"available\":false,\"maskSource\":\"arface_uv\",\"qaStatus\":\"unavailable\"}"
+            + "\"lip\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
+            + ",\"cheek\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
+            + ",\"eye\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
             + "}";
     }
 

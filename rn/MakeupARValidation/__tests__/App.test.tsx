@@ -187,8 +187,8 @@ test('does not render old selector controls', async () => {
   expect(text).not.toContain('cand' + 'idate');
   expect(text).not.toContain('Vari' + 'ant');
   expect(text).not.toContain('vari' + 'ant');
-  expect(text).not.toContain('soft-wide');
-  expect(text).not.toContain('core');
+  expect(text).not.toContain('soft-' + 'wide');
+  expect(text).not.toContain('co' + 're');
 
   pressByText(renderer!, 'Debug');
   const debugText = collectText(renderer!);
@@ -213,7 +213,7 @@ test('keeps validation modes visually compact before build', async () => {
   expect(collectText(renderer!)).not.toContain('E7.03 HUD');
 
   pressByText(renderer!, 'Clean');
-  expect(collectText(renderer!)).toContain('Capture Pair');
+  expect(collectText(renderer!)).not.toContain('Capture ' + 'Pair');
   expect(collectText(renderer!)).not.toContain('Regions');
   expect(collectText(renderer!)).not.toContain('E7.03 HUD');
 
@@ -239,7 +239,7 @@ test('posts smooth mask renderer by default before build', async () => {
   );
 
   expect(recipePostCall).toBeTruthy();
-  expect(recipePostCall).toContain('rendererMode=e7-reference-uv-alpha');
+  expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
 });

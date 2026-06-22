@@ -39,8 +39,8 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'normal',
-    intensity: 0.72,
-    feather: 0.04,
+    intensity: 0.46,
+    feather: 0.18,
   },
   {
     name: 'soft_blush',
@@ -48,8 +48,8 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'normal',
-    intensity: 0.6,
-    feather: 0.32,
+    intensity: 0.38,
+    feather: 0.42,
   },
   {
     name: 'shimmer_eye',
@@ -57,8 +57,8 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'eye',
     textureMode: 'sample',
     blendMode: 'screen',
-    intensity: 0.82,
-    feather: 0.08,
+    intensity: 0.36,
+    feather: 0.34,
   },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
@@ -72,7 +72,7 @@ const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
-type RendererMode = 'e7-reference-uv-alpha';
+type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
   | 'lip-smooth-mask-v1'
   | 'cheek-smooth-mask-v1'
@@ -87,7 +87,6 @@ type ActiveRegionMap = Record<RecipeRegion, boolean>;
 
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
-const DEFAULT_RECIPE_OPACITY = 0.65;
 const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
   RecipeTextureSample
@@ -99,17 +98,17 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
 const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.72,
+    opacity: 0.38,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
-    opacity: 0.46,
+    opacity: 0.28,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
   eye: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: DEFAULT_RECIPE_OPACITY,
+    opacity: 0.3,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
 };
@@ -125,14 +124,13 @@ const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
 };
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-const DEFAULT_RENDERER_MODE: RendererMode = 'e7-reference-uv-alpha';
+const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
   'face_lifecycle',
   'face_feature_snapshot',
   'e7_metric_sample',
-  'e7_reference_capture',
   'recipe_applied',
 ] as const;
 
@@ -262,12 +260,8 @@ type UnityEventPayload = {
   topologyAuditStatus?: string;
   topologyAuditSummary?: string;
   boundaryRenderer?: string;
-  capturePairId?: string;
-  relativeDirectory?: string;
   detail?: string;
   frameWidth?: number;
-  coordinateSpaceValidated?: boolean;
-  coordinateSpaceValidationStatus?: string;
   [key: string]: unknown;
 };
 
@@ -443,11 +437,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [unityEventStatus, setUnityEventStatus] = useState<UnityEventStatusMap>(
     {},
   );
-  const [captureRequestSequence, setCaptureRequestSequence] = useState(1);
-  const [pendingCapturePairId, setPendingCapturePairId] = useState<
-    string | null
-  >(null);
-
   useEffect(() => {
     console.log(
       '[E7] unity_screen_mounted',
@@ -658,51 +647,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [entryCount, validationViewMode],
   );
 
-  const postReferenceCaptureRequest = useCallback(() => {
-    if (pendingCapturePairId) {
-      console.log(
-        '[E7] reference_capture_request_ignored',
-        `pendingCapturePairId=${pendingCapturePairId}`,
-      );
-      return;
-    }
-
-    const requestedAtMs = Date.now();
-    const capturePairId = buildReferenceCapturePairId(
-      captureRequestSequence,
-      requestedAtMs,
-    );
-    const requestJson = JSON.stringify({
-      capturePairId,
-      requestedAtMs,
-      requestedBy: 'rn-validation-ui',
-      purpose: 'synchronized_capture_one_frame_common_lip_eye_cheek',
-    });
-
-    console.log(
-      '[E7] reference_capture_request_post',
-      `capturePairId=${capturePairId}`,
-      `requestedAtMs=${requestedAtMs}`,
-      'regions=lip,eye,cheek',
-      'purpose=synchronized_capture_one_frame_common_lip_eye_cheek',
-    );
-
-    setPendingCapturePairId(capturePairId);
-    setCaptureRequestSequence(sequence => sequence + 1);
-    setValidationViewMode('clean');
-    postRegionOverlayVisibility(false, 'capture_pair_preclean');
-
-    unityRef.current?.postMessage(
-      'RNBridge',
-      'CaptureE7ReferenceFrameJson',
-      requestJson,
-    );
-  }, [
-    captureRequestSequence,
-    pendingCapturePairId,
-    postRegionOverlayVisibility,
-  ]);
-
   const handleUnityMessage = useCallback(
     (event: UnityMessageEvent) => {
       const rawMessage = String(event.nativeEvent.message ?? '');
@@ -739,17 +683,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           postRecipeAck(parsed, receivedAtMs);
         }
 
-        if (parsed.type === 'e7_reference_capture') {
-          setPendingCapturePairId(null);
-        }
-
         const logPrefix =
           parsed.type === 'face_feature_snapshot'
             ? '[E5] rn_face_feature_snapshot_received'
             : parsed.type === 'e7_metric_sample'
             ? '[E7] rn_metric_sample_received'
-            : parsed.type === 'e7_reference_capture'
-            ? '[E7] rn_reference_capture_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -821,7 +759,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const opacity = selectedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
-  const latestCapture = unityEventStatus.e7_reference_capture?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
   const latestRecipe = unityEventStatus.recipe_applied?.parsed;
   const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
@@ -854,7 +791,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         focusedRegion,
         activeRegions,
         latestMetric,
-        latestCapture,
         latestLifecycle,
         latestRecipe,
         latestSnapshot,
@@ -865,7 +801,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       lastUnityEvent,
       latestLifecycle,
       latestMetric,
-      latestCapture,
       latestRecipe,
       latestSnapshot,
       mountedAt,
@@ -1025,25 +960,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             })}
           </View>
         </View>
-
-        {validationViewMode === 'clean' && (
-          <View style={styles.captureDock}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={Boolean(pendingCapturePairId)}
-              style={({ pressed }) => [
-                styles.captureButton,
-                pendingCapturePairId && styles.captureButtonPending,
-                pressed && styles.closeButtonPressed,
-              ]}
-              onPress={postReferenceCaptureRequest}
-            >
-              <Text style={styles.captureButtonText}>
-                {pendingCapturePairId ? 'Capturing' : 'Capture Pair'}
-              </Text>
-            </Pressable>
-          </View>
-        )}
 
         <CompactEvidenceHud
           validationViewMode={validationViewMode}
@@ -1462,7 +1378,7 @@ function E7StatusPanel({
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `mask=${String(metric.maskSource ?? 'smooth_uv_mask')} uv=${String(
+          ? `mask=${String(metric.maskSource ?? 'smooth_region_mask')} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
             )} triangles=${String(
               metric.regionMaskTriangles ?? metric.maskTriangles ?? 'n/a',
@@ -1561,7 +1477,6 @@ type EvidenceMetadataInput = {
   focusedRegion: RecipeRegion;
   activeRegions: ActiveRegionMap;
   latestMetric?: UnityEventPayload;
-  latestCapture?: UnityEventPayload;
   latestLifecycle?: UnityEventPayload;
   latestRecipe?: UnityEventPayload;
   latestSnapshot?: UnityEventPayload;
@@ -1576,7 +1491,6 @@ function buildEvidenceMetadataLines({
   focusedRegion,
   activeRegions,
   latestMetric,
-  latestCapture,
   latestLifecycle,
   latestRecipe,
   latestSnapshot,
@@ -1623,11 +1537,6 @@ function buildEvidenceMetadataLines({
     )} frameTimeMs=${formatMetricNumber(
       latestMetric?.averageFrameTimeMs,
     )} latencyMs=${formatMetricNumber(latencyMs)}`,
-    `capturePair=${String(
-      latestCapture?.capturePairId ?? 'pair_face_0001',
-    )} captureStatus=${String(
-      latestCapture?.status ?? 'not_requested',
-    )} captureDir=${String(latestCapture?.relativeDirectory ?? 'n/a')}`,
     `stateAction=${String(
       latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
     )} visualDecisionNotes=pending_runtime_review`,
@@ -1663,8 +1572,6 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `face_feature_snapshot ${formatFaceFeatureSnapshotSummary(event)}`;
     case 'e7_metric_sample':
       return `e7_metric_sample ${formatE7MetricSummary(event)}`;
-    case 'e7_reference_capture':
-      return `e7_reference_capture ${formatE7ReferenceCaptureSummary(event)}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -1713,34 +1620,9 @@ function formatUnityEventTypeStatus(
       return `e7_metric_sample: ${formatE7MetricSummary(parsed)} ${
         event.receivedAt
       }`;
-    case 'e7_reference_capture':
-      return `e7_reference_capture: ${formatE7ReferenceCaptureSummary(
-        parsed,
-      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
-}
-
-function formatE7ReferenceCaptureSummary(event: UnityEventPayload) {
-  return `status=${String(event.status ?? 'unknown')} pair=${String(
-    event.capturePairId ?? 'pair_face_0001',
-  )} dir=${String(event.relativeDirectory ?? 'n/a')} v=${String(
-    event.meshVertexCount ?? 'n/a',
-  )} i=${String(event.meshIndexCount ?? 'n/a')} uv=${String(
-    event.meshUvCount ?? 'n/a',
-  )} coordinate=${String(
-    event.coordinateSpaceValidationStatus ?? 'pending_projected_mesh_overlay_review',
-  )} detail=${String(event.detail ?? 'none')}`;
-}
-
-function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
-  const timestamp = new Date(requestedAtMs)
-    .toISOString()
-    .replace(/[-:]/g, '')
-    .replace(/\.\d{3}Z$/, 'Z');
-
-  return `pair_face_${timestamp}_${String(sequence).padStart(2, '0')}`;
 }
 
 function formatE7MetricSummary(event: UnityEventPayload) {
@@ -1750,7 +1632,7 @@ function formatE7MetricSummary(event: UnityEventPayload) {
     event.memoryMetricAvailable ?? false,
   )} thermal=${String(event.thermalEvidenceType ?? 'n/a')} phase=${String(
     event.phase ?? 'smooth_mask',
-  )} mode=${String(event.rendererMode ?? 'e7-reference-uv-alpha')} look=${String(
+  )} mode=${String(event.rendererMode ?? 'smooth-region-mask')} look=${String(
     event.lookId ?? 'smooth_region_mask',
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
@@ -1774,7 +1656,7 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
     )}`,
     `phase=${String(event.phase ?? 'smooth_mask')}`,
     `timestampMs=${receivedAtMs}`,
-    `rendererMode=${String(event.rendererMode ?? 'e7-reference-uv-alpha')}`,
+    `rendererMode=${String(event.rendererMode ?? 'smooth-region-mask')}`,
     `lookId=${String(event.lookId ?? 'smooth_region_mask')}`,
     `recipeId=${String(event.recipeId ?? 'none')}`,
     `recipeBatchId=${String(event.recipeBatchId ?? event.recipeId ?? 'none')}`,

@@ -85,9 +85,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private bool useMeshMasks = true;
 
-    private const string RendererMode = "e7-reference-uv-alpha";
-    private const string MaskSource = "smooth_uv_mask";
-    private const string BoundaryRenderer = "shader_alpha";
+    private const string RendererMode = "smooth-region-mask";
+    private const string MaskSource = "smooth_region_mask";
+    private const string BoundaryRenderer = "smooth_alpha_mask";
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -242,7 +242,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 SetViewVisibility(view, false);
                 if (overlayRenderingSuppressed)
                 {
-                    result.StateAction = "suppressed_for_clean_reference_capture";
+                    result.StateAction = "suppressed_for_clean_view";
                 }
                 continue;
             }
@@ -601,16 +601,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (recipe.TextureSample)
         {
             case "soft_blush":
-                sampleAlphaScale = Mathf.Lerp(0.32f, 0.52f, recipe.Intensity);
-                brightnessScale = 1.02f;
+                sampleAlphaScale = Mathf.Lerp(0.18f, 0.3f, recipe.Intensity);
+                brightnessScale = 0.98f;
                 break;
             case "shimmer_eye":
-                sampleAlphaScale = Mathf.Lerp(0.36f, 0.58f, recipe.Intensity);
-                brightnessScale = Mathf.Lerp(1.0f, 1.12f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.16f, 0.28f, recipe.Intensity);
+                brightnessScale = Mathf.Lerp(0.92f, 1.02f, recipe.Intensity);
                 break;
             default:
-                sampleAlphaScale = Mathf.Lerp(0.55f, 0.76f, recipe.Intensity);
-                brightnessScale = 0.96f;
+                sampleAlphaScale = Mathf.Lerp(0.26f, 0.42f, recipe.Intensity);
+                brightnessScale = 0.9f;
                 break;
         }
 
@@ -873,7 +873,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " featherUvNormalized=" + result.MaskFeatherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " regionDecision=smooth_mask_runtime"
-            + " smoothing=shader_alpha_mask"
+            + " smoothing=smooth_alpha_mask"
             + " regionsInScope=lip,cheek,eye");
     }
 
