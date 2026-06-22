@@ -1413,6 +1413,11 @@ public sealed class RNBridge : MonoBehaviour
             return "e7-arface-authored-atlas";
         }
 
+        if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
+        {
+            return "e7-reference-uv-atlas";
+        }
+
         if (candidate == "e7-arface-uv-candidate" || candidate == "e7-candidate" || candidate == "candidate")
         {
             return "e7-arface-uv-candidate";
@@ -1423,7 +1428,7 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string GetPhaseForRenderer(string rendererMode)
     {
-        if (rendererMode == "e7-arface-authored-atlas")
+        if (rendererMode == "e7-arface-authored-atlas" || rendererMode == "e7-reference-uv-atlas")
         {
             return "region_precision_atlas";
         }
@@ -1434,6 +1439,11 @@ public sealed class RNBridge : MonoBehaviour
     private static string GetRunIdForRenderer(string rendererMode)
     {
         string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        if (rendererMode == "e7-reference-uv-atlas")
+        {
+            return "e7-reference-uv-atlas-" + date;
+        }
+
         if (rendererMode == "e7-arface-authored-atlas")
         {
             return "e7-region-precision-atlas-" + date;
@@ -1447,11 +1457,17 @@ public sealed class RNBridge : MonoBehaviour
     private static bool IsRegionPrecisionRenderer(string rendererMode)
     {
         return rendererMode == "e7-arface-uv-candidate"
-            || rendererMode == "e7-arface-authored-atlas";
+            || rendererMode == "e7-arface-authored-atlas"
+            || rendererMode == "e7-reference-uv-atlas";
     }
 
     private static string GetCandidateIdForRenderer(string rendererMode)
     {
+        if (rendererMode == "e7-reference-uv-atlas")
+        {
+            return "arface-reference-uv-atlas";
+        }
+
         if (rendererMode == "e7-arface-authored-atlas")
         {
             return "arface-authored-atlas";
@@ -1477,6 +1493,11 @@ public sealed class RNBridge : MonoBehaviour
             return candidate == "arface-authored-atlas" ? candidate : "arface-authored-atlas";
         }
 
+        if (rendererMode == "e7-reference-uv-atlas")
+        {
+            return candidate == "arface-reference-uv-atlas" ? candidate : "arface-reference-uv-atlas";
+        }
+
         if (rendererMode == "e7-arface-uv-candidate")
         {
             return candidate == "e7-procedural-arface-uv" ? candidate : "e7-procedural-arface-uv";
@@ -1491,6 +1512,33 @@ public sealed class RNBridge : MonoBehaviour
         candidate = string.IsNullOrWhiteSpace(candidate)
             ? GetDefaultVariantId(region, rendererMode)
             : candidate.Trim().ToLowerInvariant();
+
+        if (rendererMode == "e7-reference-uv-atlas")
+        {
+            switch (region)
+            {
+                case "lip":
+                    if (candidate == "lip-uvref-v0-core" || candidate == "lip-uvref-v0-balanced" || candidate == "lip-uvref-v0-soft-wide")
+                    {
+                        return candidate;
+                    }
+                    return "lip-uvref-v0-balanced";
+                case "cheek":
+                    if (candidate == "cheek-uvref-v0-core" || candidate == "cheek-uvref-v0-balanced" || candidate == "cheek-uvref-v0-soft-wide")
+                    {
+                        return candidate;
+                    }
+                    return "cheek-uvref-v0-balanced";
+                case "eye":
+                    if (candidate == "eye-uvref-v0-core" || candidate == "eye-uvref-v0-balanced" || candidate == "eye-uvref-v0-soft-wide")
+                    {
+                        return candidate;
+                    }
+                    return "eye-uvref-v0-balanced";
+                default:
+                    return "lip-uvref-v0-balanced";
+            }
+        }
 
         if (rendererMode != "e7-arface-authored-atlas")
         {
@@ -1534,6 +1582,19 @@ public sealed class RNBridge : MonoBehaviour
                     return "eye-band-v0-balanced";
                 default:
                     return "lip-ring-v0-balanced";
+            }
+        }
+
+        if (rendererMode == "e7-reference-uv-atlas")
+        {
+            switch (region)
+            {
+                case "cheek":
+                    return "cheek-uvref-v0-balanced";
+                case "eye":
+                    return "eye-uvref-v0-balanced";
+                default:
+                    return "lip-uvref-v0-balanced";
             }
         }
 

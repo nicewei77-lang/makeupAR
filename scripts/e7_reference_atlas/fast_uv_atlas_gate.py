@@ -65,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sample-stride",
         type=int,
-        default=2,
+        default=1,
         help="Screen-space pixel stride used while rasterizing triangles.",
     )
     parser.add_argument(
@@ -527,7 +527,7 @@ def main() -> int:
     }
 
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    output_root = args.output or (atlas_root / f"fast-gate-{timestamp}")
+    output_root = (args.output or (atlas_root / f"fast-gate-{timestamp}")).resolve()
     output_root.mkdir(parents=True, exist_ok=True)
     for dirname in ("round_trip", "cross_frame", "uv_overlap", "candidate_preview", "atlases"):
         (output_root / dirname).mkdir(exist_ok=True)

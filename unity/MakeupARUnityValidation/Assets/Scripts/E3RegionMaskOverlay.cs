@@ -11,7 +11,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         BaselineCentroid,
         E7ArFaceUvCandidate,
-        E7ArFaceAuthoredAtlas
+        E7ArFaceAuthoredAtlas,
+        E7ReferenceUvAtlas
     }
 
     public struct RegionApplyResult
@@ -48,6 +49,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string AtlasVertexLabelSummary;
         public bool AtlasDataFallback;
         public string AtlasFallbackReason;
+        public int AtlasSourceFrameCount;
+        public int AtlasGoldMaskCount;
+        public int AtlasSilverReferenceCount;
+        public int AtlasUvResolution;
+        public float AtlasThreshold;
+        public int AtlasFeatherUvPixels;
+        public float AtlasFeatherUvNormalized;
+        public string AtlasCalibrationScoreSummary;
+        public string AtlasCombineMode;
+        public string AtlasMorphology;
     }
 
     private sealed class RegionRecipeState
@@ -107,6 +118,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float VertexPaddingY;
         public int MinVertexHits;
         public bool MirrorX;
+        public bool IsReferenceUvAtlas;
+        public string ProbabilityResourcePath;
+        public int SourceFrameCount;
+        public int GoldMaskCount;
+        public int SilverReferenceCount;
+        public int UvResolution;
+        public float Threshold;
+        public int FeatherUvPixels;
+        public float FeatherUvNormalized;
+        public string CalibrationScoreSummary;
+        public string CombineMode;
+        public string Morphology;
+        public string PromotionReason;
     }
 
     [SerializeField] private ARFaceManager faceManager;
@@ -114,6 +138,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private const string AtlasVersion = "arface-authored-atlas-mvp-v0.1";
     private const string AtlasLabelMapVersion = "manual-label-map-v0.1";
+    private const string ReferenceAtlasVersion = "e7ref-fastgate-20260622T160307Z-v0";
+    private const string ReferenceAtlasLabelMapVersion = "reference-uv-atlas-fastgate-20260622T160307Z";
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -123,6 +149,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, Texture2D>();
     private readonly Dictionary<string, RegionApplyResult> latestRegionResults =
         new Dictionary<string, RegionApplyResult>();
+    private static readonly Dictionary<string, Texture2D> ReferenceAtlasTextures =
+        new Dictionary<string, Texture2D>();
     private bool overlayRenderingSuppressed;
 
     public void Configure(ARFaceManager manager)
@@ -185,8 +213,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         textureSample = NormalizeTextureSample(region, textureSample);
         RegionMaskMode maskMode = NormalizeMaskMode(rendererMode);
         string normalizedRendererMode = FormatRendererMode(maskMode);
-        AtlasVariantDefinition atlasVariant = maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas
-            ? ResolveAtlasVariant(region, variantId)
+        AtlasVariantDefinition atlasVariant = IsAtlasMaskMode(maskMode)
+            ? ResolveAtlasVariant(region, variantId, maskMode)
             : null;
 
         recipes[region] = new RegionRecipeState
@@ -249,7 +277,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             TopologyAuditSummary = "none",
             AtlasVertexLabelSummary = "none",
             AtlasDataFallback = false,
-            AtlasFallbackReason = "none"
+            AtlasFallbackReason = "none",
+            AtlasSourceFrameCount = 0,
+            AtlasGoldMaskCount = 0,
+            AtlasSilverReferenceCount = 0,
+            AtlasUvResolution = 0,
+            AtlasThreshold = 0.0f,
+            AtlasFeatherUvPixels = 0,
+            AtlasFeatherUvNormalized = 0.0f,
+            AtlasCalibrationScoreSummary = "none",
+            AtlasCombineMode = "none",
+            AtlasMorphology = "none"
         };
 
         if (!recipes.TryGetValue(region, out RegionRecipeState recipe))
@@ -297,7 +335,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.MeshVertexCount = Mathf.Max(result.MeshVertexCount, GetVertexCount(face));
             result.MeshIndexCount = Mathf.Max(result.MeshIndexCount, GetIndexCount(face));
             result.MeshUvCount = Mathf.Max(result.MeshUvCount, GetUvCount(face));
-            PopulateAtlasEvidence(face, recipe, result);
+            PopulateAtlasEvidence(face, recipe, ref result);
 
             if (overlayRenderingSuppressed)
             {
@@ -388,6 +426,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + " usedFallback=" + result.UsedFallback.ToString().ToLowerInvariant()
                 + " atlasDataFallback=" + result.AtlasDataFallback.ToString().ToLowerInvariant()
                 + " atlasFallbackReason=" + result.AtlasFallbackReason
+                + " atlasSourceFrameCount=" + result.AtlasSourceFrameCount.ToString(CultureInfo.InvariantCulture)
+                + " goldMaskCount=" + result.AtlasGoldMaskCount.ToString(CultureInfo.InvariantCulture)
+                + " silverReferenceCount=" + result.AtlasSilverReferenceCount.ToString(CultureInfo.InvariantCulture)
+                + " uvResolution=" + result.AtlasUvResolution.ToString(CultureInfo.InvariantCulture)
+                + " threshold=" + result.AtlasThreshold.ToString("0.###", CultureInfo.InvariantCulture)
+                + " featherUvPixels=" + result.AtlasFeatherUvPixels.ToString(CultureInfo.InvariantCulture)
+                + " featherUvNormalized=" + result.AtlasFeatherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
+                + " calibrationScore=" + SanitizeLogValue(result.AtlasCalibrationScoreSummary)
+                + " combineMode=" + result.AtlasCombineMode
+                + " morphology=" + result.AtlasMorphology
                 + " atlasVersion=" + result.AtlasVersion
                 + " atlasLabelMapVersion=" + result.AtlasLabelMapVersion
                 + " atlasLabelGroup=" + result.AtlasLabelGroup
@@ -741,9 +789,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return false;
         }
 
+        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas)
+        {
+            AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(region, variantId, maskMode);
+            return IsReferenceAtlasTriangleInRegion(atlasVariant, uvCentroid);
+        }
+
         if (maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas)
         {
-            AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(region, variantId);
+            AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(region, variantId, maskMode);
             return IsAuthoredAtlasTriangleInRegion(
                 region,
                 atlasVariant,
@@ -842,6 +896,55 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         return IsEllipse(point, atlasVariant.CenterX, atlasVariant.CenterY, atlasVariant.RadiusX, atlasVariant.RadiusY);
+    }
+
+    private static bool IsReferenceAtlasTriangleInRegion(
+        AtlasVariantDefinition atlasVariant,
+        Vector2 uvCentroid)
+    {
+        if (atlasVariant == null || !atlasVariant.IsReferenceUvAtlas)
+        {
+            return false;
+        }
+
+        Texture2D probabilityAtlas = GetReferenceAtlasTexture(atlasVariant);
+        if (probabilityAtlas == null)
+        {
+            return false;
+        }
+
+        float probability = probabilityAtlas.GetPixelBilinear(
+            Mathf.Clamp01(uvCentroid.x),
+            Mathf.Clamp01(uvCentroid.y)).grayscale;
+        return probability >= atlasVariant.Threshold;
+    }
+
+    private static Texture2D GetReferenceAtlasTexture(AtlasVariantDefinition atlasVariant)
+    {
+        if (atlasVariant == null || string.IsNullOrWhiteSpace(atlasVariant.ProbabilityResourcePath))
+        {
+            return null;
+        }
+
+        if (ReferenceAtlasTextures.TryGetValue(atlasVariant.ProbabilityResourcePath, out Texture2D cached))
+        {
+            return cached;
+        }
+
+        Texture2D texture = Resources.Load<Texture2D>(atlasVariant.ProbabilityResourcePath);
+        if (texture == null)
+        {
+            Debug.LogWarning(
+                "[E7] reference_uv_atlas_missing"
+                + " variantId=" + atlasVariant.VariantId
+                + " resourcePath=" + atlasVariant.ProbabilityResourcePath);
+            return null;
+        }
+
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+        ReferenceAtlasTextures[atlasVariant.ProbabilityResourcePath] = texture;
+        return texture;
     }
 
     private static bool IsUsableTextureCoordinate(Vector2 uv)
@@ -1195,6 +1298,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return RegionMaskMode.E7ArFaceAuthoredAtlas;
         }
 
+        if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
+        {
+            return RegionMaskMode.E7ReferenceUvAtlas;
+        }
+
         if (candidate == "e7-arface-uv-candidate" || candidate == "e7-candidate" || candidate == "candidate")
         {
             return RegionMaskMode.E7ArFaceUvCandidate;
@@ -1209,6 +1317,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             case RegionMaskMode.E7ArFaceAuthoredAtlas:
                 return "e7-arface-authored-atlas";
+            case RegionMaskMode.E7ReferenceUvAtlas:
+                return "e7-reference-uv-atlas";
             case RegionMaskMode.E7ArFaceUvCandidate:
                 return "e7-arface-uv-candidate";
             default:
@@ -1222,6 +1332,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             case RegionMaskMode.E7ArFaceAuthoredAtlas:
                 return "arface_authored_atlas_manual_vertex_labels";
+            case RegionMaskMode.E7ReferenceUvAtlas:
+                return "arface_reference_uv_atlas_probability";
             case RegionMaskMode.E7ArFaceUvCandidate:
                 return "arface_mesh_uv_procedural_candidate";
             default:
@@ -1238,6 +1350,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas)
         {
             return candidate == "arface-authored-atlas" ? candidate : "arface-authored-atlas";
+        }
+
+        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas)
+        {
+            return candidate == "arface-reference-uv-atlas" ? candidate : "arface-reference-uv-atlas";
         }
 
         if (maskMode == RegionMaskMode.E7ArFaceUvCandidate)
@@ -1258,7 +1375,26 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return "baseline-v0";
     }
 
-    private static AtlasVariantDefinition ResolveAtlasVariant(string region, string variantId)
+    private static bool IsAtlasMaskMode(RegionMaskMode maskMode)
+    {
+        return maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas
+            || maskMode == RegionMaskMode.E7ReferenceUvAtlas;
+    }
+
+    private static AtlasVariantDefinition ResolveAtlasVariant(
+        string region,
+        string variantId,
+        RegionMaskMode maskMode)
+    {
+        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas)
+        {
+            return ResolveReferenceAtlasVariant(region, variantId);
+        }
+
+        return ResolveAuthoredAtlasVariant(region, variantId);
+    }
+
+    private static AtlasVariantDefinition ResolveAuthoredAtlasVariant(string region, string variantId)
     {
         string normalizedRegion = NormalizeRegion(region);
         string normalizedVariant = string.IsNullOrWhiteSpace(variantId)
@@ -1298,7 +1434,64 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                         return CreateAtlasVariant("eye", "eye-band-v0-balanced", "eyelid_band", 0.047f, 0.045f, 0.043f, 0.018f, 0.008f, 0.005f, 2, true);
                 }
             default:
-                return ResolveAtlasVariant("lip", "lip-ring-v0-balanced");
+                return ResolveAuthoredAtlasVariant("lip", "lip-ring-v0-balanced");
+        }
+    }
+
+    private static AtlasVariantDefinition ResolveReferenceAtlasVariant(string region, string variantId)
+    {
+        string normalizedRegion = NormalizeRegion(region);
+        string normalizedVariant = string.IsNullOrWhiteSpace(variantId)
+            ? GetDefaultReferenceAtlasVariantId(normalizedRegion)
+            : variantId.Trim().ToLowerInvariant();
+
+        switch (normalizedRegion)
+        {
+            case "lip":
+                switch (normalizedVariant)
+                {
+                    case "lip-uvref-v0-core":
+                        return CreateReferenceAtlasVariant("lip", "lip-uvref-v0-core", "core", 0.55f, 1, "min", "sameFrameAtoAIou=0.9720;sameFrameBtoBIou=0.9693;crossFrameAtoBIou=0.8193;crossFrameBtoAIou=0.8325;uvCoreOverUnion=0.7046");
+                    case "lip-uvref-v0-soft-wide":
+                        return CreateReferenceAtlasVariant("lip", "lip-uvref-v0-soft-wide", "soft-wide", 0.35f, 4, "max", "sameFrameAtoAIou=0.9720;sameFrameBtoBIou=0.9693;crossFrameAtoBIou=0.8193;crossFrameBtoAIou=0.8325;uvCoreOverUnion=0.7046");
+                    default:
+                        return CreateReferenceAtlasVariant("lip", "lip-uvref-v0-balanced", "balanced", 0.45f, 2, "mean", "sameFrameAtoAIou=0.9720;sameFrameBtoBIou=0.9693;crossFrameAtoBIou=0.8193;crossFrameBtoAIou=0.8325;uvCoreOverUnion=0.7046");
+                }
+            case "cheek":
+                switch (normalizedVariant)
+                {
+                    case "cheek-uvref-v0-core":
+                        return CreateReferenceAtlasVariant("cheek", "cheek-uvref-v0-core", "core", 0.55f, 1, "min", "sameFrameAtoAIou=0.9912;sameFrameBtoBIou=0.9906;crossFrameAtoBIou=0.8363;crossFrameBtoAIou=0.8302;uvCoreOverUnion=0.7106");
+                    case "cheek-uvref-v0-soft-wide":
+                        return CreateReferenceAtlasVariant("cheek", "cheek-uvref-v0-soft-wide", "soft-wide", 0.35f, 4, "max", "sameFrameAtoAIou=0.9912;sameFrameBtoBIou=0.9906;crossFrameAtoBIou=0.8363;crossFrameBtoAIou=0.8302;uvCoreOverUnion=0.7106");
+                    default:
+                        return CreateReferenceAtlasVariant("cheek", "cheek-uvref-v0-balanced", "balanced", 0.45f, 2, "mean", "sameFrameAtoAIou=0.9912;sameFrameBtoBIou=0.9906;crossFrameAtoBIou=0.8363;crossFrameBtoAIou=0.8302;uvCoreOverUnion=0.7106");
+                }
+            case "eye":
+                switch (normalizedVariant)
+                {
+                    case "eye-uvref-v0-core":
+                        return CreateReferenceAtlasVariant("eye", "eye-uvref-v0-core", "core", 0.55f, 1, "min", "sameFrameAtoAIou=0.8604;sameFrameBtoBIou=0.8457;crossFrameAtoBIou=0.6948;crossFrameBtoAIou=0.7129;uvCoreOverUnion=0.8060");
+                    case "eye-uvref-v0-soft-wide":
+                        return CreateReferenceAtlasVariant("eye", "eye-uvref-v0-soft-wide", "soft-wide", 0.35f, 4, "max", "sameFrameAtoAIou=0.8604;sameFrameBtoBIou=0.8457;crossFrameAtoBIou=0.6948;crossFrameBtoAIou=0.7129;uvCoreOverUnion=0.8060");
+                    default:
+                        return CreateReferenceAtlasVariant("eye", "eye-uvref-v0-balanced", "balanced", 0.45f, 2, "mean", "sameFrameAtoAIou=0.8604;sameFrameBtoBIou=0.8457;crossFrameAtoBIou=0.6948;crossFrameBtoAIou=0.7129;uvCoreOverUnion=0.8060");
+                }
+            default:
+                return ResolveReferenceAtlasVariant("lip", "lip-uvref-v0-balanced");
+        }
+    }
+
+    private static string GetDefaultReferenceAtlasVariantId(string region)
+    {
+        switch (NormalizeRegion(region))
+        {
+            case "cheek":
+                return "cheek-uvref-v0-balanced";
+            case "eye":
+                return "eye-uvref-v0-balanced";
+            default:
+                return "lip-uvref-v0-balanced";
         }
     }
 
@@ -1345,12 +1538,61 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         };
     }
 
+    private static AtlasVariantDefinition CreateReferenceAtlasVariant(
+        string region,
+        string variantId,
+        string labelGroup,
+        float threshold,
+        int featherUvPixels,
+        string combineMode,
+        string calibrationScoreSummary)
+    {
+        float featherUvNormalized = featherUvPixels / 512.0f;
+        string resourcePath = "E7ReferenceAtlas/" + ReferenceAtlasVersion + "/" + variantId;
+        string configSummary = "shape=reference_uv_probability"
+            + ";region=" + region
+            + ";labelGroup=" + labelGroup
+            + ";sourceFastGate=fast-gate-20260622T160307Z"
+            + ";combineMode=" + combineMode
+            + ";threshold=" + threshold.ToString("0.###", CultureInfo.InvariantCulture)
+            + ";featherUvPixels=" + featherUvPixels.ToString(CultureInfo.InvariantCulture)
+            + ";featherUvNormalized=" + featherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
+            + ";uvResolution=512"
+            + ";morphology=none"
+            + ";resourcePath=" + resourcePath;
+
+        return new AtlasVariantDefinition
+        {
+            Region = region,
+            VariantId = variantId,
+            LabelGroup = labelGroup,
+            ConfigSummary = configSummary,
+            IsReferenceUvAtlas = true,
+            ProbabilityResourcePath = resourcePath,
+            SourceFrameCount = 2,
+            GoldMaskCount = 2,
+            SilverReferenceCount = 0,
+            UvResolution = 512,
+            Threshold = threshold,
+            FeatherUvPixels = featherUvPixels,
+            FeatherUvNormalized = featherUvNormalized,
+            CalibrationScoreSummary = calibrationScoreSummary,
+            CombineMode = combineMode,
+            Morphology = "none",
+            PromotionReason = labelGroup == "core"
+                ? "high-precision check"
+                : labelGroup == "soft-wide"
+                    ? "spill/coverage stress check"
+                    : "default runtime candidate"
+        };
+    }
+
     private static void PopulateAtlasEvidence(
         ARFace face,
         RegionRecipeState recipe,
-        RegionApplyResult result)
+        ref RegionApplyResult result)
     {
-        if (recipe.MaskMode != RegionMaskMode.E7ArFaceAuthoredAtlas)
+        if (!IsAtlasMaskMode(recipe.MaskMode))
         {
             result.AtlasVersion = recipe.MaskMode == RegionMaskMode.E7ArFaceUvCandidate ? "procedural-v0" : "none";
             result.AtlasLabelMapVersion = "none";
@@ -1362,26 +1604,44 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.AtlasVertexLabelSummary = "none";
             result.AtlasDataFallback = false;
             result.AtlasFallbackReason = "none";
+            result.AtlasSourceFrameCount = 0;
+            result.AtlasGoldMaskCount = 0;
+            result.AtlasSilverReferenceCount = 0;
+            result.AtlasUvResolution = 0;
+            result.AtlasThreshold = 0.0f;
+            result.AtlasFeatherUvPixels = 0;
+            result.AtlasFeatherUvNormalized = 0.0f;
+            result.AtlasCalibrationScoreSummary = "none";
+            result.AtlasCombineMode = "none";
+            result.AtlasMorphology = "none";
             return;
         }
 
-        AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(recipe.Region, recipe.VariantId);
+        AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(recipe.Region, recipe.VariantId, recipe.MaskMode);
         int labeledVertexCount = CountAtlasLabeledVertices(face, recipe.Region, atlasVariant);
         bool topologyReady = HasUsableUv(face)
             && GetVertexCount(face) > 0
             && GetIndexCount(face) >= 3
             && GetIndexCount(face) % 3 == 0;
 
-        result.AtlasVersion = AtlasVersion;
-        result.AtlasLabelMapVersion = AtlasLabelMapVersion;
+        result.AtlasVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas
+            ? ReferenceAtlasVersion
+            : AtlasVersion;
+        result.AtlasLabelMapVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas
+            ? ReferenceAtlasLabelMapVersion
+            : AtlasLabelMapVersion;
         result.AtlasLabelGroup = atlasVariant.LabelGroup;
         result.AtlasConfigSummary = atlasVariant.ConfigSummary;
-        result.AtlasConfigHash = BuildStableConfigHash(AtlasVersion + "|" + AtlasLabelMapVersion + "|" + atlasVariant.VariantId + "|" + atlasVariant.ConfigSummary);
+        result.AtlasConfigHash = BuildStableConfigHash(result.AtlasVersion + "|" + result.AtlasLabelMapVersion + "|" + atlasVariant.VariantId + "|" + atlasVariant.ConfigSummary);
         result.TopologyAuditStatus = topologyReady ? "pass_uv_topology_ready" : BuildTopologyAuditStatus(face);
         result.TopologyAuditSummary = BuildTopologyAuditSummary(face);
-        result.AtlasVertexLabelSummary = "labelGroup=" + atlasVariant.LabelGroup
-            + ";labeledVertices=" + labeledVertexCount.ToString(CultureInfo.InvariantCulture)
-            + ";minVertexHits=" + atlasVariant.MinVertexHits.ToString(CultureInfo.InvariantCulture);
+        result.AtlasVertexLabelSummary = atlasVariant.IsReferenceUvAtlas
+            ? "labelGroup=" + atlasVariant.LabelGroup
+                + ";probabilityResourcePath=" + atlasVariant.ProbabilityResourcePath
+                + ";threshold=" + atlasVariant.Threshold.ToString("0.###", CultureInfo.InvariantCulture)
+            : "labelGroup=" + atlasVariant.LabelGroup
+                + ";labeledVertices=" + labeledVertexCount.ToString(CultureInfo.InvariantCulture)
+                + ";minVertexHits=" + atlasVariant.MinVertexHits.ToString(CultureInfo.InvariantCulture);
         result.AtlasDataFallback = string.IsNullOrWhiteSpace(recipe.VariantId)
             || recipe.VariantId != atlasVariant.VariantId
             || !topologyReady;
@@ -1389,6 +1649,22 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? (result.AtlasDataFallback ? "variant_defaulted" : "none")
             : "topology_or_uv_unavailable";
         result.VariantId = atlasVariant.VariantId;
+        result.AtlasSourceFrameCount = atlasVariant.SourceFrameCount;
+        result.AtlasGoldMaskCount = atlasVariant.GoldMaskCount;
+        result.AtlasSilverReferenceCount = atlasVariant.SilverReferenceCount;
+        result.AtlasUvResolution = atlasVariant.UvResolution;
+        result.AtlasThreshold = atlasVariant.Threshold;
+        result.AtlasFeatherUvPixels = atlasVariant.FeatherUvPixels;
+        result.AtlasFeatherUvNormalized = atlasVariant.FeatherUvNormalized;
+        result.AtlasCalibrationScoreSummary = string.IsNullOrWhiteSpace(atlasVariant.CalibrationScoreSummary)
+            ? "none"
+            : atlasVariant.CalibrationScoreSummary;
+        result.AtlasCombineMode = string.IsNullOrWhiteSpace(atlasVariant.CombineMode)
+            ? "none"
+            : atlasVariant.CombineMode;
+        result.AtlasMorphology = string.IsNullOrWhiteSpace(atlasVariant.Morphology)
+            ? "none"
+            : atlasVariant.Morphology;
     }
 
     private static int CountAtlasLabeledVertices(
@@ -1595,5 +1871,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             default:
                 return "matte_lip";
         }
+    }
+
+    private static string SanitizeLogValue(string value)
+    {
+        return string.IsNullOrWhiteSpace(value)
+            ? "none"
+            : value.Trim().Replace(" ", "_").Replace("\n", "_").Replace("\r", "_");
     }
 }

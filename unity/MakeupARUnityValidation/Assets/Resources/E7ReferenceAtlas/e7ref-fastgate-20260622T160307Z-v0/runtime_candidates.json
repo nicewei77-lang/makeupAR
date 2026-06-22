@@ -1,0 +1,287 @@
+{
+  "schemaVersion": "e7-runtime-candidates-v1",
+  "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+  "createdFrom": "evidence/e7-reference-atlas/fast-gate-20260622T160307Z",
+  "sourceSummary": "evidence/e7-reference-atlas/fast-gate-20260622T160307Z/summary.json",
+  "overallDecision": "continue",
+  "uvResolution": [
+    512,
+    512
+  ],
+  "sampleStride": 1,
+  "renderStride": 1,
+  "candidateId": "arface-reference-uv-atlas",
+  "rendererMode": "e7-reference-uv-atlas",
+  "candidates": [
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "lip-uvref-v0-core",
+      "region": "lip",
+      "probabilityAtlas": "lip-uvref-v0-core.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/lip-uvref-v0-core",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.55,
+      "featherUvPixels": 1,
+      "featherUvNormalized": 0.001953125,
+      "morphology": "none",
+      "combineMode": "min",
+      "promotionReason": "high-precision check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.972,
+        "sameFrameBtoBIou": 0.9693,
+        "crossFrameAtoBIou": 0.8193,
+        "crossFrameBtoAIou": 0.8325,
+        "uvCoreOverUnion": 0.7046
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "lip-uvref-v0-balanced",
+      "region": "lip",
+      "probabilityAtlas": "lip-uvref-v0-balanced.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/lip-uvref-v0-balanced",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.45,
+      "featherUvPixels": 2,
+      "featherUvNormalized": 0.00390625,
+      "morphology": "none",
+      "combineMode": "mean",
+      "promotionReason": "default runtime candidate",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.972,
+        "sameFrameBtoBIou": 0.9693,
+        "crossFrameAtoBIou": 0.8193,
+        "crossFrameBtoAIou": 0.8325,
+        "uvCoreOverUnion": 0.7046
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "lip-uvref-v0-soft-wide",
+      "region": "lip",
+      "probabilityAtlas": "lip-uvref-v0-soft-wide.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/lip-uvref-v0-soft-wide",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.35,
+      "featherUvPixels": 4,
+      "featherUvNormalized": 0.0078125,
+      "morphology": "none",
+      "combineMode": "max",
+      "promotionReason": "spill/coverage stress check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.972,
+        "sameFrameBtoBIou": 0.9693,
+        "crossFrameAtoBIou": 0.8193,
+        "crossFrameBtoAIou": 0.8325,
+        "uvCoreOverUnion": 0.7046
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "cheek-uvref-v0-core",
+      "region": "cheek",
+      "probabilityAtlas": "cheek-uvref-v0-core.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/cheek-uvref-v0-core",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.55,
+      "featherUvPixels": 1,
+      "featherUvNormalized": 0.001953125,
+      "morphology": "none",
+      "combineMode": "min",
+      "promotionReason": "high-precision check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.9912,
+        "sameFrameBtoBIou": 0.9906,
+        "crossFrameAtoBIou": 0.8363,
+        "crossFrameBtoAIou": 0.8302,
+        "uvCoreOverUnion": 0.7106
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "cheek-uvref-v0-balanced",
+      "region": "cheek",
+      "probabilityAtlas": "cheek-uvref-v0-balanced.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/cheek-uvref-v0-balanced",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.45,
+      "featherUvPixels": 2,
+      "featherUvNormalized": 0.00390625,
+      "morphology": "none",
+      "combineMode": "mean",
+      "promotionReason": "default runtime candidate",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.9912,
+        "sameFrameBtoBIou": 0.9906,
+        "crossFrameAtoBIou": 0.8363,
+        "crossFrameBtoAIou": 0.8302,
+        "uvCoreOverUnion": 0.7106
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "cheek-uvref-v0-soft-wide",
+      "region": "cheek",
+      "probabilityAtlas": "cheek-uvref-v0-soft-wide.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/cheek-uvref-v0-soft-wide",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.35,
+      "featherUvPixels": 4,
+      "featherUvNormalized": 0.0078125,
+      "morphology": "none",
+      "combineMode": "max",
+      "promotionReason": "spill/coverage stress check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.9912,
+        "sameFrameBtoBIou": 0.9906,
+        "crossFrameAtoBIou": 0.8363,
+        "crossFrameBtoAIou": 0.8302,
+        "uvCoreOverUnion": 0.7106
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "eye-uvref-v0-core",
+      "region": "eye",
+      "probabilityAtlas": "eye-uvref-v0-core.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/eye-uvref-v0-core",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.55,
+      "featherUvPixels": 1,
+      "featherUvNormalized": 0.001953125,
+      "morphology": "none",
+      "combineMode": "min",
+      "promotionReason": "high-precision check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.8604,
+        "sameFrameBtoBIou": 0.8457,
+        "crossFrameAtoBIou": 0.6948,
+        "crossFrameBtoAIou": 0.7129,
+        "uvCoreOverUnion": 0.806
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "eye-uvref-v0-balanced",
+      "region": "eye",
+      "probabilityAtlas": "eye-uvref-v0-balanced.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/eye-uvref-v0-balanced",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.45,
+      "featherUvPixels": 2,
+      "featherUvNormalized": 0.00390625,
+      "morphology": "none",
+      "combineMode": "mean",
+      "promotionReason": "default runtime candidate",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.8604,
+        "sameFrameBtoBIou": 0.8457,
+        "crossFrameAtoBIou": 0.6948,
+        "crossFrameBtoAIou": 0.7129,
+        "uvCoreOverUnion": 0.806
+      },
+      "evalScore": null
+    },
+    {
+      "candidateId": "arface-reference-uv-atlas",
+      "variantId": "eye-uvref-v0-soft-wide",
+      "region": "eye",
+      "probabilityAtlas": "eye-uvref-v0-soft-wide.png",
+      "probabilityResourcePath": "E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/eye-uvref-v0-soft-wide",
+      "atlasVersion": "e7ref-fastgate-20260622T160307Z-v0",
+      "sourceFastGate": "fast-gate-20260622T160307Z",
+      "sourceFrameCount": 2,
+      "goldMaskCount": 2,
+      "silverReferenceCount": 0,
+      "uvResolution": [
+        512,
+        512
+      ],
+      "threshold": 0.35,
+      "featherUvPixels": 4,
+      "featherUvNormalized": 0.0078125,
+      "morphology": "none",
+      "combineMode": "max",
+      "promotionReason": "spill/coverage stress check",
+      "calibrationScore": {
+        "sameFrameAtoAIou": 0.8604,
+        "sameFrameBtoBIou": 0.8457,
+        "crossFrameAtoBIou": 0.6948,
+        "crossFrameBtoAIou": 0.7129,
+        "uvCoreOverUnion": 0.806
+      },
+      "evalScore": null
+    }
+  ]
+}
