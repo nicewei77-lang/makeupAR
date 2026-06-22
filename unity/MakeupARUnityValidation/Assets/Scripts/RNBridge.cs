@@ -78,6 +78,14 @@ public sealed class RNBridge : MonoBehaviour
         public string visualLatencyObservation;
     }
 
+    [Serializable]
+    private sealed class RegionOverlayVisibilityPayload
+    {
+        public bool visible = true;
+        public string validationViewMode;
+        public string reason;
+    }
+
     private struct ParsedRecipeLayer
     {
         public string Id;
@@ -142,10 +150,15 @@ public sealed class RNBridge : MonoBehaviour
 
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private Material overlayMaterial;
+    [SerializeField] private E7SynchronizedCaptureExporter referenceCaptureExporter;
+    [SerializeField] private FaceTrackingStatusReporter statusReporter;
 
     private E3RegionMaskOverlay regionMaskOverlay;
+    private readonly Dictionary<Renderer, bool> suppressedFaceRendererStates =
+        new Dictionary<Renderer, bool>();
     private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
         new Dictionary<string, RegionFeatureState>();
+    private bool faceRenderersSuppressed;
 
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -156,6 +169,7 @@ public sealed class RNBridge : MonoBehaviour
     {
         RefreshSceneReferences();
         EnsureRegionMaskOverlay();
+        EnsureReferenceCaptureExporter();
 
         if (overlayMaterial != null)
         {
@@ -168,6 +182,14 @@ public sealed class RNBridge : MonoBehaviour
         yield return null;
         yield return new WaitForSeconds(0.25f);
         SendUnityEvent("{\"type\":\"unity_initialized\"}");
+    }
+
+    private void LateUpdate()
+    {
+        if (faceRenderersSuppressed)
+        {
+            ApplyFaceRendererSuppression();
+        }
     }
 
     public void ApplyRecipeJson(string json)
@@ -273,6 +295,84 @@ public sealed class RNBridge : MonoBehaviour
         SendUnityEvent(json, "[E7]");
     }
 
+    public void SendE7ReferenceCaptureEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
+    public void SetE7RegionOverlayVisibleJson(string json)
+    {
+        try
+        {
+            RegionOverlayVisibilityPayload payload =
+                JsonUtility.FromJson<RegionOverlayVisibilityPayload>(json);
+            bool visible = payload == null || payload.visible;
+            string validationViewMode = payload != null ? NormalizeOptional(payload.validationViewMode) : "unknown";
+            bool unityDebugVisible = visible && validationViewMode == "full";
+
+            EnsureRegionMaskOverlay();
+            if (regionMaskOverlay == null)
+            {
+                throw new InvalidOperationException("E3 region mask overlay is unavailable.");
+            }
+
+            regionMaskOverlay.SetOverlayRenderingSuppressed(!visible);
+            SetFaceRenderersSuppressed(!visible);
+
+            if (statusReporter != null)
+            {
+                statusReporter.SetDebugOverlayVisible(unityDebugVisible);
+            }
+
+            Debug.Log(
+                "[E7] region_overlay_visibility"
+                + " visible=" + visible.ToString().ToLowerInvariant()
+                + " faceRenderersSuppressed=" + (!visible).ToString().ToLowerInvariant()
+                + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
+                + " validationViewMode=" + validationViewMode
+                + " reason=" + NormalizeOptional(payload != null ? payload.reason : string.Empty));
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError("[E7] region_overlay_visibility_failed raw=" + json + " error=" + exception.Message);
+        }
+    }
+
+    public void CaptureE7ReferenceFrameJson(string json)
+    {
+        try
+        {
+            EnsureReferenceCaptureExporter();
+
+            if (referenceCaptureExporter == null)
+            {
+                throw new InvalidOperationException("E7 reference capture exporter is unavailable.");
+            }
+
+            referenceCaptureExporter.CaptureReferenceFrameJson(json);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError("[E7] reference_capture_request_failed raw=" + json + " error=" + exception.Message);
+            SendE7ReferenceCaptureEvent(
+                "{\"type\":\"e7_reference_capture\""
+                + ",\"status\":\"failed\""
+                + ",\"capturePairId\":\"pair_face_0001\""
+                + ",\"regions\":[\"lip\",\"eye\",\"cheek\"]"
+                + ",\"relativeDirectory\":\"\""
+                + ",\"detail\":\""
+                + EscapeJsonString(exception.Message)
+                + "\""
+                + ",\"meshVertexCount\":0"
+                + ",\"meshIndexCount\":0"
+                + ",\"meshUvCount\":0"
+                + ",\"frameWidth\":0"
+                + ",\"coordinateSpaceValidated\":false"
+                + ",\"coordinateSpaceValidationStatus\":\"request_failed\""
+                + "}");
+        }
+    }
+
     public void LogRecipeAck(string json)
     {
         try
@@ -342,6 +442,11 @@ public sealed class RNBridge : MonoBehaviour
             faceManager = FindFirstObjectByType<ARFaceManager>();
         }
 
+        if (statusReporter == null)
+        {
+            statusReporter = FindFirstObjectByType<FaceTrackingStatusReporter>();
+        }
+
         if (overlayMaterial == null && faceManager != null && faceManager.facePrefab != null)
         {
             MeshRenderer prefabRenderer = faceManager.facePrefab.GetComponentInChildren<MeshRenderer>(true);
@@ -367,6 +472,81 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         regionMaskOverlay.Configure(faceManager);
+    }
+
+    private void EnsureReferenceCaptureExporter()
+    {
+        RefreshSceneReferences();
+
+        if (referenceCaptureExporter == null)
+        {
+            referenceCaptureExporter = FindFirstObjectByType<E7SynchronizedCaptureExporter>();
+        }
+
+        if (referenceCaptureExporter == null)
+        {
+            referenceCaptureExporter = gameObject.AddComponent<E7SynchronizedCaptureExporter>();
+        }
+
+        referenceCaptureExporter.Configure(
+            faceManager,
+            Camera.main,
+            statusReporter,
+            this);
+    }
+
+    private void SetFaceRenderersSuppressed(bool suppressed)
+    {
+        RefreshSceneReferences();
+        faceRenderersSuppressed = suppressed;
+
+        if (suppressed)
+        {
+            ApplyFaceRendererSuppression();
+            return;
+        }
+
+        foreach (KeyValuePair<Renderer, bool> entry in suppressedFaceRendererStates)
+        {
+            if (entry.Key != null)
+            {
+                entry.Key.enabled = entry.Value;
+            }
+        }
+
+        suppressedFaceRendererStates.Clear();
+    }
+
+    private void ApplyFaceRendererSuppression()
+    {
+        if (faceManager == null)
+        {
+            return;
+        }
+
+        foreach (ARFace face in faceManager.trackables)
+        {
+            if (face == null)
+            {
+                continue;
+            }
+
+            Renderer[] renderers = face.GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                if (!suppressedFaceRendererStates.ContainsKey(renderer))
+                {
+                    suppressedFaceRendererStates[renderer] = renderer.enabled;
+                }
+
+                renderer.enabled = false;
+            }
+        }
     }
 
     private E3RegionMaskOverlay.RegionApplyResult ApplyRegionLayer(ParsedRecipeLayer layer)

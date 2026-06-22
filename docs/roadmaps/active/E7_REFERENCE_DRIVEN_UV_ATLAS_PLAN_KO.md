@@ -185,6 +185,7 @@ Allowed references:
 - SegFace or BiSeNet face parsing for pixel-level lip/eye/skin hints.
 - CelebAMask-HQ and LaPa as taxonomy and offline parsing references.
 - Apple Vision Face Landmarks as an optional iOS-native 2D contour sanity check.
+- Detailed external-mask-prior planning lives in `docs/roadmaps/active/E7_EXTERNAL_MASK_PRIOR_SUBSPIKE_PLAN_KO.md`; it treats external masks only as silver draft inputs before human gold approval.
 
 Rules:
 

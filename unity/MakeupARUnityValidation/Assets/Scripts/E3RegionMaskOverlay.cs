@@ -123,6 +123,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, Texture2D>();
     private readonly Dictionary<string, RegionApplyResult> latestRegionResults =
         new Dictionary<string, RegionApplyResult>();
+    private bool overlayRenderingSuppressed;
 
     public void Configure(ARFaceManager manager)
     {
@@ -135,6 +136,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     public bool TryGetLatestRegionApplyResult(string region, out RegionApplyResult result)
     {
         return latestRegionResults.TryGetValue(NormalizeRegion(region), out result);
+    }
+
+    public void SetOverlayRenderingSuppressed(bool suppressed)
+    {
+        overlayRenderingSuppressed = suppressed;
+
+        if (suppressed)
+        {
+            HideAllOverlayViews();
+        }
+
+        Debug.Log(
+            "[E7] region_overlay_suppression"
+            + " suppressed=" + overlayRenderingSuppressed.ToString().ToLowerInvariant());
     }
 
     private void Update()
@@ -283,6 +298,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.MeshIndexCount = Mathf.Max(result.MeshIndexCount, GetIndexCount(face));
             result.MeshUvCount = Mathf.Max(result.MeshUvCount, GetUvCount(face));
             PopulateAtlasEvidence(face, recipe, result);
+
+            if (overlayRenderingSuppressed)
+            {
+                SetViewVisibility(view, false, false);
+                result.StateAction = "suppressed_for_clean_reference_capture";
+                continue;
+            }
 
             if (!visibility.ShouldRender || !recipe.Enabled)
             {
@@ -966,6 +988,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             if (renderer != null)
             {
                 renderer.enabled = showFallback;
+            }
+        }
+    }
+
+    private void HideAllOverlayViews()
+    {
+        foreach (FaceOverlayState faceState in overlays.Values)
+        {
+            foreach (RegionOverlayView view in faceState.Regions.Values)
+            {
+                SetViewVisibility(view, false, false);
             }
         }
     }

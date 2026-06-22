@@ -18,7 +18,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     [SerializeField] private XROrigin xrOrigin;
     [SerializeField] private Camera arCamera;
     [SerializeField] private float logIntervalSeconds = 1.0f;
-    [SerializeField] private bool drawDebugOverlay = true;
+    [SerializeField] private bool drawDebugOverlay;
     [SerializeField] private bool logE1Diagnostics = true;
     [SerializeField] private bool logE2LifecycleDiagnostics = true;
     [SerializeField] private bool logE7BaselineMetrics = true;
@@ -52,6 +52,16 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     private GUIStyle debugBoxStyle;
     private GUIStyle debugTitleStyle;
     private GUIStyle debugLabelStyle;
+
+    public bool DebugOverlayVisible
+    {
+        get { return drawDebugOverlay; }
+    }
+
+    public void SetDebugOverlayVisible(bool visible)
+    {
+        drawDebugOverlay = visible;
+    }
 
     private sealed class FaceLifecycleSnapshot
     {

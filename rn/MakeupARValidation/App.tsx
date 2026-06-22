@@ -237,6 +237,7 @@ const UNITY_EVENT_TYPES = [
   'face_lifecycle',
   'face_feature_snapshot',
   'e7_metric_sample',
+  'e7_reference_capture',
   'recipe_applied',
 ] as const;
 
@@ -357,6 +358,12 @@ type UnityEventPayload = {
   atlasVertexLabelSummary?: string;
   atlasDataFallback?: boolean;
   atlasFallbackReason?: string;
+  capturePairId?: string;
+  relativeDirectory?: string;
+  detail?: string;
+  frameWidth?: number;
+  coordinateSpaceValidated?: boolean;
+  coordinateSpaceValidationStatus?: string;
   [key: string]: unknown;
 };
 
@@ -511,7 +518,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const mountedAt = useMemo(() => new Date().toLocaleTimeString(), []);
   const unityRef = useRef<UnityView>(null);
   const [validationViewMode, setValidationViewMode] =
-    useState<ValidationViewMode>('compact');
+    useState<ValidationViewMode>('clean');
   const [selectedRendererMode, setSelectedRendererMode] =
     useState<RendererMode>(DEFAULT_RENDERER_MODE);
   const [selectedRegion, setSelectedRegion] = useState<RecipeRegion>(
@@ -534,6 +541,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [unityEventStatus, setUnityEventStatus] = useState<UnityEventStatusMap>(
     {},
   );
+  const [captureRequestSequence, setCaptureRequestSequence] = useState(1);
+  const [pendingCapturePairId, setPendingCapturePairId] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     console.log(
@@ -691,6 +702,76 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [],
   );
 
+  const postRegionOverlayVisibility = useCallback(
+    (visible: boolean, reason: string) => {
+      const payloadJson = JSON.stringify({
+        visible,
+        validationViewMode,
+        reason,
+        entryCount,
+      });
+
+      console.log(
+        '[E7] rn_region_overlay_visibility_post',
+        `visible=${visible}`,
+        `validationViewMode=${validationViewMode}`,
+        `reason=${reason}`,
+      );
+
+      unityRef.current?.postMessage(
+        'RNBridge',
+        'SetE7RegionOverlayVisibleJson',
+        payloadJson,
+      );
+    },
+    [entryCount, validationViewMode],
+  );
+
+  const postReferenceCaptureRequest = useCallback(() => {
+    if (pendingCapturePairId) {
+      console.log(
+        '[E7] reference_capture_request_ignored',
+        `pendingCapturePairId=${pendingCapturePairId}`,
+      );
+      return;
+    }
+
+    const requestedAtMs = Date.now();
+    const capturePairId = buildReferenceCapturePairId(
+      captureRequestSequence,
+      requestedAtMs,
+    );
+    const requestJson = JSON.stringify({
+      capturePairId,
+      requestedAtMs,
+      requestedBy: 'rn-validation-ui',
+      purpose: 'synchronized_capture_one_frame_common_lip_eye_cheek',
+    });
+
+    console.log(
+      '[E7] reference_capture_request_post',
+      `capturePairId=${capturePairId}`,
+      `requestedAtMs=${requestedAtMs}`,
+      'regions=lip,eye,cheek',
+      'purpose=synchronized_capture_one_frame_common_lip_eye_cheek',
+    );
+
+    setPendingCapturePairId(capturePairId);
+    setCaptureRequestSequence(sequence => sequence + 1);
+    setValidationViewMode('clean');
+    postRegionOverlayVisibility(false, 'capture_pair_preclean');
+
+    unityRef.current?.postMessage(
+      'RNBridge',
+      'CaptureE7ReferenceFrameJson',
+      requestJson,
+    );
+  }, [
+    captureRequestSequence,
+    pendingCapturePairId,
+    postRegionOverlayVisibility,
+  ]);
+
   const handleUnityMessage = useCallback(
     (event: UnityMessageEvent) => {
       const rawMessage = String(event.nativeEvent.message ?? '');
@@ -725,11 +806,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           postRecipeAck(parsed, receivedAtMs);
         }
 
+        if (parsed.type === 'e7_reference_capture') {
+          setPendingCapturePairId(null);
+        }
+
         console.log(
           parsed.type === 'face_feature_snapshot'
             ? '[E5] rn_face_feature_snapshot_received'
             : parsed.type === 'e7_metric_sample'
             ? '[E7] rn_metric_sample_received'
+            : parsed.type === 'e7_reference_capture'
+            ? '[E7] rn_reference_capture_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -801,9 +888,24 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     getAtlasVariantsForRegion(selectedRegion);
   const opacity = selectedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
+  const latestCapture = unityEventStatus.e7_reference_capture?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
   const latestRecipe = unityEventStatus.recipe_applied?.parsed;
   const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
+  const unityInitializedAt =
+    unityEventStatus.unity_initialized?.receivedAtMs ?? 0;
+
+  useEffect(() => {
+    postRegionOverlayVisibility(
+      validationViewMode === 'full',
+      'validation_view_mode_changed',
+    );
+  }, [
+    postRegionOverlayVisibility,
+    validationViewMode,
+    unityInitializedAt,
+  ]);
+
   const latestRecipeRecord = unityEventStatus.recipe_applied;
   const recipeLatencyMs = getRecipeAckLatencyMs(
     latestRecipe,
@@ -819,6 +921,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         selectedAtlasVariantId,
         selectedRegion,
         latestMetric,
+        latestCapture,
         latestLifecycle,
         latestRecipe,
         latestSnapshot,
@@ -829,6 +932,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       lastUnityEvent,
       latestLifecycle,
       latestMetric,
+      latestCapture,
       latestRecipe,
       latestSnapshot,
       mountedAt,
@@ -946,16 +1050,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ]}
       >
         <View style={styles.topChrome}>
-          <Pressable
-            accessibilityRole="button"
-            style={({ pressed }) => [
-              styles.closeButton,
-              pressed && styles.closeButtonPressed,
-            ]}
-            onPress={handleClose}
-          >
-            <Text style={styles.closeButtonText}>Close</Text>
-          </Pressable>
+          <View style={styles.topActionRow}>
+            <Pressable
+              accessibilityRole="button"
+              style={({ pressed }) => [
+                styles.closeButton,
+                pressed && styles.closeButtonPressed,
+              ]}
+              onPress={handleClose}
+            >
+              <Text style={styles.closeButtonText}>Close</Text>
+            </Pressable>
+          </View>
 
           <View style={styles.viewModeRow}>
             {VALIDATION_VIEW_MODE_OPTIONS.map(modeOption => {
@@ -986,6 +1092,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             })}
           </View>
         </View>
+
+        {validationViewMode === 'clean' && (
+          <View style={styles.captureDock}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(pendingCapturePairId)}
+              style={({ pressed }) => [
+                styles.captureButton,
+                pendingCapturePairId && styles.captureButtonPending,
+                pressed && styles.closeButtonPressed,
+              ]}
+              onPress={postReferenceCaptureRequest}
+            >
+              <Text style={styles.captureButtonText}>
+                {pendingCapturePairId ? 'Capturing' : 'Capture Pair'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         <CompactEvidenceHud
           validationViewMode={validationViewMode}
@@ -1654,6 +1779,7 @@ type EvidenceMetadataInput = {
   selectedAtlasVariantId: AtlasVariantId;
   selectedRegion: RecipeRegion;
   latestMetric?: UnityEventPayload;
+  latestCapture?: UnityEventPayload;
   latestLifecycle?: UnityEventPayload;
   latestRecipe?: UnityEventPayload;
   latestSnapshot?: UnityEventPayload;
@@ -1668,6 +1794,7 @@ function buildEvidenceMetadataLines({
   selectedAtlasVariantId,
   selectedRegion,
   latestMetric,
+  latestCapture,
   latestLifecycle,
   latestRecipe,
   latestSnapshot,
@@ -1735,6 +1862,11 @@ function buildEvidenceMetadataLines({
     )} frameTimeMs=${formatMetricNumber(
       latestMetric?.averageFrameTimeMs,
     )} latencyMs=${formatMetricNumber(latencyMs)}`,
+    `capturePair=${String(
+      latestCapture?.capturePairId ?? 'pair_face_0001',
+    )} captureStatus=${String(
+      latestCapture?.status ?? 'not_requested',
+    )} captureDir=${String(latestCapture?.relativeDirectory ?? 'n/a')}`,
     `stateAction=${String(
       latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
     )} visualDecisionNotes=pending_runtime_review`,
@@ -1770,6 +1902,8 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `face_feature_snapshot ${formatFaceFeatureSnapshotSummary(event)}`;
     case 'e7_metric_sample':
       return `e7_metric_sample ${formatE7MetricSummary(event)}`;
+    case 'e7_reference_capture':
+      return `e7_reference_capture ${formatE7ReferenceCaptureSummary(event)}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -1818,9 +1952,34 @@ function formatUnityEventTypeStatus(
       return `e7_metric_sample: ${formatE7MetricSummary(parsed)} ${
         event.receivedAt
       }`;
+    case 'e7_reference_capture':
+      return `e7_reference_capture: ${formatE7ReferenceCaptureSummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7ReferenceCaptureSummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} pair=${String(
+    event.capturePairId ?? 'pair_face_0001',
+  )} dir=${String(event.relativeDirectory ?? 'n/a')} v=${String(
+    event.meshVertexCount ?? 'n/a',
+  )} i=${String(event.meshIndexCount ?? 'n/a')} uv=${String(
+    event.meshUvCount ?? 'n/a',
+  )} coordinate=${String(
+    event.coordinateSpaceValidationStatus ?? 'pending_projected_mesh_overlay_review',
+  )} detail=${String(event.detail ?? 'none')}`;
+}
+
+function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
+  const timestamp = new Date(requestedAtMs)
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+
+  return `pair_face_${timestamp}_${String(sequence).padStart(2, '0')}`;
 }
 
 function formatE7MetricSummary(event: UnityEventPayload) {
@@ -2290,10 +2449,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   topChrome: {
+    alignItems: 'stretch',
+    gap: 8,
+  },
+  topActionRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: 10,
+    gap: 8,
   },
   closeButton: {
     alignSelf: 'flex-start',
@@ -2315,16 +2477,43 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0,
   },
+  captureButton: {
+    alignSelf: 'stretch',
+    minHeight: 44,
+    minWidth: 0,
+    borderRadius: 8,
+    backgroundColor: 'rgba(217, 75, 116, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.48)',
+    paddingHorizontal: 8,
+  },
+  captureDock: {
+    alignSelf: 'stretch',
+    marginBottom: 16,
+  },
+  captureButtonPending: {
+    backgroundColor: 'rgba(55, 65, 81, 0.88)',
+  },
+  captureButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
   viewModeRow: {
-    flex: 1,
     minHeight: 40,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'flex-start',
     gap: 6,
   },
   viewModeButton: {
+    flex: 1,
     minHeight: 40,
-    minWidth: 64,
+    minWidth: 0,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
