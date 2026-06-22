@@ -14,13 +14,16 @@ Latest E7.03 Phase 1 real-device build/log/capture-tooling check: 2026-06-22 14:
 
 Latest E7.03 Phase 1 screenshot/LogBox cleanup: 2026-06-22 14:27 KST
 
+Latest E7.03 phase-wide time-saving plan update: 2026-06-22 KST
+
 ## Current Session Snapshot
 
 This snapshot is the default entry point for future Codex sessions. Read this section first, then lazy-load only the milestone-specific plan or research document needed for the current task.
 
 Current boundary:
 
-- Primary path: E7.03 v2.1 Boundary Engine Quality Experiment. Phase 0 Contract Reset is complete and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and user-provided iPhone screenshots confirm Clean / Compact HUD / Full Debug mode visibility. CLI screenshot capture remains tool-limited. A small RN LogBox suppression was added after screenshot review and JS-verified; reinstall was intentionally skipped by user decision. Next work stays in E7.3 with Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit.
+- Primary path: E7.03 v2.1 Boundary Engine Quality Experiment. Phase 0 Contract Reset is complete and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and user-provided iPhone screenshots confirm Clean / Compact HUD / Full Debug mode visibility. CLI screenshot capture remains tool-limited. A small RN LogBox suppression was added after screenshot review and JS-verified; reinstall was intentionally skipped by user decision. Next work stays in E7.3 with Phase 2 ARFace authored atlas MVP with manual vertex labeling, topology/UV audit, and a one-build / many-candidate loop so atlas variants can be swept from RN without UnityFramework regeneration for every candidate tweak.
+- E7.03 v2.1 now has phase-wide time-saving rules, not only a P2 shortcut: prefer no-build data/registry/offline changes first, JS-only validation second, one real-device install for many candidate/variant/region sweeps third, and UnityFramework/Xcode rebuild only when renderer logic, schema, shader/material contract, package/framework sync, or native integration changes.
 - E7.3 visual evidence has been reviewed from the user-provided screen recording. ARFace mesh/UV is live on-device, but the current procedural candidate is not visually acceptable for `lip` or `eye`; `cheek` lacks a clean E7 candidate sample. Overall E7.3 remains Yellow because the ARFace substrate is viable, but the current candidate masks block E7.4.
 - The old E7.03 Green bar of "better than E3/E4 baseline" or "demo-plausible" is superseded. E7.03 Green now requires Q3 overlay-ready validation for `lip`, `cheek`, and `eye`, with runtime/visual evidence and region-separated scoring.
 - Conservative alternative: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow lifecycle risk with formal 3-cycle evidence.
@@ -166,7 +169,7 @@ Known limitations:
 
 Next boundary:
 
-- Stay inside E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit. On the next device install, confirm the React Native LogBox warning bar is gone before collecting new visual region evidence.
+- Stay inside E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling, topology/UV audit, and one-build / many-candidate atlas sweeping. On the next device install, confirm the React Native LogBox warning bar is gone before collecting new visual region evidence.
 - Keep the current procedural ARFace mesh/UV candidate only as a rejected/negative baseline unless future evidence says otherwise.
 - Re-record `lip`, `cheek`, and `eye` with `E7 UV`, full runtime console capture, representative visual evidence, and explicit tracking/Limited/lost/recovered notes.
 - Do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has a clean E7 candidate sample, or until the team explicitly accepts E7.3 as Yellow and records the risk.
@@ -236,10 +239,10 @@ Token policy:
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. E7.03 Phase 0 Contract Reset is complete, and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and visually confirmed with user-provided iPhone screenshots. CLI screenshot capture was blocked by local tooling limitations. A small RN LogBox suppression was added and JS-verified after screenshot review; follow-up reinstall was intentionally stopped/skipped by user decision. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active boundary engine quality plan, and the old "baseline-better" / "demo-plausible" Green bar is superseded by Q3 overlay-ready validation for `lip`, `cheek`, and `eye`. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. E7.03 Phase 0 Contract Reset is complete, and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and visually confirmed with user-provided iPhone screenshots. CLI screenshot capture was blocked by local tooling limitations. A small RN LogBox suppression was added and JS-verified after screenshot review; follow-up reinstall was intentionally stopped/skipped by user decision. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active boundary engine quality plan, and the old "baseline-better" / "demo-plausible" Green bar is superseded by Q3 overlay-ready validation for `lip`, `cheek`, and `eye`. The plan now requires phase-wide experiment acceleration: one install/many variants, one recording set/many analyses, offline batch comparison before runtime POC, and rebuilds only for renderer/schema/native changes. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: stay in E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit.
+- Primary path: stay in E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling, topology/UV audit, and one-build / many-candidate atlas sweeping from RN. Across later phases, reuse the same candidate registry, shared recordings/contact sheets, cached offline comparisons, and full runtime log streams before starting new builds or new recordings.
 - Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
 - Renderer path: do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports Q3 overlay-ready validation for the required regions, or until the team explicitly accepts the remaining E7.3 risk and records the boundary.

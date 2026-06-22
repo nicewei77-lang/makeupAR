@@ -41,6 +41,8 @@ v2.1 cross-review disposition:
 - Accept the overall plan structure: validation-only boundary comparison, offline/reference first, region-separated decisions.
 - Tighten the active candidate list so the spike does not become an SDK-integration survey.
 - Move ARFace authored atlas MVP, manual vertex labeling, and topology/UV audit before offline semantic comparison.
+- Add a one-build / many-candidate loop so atlas variants can be swept from RN without rebuilding UnityFramework for every candidate tweak.
+- Add phase-wide time-saving rules: one install, many variants; one recording set, many analyses; offline batch first; runtime POC only after hard gates.
 - Treat MediaPipe as the main semantic reference for `lip`/`eye` because it is the cleanest practical comparison candidate.
 - Treat face parsing models and datasets as non-release offline visual cross-checks only.
 - Remove ML Kit Face Mesh from the iPhone E7.03 active candidate set; keep ML Kit Face Detection contours only as a lowest-priority optional offline sanity check.
@@ -350,12 +352,30 @@ Do not start by integrating every candidate live. That makes the first failure "
 Use this order:
 
 1. Build a clean validation view.
-2. Build the ARFace authored atlas MVP, including manual vertex labeling and topology/UV audit.
+2. Build the ARFace authored atlas MVP, including manual vertex labeling, topology/UV audit, and a one-build / many-candidate sweep loop.
 3. Create a shared test clip/frame set.
 4. Run offline semantic/reference comparisons against the atlas MVP.
 5. Tune ARFace atlas, fixed-vertex/blendshape corrections, and temporal post-process.
 6. Decide whether any runtime POC is worth starting.
 7. Make region-level decisions.
+
+Time-saving hierarchy:
+
+1. Prefer no-build changes: candidate data, variant registry, local override files, offline analysis scripts, and decision notes.
+2. Prefer JS-only validation for RN UI/evidence changes where possible.
+3. Use one real-device install to sweep many candidate/variant/region combinations.
+4. Regenerate UnityFramework only when Unity renderer logic, schema, shader/material contract, package/framework sync, or native integration changes.
+5. Use Xcode/device build only for runtime behavior that cannot be validated offline or through existing installed controls.
+
+Global loop rules:
+
+- One install, many variants.
+- One recording set, many analyses.
+- One contact sheet, many decisions.
+- One candidate registry, many region sweeps.
+- One full runtime log stream per device pass, not one log per tiny variant.
+- Kill weak candidates early with representative-frame checks before spending device time.
+- Record skipped/deprioritized candidates as evidence-backed choices, not as silent omissions.
 
 ## 8. Phase Plan
 
@@ -367,6 +387,12 @@ Outputs:
 - Record that the old Green bar is superseded.
 - Keep `TECH_VALIDATION_TEST_PLAN.md` unchanged unless the stable validation contract itself needs correction.
 
+Time-saving principle:
+
+- Do not run more planning/review loops unless new evidence changes the candidate ranking or a stop rule is hit.
+- Treat v2.1 as the execution contract and move time into P1-P7 evidence.
+- If new feedback only improves wording, record it in the result doc after the phase instead of interrupting implementation.
+
 Pass condition:
 
 - Future implementation sessions can point to this document and know that E7.03 is a boundary engine comparison spike.
@@ -377,6 +403,14 @@ Goal:
 
 - Make the face visible during testing.
 - Make repeated experiments fast.
+- Keep the UI stable enough that later phases do not need RN UI rebuilds for every evidence question.
+
+Time-saving principle:
+
+- Build the mode/candidate/region/evidence UI once, then reuse it across P2-P7.
+- Avoid adding new UI text or panels for every candidate; prefer generic `candidateId`, `variantId`, `region`, `status`, and `metadata` fields.
+- Clean View must support visual judgment without new screenshots being ruined by overlays.
+- Full Debug must expose enough metadata that separate ad hoc console summaries are rarely needed.
 
 Required UI modes:
 
@@ -389,6 +423,7 @@ Required UI modes:
 Required evidence fields:
 
 - candidate id;
+- variant id when applicable;
 - region;
 - tracking state;
 - face count;
@@ -403,6 +438,7 @@ Why this comes first:
 
 - Without a clean view, every quality decision is contaminated.
 - If logs cover the face, we are not validating region precision.
+- If Phase 1 UI cannot show candidate/variant/region/evidence metadata generically, later phases will waste time rebuilding the UI.
 
 ### Phase 2: ARFace Authored Atlas MVP
 
@@ -410,6 +446,16 @@ Goal:
 
 - Produce the first serious ARFace candidate before offline semantic comparison.
 - Avoid comparing references against only the rejected procedural candidate.
+- Prevent candidate exploration from becoming a slow UnityFramework/Xcode rebuild loop.
+
+Time-saving principle:
+
+- Build renderer/schema once, then sweep multiple atlas candidates from RN.
+- Do not hardcode only one atlas candidate if the next step will require repeated code edits.
+- Register multiple atlas variants in one build or load a validated local JSON override if the copy/read path is proven.
+- RN must be able to switch `candidateId`, `variantId`, and `region` without UnityFramework regeneration.
+- Rebuild only when renderer logic, schema, shader/material contract, or native integration changes.
+- If a candidate-data change requires a UnityFramework rebuild, stop and first add a candidate registry, batch variants, or JSON override path.
 
 Required tasks:
 
@@ -417,6 +463,9 @@ Required tasks:
 - Log vertex, index, and UV counts instead of hard-coding assumptions as facts.
 - Manually label validation vertex groups for lip ring, eyelid band, and cheekbone/soft cheek area.
 - Create a first grayscale/hard-color `lip`, `cheek`, and `eye` authored mask.
+- Add at least a small batch of atlas variants per high-risk region rather than a single hardcoded candidate.
+- Expose atlas `candidateId` / `variantId` / `region` selection through RN evidence UI.
+- Log variant id, triangle count, UV audit result, fallback flag, and config summary/hash in E7 metric/recipe evidence where practical.
 - Keep E3/E4 baseline selectable.
 - Keep current procedural E7 only as a rejected/negative baseline.
 
@@ -424,13 +473,15 @@ Required outputs:
 
 - Vertex label map or equivalent notes.
 - ARFace atlas MVP screenshot/contact sheet.
+- Candidate registry or override schema notes.
 - Runtime log showing topology/UV fields.
-- Baseline/procedural/atlas toggle confirmation.
+- Baseline/procedural/atlas variant toggle confirmation.
 
 Stop conditions:
 
 - ARFace UVs or mesh counts are unavailable or unstable on the target device.
 - E3/E4 baseline or RN -> Unity -> RN event flow regresses.
+- Atlas candidate exploration requires repeated UnityFramework rebuilds before region quality can be judged.
 
 ### Phase 3: Shared Test Set
 
@@ -452,6 +503,13 @@ Evidence rules:
 - Generate contact sheets and representative frames.
 - Delete raw extracted frame batches after derived evidence is created unless a specific frame is selected as evidence.
 - Do not upload frames.
+
+Time-saving principle:
+
+- Capture one canonical clip set per region, then reuse it across atlas variants, MediaPipe reference, optional parsing reference, and final scoring.
+- Do not re-record for every variant unless the candidate changes live behavior in a way offline frames cannot represent.
+- Name clips with stable clip ids so offline reports can point to the same frame/time across candidates.
+- Prefer contact sheets and selected frame/time markers over full manual video review for every candidate.
 
 ### Phase 4: Offline / Reference Candidate Comparison
 
@@ -494,6 +552,13 @@ Semantic-reference rules:
 - For `cheek`, derive a soft reference zone from skin/landmark geometry rather than expecting a perfect dataset class.
 - Do not retain raw frame batches longer than needed to create representative evidence.
 
+Time-saving principle:
+
+- Run offline references in batch over the shared clip/frame set.
+- Cache candidate outputs with candidate id, variant id, source clip id, frame timestamp, and config hash.
+- Use a quick reject pass first: if a candidate clearly fails on neutral, motion, and one stress frame, do not run full scoring.
+- Do not run optional Apple Vision, ML Kit contours, or face parsing if MediaPipe plus manual acceptance envelope already answers the decision question.
+
 ### Phase 5: ARFace Tuning, Correction, and Temporal Post-process
 
 Goal:
@@ -511,6 +576,13 @@ Required implementation traits:
 - Keep state handling Unity-side.
 - Add fixed vertex/blendshape correction only where the atlas needs it.
 - Treat One Euro/EMA/hysteresis as a temporal post-process layer, not as a boundary candidate.
+
+Time-saving principle:
+
+- Tune candidates by editing atlas data, vertex sets, thresholds, or variant parameters before touching renderer code.
+- Batch-test variant groups instead of rebuilding after each single tweak.
+- Apply correction only to the failing region; do not retune all regions when only `lip` or `eye` fails.
+- Use representative-frame pass/fail before full motion validation.
 
 Expected region outcomes:
 
@@ -532,6 +604,13 @@ Candidate gates:
 - ML Kit Face Mesh runtime POC is not allowed in E7.03.
 - ML Kit Face Detection contours remain optional and low priority.
 - Hybrid runtime POC only if ARFace atlas is stable but semantic edge correction is still needed.
+
+Time-saving principle:
+
+- Runtime POC is a gate, not a default phase.
+- Do not start native/runtime POC if the same decision can be made from offline comparison.
+- Implement at most one runtime POC path per follow-up session unless the first path is conclusively blocked.
+- If runtime POC needs new native packages, camera plumbing, or model bundling, write a go/no-go note first instead of starting integration immediately.
 
 Expected output:
 
@@ -568,6 +647,13 @@ For each region, record:
 - Whether E7.4 may start for that region.
 
 Do not collapse regions into one overall score. `cheek` may be Green while `eye` remains Yellow or Red.
+
+Time-saving principle:
+
+- Use a decision table instead of another exploratory pass.
+- Mark candidates as accepted, rejected, deferred, or not-run with one-line evidence.
+- Carry forward only the best and backup candidate per region.
+- Do not keep exploring after the region has enough evidence for Green/Yellow/Red under Q3 criteria.
 
 ## 9. Scoring Method
 
@@ -695,6 +781,8 @@ Required logs:
 - `evidence/logs/e7-03-boundary-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-03-boundary-offline-compare-YYYY-MM-DD.md`
 - `evidence/logs/e7-03-boundary-decision-YYYY-MM-DD.md`
+- `evidence/logs/e7-03-boundary-candidate-registry-YYYY-MM-DD.md`
+- optional `evidence/logs/e7-03-boundary-sweep-cache-manifest-YYYY-MM-DD.json`
 
 Required visuals:
 
@@ -730,6 +818,7 @@ Required metadata:
 - AR Foundation / ARKit package versions where available;
 - RN app package version or git commit;
 - candidate id and config hash or config summary;
+- atlas variant id and candidate registry version when testing ARFace authored masks;
 - model bundle/source/version for MediaPipe or any ML/reference candidate;
 - frame timestamp or recording timestamp;
 - orientation and mirroring assumptions;
@@ -748,6 +837,8 @@ Stop and re-scope if:
 - A runtime CV candidate cannot document its frame acquisition/disposal path.
 - Face parsing is proposed as live runtime or product/release asset source during E7.03.
 - ML Kit Face Mesh is proposed as an iPhone E7.03 runtime candidate.
+- P2 atlas quality exploration requires a UnityFramework/Xcode rebuild for every candidate variant instead of a runtime-selectable registry, batch variant, or validated JSON override path.
+- A phase starts collecting new recordings or running new builds before checking whether existing clips, contact sheets, cached candidate outputs, or runtime logs already answer the question.
 - E3/E4 baseline behavior regresses.
 - RN -> Unity recipe dispatch regresses.
 - Unity -> RN event receipt regresses.
@@ -770,6 +861,7 @@ Implementation principles:
 
 - Keep E3/E4 baseline selectable.
 - Keep candidate modes explicit.
+- Keep atlas candidates runtime-selectable where possible so region sweeps happen in RN, not through repeated UnityFramework rebuilds.
 - Keep region scoring separate.
 - Keep debug visuals hard and readable before cosmetic rendering.
 - Keep smoothing in Unity or candidate-runtime layer, not RN per-frame bridge.
