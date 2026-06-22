@@ -8,6 +8,7 @@ import React, {
 import {
   GestureResponderEvent,
   LayoutChangeEvent,
+  LogBox,
   PanResponder,
   Pressable,
   StatusBar,
@@ -21,6 +22,8 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+
+LogBox.ignoreAllLogs(true);
 
 const RECIPE_COLOR_OPTIONS = [
   { name: 'rose', color: '#D94B74' },
@@ -62,16 +65,75 @@ const RENDERER_MODE_OPTIONS = [
   { name: 'e3e4-baseline', label: 'Baseline' },
   { name: 'e7-arface-uv-candidate', label: 'E7 UV' },
 ] as const;
+const VALIDATION_VIEW_MODE_OPTIONS = [
+  { name: 'clean', label: 'Clean' },
+  { name: 'compact', label: 'Compact HUD' },
+  { name: 'full', label: 'Full Debug' },
+] as const;
+const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
+const E7_PHASE1_EVIDENCE_MODE = 'phase1-ui-evidence-hygiene';
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
 type RendererMode = (typeof RENDERER_MODE_OPTIONS)[number]['name'];
+type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 type RegionRecipe = {
   color: RecipeColor;
   opacity: number;
   textureSample: RecipeTextureSample;
 };
+type ValidationCandidateOption = {
+  id: string;
+  label: string;
+  status: string;
+  rendererMode?: RendererMode;
+};
+
+const VALIDATION_CANDIDATE_OPTIONS: ValidationCandidateOption[] = [
+  {
+    id: 'e3e4-baseline',
+    label: 'Baseline',
+    status: 'selectable Q1 fallback',
+    rendererMode: 'e3e4-baseline',
+  },
+  {
+    id: 'e7-procedural-arface-uv',
+    label: 'Procedural UV',
+    status: 'selectable rejected baseline',
+    rendererMode: 'e7-arface-uv-candidate',
+  },
+  {
+    id: 'arface-authored-atlas',
+    label: 'ARFace atlas',
+    status: 'Phase 2 pending',
+  },
+  {
+    id: 'arface-vertex-blendshape',
+    label: 'Vertex+blendshape',
+    status: 'pending after atlas',
+  },
+  {
+    id: 'apple-vision-ref',
+    label: 'Apple Vision ref',
+    status: 'offline reference only',
+  },
+  {
+    id: 'mediapipe-ref',
+    label: 'MediaPipe ref',
+    status: 'offline reference only',
+  },
+  {
+    id: 'parsing-ref',
+    label: 'Parsing ref',
+    status: 'offline visual cross-check only',
+  },
+  {
+    id: 'hybrid-candidate',
+    label: 'Hybrid',
+    status: 'future runtime gate',
+  },
+];
 
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
@@ -371,6 +433,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const safeAreaInsets = useSafeAreaInsets();
   const mountedAt = useMemo(() => new Date().toLocaleTimeString(), []);
   const unityRef = useRef<UnityView>(null);
+  const [validationViewMode, setValidationViewMode] =
+    useState<ValidationViewMode>('compact');
   const [selectedRendererMode, setSelectedRendererMode] =
     useState<RendererMode>(DEFAULT_RENDERER_MODE);
   const [selectedRegion, setSelectedRegion] = useState<RecipeRegion>(
@@ -419,9 +483,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ? 'e7_region_precision_debug'
         : 'baseline_debug_mask';
       const recipePrefix = isCandidate ? 'e7-region-precision' : 'e7-baseline';
-      const recipeId = `${recipePrefix}-${region}-${recipe.textureSample.name}-${Math.round(
-        sentAtMs,
-      )}`;
+      const recipeId = `${recipePrefix}-${region}-${
+        recipe.textureSample.name
+      }-${Math.round(sentAtMs)}`;
 
       return JSON.stringify({
         version: 1,
@@ -518,87 +582,94 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [],
   );
 
-  const handleUnityMessage = useCallback((event: UnityMessageEvent) => {
-    const rawMessage = String(event.nativeEvent.message ?? '');
-    const receivedAt = new Date().toLocaleTimeString();
-    const receivedAtMs = Date.now();
-    let record: UnityEventRecord;
+  const handleUnityMessage = useCallback(
+    (event: UnityMessageEvent) => {
+      const rawMessage = String(event.nativeEvent.message ?? '');
+      const receivedAt = new Date().toLocaleTimeString();
+      const receivedAtMs = Date.now();
+      let record: UnityEventRecord;
 
-    try {
-      const parsedMessage = JSON.parse(rawMessage);
+      try {
+        const parsedMessage = JSON.parse(rawMessage);
 
-      if (
-        parsedMessage === null ||
-        typeof parsedMessage !== 'object' ||
-        Array.isArray(parsedMessage)
-      ) {
-        throw new Error('Unity message JSON is not an object.');
+        if (
+          parsedMessage === null ||
+          typeof parsedMessage !== 'object' ||
+          Array.isArray(parsedMessage)
+        ) {
+          throw new Error('Unity message JSON is not an object.');
+        }
+
+        const parsed = parsedMessage as UnityEventPayload;
+        parsed.receivedAtMs = receivedAtMs;
+        record = {
+          id: Date.now(),
+          receivedAt,
+          receivedAtMs,
+          rawMessage,
+          parsed,
+          displayText: formatUnityEvent(parsed),
+        };
+
+        if (parsed.type === 'recipe_applied') {
+          logE7RecipeLatency(parsed, receivedAtMs);
+          postRecipeAck(parsed, receivedAtMs);
+        }
+
+        console.log(
+          parsed.type === 'face_feature_snapshot'
+            ? '[E5] rn_face_feature_snapshot_received'
+            : parsed.type === 'e7_metric_sample'
+            ? '[E7] rn_metric_sample_received'
+            : parsed.type === 'recipe_applied'
+            ? '[E7] rn_recipe_applied_received'
+            : parsed.type === 'face_lifecycle'
+            ? '[E2] rn_unity_message_received'
+            : '[M6] rn_unity_message_received',
+          parsed.type === 'face_feature_snapshot'
+            ? `rawCameraFrameStored=${String(
+                readSnapshotPrivacyFlag(parsed, 'rawCameraFrameStored'),
+              )} offDeviceUpload=${String(
+                readSnapshotPrivacyFlag(parsed, 'offDeviceUpload'),
+              )}`
+            : '',
+          rawMessage,
+        );
+
+        const knownType = getKnownUnityEventType(parsed.type);
+        if (knownType) {
+          setUnityEventStatus(currentStatus => ({
+            ...currentStatus,
+            [knownType]: record,
+          }));
+        }
+      } catch (error) {
+        const parseError =
+          error instanceof Error ? error.message : 'Unknown parse error';
+
+        record = {
+          id: Date.now(),
+          receivedAt,
+          receivedAtMs,
+          rawMessage,
+          parseError,
+          displayText: `parse_failed ${parseError}`,
+        };
+
+        console.log(
+          '[M6] rn_unity_message_parse_failed',
+          rawMessage,
+          parseError,
+        );
       }
 
-      const parsed = parsedMessage as UnityEventPayload;
-      parsed.receivedAtMs = receivedAtMs;
-      record = {
-        id: Date.now(),
-        receivedAt,
-        receivedAtMs,
-        rawMessage,
-        parsed,
-        displayText: formatUnityEvent(parsed),
-      };
-
-      if (parsed.type === 'recipe_applied') {
-        logE7RecipeLatency(parsed, receivedAtMs);
-        postRecipeAck(parsed, receivedAtMs);
-      }
-
-      console.log(
-        parsed.type === 'face_feature_snapshot'
-          ? '[E5] rn_face_feature_snapshot_received'
-          : parsed.type === 'e7_metric_sample'
-          ? '[E7] rn_metric_sample_received'
-          : parsed.type === 'recipe_applied'
-          ? '[E7] rn_recipe_applied_received'
-          : parsed.type === 'face_lifecycle'
-          ? '[E2] rn_unity_message_received'
-          : '[M6] rn_unity_message_received',
-        parsed.type === 'face_feature_snapshot'
-          ? `rawCameraFrameStored=${String(
-              readSnapshotPrivacyFlag(parsed, 'rawCameraFrameStored'),
-            )} offDeviceUpload=${String(
-              readSnapshotPrivacyFlag(parsed, 'offDeviceUpload'),
-            )}`
-          : '',
-        rawMessage,
+      setLastUnityEvent(record);
+      setUnityEventHistory(currentHistory =>
+        [record, ...currentHistory].slice(0, UNITY_EVENT_HISTORY_LIMIT),
       );
-
-      const knownType = getKnownUnityEventType(parsed.type);
-      if (knownType) {
-        setUnityEventStatus(currentStatus => ({
-          ...currentStatus,
-          [knownType]: record,
-        }));
-      }
-    } catch (error) {
-      const parseError =
-        error instanceof Error ? error.message : 'Unknown parse error';
-
-      record = {
-        id: Date.now(),
-        receivedAt,
-        receivedAtMs,
-        rawMessage,
-        parseError,
-        displayText: `parse_failed ${parseError}`,
-      };
-
-      console.log('[M6] rn_unity_message_parse_failed', rawMessage, parseError);
-    }
-
-    setLastUnityEvent(record);
-    setUnityEventHistory(currentHistory =>
-      [record, ...currentHistory].slice(0, UNITY_EVENT_HISTORY_LIMIT),
-    );
-  }, [postRecipeAck]);
+    },
+    [postRecipeAck],
+  );
 
   useEffect(() => {
     const initialPostTimer = setTimeout(() => {
@@ -616,6 +687,45 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectedColor = selectedRecipe.color;
   const selectedTextureSample = selectedRecipe.textureSample;
   const opacity = selectedRecipe.opacity;
+  const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
+  const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
+  const latestRecipe = unityEventStatus.recipe_applied?.parsed;
+  const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
+  const latestRecipeRecord = unityEventStatus.recipe_applied;
+  const recipeLatencyMs = getRecipeAckLatencyMs(
+    latestRecipe,
+    latestRecipeRecord?.receivedAtMs,
+  );
+  const evidenceMetadataLines = useMemo(
+    () =>
+      buildEvidenceMetadataLines({
+        entryCount,
+        mountedAt,
+        validationViewMode,
+        selectedRendererMode,
+        selectedRegion,
+        latestMetric,
+        latestLifecycle,
+        latestRecipe,
+        latestSnapshot,
+        lastUnityEvent,
+      }),
+    [
+      entryCount,
+      lastUnityEvent,
+      latestLifecycle,
+      latestMetric,
+      latestRecipe,
+      latestSnapshot,
+      mountedAt,
+      selectedRegion,
+      selectedRendererMode,
+      validationViewMode,
+    ],
+  );
+  const showFullDebug = validationViewMode === 'full';
+  const showFullControls = validationViewMode === 'full';
+  const showCompactControls = validationViewMode !== 'clean';
 
   const selectRendererMode = useCallback(
     (rendererMode: RendererMode) => {
@@ -704,77 +814,21 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           },
         ]}
       >
-        <Pressable
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.closeButton,
-            pressed && styles.closeButtonPressed,
-          ]}
-          onPress={handleClose}
-        >
-          <Text style={styles.closeButtonText}>Close</Text>
-        </Pressable>
+        <View style={styles.topChrome}>
+          <Pressable
+            accessibilityRole="button"
+            style={({ pressed }) => [
+              styles.closeButton,
+              pressed && styles.closeButtonPressed,
+            ]}
+            onPress={handleClose}
+          >
+            <Text style={styles.closeButtonText}>Close</Text>
+          </Pressable>
 
-        <View style={styles.debugPanel}>
-          <Text style={styles.debugMetaText}>
-            {`E7.3 entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
-          </Text>
-          <Text style={styles.debugLabel}>Latest Unity event</Text>
-          <Text style={styles.debugText} numberOfLines={2}>
-            {lastUnityEvent
-              ? `${lastUnityEvent.receivedAt} ${lastUnityEvent.displayText}`
-              : `waiting_for_unity_event mounted=${mountedAt}`}
-          </Text>
-          <FaceLifecyclePanel
-            event={unityEventStatus.face_lifecycle?.parsed}
-            receivedAt={unityEventStatus.face_lifecycle?.receivedAt}
-          />
-          <FaceFeatureSnapshotPanel
-            event={unityEventStatus.face_feature_snapshot?.parsed}
-            receivedAt={unityEventStatus.face_feature_snapshot?.receivedAt}
-          />
-          <E7StatusPanel
-            currentRegion={selectedRegion}
-            metricRecord={unityEventStatus.e7_metric_sample}
-            recipeRecord={unityEventStatus.recipe_applied}
-          />
-          <View style={styles.debugStatus}>
-            <Text style={styles.debugSubLabel}>Last by type</Text>
-            {UNITY_EVENT_TYPES.map(type => {
-              const statusEvent = unityEventStatus[type];
-
-              return (
-                <Text
-                  key={type}
-                  style={styles.debugHistoryText}
-                  numberOfLines={1}
-                >
-                  {formatUnityEventTypeStatus(type, statusEvent)}
-                </Text>
-              );
-            })}
-          </View>
-          <View style={styles.debugHistory}>
-            {unityEventHistory.length === 0 ? (
-              <Text style={styles.debugHistoryText}>history empty</Text>
-            ) : (
-              unityEventHistory.map(historyEvent => (
-                <Text
-                  key={`${historyEvent.id}-${historyEvent.rawMessage}`}
-                  style={styles.debugHistoryText}
-                  numberOfLines={1}
-                >
-                  {historyEvent.receivedAt} {historyEvent.displayText}
-                </Text>
-              ))
-            )}
-          </View>
-        </View>
-
-        <View style={styles.recipePanel}>
-          <View style={styles.modeButtonRow}>
-            {RENDERER_MODE_OPTIONS.map(modeOption => {
-              const isSelected = modeOption.name === selectedRendererMode;
+          <View style={styles.viewModeRow}>
+            {VALIDATION_VIEW_MODE_OPTIONS.map(modeOption => {
+              const isSelected = modeOption.name === validationViewMode;
 
               return (
                 <Pressable
@@ -782,16 +836,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   accessibilityState={{ selected: isSelected }}
                   key={modeOption.name}
                   style={({ pressed }) => [
-                    styles.modeButton,
-                    isSelected && styles.modeButtonSelected,
+                    styles.viewModeButton,
+                    isSelected && styles.viewModeButtonSelected,
                     pressed && styles.colorButtonPressed,
                   ]}
-                  onPress={() => selectRendererMode(modeOption.name)}
+                  onPress={() => setValidationViewMode(modeOption.name)}
                 >
                   <Text
                     style={[
-                      styles.modeButtonText,
-                      isSelected && styles.modeButtonTextSelected,
+                      styles.viewModeButtonText,
+                      isSelected && styles.viewModeButtonTextSelected,
                     ]}
                   >
                     {modeOption.label}
@@ -800,119 +854,289 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               );
             })}
           </View>
-
-          <View style={styles.regionButtonRow}>
-            {RECIPE_REGION_OPTIONS.map(regionOption => {
-              const isSelected = regionOption === selectedRegion;
-
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                  key={regionOption}
-                  style={({ pressed }) => [
-                    styles.regionButton,
-                    isSelected && styles.regionButtonSelected,
-                    pressed && styles.colorButtonPressed,
-                  ]}
-                  onPress={() => selectRegion(regionOption)}
-                >
-                  <Text
-                    style={[
-                      styles.regionButtonText,
-                      isSelected && styles.regionButtonTextSelected,
-                    ]}
-                  >
-                    {regionOption}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={styles.colorButtonRow}>
-            {RECIPE_COLOR_OPTIONS.map(colorOption => {
-              const isSelected = colorOption.name === selectedColor.name;
-
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                  key={colorOption.name}
-                  style={({ pressed }) => [
-                    styles.colorButton,
-                    { backgroundColor: colorOption.color },
-                    isSelected && styles.colorButtonSelected,
-                    pressed && styles.colorButtonPressed,
-                  ]}
-                  onPress={() => selectColor(colorOption)}
-                >
-                  <Text style={styles.colorButtonText}>{colorOption.name}</Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <View style={styles.textureButtonRow}>
-            {RECIPE_TEXTURE_SAMPLE_OPTIONS.map(textureOption => {
-              const isSelected =
-                textureOption.name === selectedTextureSample.name;
-              const isCurrentRegion = textureOption.region === selectedRegion;
-
-              return (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                  key={textureOption.name}
-                  style={({ pressed }) => [
-                    styles.textureButton,
-                    isSelected && styles.textureButtonSelected,
-                    isCurrentRegion && styles.textureButtonCurrentRegion,
-                    pressed && styles.colorButtonPressed,
-                  ]}
-                  onPress={() => selectTextureSample(textureOption)}
-                >
-                  <Text
-                    style={[
-                      styles.textureButtonText,
-                      isSelected && styles.textureButtonTextSelected,
-                    ]}
-                  >
-                    {textureOption.name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.textureButtonRegionText,
-                      isSelected && styles.textureButtonTextSelected,
-                    ]}
-                  >
-                    {textureOption.region}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </View>
-
-          <OpacitySlider
-            value={opacity}
-            width={sliderWidth}
-            onLayoutWidth={setSliderWidth}
-            onChange={updateOpacity}
-          />
-
-          <Text style={styles.recipeValueText} numberOfLines={3}>
-            renderer {selectedRendererMode} / region {selectedRegion} /{' '}
-            {selectedColor.name} {selectedColor.color} / opacity{' '}
-            {opacityPercent}% / texture {selectedTextureSample.name} / mode{' '}
-            {selectedTextureSample.textureMode} / intensity{' '}
-            {selectedTextureSample.intensity.toFixed(2)}
-          </Text>
-          <Text style={styles.recipeAppliedText} numberOfLines={2}>
-            {formatRecipeAppliedSummary(
-              unityEventStatus.recipe_applied?.parsed,
-            )}
-          </Text>
         </View>
+
+        <CompactEvidenceHud
+          validationViewMode={validationViewMode}
+          selectedRendererMode={selectedRendererMode}
+          selectedRegion={selectedRegion}
+          latestMetric={latestMetric}
+          latestLifecycle={latestLifecycle}
+          latestRecipe={latestRecipe}
+          recipeLatencyMs={recipeLatencyMs}
+        />
+
+        {showFullDebug && (
+          <View style={styles.debugPanel}>
+            <Text style={styles.debugMetaText}>
+              {`${E7_BOUNDARY_PLAN_VERSION} entry #${entryCount} mounted=${mountedAt} previous_exits=${exitCount}`}
+            </Text>
+            <Text style={styles.debugLabel}>Evidence metadata</Text>
+            {evidenceMetadataLines.map(line => (
+              <Text
+                key={line}
+                style={styles.debugHistoryText}
+                numberOfLines={1}
+              >
+                {line}
+              </Text>
+            ))}
+            <Text style={styles.debugLabel}>Latest Unity event</Text>
+            <Text style={styles.debugText} numberOfLines={2}>
+              {lastUnityEvent
+                ? `${lastUnityEvent.receivedAt} ${lastUnityEvent.displayText}`
+                : `waiting_for_unity_event mounted=${mountedAt}`}
+            </Text>
+            <FaceLifecyclePanel
+              event={unityEventStatus.face_lifecycle?.parsed}
+              receivedAt={unityEventStatus.face_lifecycle?.receivedAt}
+            />
+            <FaceFeatureSnapshotPanel
+              event={unityEventStatus.face_feature_snapshot?.parsed}
+              receivedAt={unityEventStatus.face_feature_snapshot?.receivedAt}
+            />
+            <E7StatusPanel
+              currentRegion={selectedRegion}
+              metricRecord={unityEventStatus.e7_metric_sample}
+              recipeRecord={unityEventStatus.recipe_applied}
+            />
+            <View style={styles.debugStatus}>
+              <Text style={styles.debugSubLabel}>Last by type</Text>
+              {UNITY_EVENT_TYPES.map(type => {
+                const statusEvent = unityEventStatus[type];
+
+                return (
+                  <Text
+                    key={type}
+                    style={styles.debugHistoryText}
+                    numberOfLines={1}
+                  >
+                    {formatUnityEventTypeStatus(type, statusEvent)}
+                  </Text>
+                );
+              })}
+            </View>
+            <View style={styles.debugHistory}>
+              {unityEventHistory.length === 0 ? (
+                <Text style={styles.debugHistoryText}>history empty</Text>
+              ) : (
+                unityEventHistory.map(historyEvent => (
+                  <Text
+                    key={`${historyEvent.id}-${historyEvent.rawMessage}`}
+                    style={styles.debugHistoryText}
+                    numberOfLines={1}
+                  >
+                    {historyEvent.receivedAt} {historyEvent.displayText}
+                  </Text>
+                ))
+              )}
+            </View>
+          </View>
+        )}
+
+        {showCompactControls && (
+          <View
+            style={[
+              styles.recipePanel,
+              !showFullControls && styles.recipePanelCompact,
+            ]}
+          >
+            <View style={styles.recipePanelHeader}>
+              <Text style={styles.recipePanelLabel}>Candidate</Text>
+              <Text style={styles.recipePanelMetaText} numberOfLines={1}>
+                {`${formatSelectedCandidateId(
+                  selectedRendererMode,
+                )} / region=${selectedRegion}`}
+              </Text>
+            </View>
+
+            <View style={styles.modeButtonRow}>
+              {RENDERER_MODE_OPTIONS.map(modeOption => {
+                const isSelected = modeOption.name === selectedRendererMode;
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={modeOption.name}
+                    style={({ pressed }) => [
+                      styles.modeButton,
+                      isSelected && styles.modeButtonSelected,
+                      pressed && styles.colorButtonPressed,
+                    ]}
+                    onPress={() => selectRendererMode(modeOption.name)}
+                  >
+                    <Text
+                      style={[
+                        styles.modeButtonText,
+                        isSelected && styles.modeButtonTextSelected,
+                      ]}
+                    >
+                      {modeOption.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {showFullControls && (
+              <View style={styles.candidateCatalog}>
+                {VALIDATION_CANDIDATE_OPTIONS.map(candidateOption => {
+                  const isSelected =
+                    candidateOption.rendererMode === selectedRendererMode;
+                  const isPending = !candidateOption.rendererMode;
+
+                  return (
+                    <View
+                      key={candidateOption.id}
+                      style={[
+                        styles.candidateCatalogRow,
+                        isSelected && styles.candidateCatalogRowSelected,
+                        isPending && styles.candidateCatalogRowPending,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.candidateCatalogText,
+                          isSelected && styles.candidateCatalogTextSelected,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {candidateOption.id}
+                      </Text>
+                      <Text
+                        style={styles.candidateCatalogStatusText}
+                        numberOfLines={1}
+                      >
+                        {candidateOption.status}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            <View style={styles.regionButtonRow}>
+              {RECIPE_REGION_OPTIONS.map(regionOption => {
+                const isSelected = regionOption === selectedRegion;
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={regionOption}
+                    style={({ pressed }) => [
+                      styles.regionButton,
+                      isSelected && styles.regionButtonSelected,
+                      pressed && styles.colorButtonPressed,
+                    ]}
+                    onPress={() => selectRegion(regionOption)}
+                  >
+                    <Text
+                      style={[
+                        styles.regionButtonText,
+                        isSelected && styles.regionButtonTextSelected,
+                      ]}
+                    >
+                      {regionOption}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            {showFullControls && (
+              <>
+                <View style={styles.colorButtonRow}>
+                  {RECIPE_COLOR_OPTIONS.map(colorOption => {
+                    const isSelected = colorOption.name === selectedColor.name;
+
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={colorOption.name}
+                        style={({ pressed }) => [
+                          styles.colorButton,
+                          { backgroundColor: colorOption.color },
+                          isSelected && styles.colorButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => selectColor(colorOption)}
+                      >
+                        <Text style={styles.colorButtonText}>
+                          {colorOption.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <View style={styles.textureButtonRow}>
+                  {RECIPE_TEXTURE_SAMPLE_OPTIONS.map(textureOption => {
+                    const isSelected =
+                      textureOption.name === selectedTextureSample.name;
+                    const isCurrentRegion =
+                      textureOption.region === selectedRegion;
+
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={textureOption.name}
+                        style={({ pressed }) => [
+                          styles.textureButton,
+                          isSelected && styles.textureButtonSelected,
+                          isCurrentRegion && styles.textureButtonCurrentRegion,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => selectTextureSample(textureOption)}
+                      >
+                        <Text
+                          style={[
+                            styles.textureButtonText,
+                            isSelected && styles.textureButtonTextSelected,
+                          ]}
+                        >
+                          {textureOption.name}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.textureButtonRegionText,
+                            isSelected && styles.textureButtonTextSelected,
+                          ]}
+                        >
+                          {textureOption.region}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <OpacitySlider
+                  value={opacity}
+                  width={sliderWidth}
+                  onLayoutWidth={setSliderWidth}
+                  onChange={updateOpacity}
+                />
+
+                <Text style={styles.recipeValueText} numberOfLines={3}>
+                  renderer {selectedRendererMode} / region {selectedRegion} /{' '}
+                  {selectedColor.name} {selectedColor.color} / opacity{' '}
+                  {opacityPercent}% / texture {selectedTextureSample.name} /
+                  mode {selectedTextureSample.textureMode} / intensity{' '}
+                  {selectedTextureSample.intensity.toFixed(2)}
+                </Text>
+              </>
+            )}
+
+            <Text style={styles.recipeAppliedText} numberOfLines={2}>
+              {formatRecipeAppliedSummary(
+                unityEventStatus.recipe_applied?.parsed,
+              )}
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -993,10 +1217,7 @@ function FaceFeatureSnapshotPanel({
   event,
   receivedAt,
 }: FaceFeatureSnapshotPanelProps) {
-  const rawFrameStored = readSnapshotPrivacyFlag(
-    event,
-    'rawCameraFrameStored',
-  );
+  const rawFrameStored = readSnapshotPrivacyFlag(event, 'rawCameraFrameStored');
   const offDeviceUpload = readSnapshotPrivacyFlag(event, 'offDeviceUpload');
 
   return (
@@ -1100,9 +1321,7 @@ function E7StatusPanel({
               metric.memoryMetricAvailable ?? false,
             )} alloc=${formatMetricNumber(
               metric.allocatedMemoryMb,
-            )}MB reserved=${formatMetricNumber(
-              metric.reservedMemoryMb,
-            )}MB`
+            )}MB reserved=${formatMetricNumber(metric.reservedMemoryMb)}MB`
           : 'memory waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
@@ -1119,7 +1338,9 @@ function E7StatusPanel({
           ? `mask=${String(metric.maskSource ?? 'centroid_broad')} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
             )} base=${String(
-              metric.regionBaselineTriangles ?? metric.baselineTriangles ?? 'n/a',
+              metric.regionBaselineTriangles ??
+                metric.baselineTriangles ??
+                'n/a',
             )} cand=${String(
               metric.regionCandidateTriangles ??
                 metric.candidateTriangles ??
@@ -1131,18 +1352,160 @@ function E7StatusPanel({
         {recipe
           ? `latency=${formatMetricNumber(
               latencyMs,
-            )}ms sent=${formatMetricNumber(
-              recipe.sentAtMs,
-              0,
-            )} state=${String(recipe.stateAction ?? 'n/a')} frame=${String(
-              recipe.appliedFrame ?? 'n/a',
-            )} ${
+            )}ms sent=${formatMetricNumber(recipe.sentAtMs, 0)} state=${String(
+              recipe.stateAction ?? 'n/a',
+            )} frame=${String(recipe.appliedFrame ?? 'n/a')} ${
               recipeRecord?.receivedAt ?? ''
             }`
           : 'latency waiting'}
       </Text>
     </View>
   );
+}
+
+type CompactEvidenceHudProps = {
+  validationViewMode: ValidationViewMode;
+  selectedRendererMode: RendererMode;
+  selectedRegion: RecipeRegion;
+  latestMetric?: UnityEventPayload;
+  latestLifecycle?: UnityEventPayload;
+  latestRecipe?: UnityEventPayload;
+  recipeLatencyMs?: number;
+};
+
+function CompactEvidenceHud({
+  validationViewMode,
+  selectedRendererMode,
+  selectedRegion,
+  latestMetric,
+  latestLifecycle,
+  latestRecipe,
+  recipeLatencyMs,
+}: CompactEvidenceHudProps) {
+  if (validationViewMode === 'clean') {
+    return null;
+  }
+
+  const candidateId = formatSelectedCandidateId(selectedRendererMode);
+  const trackingState = readTrackingState(latestLifecycle, latestMetric);
+  const faceCount = readFaceCount(latestLifecycle, latestMetric);
+  const meshCounts = formatMeshCountSummary(latestMetric);
+  const stateAction = String(
+    latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
+  );
+
+  return (
+    <View
+      style={[
+        styles.compactHud,
+        validationViewMode === 'full' && styles.compactHudFull,
+      ]}
+    >
+      <View style={styles.compactHudHeader}>
+        <Text style={styles.compactHudLabel}>E7.03 HUD</Text>
+        <Text style={styles.compactHudBadge}>{validationViewMode}</Text>
+      </View>
+      <Text style={styles.compactHudText} numberOfLines={1}>
+        {`candidate=${candidateId} region=${selectedRegion}`}
+      </Text>
+      <Text style={styles.compactHudText} numberOfLines={1}>
+        {`tracking=${trackingState} faces=${faceCount} mesh=${meshCounts}`}
+      </Text>
+      <Text style={styles.compactHudText} numberOfLines={1}>
+        {`fps=${formatMetricNumber(
+          latestMetric?.averageFps,
+        )} frame=${formatMetricNumber(
+          latestMetric?.averageFrameTimeMs,
+        )}ms state=${stateAction} latency=${formatMetricNumber(
+          recipeLatencyMs,
+        )}ms`}
+      </Text>
+    </View>
+  );
+}
+
+type EvidenceMetadataInput = {
+  entryCount: number;
+  mountedAt: string;
+  validationViewMode: ValidationViewMode;
+  selectedRendererMode: RendererMode;
+  selectedRegion: RecipeRegion;
+  latestMetric?: UnityEventPayload;
+  latestLifecycle?: UnityEventPayload;
+  latestRecipe?: UnityEventPayload;
+  latestSnapshot?: UnityEventPayload;
+  lastUnityEvent: UnityEventRecord | null;
+};
+
+function buildEvidenceMetadataLines({
+  entryCount,
+  mountedAt,
+  validationViewMode,
+  selectedRendererMode,
+  selectedRegion,
+  latestMetric,
+  latestLifecycle,
+  latestRecipe,
+  latestSnapshot,
+  lastUnityEvent,
+}: EvidenceMetadataInput) {
+  const candidateId = formatSelectedCandidateId(selectedRendererMode);
+  const latencyMs = getRecipeAckLatencyMs(
+    latestRecipe,
+    latestRecipe?.receivedAtMs,
+  );
+  const meshSource = latestMetric ?? latestSnapshot;
+  const candidateOption = getValidationCandidateOption(selectedRendererMode);
+
+  return [
+    `evidenceMode=${E7_PHASE1_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
+    `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
+    `candidateId=${candidateId} rendererMode=${selectedRendererMode} status=${
+      candidateOption?.status ?? 'unknown'
+    }`,
+    `region=${selectedRegion} metricRegion=${formatLifecycleValue(
+      latestMetric?.region,
+    )}`,
+    `trackingState=${readTrackingState(
+      latestLifecycle,
+      latestMetric,
+    )} faceCount=${readFaceCount(latestLifecycle, latestMetric)}`,
+    `mesh vertex=${formatMeshCountValue(
+      meshSource,
+      latestSnapshot,
+      'vertex',
+    )} index=${formatMeshCountValue(
+      meshSource,
+      latestSnapshot,
+      'index',
+    )} uv=${formatMeshCountValue(meshSource, latestSnapshot, 'uv')}`,
+    `blendshapeFieldsUsed=${String(
+      latestMetric?.blendshapeFieldsUsed ?? 'not_exposed_in_phase1_ui',
+    )}`,
+    `fps=${formatMetricNumber(
+      latestMetric?.averageFps,
+    )} frameTimeMs=${formatMetricNumber(
+      latestMetric?.averageFrameTimeMs,
+    )} latencyMs=${formatMetricNumber(latencyMs)}`,
+    `stateAction=${String(
+      latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
+    )} visualDecisionNotes=pending_runtime_review`,
+    `device=${String(
+      latestSnapshot?.deviceModel ?? latestMetric?.deviceModel ?? 'n/a',
+    )} orientation=${String(
+      latestSnapshot?.orientation ?? latestMetric?.orientation ?? 'n/a',
+    )}`,
+    `evidenceKind=runtime_ui_overlay rawFrameStored=${String(
+      readSnapshotPrivacyFlag(latestSnapshot, 'rawCameraFrameStored'),
+    )} upload=${String(
+      readSnapshotPrivacyFlag(latestSnapshot, 'offDeviceUpload'),
+    )}`,
+    `lastEvent=${
+      lastUnityEvent
+        ? `${lastUnityEvent.receivedAt} ${lastUnityEvent.displayText}`
+        : 'waiting'
+    }`,
+  ];
 }
 
 function formatUnityEvent(event: UnityEventPayload) {
@@ -1215,15 +1578,13 @@ function formatUnityEventTypeStatus(
 function formatE7MetricSummary(event: UnityEventPayload) {
   return `fps=${formatMetricNumber(
     event.averageFps,
-  )} frame=${formatMetricNumber(
-    event.averageFrameTimeMs,
-  )}ms mem=${String(event.memoryMetricAvailable ?? false)} thermal=${String(
-    event.thermalEvidenceType ?? 'n/a',
-  )} phase=${String(event.phase ?? 'baseline')} mode=${String(
-    event.rendererMode ?? 'e3e4-baseline',
-  )} look=${String(event.lookId ?? 'baseline_debug_mask')} uv=${String(
-    event.regionUvAvailable ?? event.uvAvailable ?? false,
-  )}`;
+  )} frame=${formatMetricNumber(event.averageFrameTimeMs)}ms mem=${String(
+    event.memoryMetricAvailable ?? false,
+  )} thermal=${String(event.thermalEvidenceType ?? 'n/a')} phase=${String(
+    event.phase ?? 'baseline',
+  )} mode=${String(event.rendererMode ?? 'e3e4-baseline')} look=${String(
+    event.lookId ?? 'baseline_debug_mask',
+  )} uv=${String(event.regionUvAvailable ?? event.uvAvailable ?? false)}`;
 }
 
 function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
@@ -1234,7 +1595,9 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
 
   console.log(
     '[E7] recipe_latency',
-    `runId=${String(event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`)}`,
+    `runId=${String(
+      event.runId ?? `e7-baseline-rn-${new Date().toISOString().slice(0, 10)}`,
+    )}`,
     `phase=${String(event.phase ?? 'baseline')}`,
     `timestampMs=${receivedAtMs}`,
     `rendererMode=${String(event.rendererMode ?? 'e3e4-baseline')}`,
@@ -1266,6 +1629,86 @@ function getRecipeAckLatencyMs(
   return receivedAtMs - sentAtMs;
 }
 
+function getValidationCandidateOption(rendererMode: RendererMode) {
+  return VALIDATION_CANDIDATE_OPTIONS.find(
+    candidateOption => candidateOption.rendererMode === rendererMode,
+  );
+}
+
+function formatSelectedCandidateId(rendererMode: RendererMode) {
+  return getValidationCandidateOption(rendererMode)?.id ?? rendererMode;
+}
+
+function readTrackingState(
+  lifecycleEvent?: UnityEventPayload,
+  metricEvent?: UnityEventPayload,
+) {
+  return String(
+    lifecycleEvent?.trackingState ??
+      lifecycleEvent?.status ??
+      metricEvent?.trackingState ??
+      metricEvent?.status ??
+      'waiting',
+  );
+}
+
+function readFaceCount(
+  lifecycleEvent?: UnityEventPayload,
+  metricEvent?: UnityEventPayload,
+) {
+  return String(
+    lifecycleEvent?.faceCount ??
+      metricEvent?.faceCount ??
+      lifecycleEvent?.totalTrackables ??
+      metricEvent?.totalTrackables ??
+      'n/a',
+  );
+}
+
+function formatMeshCountSummary(event?: UnityEventPayload) {
+  return `v=${formatMeshCountValue(
+    event,
+    undefined,
+    'vertex',
+  )}/i=${formatMeshCountValue(
+    event,
+    undefined,
+    'index',
+  )}/uv=${formatMeshCountValue(event, undefined, 'uv')}`;
+}
+
+function formatMeshCountValue(
+  primaryEvent: UnityEventPayload | undefined,
+  fallbackEvent: UnityEventPayload | undefined,
+  key: 'vertex' | 'index' | 'uv',
+) {
+  const directKeys = {
+    vertex: 'meshVertexCount',
+    index: 'meshIndexCount',
+    uv: 'meshUvCount',
+  } as const;
+  const nestedKeys = {
+    vertex: 'vertexCount',
+    index: 'indexCount',
+    uv: 'uvCount',
+  } as const;
+
+  const directValue =
+    primaryEvent?.[directKeys[key]] ?? fallbackEvent?.[directKeys[key]];
+  const directNumber = readNumber(directValue);
+  if (directNumber !== undefined) {
+    return directNumber.toFixed(0);
+  }
+
+  const primaryMesh = asRecord(primaryEvent?.mesh);
+  const fallbackMesh = asRecord(fallbackEvent?.mesh);
+  const nestedValue =
+    primaryMesh?.[nestedKeys[key]] ?? fallbackMesh?.[nestedKeys[key]];
+  const nestedNumber = readNumber(nestedValue);
+
+  return nestedNumber === undefined ? 'n/a' : nestedNumber.toFixed(0);
+}
+
 function readNumber(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value)
     ? value
@@ -1282,11 +1725,11 @@ function formatMetricNumber(value: unknown, fractionDigits = 1) {
 }
 
 function formatFaceFeatureSnapshotSummary(event: UnityEventPayload) {
-  return `${String(event.lifecycleState ?? event.status ?? 'lost')} face=${String(
-    event.faceCount ?? 'n/a',
-  )}/${String(event.totalTrackables ?? 'n/a')} mesh=${formatSnapshotMesh(
-    event,
-  )} regions=${formatLifecycleValue(
+  return `${String(
+    event.lifecycleState ?? event.status ?? 'lost',
+  )} face=${String(event.faceCount ?? 'n/a')}/${String(
+    event.totalTrackables ?? 'n/a',
+  )} mesh=${formatSnapshotMesh(event)} regions=${formatLifecycleValue(
     event.activeRegionSummary,
   )} rawFrame=${String(
     readSnapshotPrivacyFlag(event, 'rawCameraFrameStored'),
@@ -1353,9 +1796,9 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.candidateTriangles ?? 'n/a',
   )} uv=${String(event.uvAvailable ?? false)} state=${String(
     event.stateAction ?? 'n/a',
-  )} fallback=${String(event.usedFallback ?? false)} latency=${formatMetricNumber(
-    latencyMs,
-  )}ms`;
+  )} fallback=${String(
+    event.usedFallback ?? false,
+  )} latency=${formatMetricNumber(latencyMs)}ms`;
 }
 
 function formatFaceTrackingDetails(event: UnityEventPayload) {
@@ -1546,6 +1989,12 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 16,
   },
+  topChrome: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   closeButton: {
     alignSelf: 'flex-start',
     minHeight: 44,
@@ -1564,6 +2013,83 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '800',
+    letterSpacing: 0,
+  },
+  viewModeRow: {
+    flex: 1,
+    minHeight: 40,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 6,
+  },
+  viewModeButton: {
+    minHeight: 40,
+    minWidth: 64,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(0, 0, 0, 0.54)',
+    paddingHorizontal: 8,
+  },
+  viewModeButtonSelected: {
+    backgroundColor: '#F9FAFB',
+    borderColor: '#FFFFFF',
+  },
+  viewModeButtonText: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  viewModeButtonTextSelected: {
+    color: '#111827',
+  },
+  compactHud: {
+    alignSelf: 'flex-start',
+    width: '58%',
+    maxWidth: 320,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.58)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 2,
+  },
+  compactHudFull: {
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
+  },
+  compactHudHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  compactHudLabel: {
+    color: '#D1FAE5',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  compactHudBadge: {
+    color: '#111827',
+    backgroundColor: '#FDE68A',
+    borderRadius: 8,
+    overflow: 'hidden',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  compactHudText: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    lineHeight: 14,
     letterSpacing: 0,
   },
   debugPanel: {
@@ -1765,6 +2291,32 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.22)',
   },
+  recipePanelCompact: {
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    gap: 8,
+  },
+  recipePanelHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  recipePanelLabel: {
+    color: '#FDE68A',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  recipePanelMetaText: {
+    flex: 1,
+    color: '#F9FAFB',
+    fontSize: 10,
+    lineHeight: 14,
+    letterSpacing: 0,
+    textAlign: 'right',
+  },
   modeButtonRow: {
     flexDirection: 'row',
     gap: 8,
@@ -1792,6 +2344,46 @@ const styles = StyleSheet.create({
   },
   modeButtonTextSelected: {
     color: '#064E3B',
+  },
+  candidateCatalog: {
+    gap: 4,
+  },
+  candidateCatalogRow: {
+    minHeight: 22,
+    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    paddingHorizontal: 8,
+  },
+  candidateCatalogRowSelected: {
+    backgroundColor: 'rgba(209, 250, 229, 0.22)',
+    borderColor: '#D1FAE5',
+  },
+  candidateCatalogRowPending: {
+    opacity: 0.72,
+  },
+  candidateCatalogText: {
+    flex: 1,
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 0,
+  },
+  candidateCatalogTextSelected: {
+    color: '#D1FAE5',
+  },
+  candidateCatalogStatusText: {
+    flex: 1,
+    color: '#BAE6FD',
+    fontSize: 9,
+    lineHeight: 12,
+    letterSpacing: 0,
+    textAlign: 'right',
   },
   regionButtonRow: {
     flexDirection: 'row',

@@ -6,16 +6,25 @@ Latest re-check: 2026-06-22 11:18 KST
 
 Latest document cleanup: 2026-06-22 KST
 
+Latest E7.03 contract reset: 2026-06-22 KST
+
+Latest E7.03 Phase 1 UI/evidence hygiene implementation: 2026-06-22 KST
+
+Latest E7.03 Phase 1 real-device build/log/capture-tooling check: 2026-06-22 14:25 KST
+
+Latest E7.03 Phase 1 screenshot/LogBox cleanup: 2026-06-22 14:27 KST
+
 ## Current Session Snapshot
 
 This snapshot is the default entry point for future Codex sessions. Read this section first, then lazy-load only the milestone-specific plan or research document needed for the current task.
 
 Current boundary:
 
-- Primary path: E7.3 Region Precision candidate correction and re-recording.
+- Primary path: E7.03 v2.1 Boundary Engine Quality Experiment. Phase 0 Contract Reset is complete and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and user-provided iPhone screenshots confirm Clean / Compact HUD / Full Debug mode visibility. CLI screenshot capture remains tool-limited. A small RN LogBox suppression was added after screenshot review and JS-verified; reinstall was intentionally skipped by user decision. Next work stays in E7.3 with Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit.
 - E7.3 visual evidence has been reviewed from the user-provided screen recording. ARFace mesh/UV is live on-device, but the current procedural candidate is not visually acceptable for `lip` or `eye`; `cheek` lacks a clean E7 candidate sample. Overall E7.3 remains Yellow because the ARFace substrate is viable, but the current candidate masks block E7.4.
+- The old E7.03 Green bar of "better than E3/E4 baseline" or "demo-plausible" is superseded. E7.03 Green now requires Q3 overlay-ready validation for `lip`, `cheek`, and `eye`, with runtime/visual evidence and region-separated scoring.
 - Conservative alternative: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow lifecycle risk with formal 3-cycle evidence.
-- Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode inside E7.3; do not enter E7.4/E7.5/E7.6 until the region candidate is fixed or the E7.3 risk is explicitly accepted.
+- Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode inside E7.3; do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports the next boundary, or until the team explicitly accepts the remaining E7.3 risk.
 
 Current status:
 
@@ -36,7 +45,7 @@ Current status:
 Active temporary docs:
 
 - `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
-- `E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.3 session plan; keep until the current candidate-mask issue is fixed/retested or the team explicitly closes E7.3 as Yellow.
+- `E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.03 / E7.3 v2.1 boundary engine quality plan. Phase 0 Contract Reset is complete; keep until v2.1 decisions are absorbed into this result doc or the team explicitly closes E7.3 as Yellow.
 - `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
 - Deferred docs to create only when needed: `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
 
@@ -45,6 +54,7 @@ Default reading route:
 - Always read `AGENTS.md` and this snapshot.
 - Read `TECH_VALIDATION_TEST_PLAN.md` only when changing the stable validation contract or checking milestone/evidence rules.
 - For E7.3 region precision, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.3 sections and the `docs/roadmaps/research/E7_AXIS1_*` reports.
+- For E7.03 boundary work, read `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` first. It supersedes the old demo-plausible E7.3 Green bar with Q3 overlay-ready validation and the v2.1 experiment order.
 - For E7.4/E7.5 cosmetic rendering and demo looks, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
 - For E7.6 performance, read `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`.
 - Read base research or benchmark reports only for fallback, SDK comparison, licensing, or architecture decisions.
@@ -54,6 +64,8 @@ Stop rules:
 - Do not mark M7 Green unless formal 3-cycle re-entry evidence is collected.
 - Do not proceed to E7.4 or E7.6 from E7.2 logs or E7.3 build/install logs alone.
 - Do not mark any E7.3 region Green without real-device runtime compare logs and representative visual evidence for that region.
+- Do not mark E7.03 Green under the old "baseline-better" or "demo-plausible" standard. Green now requires Q3 overlay-ready validation for all three in-scope regions.
+- Do not treat face parsing as E7.03 live runtime or product/release asset source, do not treat ML Kit Face Mesh as an iPhone runtime candidate, and do not introduce a separate camera session that conflicts with ARKit.
 - Do not claim full E7, visual product readiness, product-v1 readiness, or product-quality makeup from E7.0/E7.1 preflight or E7.2 instrumentation logs.
 - Do not treat E3 as product-quality makeup accuracy; it proves validation-level region independence only.
 - Do not treat E4 as product-quality makeup fidelity; it proves validation/debug texture sample dispatch and visual distinction only.
@@ -69,6 +81,7 @@ Evidence media policy:
 Key evidence:
 
 - E7.3 region precision implementation/build/video review: `evidence/logs/m3-repro-unity-export-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-region-precision-2026-06-22.log`, `evidence/logs/e7-region-precision-rn-ios-run-default-candidate-2026-06-22.log`, `evidence/logs/e7-region-precision-summary-2026-06-22.md`, `evidence/logs/e7-region-precision-video-analysis-2026-06-22.md`, `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg`.
+- E7.03 Phase 1 UI/evidence hygiene real-device check: `evidence/logs/m3-repro-unity-export-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/m3-repro-artifact-verification-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-rn-ios-run-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-runtime-console-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-capture-tooling-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-display-info-2026-06-22-141533.log`, `evidence/screenshots/e7-phase1-ui-display-info-2026-06-22-141533.json`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/clean-view.jpg`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/compact-hud.jpg`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/full-debug.jpg`.
 - E7.2 build/runtime: `evidence/logs/m3-repro-unity-export-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/e7-baseline-rn-ios-run-ack-2026-06-22.log`, `evidence/logs/e7-baseline-runtime-console-ack-2026-06-22.log`, `evidence/logs/e7-baseline-summary-2026-06-22.md`, `evidence/screenshots/e7-baseline-status-panel-2026-06-22.jpg`.
 - E7.0/E7.1 preflight: `evidence/logs/e7-unity-process-cleanup-2026-06-22.log`, `evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log`, `evidence/logs/e7-build-install-run-2026-06-22.log`, `evidence/logs/e7-runtime-event-preflight-2026-06-22.log`.
 - E5 no-inference snapshot: `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`, `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`.
@@ -82,6 +95,10 @@ Status: Yellow overall / blocked from E7.4. Implementation/build/install evidenc
 
 Decision:
 
+- E7.03 Phase 0 Contract Reset is complete. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active E7.03 boundary engine plan.
+- E7.03 v2.1 Phase 1 Validation UI/Evidence Hygiene is implemented in the RN validation UI, JS-verified, and smoke-verified through a fresh real-device build/install/launch/runtime-log pass.
+- The previous "better than E3/E4 baseline" / "demo-plausible" Green standard is superseded by Q3 overlay-ready validation for `lip`, `cheek`, and `eye`.
+- `TECH_VALIDATION_TEST_PLAN.md` was not changed for Phase 0 because no stable validation contract correction was required.
 - Keep E3/E4 baseline renderer available as `e3e4-baseline`.
 - Add the E7 validation candidate renderer as `e7-arface-uv-candidate`, default-selected for E7.3 validation.
 - Keep ARFace mesh/UV as a viable runtime substrate, but reject the current procedural candidate mask output for `lip` and `eye` until the candidate basis is replaced or tuned.
@@ -94,11 +111,27 @@ Confirmed implementation:
 - Unity emits E7 comparison/state fields for renderer mode, mask source, tracking state, state action, mesh/UV counts, baseline triangle count, candidate triangle count, and applied triangle count.
 - Tracking, Limited, lost, and recovered states now map to explicit actions such as render, short hold, fade, extended hide, and recovered restore.
 - RN sends `rendererMode`, exposes a Baseline/E7 UV segmented control, defaults E7.3 to `E7 UV`, and surfaces phase/mask/UV/triangle/state fields in the E7 status panel and event summaries.
+- RN validation UI now supports `Clean`, `Compact HUD`, and `Full Debug` modes so large logs can be hidden during visual region review.
+- `Compact HUD` shows candidate id, selected region, tracking/face count, mesh counts, FPS/frame-time, state action, and recipe latency without covering the full AR view.
+- `Full Debug` exposes evidence metadata lines for plan/version, evidence mode, candidate id, region, tracking state, face count, mesh counts, blendshape field status, FPS/frame-time, latency, state action, privacy flags, orientation/device fields where available, and latest Unity event.
+- Candidate catalog is visible in Full Debug for Phase 1 planning hygiene. Only existing dispatchable candidates (`e3e4-baseline` and current procedural `e7-arface-uv-candidate`) send recipe messages; ARFace atlas, vertex/blendshape, Apple Vision, MediaPipe, parsing, and hybrid candidates remain pending metadata only.
+- RN validation app suppresses the React Native dev LogBox warning overlay so the bottom warning bar does not cover AR evidence or recipe controls. Console/runtime evidence logging remains available through captured device logs.
 
 Evidence:
 
-- TypeScript: `./node_modules/.bin/tsc --noEmit` passed.
-- Lint: `npm run lint` passed.
+- Phase 1 JS verification: `./node_modules/.bin/tsc --noEmit` passed from `rn/MakeupARValidation`.
+- Phase 1 lint verification: `npm run lint` passed from `rn/MakeupARValidation`.
+- Phase 1 LogBox cleanup JS verification after screenshot review: `./node_modules/.bin/tsc --noEmit` and `npm run lint` passed from `rn/MakeupARValidation`.
+- Phase 1 JS-only pass intentionally did not run `bash scripts/build_m3_unityframework.sh`, `xcodebuild`, `npm run ios`, or a real-device build.
+- Phase 1 real-device follow-up regenerated UnityFramework with `bash scripts/build_m3_unityframework.sh`: `evidence/logs/m3-repro-xcodebuild-unityframework-e7-phase1-ui-2026-06-22-141533.log` records `** BUILD SUCCEEDED **`, and `evidence/logs/m3-repro-artifact-verification-e7-phase1-ui-2026-06-22-141533.log` records arm64 Mach-O RN/package frameworks, both `105M`, with `9.2M` Unity Data.
+- Phase 1 RN iOS build/install/launch: `evidence/logs/e7-phase1-ui-rn-ios-run-2026-06-22-141533.log` records the Debug build using device id `00008140-000924DE21BB801C`, successful build, install, bundle id `com.makeupar.rnvalidation`, and successful launch on `위승철의 iPhone`.
+- Phase 1 runtime console: `evidence/logs/e7-phase1-ui-runtime-console-2026-06-22-141533.log` has `93,186` lines captured through `devicectl --console`; the capture was manually stopped after sufficient evidence, so exit code `130` is capture termination, not an observed app crash.
+- Runtime evidence includes UnityFramework load success, Unity root view attachment, M6 Unity -> RN events, E1/E2 tracked face lifecycle, E5 snapshots with `rawCameraFrameStored=false` and `offDeviceUpload=false`, and E7 metric samples.
+- Runtime counts from the Phase 1 console stream: `[E7] metric_sample` `15`, `e7_metric_sample` RN events `15`, `[M6] unity_to_rn_send` `1189`, `face_feature_snapshot_created` `1193`, `SessionTracking` `3179`.
+- Representative Phase 1 metric sample: tracking face count `1`, mesh `1220` vertices / `6912` indices / `1220` UVs, `hasStableUv=true`, average FPS samples observed at `57.1`, `60.0`, and `60.2` after cold start, memory metric available, thermal still manual-device-heat capped Yellow.
+- Capture tooling check: `idevicescreenshot`, `ios-deploy`, `cfgutil`, `tidevice`, `pymobiledevice3`, and `idb` were not installed; `devicectl device` and `xcdevice` exposed no screenshot command. Display metadata was captured instead: active portrait LCD, `1179x2556`, point scale `3`.
+- User-provided iPhone screenshots were saved under `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/` and verify the Phase 1 modes at `590x1280`: `clean-view.jpg` shows Clean mode with the large debug panels hidden, `compact-hud.jpg` shows Compact HUD with candidate/region controls, and `full-debug.jpg` shows Full Debug evidence metadata, latest Unity event, face state, snapshot, and candidate catalog.
+- The screenshot review exposed the React Native dev warning bar (`Open debugger to view warnings`) covering bottom controls. `LogBox.ignoreAllLogs(true)` was added in `rn/MakeupARValidation/App.tsx` to suppress that UI overlay in the validation app. Per user decision, the follow-up reinstall was stopped/skipped because this was a small JS-only cleanup.
 - UnityFramework build/sync: `evidence/logs/m3-repro-xcodebuild-unityframework-e7-region-precision-2026-06-22.log` line `2264` records `** BUILD SUCCEEDED **`.
 - Artifact verification: `evidence/logs/m3-repro-artifact-verification-e7-region-precision-2026-06-22.log` records arm64 Mach-O RN/package frameworks and copied Unity Data.
 - Real-device RN build/install/launch after E7 default renderer change: `evidence/logs/e7-region-precision-rn-ios-run-default-candidate-2026-06-22.log` records successful build, install, and launch on `위승철의 iPhone`.
@@ -118,17 +151,23 @@ Region G/Y/R:
 
 Known limitations:
 
-- No full runtime console stream was captured with `tee`; the screen recording provides on-screen visual and metric evidence only.
+- The earlier E7.3 screen-recording review still lacks a full runtime console stream; the fresh Phase 1 follow-up has a runtime console stream, but no fresh visual screenshot/recording.
 - No `[E7] region_precision_compare` runtime stream was captured during this pass.
 - Cheek still needs a clean `phase=region_precision` sample before final region scoring.
 - Lost, Limited, and recovered behavior were not exercised in this recording.
 - On-screen FPS/frame-time values are visible, but this is not E7.6 performance evidence.
 - The candidate is a validation candidate, not product-quality region segmentation or cosmetic rendering.
 - E7.3 evidence does not resolve the accepted M7 Yellow lifecycle risk.
+- Phase 1 UI modes are visually screenshot-verified from user-provided iPhone captures, but the post-LogBox-suppression UI was not reinstalled or re-screenshot by user decision. The local toolchain still has no automated iPhone screenshot CLI, and installed `devicectl`/`xcdevice` exposes no screenshot command.
+- Future candidates shown in the candidate catalog are not runtime implementations; they are pending labels for later E7.03 phases.
+- `Full Debug` can still cover part of the AR view by design; use `Clean` or `Compact HUD` for visual evidence capture.
+- Phase 1 does not change region G/Y/R: `lip` remains Red, `cheek` remains Yellow / insufficient E7 candidate sample, and `eye` remains Red.
+- Phase 1 runtime evidence is dominated by the default `lip` candidate path; it does not provide clean `cheek` or `eye` visual region evidence.
 
 Next boundary:
 
-- Stay inside E7.3 and replace/tune the current procedural ARFace mesh/UV candidate, preferably with an authored UV atlas or fixed validated vertex sets.
+- Stay inside E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit. On the next device install, confirm the React Native LogBox warning bar is gone before collecting new visual region evidence.
+- Keep the current procedural ARFace mesh/UV candidate only as a rejected/negative baseline unless future evidence says otherwise.
 - Re-record `lip`, `cheek`, and `eye` with `E7 UV`, full runtime console capture, representative visual evidence, and explicit tracking/Limited/lost/recovered notes.
 - Do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has a clean E7 candidate sample, or until the team explicitly accepts E7.3 as Yellow and records the risk.
 
@@ -197,10 +236,10 @@ Token policy:
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. E7.03 Phase 0 Contract Reset is complete, and Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and visually confirmed with user-provided iPhone screenshots. CLI screenshot capture was blocked by local tooling limitations. A small RN LogBox suppression was added and JS-verified after screenshot review; follow-up reinstall was intentionally stopped/skipped by user decision. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active boundary engine quality plan, and the old "baseline-better" / "demo-plausible" Green bar is superseded by Q3 overlay-ready validation for `lip`, `cheek`, and `eye`. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: stay in E7.3, replace/tune the current procedural ARFace mesh/UV candidate, then re-record `lip`, `cheek`, and `eye`.
+- Primary path: stay in E7.3 and execute E7.03 v2.1 Phase 2 ARFace authored atlas MVP with manual vertex labeling and topology/UV audit.
 - Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
-- Renderer path: do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has clean region-specific runtime/visual evidence, or until the team explicitly accepts E7.3 as Yellow and records the risk.
+- Renderer path: do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports Q3 overlay-ready validation for the required regions, or until the team explicitly accepts the remaining E7.3 risk and records the boundary.

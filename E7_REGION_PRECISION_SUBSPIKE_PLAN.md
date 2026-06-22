@@ -2,7 +2,7 @@
 
 Date: 2026-06-22 KST
 
-Status: Temporary E7.03 / E7.3 v2 planning document
+Status: Temporary E7.03 / E7.3 v2.1 planning document / Phase 0 Contract Reset complete
 
 ## 1. One-line Decision
 
@@ -27,7 +27,7 @@ Current evidence in `TECH_VALIDATION_RESULT.md` says:
 
 The previous plan was useful for a narrow ARFace mesh/UV comparison, but its Green bar was too low for the user's current goal. It treated MediaPipe and 2D segmentation as future-only fallback. That is not enough for an "압도적인 퀄리티" boundary validation.
 
-The revised E7.03 v2 bar is:
+The revised E7.03 v2.1 bar is:
 
 - preserve E3/E4 baseline;
 - test a stronger ARFace authored-mask path;
@@ -35,6 +35,16 @@ The revised E7.03 v2 bar is:
 - use research/open-source references where appropriate;
 - judge lip, cheek, and eye separately;
 - only then decide whether ARFace-only, reference-assisted ARFace, or hybrid is the right next boundary.
+
+v2.1 cross-review disposition:
+
+- Accept the overall plan structure: validation-only boundary comparison, offline/reference first, region-separated decisions.
+- Tighten the active candidate list so the spike does not become an SDK-integration survey.
+- Move ARFace authored atlas MVP, manual vertex labeling, and topology/UV audit before offline semantic comparison.
+- Treat MediaPipe as the main semantic reference for `lip`/`eye` because it is the cleanest practical comparison candidate.
+- Treat face parsing models and datasets as non-release offline visual cross-checks only.
+- Remove ML Kit Face Mesh from the iPhone E7.03 active candidate set; keep ML Kit Face Detection contours only as a lowest-priority optional offline sanity check.
+- Move KLT / optical-flow + periodic segmentation to future-only unless segmentation proves accurate but too slow.
 
 ## 3. Current Boundary
 
@@ -45,7 +55,7 @@ In scope:
 - Validation/debug visuals only.
 - E3/E4 broad/centroid baseline preservation.
 - ARFace mesh/UV authored candidate.
-- Offline/reference experiments using MediaPipe, Apple Vision, Google ML Kit, and face parsing models or datasets.
+- Offline/reference experiments using MediaPipe, Apple Vision, optional ML Kit Face Detection contours, and non-release face parsing visual cross-checks.
 - Runtime POC only for candidates that first show real value in offline/reference comparison.
 - Full local evidence capture: logs, screenshots/contact sheets, short recordings when motion is decision evidence.
 
@@ -63,8 +73,9 @@ Out of scope:
 
 Important nuance:
 
-- MediaPipe, Apple Vision, ML Kit, and face parsing are allowed here as validation candidates or reference tools because the user explicitly raised the quality target.
+- MediaPipe, Apple Vision, optional ML Kit Face Detection contours, and face parsing references are allowed here as validation candidates or reference tools because the user explicitly raised the quality target.
 - They are not automatically accepted as product runtime dependencies.
+- Face parsing outputs must not become release assets or product training/material sources from this validation.
 - Any candidate that needs raw frame storage, off-device upload, commercial terms, or broad product integration must stop and be re-scoped.
 
 ## 4. Research Basis
@@ -90,14 +101,16 @@ External references to verify before implementation:
 
 - Unity AR Foundation `ARFace`: vertices, normals, indices, UVs, `trackingState`, added/updated/removed lifecycle.
 - Unity face tracking platform support: ARKit supports face pose, mesh vertices/indices, UVs, eye tracking, and blend shapes.
+- `azesmway/react-native-unity`: RN-hosted Unity embedding, `UnityFramework` placement, iOS device-only caveat, non-zero `UnityView` dimensions, RN -> Unity `postMessage`, Unity -> RN `onUnityMessage`, pause/unload lifecycle methods.
 - MediaPipe Face Landmarker: 478 3D landmarks, blendshape scores, transformation matrices, image/video/live modes.
-- Google ML Kit Face Detection / Contours: 2D facial feature contours, on-device real-time detection.
-- Google ML Kit Face Mesh: 468-point mesh, real-time on-device, but beta and platform/runtime suitability must be checked.
+- MediaPipe legacy Face Mesh docs: 468 3D landmarks, Attention Mesh refinement around lips/eyes/irises, metric 3D face transform, canonical face model, inherited UV/topology, and real-time face effect renderer concepts.
+- Google ML Kit Face Detection / Contours: optional iOS 2D facial contour sanity check.
+- Google ML Kit Face Mesh: Android beta reference only; not an active iPhone E7.03 runtime candidate.
 - CelebAMask-HQ, LaPa, BiSeNet, SegFace: face parsing labels/models for offline semantic reference and mask authoring, with license constraints.
 
 ## 5. Quality Target
 
-E7.03 v2 introduces a stricter quality ladder.
+E7.03 v2.1 introduces a stricter quality ladder.
 
 | Level | Meaning | E7.03 interpretation |
 | --- | --- | --- |
@@ -129,10 +142,13 @@ Purpose:
 
 - Replace procedural broad masks with authored region definitions.
 - Use ARFace mesh/UV as the primary face-attached coordinate system.
+- Create the first real comparison candidate before offline semantic comparison starts.
 
 How it should work:
 
-- Create or import a canonical face UV reference.
+- Run a topology/UV audit on the target device and log vertex, index, and UV counts instead of assuming constants.
+- Manually label the required ARFace vertex groups once: lip ring, eyelid band, and cheekbone/soft cheek zone.
+- Create or import a canonical face UV reference after the topology/UV audit.
 - Author grayscale masks for `lip`, `cheek`, and `eye`.
 - Render the mask through the live ARFace mesh using its UVs.
 - Add debug color output first.
@@ -147,6 +163,7 @@ Why it matters:
 Main risks:
 
 - ARFace topology/UV labels are not semantic labels.
+- Apple/Unity do not provide official `lip`/`eye`/`cheek` vertex labels; the label map is a validation artifact that must be reviewed and versioned.
 - Lip border may still bleed during mouth open/smile.
 - Eye boundary may fail during blink/squint.
 
@@ -214,9 +231,16 @@ Risks:
 
 Best role in E7.03:
 
-- First: offline/reference comparison on the same clips.
+- First: primary offline semantic reference on the same clips, especially for `lip` and `eye`.
 - Second: targeted runtime POC only for failing regions, especially `lip` and `eye`.
 - Third: hybrid candidate if ARFace-only cannot reach Q3.
+
+Implementation reference:
+
+- Use the current MediaPipe Face Landmarker docs for active API setup.
+- Use the older MediaPipe Face Mesh docs as a design reference for why `refine_landmarks` / Attention Mesh matters around lips and eyes, and why a canonical face model plus face transform can help bridge landmarks into AR-style rendering.
+- Do not assume Face Mesh docs map 1:1 to the current Tasks API; verify API names and model packaging before runtime work.
+- Record the exact model bundle/source/version used for any comparison or runtime POC.
 
 ### F. Face Parsing Models and Label Datasets
 
@@ -249,33 +273,37 @@ Risks:
 
 Best role in E7.03:
 
-- Offline reference and mask-authoring helper.
-- Not first-choice live runtime.
+- Non-release offline semantic visual cross-check only.
+- Mask-authoring input only as a validation aid; do not promote parsing-derived masks to release/product assets.
+- No live runtime in E7.03.
 - Keep outputs local; do not upload raw frames.
 
-### G. Google ML Kit Face Detection / Contours / Face Mesh
+### G. Google ML Kit Face Detection Contours
 
 Purpose:
 
-- Test a lighter Google on-device contour path.
+- Keep a lowest-priority optional iOS 2D contour sanity check if MediaPipe or Apple Vision leaves a specific unanswered question.
 
 Why it is attractive:
 
-- Face Detection exposes facial feature contours.
-- Face Mesh exposes 468 3D points and triangle info in real-time selfie-like settings.
-- It may be lighter than a custom face parsing model.
+- Face Detection exposes facial feature contours on iOS.
+- It may be lighter than a custom face parsing model or full MediaPipe runtime.
 
 Risks:
 
-- Face Mesh docs mark the API as beta.
-- iOS suitability and Unity/RN integration must be verified.
+- It is 2D contour evidence, not a face-attached 3D makeup basis.
+- Unity/RN integration still has cost.
 - It may duplicate MediaPipe-like functionality with less control.
 - It may not be better than MediaPipe for the same engineering cost.
 
 Best role in E7.03:
 
-- Feasibility comparison.
-- Do not prioritize above Apple Vision and MediaPipe unless integration looks clearly cheaper.
+- Deprioritized optional offline sanity check.
+- Do not prioritize above ARFace atlas, MediaPipe, or Apple Vision.
+
+Excluded from active E7.03:
+
+- ML Kit Face Mesh. The official face mesh path is Android beta-oriented and is not an active iPhone runtime candidate for this repo.
 
 ### H. KLT / Optical Flow + Periodic Segmentation
 
@@ -296,8 +324,9 @@ Risks:
 
 Best role in E7.03:
 
-- Research fallback only.
-- Consider only if segmentation is accurate but too slow.
+- Future-only research fallback.
+- Consider only after a semantic segmentation/reference candidate is proven accurate but too slow.
+- Do not spend E7.03 implementation time on this before ARFace atlas, MediaPipe reference, and region decisions are complete.
 
 ### I. Hybrid Candidate
 
@@ -321,11 +350,12 @@ Do not start by integrating every candidate live. That makes the first failure "
 Use this order:
 
 1. Build a clean validation view.
-2. Create a shared test clip/frame set.
-3. Run offline/reference comparisons.
-4. Improve ARFace authored masks.
-5. Pick top candidates for runtime POC.
-6. Make region-level decisions.
+2. Build the ARFace authored atlas MVP, including manual vertex labeling and topology/UV audit.
+3. Create a shared test clip/frame set.
+4. Run offline semantic/reference comparisons against the atlas MVP.
+5. Tune ARFace atlas, fixed-vertex/blendshape corrections, and temporal post-process.
+6. Decide whether any runtime POC is worth starting.
+7. Make region-level decisions.
 
 ## 8. Phase Plan
 
@@ -333,7 +363,7 @@ Use this order:
 
 Outputs:
 
-- Confirm this E7.03 v2 plan is the active plan.
+- Confirm this E7.03 v2.1 plan is the active plan.
 - Record that the old Green bar is superseded.
 - Keep `TECH_VALIDATION_TEST_PLAN.md` unchanged unless the stable validation contract itself needs correction.
 
@@ -374,7 +404,35 @@ Why this comes first:
 - Without a clean view, every quality decision is contaminated.
 - If logs cover the face, we are not validating region precision.
 
-### Phase 2: Shared Test Set
+### Phase 2: ARFace Authored Atlas MVP
+
+Goal:
+
+- Produce the first serious ARFace candidate before offline semantic comparison.
+- Avoid comparing references against only the rejected procedural candidate.
+
+Required tasks:
+
+- Audit runtime topology/UV availability on the target iPhone.
+- Log vertex, index, and UV counts instead of hard-coding assumptions as facts.
+- Manually label validation vertex groups for lip ring, eyelid band, and cheekbone/soft cheek area.
+- Create a first grayscale/hard-color `lip`, `cheek`, and `eye` authored mask.
+- Keep E3/E4 baseline selectable.
+- Keep current procedural E7 only as a rejected/negative baseline.
+
+Required outputs:
+
+- Vertex label map or equivalent notes.
+- ARFace atlas MVP screenshot/contact sheet.
+- Runtime log showing topology/UV fields.
+- Baseline/procedural/atlas toggle confirmation.
+
+Stop conditions:
+
+- ARFace UVs or mesh counts are unavailable or unstable on the target device.
+- E3/E4 baseline or RN -> Unity -> RN event flow regresses.
+
+### Phase 3: Shared Test Set
 
 Goal:
 
@@ -395,41 +453,52 @@ Evidence rules:
 - Delete raw extracted frame batches after derived evidence is created unless a specific frame is selected as evidence.
 - Do not upload frames.
 
-### Phase 3: Offline / Reference Candidate Comparison
+### Phase 4: Offline / Reference Candidate Comparison
 
 Goal:
 
 - Determine which candidate is worth live runtime work.
+- Use trained/open references to understand where the ARFace atlas is semantically wrong without turning those references into product assets.
 
 Inputs:
 
-- Shared recordings from Phase 2.
+- Shared recordings from Phase 3.
 - Representative frames per region and motion state.
 
 Candidates:
 
 - Current E3/E4 baseline.
 - Current procedural E7 candidate.
-- ARFace authored UV atlas candidate, if implemented.
+- ARFace authored UV atlas MVP.
 - Apple Vision landmarks/contours.
 - MediaPipe Face Landmarker.
-- Face parsing model/reference labels.
-- Google ML Kit contours/mesh if feasible.
+- Face parsing model/reference labels as non-release offline visual cross-check only.
+- Google ML Kit Face Detection contours only if a low-cost optional sanity check is needed.
 
 Outputs:
 
 - Per-frame overlay contact sheet.
+- Coordinate/mirror/orientation sanity check.
 - Region scoring table.
 - Candidate ranking per region.
-- Decision: no runtime POC, ARFace-only POC, MediaPipe POC, Apple Vision POC, parsing-assisted authoring, or hybrid POC.
+- Decision: no runtime POC, ARFace-only tuning, MediaPipe POC, Apple Vision POC, parsing-assisted visual review, or hybrid POC.
 
 Do not count a candidate as better just because it is more complex. It must visibly improve boundary placement or motion stability.
 
-### Phase 4: ARFace Authored Boundary Candidate
+Semantic-reference rules:
+
+- MediaPipe Face Landmarker is the primary semantic reference for `lip` and `eye`.
+- Face parsing outputs are non-release offline visual cross-checks only.
+- Review dataset, model, and weight licenses separately.
+- Extract `upper lip`, `lower lip`, `eye`, `skin`, and surrounding face labels only where available.
+- For `cheek`, derive a soft reference zone from skin/landmark geometry rather than expecting a perfect dataset class.
+- Do not retain raw frame batches longer than needed to create representative evidence.
+
+### Phase 5: ARFace Tuning, Correction, and Temporal Post-process
 
 Goal:
 
-- Replace broad procedural masks with an authored face-attached candidate.
+- Tune the ARFace atlas MVP using manual review and semantic reference evidence.
 
 Required implementation traits:
 
@@ -440,6 +509,8 @@ Required implementation traits:
 - Add feather/alpha debug after hard placement is correct.
 - Log UV availability and mesh counts every summary interval.
 - Keep state handling Unity-side.
+- Add fixed vertex/blendshape correction only where the atlas needs it.
+- Treat One Euro/EMA/hysteresis as a temporal post-process layer, not as a boundary candidate.
 
 Expected region outcomes:
 
@@ -447,39 +518,25 @@ Expected region outcomes:
 - `lip`: possible Q3 with mask tuning and blendshape correction; risk remains around inner mouth and smile.
 - `eye`: likely Q2/Q3 only for broad eyeshadow, not eyeliner-grade edge.
 
-### Phase 5: Semantic Boundary Reference
+### Phase 6: Runtime POC Gate
 
 Goal:
 
-- Use trained labels/models to define what "correct boundary" means.
-
-Tasks:
-
-- Review license for each dataset/model/weight.
-- Run face parsing or label-derived reference on selected frames.
-- Extract `upper lip`, `lower lip`, `eye`, `skin`, and surrounding face labels where available.
-- For cheek, derive a soft reference zone from skin/landmark geometry rather than expecting a perfect dataset class.
-- Use parsing output to adjust ARFace UV masks.
-
-Expected output:
-
-- `lip` reference mask.
-- `eye` reference mask or contour.
-- `cheek` derived soft-zone reference.
-- Notes on whether the reference is suitable only for authoring or could become runtime fallback.
-
-### Phase 6: Runtime POC for Winners Only
-
-Goal:
-
-- Test only the candidates that offline comparison says are worth the integration cost.
+- Decide whether runtime POC work is justified after offline comparison and ARFace tuning.
 
 Candidate gates:
 
 - Apple Vision runtime POC only if 2D contours clearly beat ARFace atlas on lip/eye in offline frames.
 - MediaPipe runtime POC only if MediaPipe reference clearly improves failing regions and expected latency is acceptable enough to measure.
-- Face parsing runtime POC only if offline parsing is dramatically better and a lightweight/mobile path is plausible.
-- Hybrid runtime POC only if ARFace atlas is stable but semantic edge correction is needed.
+- Face parsing runtime POC is not allowed in E7.03.
+- ML Kit Face Mesh runtime POC is not allowed in E7.03.
+- ML Kit Face Detection contours remain optional and low priority.
+- Hybrid runtime POC only if ARFace atlas is stable but semantic edge correction is still needed.
+
+Expected output:
+
+- Go/no-go note for each candidate.
+- Runtime implementation boundary for the next session if needed.
 
 Runtime POC must measure:
 
@@ -489,6 +546,13 @@ Runtime POC must measure:
 - Jitter.
 - Recovery after `Limited`/lost state.
 - Memory and thermal notes if available.
+- Frame source and disposal path if a camera image is acquired through AR Foundation.
+
+Runtime CV frame rule:
+
+- Do not design a second camera session as the default E7.03 path.
+- If a runtime CV candidate needs camera pixels, use the AR Foundation/ARKit frame path available to the Unity scene, such as `ARCameraManager.TryAcquireLatestCpuImage()` / `XRCpuImage` where applicable.
+- Any acquired CPU image must be disposed promptly and its cost must be recorded, because frame acquisition and conversion can affect FPS and latency.
 
 ### Phase 7: Final Region Decision
 
@@ -521,6 +585,8 @@ Use both visual scoring and simple derived measurements.
 | Recovery | Does it recover cleanly after losing the face? | `Tracking` -> `Limited` -> recovered state machine behavior |
 | Privacy/evidence hygiene | Are we keeping only needed local evidence? | No off-device upload, no unnecessary raw frame retention |
 
+Add a manual acceptance envelope for representative frames. This is a human-reviewed acceptable makeup placement boundary, used to avoid blindly treating MediaPipe or face parsing as the makeup truth.
+
 ### Suggested Quantitative Fields
 
 When a reference mask or contour exists:
@@ -533,6 +599,14 @@ When a reference mask or contour exists:
 - latency: frame delay or milliseconds from input frame to candidate result.
 
 If the numbers are not reliable, label them as approximate and let visual evidence dominate.
+
+Q3 Green guidance:
+
+- Coverage, spill, jitter, area instability, visual lag, and recovery must all be recorded or explicitly marked unavailable.
+- A region cannot be Green from neutral-pose screenshots only.
+- A region cannot be Green if the best evidence comes only from the rejected procedural candidate.
+- Overall E7.03 cannot be Green unless `lip`, `cheek`, and `eye` are all Q3 or better.
+- Q3 does not authorize Q4/product-readiness wording.
 
 ## 10. Region-specific Green / Yellow / Red
 
@@ -601,16 +675,18 @@ Current best prediction before running the experiments:
 | ARFace authored UV atlas | Yellow-Green/Q2-Q3 | Green/Q3 | Yellow/Q2-Q3 | Best primary path |
 | ARFace atlas + blendshape correction | Green possible/Q3 | Green/Q3 | Yellow-Green possible/Q2-Q3 | Best ARFace-only path |
 | Apple Vision contours | Yellow-Green possible | Weak for cheek | Yellow possible | Good iOS-native comparison |
-| MediaPipe Face Landmarker | Green possible | Yellow-Green | Green possible | Strongest landmark comparison |
-| Face parsing reference | Green reference | Useful derived reference | Green reference | Best offline semantic source |
-| ML Kit contours/mesh | Yellow-Green possible | Weak for cheek | Yellow possible | Worth feasibility check |
+| MediaPipe Face Landmarker | Green possible | Yellow-Green | Green possible | Primary semantic reference for lip/eye |
+| Face parsing reference | Green reference | Useful derived reference | Green reference | Non-release offline visual cross-check only |
+| ML Kit Face Detection contours | Yellow possible | Weak for cheek | Yellow possible | Lowest-priority optional sanity check |
+| ML Kit Face Mesh | Excluded | Excluded | Excluded | Android beta reference only, not an iPhone E7.03 candidate |
+| KLT / optical flow | Future-only | Future-only | Future-only | Consider only after accurate segmentation is proven too slow |
 | Hybrid ARFace + semantic correction | Green most likely | Green | Green most likely | Highest quality path, highest work |
 
 The most likely final answer is not one engine for every region. It may be:
 
 - `cheek`: ARFace authored UV atlas.
-- `lip`: ARFace authored UV atlas + blendshape correction, with MediaPipe or parsing reference for authoring.
-- `eye`: ARFace authored UV atlas + blink/eye-pose handling, with MediaPipe or parsing reference; runtime hybrid if ARFace-only remains Yellow.
+- `lip`: ARFace authored UV atlas + blendshape correction, with MediaPipe primary reference and face parsing visual cross-check.
+- `eye`: ARFace authored UV atlas + blink/eye-pose handling, with MediaPipe primary reference; runtime hybrid only if ARFace-only remains Yellow after tuning.
 
 ## 12. Evidence Contract
 
@@ -647,6 +723,18 @@ Runtime full stream:
 - Capture full runtime console output with `tee` or equivalent.
 - Summary-only logs cannot replace full logs.
 
+Required metadata:
+
+- device model and iOS version;
+- Unity version;
+- AR Foundation / ARKit package versions where available;
+- RN app package version or git commit;
+- candidate id and config hash or config summary;
+- model bundle/source/version for MediaPipe or any ML/reference candidate;
+- frame timestamp or recording timestamp;
+- orientation and mirroring assumptions;
+- whether evidence is runtime, offline reference, or human acceptance envelope.
+
 ## 13. Stop Rules
 
 Stop and re-scope if:
@@ -656,6 +744,10 @@ Stop and re-scope if:
 - A candidate requires Android work.
 - A candidate changes RN/Unity product UI beyond validation controls.
 - A candidate requires new makeup regions outside `lip`, `cheek`, `eye`.
+- A candidate requires a separate camera session that conflicts with ARKit.
+- A runtime CV candidate cannot document its frame acquisition/disposal path.
+- Face parsing is proposed as live runtime or product/release asset source during E7.03.
+- ML Kit Face Mesh is proposed as an iPhone E7.03 runtime candidate.
 - E3/E4 baseline behavior regresses.
 - RN -> Unity recipe dispatch regresses.
 - Unity -> RN event receipt regresses.
@@ -681,6 +773,8 @@ Implementation principles:
 - Keep region scoring separate.
 - Keep debug visuals hard and readable before cosmetic rendering.
 - Keep smoothing in Unity or candidate-runtime layer, not RN per-frame bridge.
+- Keep temporal smoothing as a post-process layer over candidates, not as a competing boundary source.
+- Keep runtime CV frame acquisition inside the AR session path; do not assume a separate camera session is safe.
 - Keep local-only evidence.
 
 ## 15. Final Handoff Required
@@ -696,6 +790,8 @@ E7.03 is complete only when `TECH_VALIDATION_RESULT.md` records:
 - performance/latency notes;
 - lost/recovered notes;
 - privacy/license limitations;
+- model/source/version notes for any semantic reference;
+- runtime frame acquisition/disposal notes for any CV runtime POC;
 - whether E7.4 is allowed, blocked, or allowed only for specific regions;
 - next boundary.
 
