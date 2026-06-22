@@ -82,6 +82,7 @@ public sealed class RNBridge : MonoBehaviour
     private sealed class RegionOverlayVisibilityPayload
     {
         public bool visible = true;
+        public bool faceDebugSurfaceVisible = true;
         public string validationViewMode;
         public string reason;
     }
@@ -124,6 +125,7 @@ public sealed class RNBridge : MonoBehaviour
         public string CandidateId = "e3e4-baseline";
         public string VariantId = "baseline-v0";
         public string MaskSource = "centroid_broad";
+        public string BoundaryRenderer = "triangle_subset";
         public string TrackingState = "None";
         public string StateAction = "not_started";
         public int BaselineTriangleCount;
@@ -307,6 +309,7 @@ public sealed class RNBridge : MonoBehaviour
             RegionOverlayVisibilityPayload payload =
                 JsonUtility.FromJson<RegionOverlayVisibilityPayload>(json);
             bool visible = payload == null || payload.visible;
+            bool faceDebugSurfaceVisible = visible && (payload == null || payload.faceDebugSurfaceVisible);
             string validationViewMode = payload != null ? NormalizeOptional(payload.validationViewMode) : "unknown";
             bool unityDebugVisible = visible && validationViewMode == "full";
 
@@ -317,7 +320,7 @@ public sealed class RNBridge : MonoBehaviour
             }
 
             regionMaskOverlay.SetOverlayRenderingSuppressed(!visible);
-            SetFaceRenderersSuppressed(!visible);
+            SetFaceRenderersSuppressed(!faceDebugSurfaceVisible);
 
             if (statusReporter != null)
             {
@@ -327,7 +330,8 @@ public sealed class RNBridge : MonoBehaviour
             Debug.Log(
                 "[E7] region_overlay_visibility"
                 + " visible=" + visible.ToString().ToLowerInvariant()
-                + " faceRenderersSuppressed=" + (!visible).ToString().ToLowerInvariant()
+                + " faceDebugSurfaceVisible=" + faceDebugSurfaceVisible.ToString().ToLowerInvariant()
+                + " faceRenderersSuppressed=" + (!faceDebugSurfaceVisible).ToString().ToLowerInvariant()
                 + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
                 + " validationViewMode=" + validationViewMode
                 + " reason=" + NormalizeOptional(payload != null ? payload.reason : string.Empty));
@@ -589,6 +593,7 @@ public sealed class RNBridge : MonoBehaviour
             CandidateId = result.CandidateId,
             VariantId = result.VariantId,
             MaskSource = result.MaskSource,
+            BoundaryRenderer = result.BoundaryRenderer,
             TrackingState = result.TrackingState,
             StateAction = result.StateAction,
             BaselineTriangleCount = result.BaselineTriangleCount,
@@ -640,6 +645,7 @@ public sealed class RNBridge : MonoBehaviour
             state.CandidateId = result.CandidateId;
             state.VariantId = result.VariantId;
             state.MaskSource = result.MaskSource;
+            state.BoundaryRenderer = result.BoundaryRenderer;
             state.TrackingState = result.TrackingState;
             state.StateAction = result.StateAction;
             state.BaselineTriangleCount = result.BaselineTriangleCount;
@@ -738,6 +744,7 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"candidateId\":\"" + EscapeJsonString(state.CandidateId) + "\""
                 + ",\"variantId\":\"" + EscapeJsonString(state.VariantId) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
+                + ",\"boundaryRenderer\":\"" + EscapeJsonString(state.BoundaryRenderer) + "\""
                 + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
                 + ",\"stateAction\":\"" + EscapeJsonString(state.StateAction) + "\""
                 + ",\"intensity\":" + state.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
@@ -795,6 +802,9 @@ public sealed class RNBridge : MonoBehaviour
             string maskSource = state != null && !string.IsNullOrWhiteSpace(state.MaskSource)
                 ? state.MaskSource
                 : "centroid_broad";
+            string boundaryRenderer = state != null && !string.IsNullOrWhiteSpace(state.BoundaryRenderer)
+                ? state.BoundaryRenderer
+                : "triangle_subset";
             string qaStatus = IsRegionPrecisionRenderer(rendererMode)
                 ? "yellow_pending_real_device_visual_review"
                 : "green_validation_baseline";
@@ -807,6 +817,7 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"candidateId\":\"" + EscapeJsonString(candidateId) + "\""
                 + ",\"variantId\":\"" + EscapeJsonString(variantId) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(maskSource) + "\""
+                + ",\"boundaryRenderer\":\"" + EscapeJsonString(boundaryRenderer) + "\""
                 + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
                 + ",\"validationScope\":\"debug\""
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
@@ -870,6 +881,7 @@ public sealed class RNBridge : MonoBehaviour
             + " color=" + colorHex
             + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSource=" + (state != null ? state.MaskSource : "centroid_broad")
+            + " boundaryRenderer=" + (state != null ? state.BoundaryRenderer : "triangle_subset")
             + " regionPrecisionStatus=" + (IsRegionPrecisionRenderer(rendererMode) ? "yellow_pending_real_device_visual_review" : "baseline_preserved")
             + " regionTrackingState=" + (state != null ? state.TrackingState : "None")
             + " regionStateAction=" + (state != null ? state.StateAction : "not_started")
@@ -926,6 +938,7 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
             + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "centroid_broad") + "\""
+            + ",\"boundaryRenderer\":\"" + EscapeJsonString(state != null ? state.BoundaryRenderer : "triangle_subset") + "\""
             + ",\"regionPrecisionStatus\":\"" + EscapeJsonString(IsRegionPrecisionRenderer(rendererMode) ? "yellow_pending_real_device_visual_review" : "baseline_preserved") + "\""
             + ",\"regionTrackingState\":\"" + EscapeJsonString(state != null ? state.TrackingState : "None") + "\""
             + ",\"regionStateAction\":\"" + EscapeJsonString(state != null ? state.StateAction : "not_started") + "\""
@@ -950,7 +963,10 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         RegionFeatureState state = GetLatestActiveRegionFeatureState();
-        if (state != null && state.RendererMode == "e7-arface-authored-atlas")
+        if (state != null
+            && (state.RendererMode == "e7-arface-authored-atlas"
+                || state.RendererMode == "e7-reference-uv-atlas"
+                || state.RendererMode == "e7-reference-uv-alpha"))
         {
             return "region_precision_atlas";
         }
@@ -1012,6 +1028,7 @@ public sealed class RNBridge : MonoBehaviour
             + " candidateId=" + result.CandidateId
             + " variantId=" + result.VariantId
             + " maskSource=" + result.MaskSource
+            + " boundaryRenderer=" + result.BoundaryRenderer
             + " trackingState=" + result.TrackingState
             + " stateAction=" + result.StateAction
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
@@ -1091,6 +1108,8 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(GetPhaseForRenderer(layer.RendererMode))
             + "\",\"maskSource\":\""
             + EscapeJsonString(result.MaskSource)
+            + "\",\"boundaryRenderer\":\""
+            + EscapeJsonString(result.BoundaryRenderer)
             + "\",\"trackingState\":\""
             + EscapeJsonString(result.TrackingState)
             + "\",\"stateAction\":\""
@@ -1413,6 +1432,11 @@ public sealed class RNBridge : MonoBehaviour
             return "e7-arface-authored-atlas";
         }
 
+        if (candidate == "e7-reference-uv-alpha" || candidate == "arface-reference-uv-alpha" || candidate == "reference-uv-alpha" || candidate == "soft-uv")
+        {
+            return "e7-reference-uv-alpha";
+        }
+
         if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
         {
             return "e7-reference-uv-atlas";
@@ -1428,7 +1452,7 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string GetPhaseForRenderer(string rendererMode)
     {
-        if (rendererMode == "e7-arface-authored-atlas" || rendererMode == "e7-reference-uv-atlas")
+        if (rendererMode == "e7-arface-authored-atlas" || rendererMode == "e7-reference-uv-atlas" || rendererMode == "e7-reference-uv-alpha")
         {
             return "region_precision_atlas";
         }
@@ -1442,6 +1466,11 @@ public sealed class RNBridge : MonoBehaviour
         if (rendererMode == "e7-reference-uv-atlas")
         {
             return "e7-reference-uv-atlas-" + date;
+        }
+
+        if (rendererMode == "e7-reference-uv-alpha")
+        {
+            return "e7-reference-uv-alpha-" + date;
         }
 
         if (rendererMode == "e7-arface-authored-atlas")
@@ -1458,7 +1487,8 @@ public sealed class RNBridge : MonoBehaviour
     {
         return rendererMode == "e7-arface-uv-candidate"
             || rendererMode == "e7-arface-authored-atlas"
-            || rendererMode == "e7-reference-uv-atlas";
+            || rendererMode == "e7-reference-uv-atlas"
+            || rendererMode == "e7-reference-uv-alpha";
     }
 
     private static string GetCandidateIdForRenderer(string rendererMode)
@@ -1466,6 +1496,11 @@ public sealed class RNBridge : MonoBehaviour
         if (rendererMode == "e7-reference-uv-atlas")
         {
             return "arface-reference-uv-atlas";
+        }
+
+        if (rendererMode == "e7-reference-uv-alpha")
+        {
+            return "arface-reference-uv-alpha";
         }
 
         if (rendererMode == "e7-arface-authored-atlas")
@@ -1498,6 +1533,11 @@ public sealed class RNBridge : MonoBehaviour
             return candidate == "arface-reference-uv-atlas" ? candidate : "arface-reference-uv-atlas";
         }
 
+        if (rendererMode == "e7-reference-uv-alpha")
+        {
+            return candidate == "arface-reference-uv-alpha" ? candidate : "arface-reference-uv-alpha";
+        }
+
         if (rendererMode == "e7-arface-uv-candidate")
         {
             return candidate == "e7-procedural-arface-uv" ? candidate : "e7-procedural-arface-uv";
@@ -1513,7 +1553,7 @@ public sealed class RNBridge : MonoBehaviour
             ? GetDefaultVariantId(region, rendererMode)
             : candidate.Trim().ToLowerInvariant();
 
-        if (rendererMode == "e7-reference-uv-atlas")
+        if (rendererMode == "e7-reference-uv-atlas" || rendererMode == "e7-reference-uv-alpha")
         {
             switch (region)
             {
@@ -1585,7 +1625,7 @@ public sealed class RNBridge : MonoBehaviour
             }
         }
 
-        if (rendererMode == "e7-reference-uv-atlas")
+        if (rendererMode == "e7-reference-uv-atlas" || rendererMode == "e7-reference-uv-alpha")
         {
             switch (region)
             {

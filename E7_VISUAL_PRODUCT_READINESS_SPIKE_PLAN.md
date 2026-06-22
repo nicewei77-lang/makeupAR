@@ -1,8 +1,9 @@
 # E7 Visual Product-Readiness Spike Plan
 
 Date: 2026-06-22 KST
+Last updated: 2026-06-23 KST
 
-Status: Temporary E7 master plan / E7.0-E7.2 complete / current boundary is E7.3 Region Precision
+Status: Temporary E7 master plan / E7.0-E7.2 complete / E7.03 P8 runtime sweep evidence collected / E7.3 remains Yellow / E7.4 deferred until gate is satisfied
 
 ## 0. Purpose
 
@@ -113,6 +114,7 @@ Authoritative current state comes from `TECH_VALIDATION_RESULT.md`.
 - E6 Engine Decision: Yellow.
 - E7.0/E7.1 Preflight: Green for preflight only.
 - E7.2 Baseline Instrumentation: Green.
+- E7.3 Region Precision: Yellow overall / blocked from E7.4. Legacy procedural E7 video review remains `lip` Red, `cheek` Yellow / insufficient E7-candidate sample, and `eye` Red. P8 reference UV runtime sweep improves attachment for all three regions, but current P8 region decisions are `lip` Yellow, `cheek` Yellow, and `eye` Yellow pending silhouette/material cleanup and scenario-specific motion review.
 - Full E7 visual product-readiness: incomplete.
 
 E7 continues from this position:
@@ -120,7 +122,7 @@ E7 continues from this position:
 - The current stack is viable enough to continue.
 - The problem is not missing face data.
 - The problem is product-readiness uncertainty in region precision, cosmetic visual quality, performance, lifecycle caveat, and clean rebuild durability.
-- The current primary boundary is E7.3 Region Precision sub-spike planning/validation.
+- The current primary boundary remains E7.3 Region Precision validation. Do not enter E7.4/E7.5/E7.6 until E7.03 evidence supports Q3 overlay-ready validation for `lip`, `cheek`, and `eye`, or until the team explicitly accepts E7.3 Yellow risk and records that E7.4/E7.5 can be at most Yellow.
 
 ## 4. E7 Decision Summary
 
@@ -232,6 +234,8 @@ E7 is broad enough that the implementation session should not start every comple
      - supported E7 blend modes;
      - supported E7 finish presets;
      - whether to isolate E7 renderer in a new component or extend the existing validation overlay;
+     - the 3x3 Look Pack sample matrix and final three-look synthesis process;
+     - the E7.4 entry gate: Q3 region evidence, or explicit E7.3 Yellow-risk acceptance with result cap;
      - what remains validation-only and what is deferred product rendering.
 
 3. `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`
@@ -489,6 +493,14 @@ Priority: P0
 Goal:
 
 - Move beyond `color` + `opacity` debug rendering and prove a minimal pigment/finish model can look more like makeup.
+- Prove renderer capability, not product-v1 makeup quality.
+- Keep the implementation small enough to measure on the real iPhone.
+
+Entry gate:
+
+- Preferred gate: E7.3 reaches Q3 overlay-ready validation for `lip`, `cheek`, and `eye` with real-device visual/runtime evidence.
+- Allowed but capped gate: the team explicitly accepts remaining E7.3 Yellow risk and records that E7.4/E7.5 evidence is conditional; full E7 visual product-readiness remains at most Yellow until the region gaps close.
+- Do not start E7.4 from E7.2 metrics, E7.3 build/install logs, or offline atlas scores alone.
 
 Implementation touchpoints:
 
@@ -496,6 +508,25 @@ Implementation touchpoints:
 - `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
 - E7 renderer component from E7.3
 - Unity material/shader assets created for E7 validation
+
+Research-backed renderer model:
+
+```txt
+ARFace UV region mask
+-> coverage / feather soft mask
+-> pigment blend against live skin appearance
+-> optional finish highlight or shimmer
+-> transparent face-mesh composite
+```
+
+Implementation default:
+
+- Use one isolated E7 validation renderer path, not the E3/E4 debug renderer as the permanent renderer.
+- Keep E3/E4 baseline selectable for before/after comparison.
+- Use the accepted E7.3 ARFace/UV region candidate as the placement source; do not add MediaPipe, face parsing, commercial SDK, Android, or product segmentation here.
+- Prefer one mostly-unlit transparent makeup material or a very small material set.
+- Do not migrate render pipelines inside E7.4 just because research recommends URP. If the current Unity project pipeline cannot support the needed transparent face-mesh overlay, write a separate render-pipeline gate before doing a migration.
+- Keep active regions to `lip`, `cheek`, and `eye`; keep active makeup layers small enough for E7.6 performance evidence.
 
 Minimum E7 recipe fields:
 
@@ -532,9 +563,53 @@ Allowed E7 experimental fields:
 - `skinAdaptive`
 - `preserveDetail`
 
+Parameter model:
+
+| Group | Fields | Purpose |
+| --- | --- | --- |
+| Placement | `region`, `coverage`, `feather` | Decides where the product appears and how the edge disappears. |
+| Pigment | `color`, `opacity`, `blendMode`, `texture`, `textureAmount`, `skinAdaptive`, `preserveDetail` | Decides how product color mixes with skin and whether skin detail survives. |
+| Finish | `finish`, `roughness`, `specular`, `specularPower`, `glossBoost`, `shimmer`, `shimmerColor` | Decides whether the result reads as matte, cream, gloss, powder, or shimmer. |
+
+Default values when fields are missing:
+
+| Field | Default |
+| --- | --- |
+| `coverage` | `0.70` |
+| `feather` | `0.10` |
+| `blendMode` | `multiply` |
+| `finish` | `cream` |
+| `textureAmount` | `0.0` |
+| `roughness` | `0.60` |
+| `specular` | `0.15` |
+| `specularPower` | `16` |
+| `glossBoost` | `0.0` |
+| `shimmer` | `0.0` |
+| `skinAdaptive` | `0.70` |
+| `preserveDetail` | `0.65` |
+
+Region defaults:
+
+| Region | Default product | Blend | Finish | Edge / strength guidance |
+| --- | --- | --- | --- | --- |
+| `lip` | tint / cream lipstick | `multiply` | `cream` | tighter feather `0.04-0.12`, medium/high coverage, preserve lip detail. |
+| `cheek` | powder / cream blush | `softLight` | `powder` | wide feather `0.30-0.45`, low opacity, broad coverage. |
+| `eye` | matte shadow / shimmer | `multiply` or `softLight` | `matte` or `shimmer` | medium feather `0.16-0.26`, shimmer only through texture-based sparkle. |
+
+Finish mapping:
+
+| Finish | Renderer behavior |
+| --- | --- |
+| `matte` | Pigment only; specular near `0`; no shimmer. |
+| `cream` | Pigment plus broad weak sheen; low/moderate `specular`, low/moderate `specularPower`. |
+| `gloss` | Pigment base plus tight moving highlight; high `specular`, high `specularPower`, low `roughness`. |
+| `shimmer` | Pigment plus sparkle texture gated by `shimmer` and tinted by `shimmerColor`; avoid procedural noise. |
+| `powder` | Low opacity, wide feather, no specular; best default for cheek. |
+
 Implementation actions:
 
-1. Keep existing E4 fields backward compatible:
+1. Create `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before implementation unless the user explicitly asks for a one-session minimal renderer proof. The sub-spike must copy the entry gate and stop rules from this section.
+2. Keep existing E4 fields backward compatible:
    - `region`
    - `layer`
    - `color`
@@ -545,31 +620,37 @@ Implementation actions:
    - `intensity`
    - `feather`
    - `blendMode`
-2. Add E7 v2 parsing without breaking E3/E4 validation payloads.
-3. Implement limited blend modes:
+3. Treat E4 `intensity` as legacy/master strength only. Do not make `intensity`, `opacity`, and `coverage` three independent E7 controls unless a later spec explicitly needs that.
+4. Add E7 v2 parsing without breaking E3/E4 validation payloads.
+5. Log at least `lookId`, layer ids, active regions, renderer mode, blend mode, finish, recipe latency, and whether E7 defaults were applied.
+6. Implement limited blend modes:
    - `normal`
    - `multiply`
    - `softLight` if feasible
    - `screen`
-4. Implement finish presets:
+7. Implement limited finish presets:
    - `matte`: low/no specular, texture optional.
    - `cream`: low broad specular.
    - `gloss`: stronger specular / gloss highlight.
    - `shimmer`: texture-based shimmer, no procedural heavy noise.
    - `powder`: low opacity, high feather, low/no specular.
-5. Prefer one or few simple transparent materials. Avoid full PBR, multi-light work, relighting, and CPU camera-frame processing.
-6. If camera/backdrop sampling is implemented, do it as a minimal validation path and keep raw frame storage disabled.
+8. Implement `coverage` and `feather` as first-class mask controls. The first visual gate is not gloss; it is whether blend + feather visibly beats the old alpha/debug overlay.
+9. Implement `skinAdaptive` and `preserveDetail` as lightweight validation controls. If live camera/backdrop sampling is used, keep it GPU-oriented or very low sample count; do not store raw frames and do not upload frames.
+10. Keep shader complexity low: no full PBR/GGX, no multi-light setup, no reflection probes, no procedural sparkle, no broad per-pixel branching over many layers, and no high-resolution mask stack unless E7.6 evidence says it is safe.
+11. If a basic transparent cosmetic material cannot render on the live AR background on the real iPhone, stop and resolve that foundation issue before implementing blend/finish complexity.
 
 Evidence:
 
 - `evidence/logs/e7-renderer-core-runtime-YYYY-MM-DD.log`
 - Optional short raw recording only if temporal visual behavior is core evidence: `evidence/screen-recordings/e7-renderer-core-comparison-YYYY-MM-DD.mp4`
 - `evidence/screenshots/e7-renderer-core-before-after-YYYY-MM-DD.jpg`
+- The before/after evidence must include the old E3/E4 alpha/debug behavior and the E7 cosmetic renderer under the same region/scenario where practical.
 
 Green:
 
 - E7 renderer visibly improves over alpha/normal debug overlay.
 - `coverage`, `feather`, `blendMode`, `texture`, and `finish` produce distinguishable effects.
+- `lip`, `cheek`, and `eye` all remain attached at least as well as the accepted E7.3 candidate used for entry.
 - No raw frame is stored or uploaded.
 - No obvious severe performance regression appears before full demo validation.
 
@@ -581,10 +662,12 @@ Red:
 
 - Renderer still looks like simple color overlay.
 - Finish effects break region stability or cause severe performance problems.
+- A basic transparent cosmetic overlay cannot render over the live AR camera path on the real iPhone.
 
 Stop rule:
 
 - Do not create more demo looks until the core renderer can show a visible improvement over baseline.
+- Do not use gloss, shimmer, or strong color to hide weak region precision.
 
 ### E7.5 - Demo Look Implementation
 
@@ -593,16 +676,72 @@ Priority: P1
 Goal:
 
 - Validate three focused demo looks, each answering a different E7 question.
+- Use a temporary 3x3 Look Pack to extract parameter insight, then compress the result back to exactly three final E7 demo looks.
 
 Implementation actions:
 
-1. Add RN demo look selector for exactly:
+1. Add RN demo look selector for the temporary `E7 Look Pack` samples while E7.5 tuning is active.
+2. Add final demo look selector for exactly:
    - `natural_daily`
    - `gloss_lip_focus`
    - `soft_blush_shimmer_eye`
-2. Send each look as full recipe JSON through the existing `UnityView.postMessage("RNBridge", "ApplyRecipeJson", json)` path.
-3. Keep manual region/color/opacity controls available only if they do not obscure demo validation.
-4. Log `lookId`, active layers, active region list, render mode, and recipe latency.
+3. Send each look as full recipe JSON through the existing `UnityView.postMessage("RNBridge", "ApplyRecipeJson", json)` path.
+4. Keep manual region/color/opacity controls available only if they do not obscure demo validation.
+5. Log `lookId`, active layers, active region list, render mode, changed parameter focus, and recipe latency.
+
+Temporary 3x3 Look Pack:
+
+| Owner slot | Sample 1 | Sample 2 | Sample 3 |
+| --- | --- | --- | --- |
+| A | `daily_subtle` | `gloss_balanced` | `texture_bold` |
+| B | `daily_balanced` | `gloss_bold` | `texture_subtle` |
+| C | `daily_bold` | `gloss_subtle` | `texture_balanced` |
+
+Strength meaning:
+
+| Strength | Meaning | Use |
+| --- | --- | --- |
+| `subtle` | Safe and natural | Find the minimum visible makeup effect. |
+| `balanced` | Demo-visible but still plausible | Candidate for final recipe defaults. |
+| `bold` | Limit-finding stress sample | Find where sticker, paint, glare, or noisy shimmer failure begins. |
+
+Concept focus:
+
+| Concept | Primary question | Required regions | Main parameters to vary |
+| --- | --- | --- | --- |
+| `daily` | Does product blend into skin while keeping detail? | `lip`, `cheek`, `eye` | `opacity`, `blendMode`, `skinAdaptive`, `preserveDetail` |
+| `gloss` | Can pigment and finish read as separate layers? | `lip`, optional weak `cheek` | `roughness`, `specular`, `specularPower`, `glossBoost`, `screen` |
+| `texture` | Do feather, texture, and shimmer improve realism without noise? | `cheek`, `eye`, optional nude `lip` | `coverage`, `feather`, `textureAmount`, `shimmer`, `shimmerColor` |
+
+Sample metadata contract:
+
+```json
+{
+  "lookId": "gloss_balanced",
+  "ownerSlot": "A",
+  "concept": "gloss",
+  "strength": "balanced",
+  "intent": "prove lip pigment and gloss finish separation",
+  "changedParams": ["specular", "specularPower", "glossBoost"],
+  "expectedEffect": "moving lip highlight without white-paint glare",
+  "risk": "static white paint or lip-boundary spill",
+  "layers": []
+}
+```
+
+Look Pack rules:
+
+- Each sample may vary only its declared main parameters plus color choices needed for the concept.
+- Non-target parameters must use E7.4 defaults so the team can identify what changed the visual result.
+- The 9 samples are exploration artifacts, not final product looks.
+- After team review, extract useful parameter decisions and discard weak samples.
+
+Final synthesis:
+
+- `natural_daily` = best skin blend + best subtle lip/cheek/eye balance.
+- `gloss_lip_focus` = best lip pigment base + best non-static gloss highlight.
+- `soft_blush_shimmer_eye` = best cheek feather + best stable eye shimmer.
+- Do not carry all 9 Look Pack samples forward as final E7 demos.
 
 Demo criteria:
 
@@ -615,13 +754,16 @@ Demo criteria:
 Evidence:
 
 - `evidence/logs/e7-demo-looks-runtime-YYYY-MM-DD.log`
+- `evidence/logs/e7-look-pack-review-YYYY-MM-DD.md`
 - Optional short raw recording only if transitions/motion are core evidence: `evidence/screen-recordings/e7-demo-looks-natural-gloss-shimmer-YYYY-MM-DD.mp4`
+- `evidence/screenshots/e7-look-pack-contact-sheet-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-demo-looks-contact-sheet-YYYY-MM-DD.jpg`
 
 Green:
 
 - All three looks are visibly distinct.
 - Each look demonstrates its intended technical point.
+- The final three looks are synthesized from Look Pack evidence, not hand-waved from subjective preference alone.
 - No look requires product catalog, AI, backend, commercial SDK, or raw-frame storage.
 
 Yellow:
@@ -637,7 +779,8 @@ Red:
 
 Stop rule:
 
-- Do not expand beyond the three demo looks in E7.
+- Do not expand beyond the three final demo looks in E7. Temporary Look Pack samples are allowed only as evidence-generating exploration and must be collapsed before E7.8 handoff.
+- Do not keep tuning the Look Pack once the team can identify the best parameter decisions and the worst failure boundaries.
 
 ### E7.6 - Performance and Device Evidence Pass
 
@@ -815,11 +958,14 @@ Use these names unless the implementation session needs a more specific suffix:
 - `evidence/logs/e7-baseline-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-region-precision-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-renderer-core-runtime-YYYY-MM-DD.log`
+- `evidence/logs/e7-look-pack-review-YYYY-MM-DD.md`
 - `evidence/logs/e7-demo-looks-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-runtime-YYYY-MM-DD.log`
 - `evidence/logs/e7-performance-summary-YYYY-MM-DD.log`
 - `evidence/screenshots/e7-baseline-representative-frame-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-region-precision-contact-sheet-YYYY-MM-DD.jpg`
+- `evidence/screenshots/e7-renderer-core-before-after-YYYY-MM-DD.jpg`
+- `evidence/screenshots/e7-look-pack-contact-sheet-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-demo-looks-contact-sheet-YYYY-MM-DD.jpg`
 - `evidence/screenshots/e7-performance-contact-sheet-YYYY-MM-DD.jpg`
 
@@ -839,6 +985,7 @@ Stop the E7 implementation session immediately if any of these happens:
 - Fresh UnityFramework build/sync cannot produce a runnable RN-hosted Unity app.
 - RN -> Unity `ApplyRecipeJson` or Unity -> RN event receipt regresses.
 - Face tracking/mesh/UV data is not available on the real iPhone.
+- E7.4 starts without Q3 region evidence or recorded E7.3 Yellow-risk acceptance.
 - E7 region precision is Red before cosmetic rendering starts.
 - Cosmetic renderer causes severe performance collapse.
 - Any step requires raw camera frame storage, off-device upload, AI inference, backend work, commercial SDK integration, or Android implementation.
@@ -854,8 +1001,9 @@ E7 can be called Green only if all are true:
 3. `lip`, `cheek`, and `eye` each have region precision G/Y/R.
 4. The E7 renderer visibly improves beyond simple debug overlay.
 5. `natural_daily`, `gloss_lip_focus`, and `soft_blush_shimmer_eye` are all demonstrated. If any required look is reduced or skipped, the final E7 decision is at most Yellow unless the user explicitly re-scopes E7 before implementation.
-6. FPS/frame-time, thermal, memory, and latency evidence exists.
-7. No product/backend/AI/commercial SDK/Android/raw-frame scope was introduced.
-8. `TECH_VALIDATION_RESULT.md` records the decision, evidence, limitations, and next boundary.
+6. If the 3x3 Look Pack path was used, the final three looks are synthesized from recorded Look Pack evidence and the weak samples are not promoted as final demos.
+7. FPS/frame-time, thermal, memory, and latency evidence exists.
+8. No product/backend/AI/commercial SDK/Android/raw-frame scope was introduced.
+9. `TECH_VALIDATION_RESULT.md` records the decision, evidence, limitations, and next boundary.
 
-If any of 1-8 is missing, E7 is not Green.
+If any of 1-9 is missing, E7 is not Green. If E7.4/E7.5 proceeds under explicit E7.3 Yellow-risk acceptance, full E7 visual product-readiness remains at most Yellow until the region gaps are closed with evidence.

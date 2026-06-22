@@ -1074,7 +1074,7 @@ Escalation ladder:
 Hard limits:
 
 - runtime MediaPipe, Apple Vision, face parsing POC는 이 계획에서 허용하지 않는다.
-- E7.03이 Green이거나 팀이 남은 Yellow risk를 명시적으로 수용하기 전까지 E7.4/E7.5/E7.6은 blocked다.
+- E7.03이 Green이거나 팀이 남은 E7.3 Yellow risk를 명시적으로 수용하고 `TECH_VALIDATION_RESULT.md`에 boundary를 기록하기 전까지 E7.4/E7.5/E7.6은 blocked다. Yellow risk를 수용해 넘어가더라도 이후 renderer/demo evidence는 conditional이며 full E7 visual product-readiness는 Yellow cap을 가진다.
 - 이 계획으로 product-quality makeup, M7 Green, AI/backend readiness, SDK readiness, Android readiness, product readiness를 주장하지 않는다.
 
 Escalation exit criteria:

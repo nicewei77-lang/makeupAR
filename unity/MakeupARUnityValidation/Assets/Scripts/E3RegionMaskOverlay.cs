@@ -12,7 +12,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         BaselineCentroid,
         E7ArFaceUvCandidate,
         E7ArFaceAuthoredAtlas,
-        E7ReferenceUvAtlas
+        E7ReferenceUvAtlas,
+        E7ReferenceUvAlpha
     }
 
     public struct RegionApplyResult
@@ -32,6 +33,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string CandidateId;
         public string VariantId;
         public string MaskSource;
+        public string BoundaryRenderer;
         public string TrackingState;
         public string StateAction;
         public string TextureSample;
@@ -101,6 +103,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public GameObject Root;
         public Mesh Mesh;
         public MeshRenderer MeshRenderer;
+        public Material RegionMaterial;
+        public Material ReferenceUvAlphaMaterial;
         public readonly List<MeshRenderer> FallbackRenderers = new List<MeshRenderer>();
     }
 
@@ -261,6 +265,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             CandidateId = "e3e4-baseline",
             VariantId = "baseline-v0",
             MaskSource = "centroid_broad",
+            BoundaryRenderer = "triangle_subset",
             TrackingState = "None",
             StateAction = "not_started",
             TextureSample = string.Empty,
@@ -304,6 +309,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.CandidateId = recipe.CandidateId;
         result.VariantId = recipe.VariantId;
         result.MaskSource = GetMaskSource(recipe.MaskMode);
+        result.BoundaryRenderer = GetBoundaryRenderer(recipe.MaskMode);
 
         if (faceManager == null)
         {
@@ -411,6 +417,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + " candidateId=" + result.CandidateId
                 + " variantId=" + result.VariantId
                 + " maskSource=" + result.MaskSource
+                + " boundaryRenderer=" + result.BoundaryRenderer
                 + " region=" + region
                 + " activeRegion=" + region
                 + " trackingState=" + result.TrackingState
@@ -510,7 +517,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             Root = root,
             Mesh = mesh,
-            MeshRenderer = meshRenderer
+            MeshRenderer = meshRenderer,
+            RegionMaterial = meshRenderer.sharedMaterial
         };
 
         CreateFallbackGeometry(root.transform, region, meshRenderer.sharedMaterial, view);
@@ -585,6 +593,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             view.Mesh.Clear();
             return false;
+        }
+
+        if (recipe.MaskMode == RegionMaskMode.E7ReferenceUvAlpha)
+        {
+            return TryUpdateFullFaceUvMesh(face, view, region, recipe, out triangleCount);
         }
 
         bool hasTextureCoordinates = HasUsableUv(face);
@@ -669,6 +682,78 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return true;
     }
 
+    private static bool TryUpdateFullFaceUvMesh(
+        ARFace face,
+        RegionOverlayView view,
+        string region,
+        RegionRecipeState recipe,
+        out int triangleCount)
+    {
+        triangleCount = 0;
+
+        if (!HasUsableUv(face))
+        {
+            view.Mesh.Clear();
+            return false;
+        }
+
+        AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(region, recipe.VariantId, recipe.MaskMode);
+        Texture2D probabilityAtlas = GetReferenceAtlasTexture(atlasVariant);
+        if (probabilityAtlas == null)
+        {
+            view.Mesh.Clear();
+            return false;
+        }
+
+        List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
+        List<Vector2> textureCoordinates = new List<Vector2>(face.uvs.Length);
+        List<int> triangles = new List<int>(face.indices.Length);
+
+        for (int index = 0; index < face.vertices.Length; index++)
+        {
+            vertices.Add(face.vertices[index]);
+        }
+
+        for (int index = 0; index < face.uvs.Length; index++)
+        {
+            textureCoordinates.Add(face.uvs[index]);
+        }
+
+        for (int index = 0; index + 2 < face.indices.Length; index += 3)
+        {
+            int sourceA = face.indices[index];
+            int sourceB = face.indices[index + 1];
+            int sourceC = face.indices[index + 2];
+
+            if (sourceA < 0 || sourceB < 0 || sourceC < 0
+                || sourceA >= face.vertices.Length
+                || sourceB >= face.vertices.Length
+                || sourceC >= face.vertices.Length)
+            {
+                continue;
+            }
+
+            triangles.Add(sourceA);
+            triangles.Add(sourceB);
+            triangles.Add(sourceC);
+        }
+
+        triangleCount = triangles.Count / 3;
+        if (triangleCount == 0)
+        {
+            view.Mesh.Clear();
+            return false;
+        }
+
+        view.Mesh.Clear();
+        view.Mesh.SetVertices(vertices);
+        view.Mesh.SetUVs(0, textureCoordinates);
+        view.Mesh.SetTriangles(triangles, 0);
+        view.Mesh.RecalculateNormals();
+        view.Mesh.RecalculateBounds();
+        return true;
+    }
+
     private static int CountRegionTriangles(ARFace face, string region, RegionRecipeState recipe)
     {
         return CountRegionTriangles(face, region, recipe.MaskMode, recipe.VariantId);
@@ -688,6 +773,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (!face.vertices.IsCreated || !face.indices.IsCreated || face.vertices.Length == 0 || face.indices.Length < 3)
         {
             return 0;
+        }
+
+        if (maskMode == RegionMaskMode.E7ReferenceUvAlpha)
+        {
+            return HasUsableUv(face) ? face.indices.Length / 3 : 0;
         }
 
         bool hasTextureCoordinates = HasUsableUv(face);
@@ -957,6 +1047,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private void ApplyRecipeAppearance(RegionOverlayView view, RegionRecipeState recipe)
     {
+        if (recipe.MaskMode == RegionMaskMode.E7ReferenceUvAlpha)
+        {
+            ApplyReferenceUvAlphaMaterialAppearance(view, recipe);
+            return;
+        }
+
+        if (view.MeshRenderer != null && view.RegionMaterial != null)
+        {
+            view.MeshRenderer.sharedMaterial = view.RegionMaterial;
+        }
+
         Texture2D texture = GetOrCreateTextureSample(recipe.TextureSample, recipe.Feather);
         Color materialColor = BuildMaterialColor(recipe);
 
@@ -974,6 +1075,95 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 texture,
                 recipe.BlendMode);
         }
+    }
+
+    private static void ApplyReferenceUvAlphaMaterialAppearance(
+        RegionOverlayView view,
+        RegionRecipeState recipe)
+    {
+        if (view.MeshRenderer == null)
+        {
+            return;
+        }
+
+        Material material = GetOrCreateReferenceUvAlphaMaterial(view, recipe.Region);
+        view.MeshRenderer.sharedMaterial = material;
+
+        AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(
+            recipe.Region,
+            recipe.VariantId,
+            recipe.MaskMode);
+        Texture2D probabilityAtlas = GetReferenceAtlasTexture(atlasVariant);
+        Color materialColor = BuildMaterialColor(recipe);
+
+        if (probabilityAtlas != null && material.HasProperty("_MaskTex"))
+        {
+            material.SetTexture("_MaskTex", probabilityAtlas);
+        }
+
+        if (material.HasProperty("_RegionColor"))
+        {
+            material.SetColor("_RegionColor", new Color(materialColor.r, materialColor.g, materialColor.b, 1.0f));
+        }
+
+        if (material.HasProperty("_Opacity"))
+        {
+            material.SetFloat("_Opacity", materialColor.a);
+        }
+
+        if (material.HasProperty("_Threshold"))
+        {
+            material.SetFloat("_Threshold", atlasVariant != null ? atlasVariant.Threshold : 0.45f);
+        }
+
+        if (material.HasProperty("_Feather"))
+        {
+            material.SetFloat("_Feather", atlasVariant != null ? atlasVariant.FeatherUvNormalized : 2.0f / 512.0f);
+        }
+
+        if (material.HasProperty("_VisibilityAlpha"))
+        {
+            material.SetFloat("_VisibilityAlpha", 1.0f);
+        }
+    }
+
+    private static Material GetOrCreateReferenceUvAlphaMaterial(
+        RegionOverlayView view,
+        string region)
+    {
+        if (view.ReferenceUvAlphaMaterial != null)
+        {
+            return view.ReferenceUvAlphaMaterial;
+        }
+
+        Material template = Resources.Load<Material>("E7ReferenceUvAlphaMaskMaterial");
+        if (template != null)
+        {
+            view.ReferenceUvAlphaMaterial = new Material(template)
+            {
+                name = "E7 Reference UV Alpha " + region
+            };
+            ConfigureTransparentMaterial(view.ReferenceUvAlphaMaterial);
+            return view.ReferenceUvAlphaMaterial;
+        }
+
+        Shader shader = Shader.Find("MakeupAR/E7ReferenceUvAlphaMask");
+        if (shader == null)
+        {
+            shader = Shader.Find("Universal Render Pipeline/Unlit");
+        }
+
+        if (shader == null)
+        {
+            shader = Shader.Find("Standard");
+        }
+
+        view.ReferenceUvAlphaMaterial = new Material(shader)
+        {
+            name = "E7 Reference UV Alpha " + region
+        };
+        ConfigureTransparentMaterial(view.ReferenceUvAlphaMaterial);
+        return view.ReferenceUvAlphaMaterial;
     }
 
     private static Color BuildMaterialColor(RegionRecipeState recipe)
@@ -1123,6 +1313,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return;
         }
 
+        if (material.HasProperty("_VisibilityAlpha"))
+        {
+            material.SetFloat("_VisibilityAlpha", Mathf.Clamp01(alphaMultiplier));
+            return;
+        }
+
         Color color = material.color;
         color.a = Mathf.Clamp01(color.a * Mathf.Clamp01(alphaMultiplier));
         ApplyMaterialColor(material, color);
@@ -1147,6 +1343,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         };
         ApplyMaterialColor(material, color);
         return material;
+    }
+
+    private static void ConfigureTransparentMaterial(Material material)
+    {
+        ApplyMaterialColor(material, material.color);
     }
 
     private static void ConfigureRenderer(MeshRenderer renderer)
@@ -1298,6 +1499,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return RegionMaskMode.E7ArFaceAuthoredAtlas;
         }
 
+        if (candidate == "e7-reference-uv-alpha" || candidate == "arface-reference-uv-alpha" || candidate == "reference-uv-alpha" || candidate == "soft-uv")
+        {
+            return RegionMaskMode.E7ReferenceUvAlpha;
+        }
+
         if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
         {
             return RegionMaskMode.E7ReferenceUvAtlas;
@@ -1319,6 +1525,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 return "e7-arface-authored-atlas";
             case RegionMaskMode.E7ReferenceUvAtlas:
                 return "e7-reference-uv-atlas";
+            case RegionMaskMode.E7ReferenceUvAlpha:
+                return "e7-reference-uv-alpha";
             case RegionMaskMode.E7ArFaceUvCandidate:
                 return "e7-arface-uv-candidate";
             default:
@@ -1334,11 +1542,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 return "arface_authored_atlas_manual_vertex_labels";
             case RegionMaskMode.E7ReferenceUvAtlas:
                 return "arface_reference_uv_atlas_probability";
+            case RegionMaskMode.E7ReferenceUvAlpha:
+                return "arface_reference_uv_atlas_shader_alpha";
             case RegionMaskMode.E7ArFaceUvCandidate:
                 return "arface_mesh_uv_procedural_candidate";
             default:
                 return "centroid_broad";
         }
+    }
+
+    private static string GetBoundaryRenderer(RegionMaskMode maskMode)
+    {
+        return maskMode == RegionMaskMode.E7ReferenceUvAlpha ? "shader_alpha" : "triangle_subset";
     }
 
     private static string NormalizeCandidateId(string candidateId, RegionMaskMode maskMode)
@@ -1352,8 +1567,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return candidate == "arface-authored-atlas" ? candidate : "arface-authored-atlas";
         }
 
-        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas)
+        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas || maskMode == RegionMaskMode.E7ReferenceUvAlpha)
         {
+            if (maskMode == RegionMaskMode.E7ReferenceUvAlpha)
+            {
+                return candidate == "arface-reference-uv-alpha" ? candidate : "arface-reference-uv-alpha";
+            }
+
             return candidate == "arface-reference-uv-atlas" ? candidate : "arface-reference-uv-atlas";
         }
 
@@ -1378,7 +1598,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static bool IsAtlasMaskMode(RegionMaskMode maskMode)
     {
         return maskMode == RegionMaskMode.E7ArFaceAuthoredAtlas
-            || maskMode == RegionMaskMode.E7ReferenceUvAtlas;
+            || maskMode == RegionMaskMode.E7ReferenceUvAtlas
+            || maskMode == RegionMaskMode.E7ReferenceUvAlpha;
     }
 
     private static AtlasVariantDefinition ResolveAtlasVariant(
@@ -1386,7 +1607,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string variantId,
         RegionMaskMode maskMode)
     {
-        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas)
+        if (maskMode == RegionMaskMode.E7ReferenceUvAtlas || maskMode == RegionMaskMode.E7ReferenceUvAlpha)
         {
             return ResolveReferenceAtlasVariant(region, variantId);
         }
@@ -1624,10 +1845,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             && GetIndexCount(face) >= 3
             && GetIndexCount(face) % 3 == 0;
 
-        result.AtlasVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas
+        result.AtlasVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas || recipe.MaskMode == RegionMaskMode.E7ReferenceUvAlpha
             ? ReferenceAtlasVersion
             : AtlasVersion;
-        result.AtlasLabelMapVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas
+        result.AtlasLabelMapVersion = recipe.MaskMode == RegionMaskMode.E7ReferenceUvAtlas || recipe.MaskMode == RegionMaskMode.E7ReferenceUvAlpha
             ? ReferenceAtlasLabelMapVersion
             : AtlasLabelMapVersion;
         result.AtlasLabelGroup = atlasVariant.LabelGroup;

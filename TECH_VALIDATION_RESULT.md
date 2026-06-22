@@ -60,7 +60,7 @@ Current status:
 - E7.2 Baseline Instrumentation: Green for baseline instrumentation; decision recording was explicitly waived only for E7.2.
 - E7.3 Region Precision: Yellow overall / blocked from E7.4. Legacy procedural E7 video review remains `lip` Red, `cheek` Yellow / insufficient E7-candidate sample, and `eye` Red. P8 reference UV runtime sweep improves attachment for all three regions, but current P8 region decisions are `lip` Yellow, `cheek` Yellow, and `eye` Yellow pending silhouette/material cleanup and scenario-specific motion review.
 - E7.03 P2 synchronized reference capture: captured / ready for user gold-mask authoring input; this does not change E7.3 region G/Y/R or mark E7.03 Green.
-- E7.03 A/B UV atlas fast gate: Continue / ready to prepare P8 Build Gate. `lip`, `cheek`, and `eye` all show useful same-frame and cross-frame UV transfer; this remains offline viability evidence, not runtime Green evidence.
+- E7.03 A/B UV atlas fast gate: Continue / P8 Build Gate already consumed for the first runtime sweep. `lip`, `cheek`, and `eye` all showed useful same-frame and cross-frame UV transfer; this remains offline viability evidence, not runtime Green evidence.
 - E7.03 P8 runtime sweep: build/install/runtime-log/representative-photo evidence collected after Build Gate approval. The runtime path is viable, Compact HUD is visible, and Clean intentionally hides the mask, but no region is Green yet.
 - Full E7 visual product-readiness: incomplete.
 
@@ -119,7 +119,7 @@ Key evidence:
 
 ## E7.3 Region Precision
 
-Status: Yellow overall / blocked from E7.4. Implementation/build/install evidence is present and the screen recording confirms ARFace mesh/UV candidate mode runs on-device, but the current procedural candidate fails visual precision for `lip` and `eye`; `cheek` remains Yellow because the recording does not include a clean E7 candidate sample. Phase 2 ARFace authored atlas MVP is now implemented and build/install verified, but runtime launch and visual scoring are still pending because the device was locked during launch.
+Status: Yellow overall / blocked from E7.4. Implementation/build/install evidence is present and the screen recording confirms ARFace mesh/UV candidate mode runs on-device, but the legacy procedural candidate fails visual precision for `lip` and `eye`; `cheek` remains Yellow because the recording does not include a clean E7 candidate sample. P8 reference UV atlas runtime evidence is now collected for `lip`, `cheek`, and `eye`; all three remain Yellow because attachment improved but silhouette/material quality and required motion scenarios are not Q3 overlay-ready yet.
 
 Decision:
 
@@ -244,11 +244,11 @@ Known limitations:
 
 Next boundary:
 
-- Stay inside E7.3 and use the reference-driven UV atlas plan for the next boundary. The P8 runtime sweep implementation is prepared, but it is not runtime evidence and does not mark E7.03 Green.
-- Next step: present/approve the P8 Build Gate, then regenerate/sync UnityFramework and run one real-device RN install/runtime sweep with full console capture and representative visual evidence.
-- The next real proof must be one-build runtime sweep with representative visual evidence and full runtime metadata.
+- Stay inside E7.3 and use the reference-driven UV atlas plan for the next boundary. The first P8 runtime sweep has evidence, but it does not mark E7.03 Green.
+- Next step: continue P9 decision/hardening from the P8 findings: separate the opaque white debug face surface from region-mask evidence, clean up jagged silhouettes/material visibility, and run structured region scenarios before any Green decision.
+- The next real proof must be a follow-up runtime comparison with full metadata and representative visual evidence for the missing scenarios: smile/open-close/pucker/yaw for `lip`, near/far/yaw/pitch for `cheek`, and blink/repeated blink/squint/head pitch for `eye`.
 - Keep the current procedural ARFace mesh/UV candidate and current manual heuristic baseline as compare-only paths unless future evidence promotes a new reference-driven atlas candidate.
-- Do not enter E7.4/E7.5/E7.6 until `lip` and `eye` are no longer Red and `cheek` has a clean E7 candidate sample, or until the team explicitly accepts E7.3 as Yellow and records the risk.
+- Do not enter E7.4/E7.5/E7.6 until `lip`, `cheek`, and `eye` have Q3 overlay-ready evidence, or until the team explicitly accepts E7.3 Yellow risk and records that later E7.4/E7.5 evidence is conditional and full E7 visual product-readiness remains capped at Yellow.
 
 ## E7.2 Baseline Instrumentation
 
@@ -315,10 +315,10 @@ Token policy:
 
 ## Next Milestone Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the current procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. E7.03 Phase 0 Contract Reset, Phase 1 Validation UI/Evidence Hygiene, Phase 2 ARFace authored atlas MVP implementation/build/install, and P2 synchronized reference capture are complete for validation scope. A no-build A/B UV atlas fast gate used `pair_face_20260622T143300Z_01` and `pair_face_20260622T143334Z_03` plus user-authored masks; after fixing the fast-gate sampling density, `lip`, `cheek`, and `eye` all show continuation signals and overall fast-gate decision is `continue`. This supports P8 runtime sweep preparation, but it does not change E7.3 region G/Y/R, prove Q3 overlay-ready validation, or mark E7.03 Green. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 and `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` remain the active boundary docs. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. E7.3 Region Precision implementation/build/install is present, and video review confirms ARFace mesh/UV candidate mode on-device, but the legacy procedural candidate has `lip` Red, `eye` Red, and `cheek` Yellow / insufficient E7-candidate sample. E7.03 Phase 0 Contract Reset, Phase 1 Validation UI/Evidence Hygiene, Phase 2 ARFace authored atlas MVP implementation/build/install, P2 synchronized reference capture, A/B UV atlas fast gate, and first P8 reference UV runtime sweep are complete for validation scope. P8 improved face attachment for `lip`, `cheek`, and `eye`, but all three current P8 region decisions remain Yellow because the masks are still jagged/rough and scenario-specific motion review is incomplete. This does not prove Q3 overlay-ready validation or mark E7.03 Green. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 and `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` remain the active boundary docs. Full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
 
 Next boundary decision:
 
-- Primary path: stay in E7.3 reference-driven UV atlas flow, freeze a small candidate set from the A/B UV outputs, and stop at the P8 Build Gate before any Unity/RN runtime sweep.
+- Primary path: stay in E7.3 reference-driven UV atlas flow and continue from the P8 runtime findings with a focused P9 hardening/decision pass, not an E7.4 renderer jump.
 - Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
-- Renderer path: do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports Q3 overlay-ready validation for the required regions, or until the team explicitly accepts the remaining E7.3 risk and records the boundary.
+- Renderer path: do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports Q3 overlay-ready validation for all three regions, or until the team explicitly accepts the remaining E7.3 Yellow risk, records the boundary, and treats later renderer/demo evidence as conditional with a Yellow cap.

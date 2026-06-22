@@ -62,6 +62,7 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   },
 ] as const;
 const RENDERER_MODE_OPTIONS = [
+  { name: 'e7-reference-uv-alpha', label: 'Soft UV' },
   { name: 'e7-reference-uv-atlas', label: 'Ref UV' },
   { name: 'e3e4-baseline', label: 'Baseline' },
   { name: 'e7-arface-uv-candidate', label: 'E7 UV' },
@@ -72,126 +73,126 @@ const ATLAS_VARIANT_OPTIONS = [
     id: 'lip-uvref-v0-core',
     label: 'lip core',
     region: 'lip',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.55',
   },
   {
     id: 'lip-uvref-v0-balanced',
     label: 'lip balanced',
     region: 'lip',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.45',
   },
   {
     id: 'lip-uvref-v0-soft-wide',
     label: 'lip soft-wide',
     region: 'lip',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.35',
   },
   {
     id: 'lip-ring-v0-tight',
     label: 'lip tight',
     region: 'lip',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'manual lip ring',
   },
   {
     id: 'lip-ring-v0-balanced',
     label: 'lip balanced',
     region: 'lip',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'default lip ring',
   },
   {
     id: 'lip-ring-v0-wide',
     label: 'lip wide',
     region: 'lip',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'stress spill check',
   },
   {
     id: 'cheek-uvref-v0-core',
     label: 'cheek core',
     region: 'cheek',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.55',
   },
   {
     id: 'cheek-uvref-v0-balanced',
     label: 'cheek balanced',
     region: 'cheek',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.45',
   },
   {
     id: 'cheek-uvref-v0-soft-wide',
     label: 'cheek soft-wide',
     region: 'cheek',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.35',
   },
   {
     id: 'cheek-soft-v0-balanced',
     label: 'cheek balanced',
     region: 'cheek',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'default soft cheek',
   },
   {
     id: 'cheek-soft-v0-high',
     label: 'cheek high',
     region: 'cheek',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'cheekbone emphasis',
   },
   {
     id: 'cheek-soft-v0-wide',
     label: 'cheek wide',
     region: 'cheek',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'soft-zone spill check',
   },
   {
     id: 'eye-uvref-v0-core',
     label: 'eye core',
     region: 'eye',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.55',
   },
   {
     id: 'eye-uvref-v0-balanced',
     label: 'eye balanced',
     region: 'eye',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.45',
   },
   {
     id: 'eye-uvref-v0-soft-wide',
     label: 'eye soft-wide',
     region: 'eye',
-    rendererMode: 'e7-reference-uv-atlas',
+    rendererModes: ['e7-reference-uv-alpha', 'e7-reference-uv-atlas'],
     status: 'threshold 0.35',
   },
   {
     id: 'eye-band-v0-tight',
     label: 'eye tight',
     region: 'eye',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'manual eyelid band',
   },
   {
     id: 'eye-band-v0-balanced',
     label: 'eye balanced',
     region: 'eye',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'default eyelid band',
   },
   {
     id: 'eye-band-v0-extended',
     label: 'eye extended',
     region: 'eye',
-    rendererMode: 'e7-arface-authored-atlas',
+    rendererModes: ['e7-arface-authored-atlas'],
     status: 'stress spill check',
   },
 ] as const;
@@ -224,9 +225,15 @@ type ValidationCandidateOption = {
 
 const VALIDATION_CANDIDATE_OPTIONS: ValidationCandidateOption[] = [
   {
+    id: 'arface-reference-uv-alpha',
+    label: 'Soft UV',
+    status: 'shader alpha full-face UV mask',
+    rendererMode: 'e7-reference-uv-alpha',
+  },
+  {
     id: 'arface-reference-uv-atlas',
     label: 'Reference UV',
-    status: 'P8 frozen fast-gate candidates',
+    status: 'legacy hard triangle path',
     rendererMode: 'e7-reference-uv-atlas',
   },
   {
@@ -309,7 +316,7 @@ const DEFAULT_ATLAS_VARIANT_BY_REGION: Record<RecipeRegion, AtlasVariantId> = {
 };
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-const DEFAULT_RENDERER_MODE: RendererMode = 'e7-reference-uv-atlas';
+const DEFAULT_RENDERER_MODE: RendererMode = 'e7-reference-uv-alpha';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -437,6 +444,7 @@ type UnityEventPayload = {
   atlasVertexLabelSummary?: string;
   atlasDataFallback?: boolean;
   atlasFallbackReason?: string;
+  boundaryRenderer?: string;
   capturePairId?: string;
   relativeDirectory?: string;
   detail?: string;
@@ -661,7 +669,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ? 'e7_region_precision_debug'
         : 'baseline_debug_mask';
       const recipePrefix =
-        rendererMode === 'e7-reference-uv-atlas'
+        rendererMode === 'e7-reference-uv-alpha'
+          ? 'e7-reference-uv-alpha'
+          : rendererMode === 'e7-reference-uv-atlas'
           ? 'e7-reference-uv-atlas'
           : rendererMode === 'e7-arface-authored-atlas'
           ? 'e7-region-precision-atlas'
@@ -785,8 +795,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const postRegionOverlayVisibility = useCallback(
     (visible: boolean, reason: string) => {
+      const faceDebugSurfaceVisible =
+        visible && selectedRendererMode !== 'e7-reference-uv-alpha';
       const payloadJson = JSON.stringify({
         visible,
+        faceDebugSurfaceVisible,
         validationViewMode,
         reason,
         entryCount,
@@ -795,6 +808,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       console.log(
         '[E7] rn_region_overlay_visibility_post',
         `visible=${visible}`,
+        `faceDebugSurfaceVisible=${faceDebugSurfaceVisible}`,
         `validationViewMode=${validationViewMode}`,
         `reason=${reason}`,
       );
@@ -805,7 +819,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         payloadJson,
       );
     },
-    [entryCount, validationViewMode],
+    [entryCount, selectedRendererMode, validationViewMode],
   );
 
   const postReferenceCaptureRequest = useCallback(() => {
@@ -1364,7 +1378,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               isAtlasVariantRenderer(selectedRendererMode) && (
                 <View style={styles.variantPanel}>
                   <Text style={styles.debugSubLabel}>
-                    {selectedRendererMode === 'e7-reference-uv-atlas'
+                    {selectedRendererMode === 'e7-reference-uv-alpha'
+                      ? 'Soft UV variant'
+                      : selectedRendererMode === 'e7-reference-uv-atlas'
                       ? 'Reference UV variant'
                       : 'Heuristic variant'}
                   </Text>
@@ -2141,6 +2157,8 @@ function formatSelectedCandidateId(rendererMode: RendererMode) {
 
 function getCandidateIdForRenderer(rendererMode: RendererMode) {
   switch (rendererMode) {
+    case 'e7-reference-uv-alpha':
+      return 'arface-reference-uv-alpha';
     case 'e7-reference-uv-atlas':
       return 'arface-reference-uv-atlas';
     case 'e7-arface-authored-atlas':
@@ -2160,7 +2178,7 @@ function getVariantIdForRenderer(
   if (isAtlasVariantRenderer(rendererMode)) {
     const atlasVariant = getAtlasVariantOption(atlasVariantId);
     return atlasVariant?.region === region &&
-      atlasVariant.rendererMode === rendererMode
+      variantSupportsRenderer(atlasVariant, rendererMode)
       ? atlasVariant.id
       : getDefaultAtlasVariantByRenderer(rendererMode, region);
   }
@@ -2177,7 +2195,7 @@ function getAtlasVariantsForRegion(
   return ATLAS_VARIANT_OPTIONS.filter(
     variantOption =>
       variantOption.region === region &&
-      variantOption.rendererMode === rendererMode,
+      variantSupportsRenderer(variantOption, rendererMode),
   );
 }
 
@@ -2187,8 +2205,18 @@ function getAtlasVariantOption(variantId: AtlasVariantId) {
   );
 }
 
+function variantSupportsRenderer(
+  variantOption: AtlasVariantOption,
+  rendererMode: RendererMode,
+) {
+  return (variantOption.rendererModes as readonly RendererMode[]).includes(
+    rendererMode,
+  );
+}
+
 function isAtlasVariantRenderer(rendererMode: RendererMode) {
   return (
+    rendererMode === 'e7-reference-uv-alpha' ||
     rendererMode === 'e7-reference-uv-atlas' ||
     rendererMode === 'e7-arface-authored-atlas'
   );
