@@ -11,6 +11,11 @@ public sealed class FaceTrackingMarker : MonoBehaviour
 
     private void Awake()
     {
+        if (!enabled)
+        {
+            return;
+        }
+
         if (transform.Find(MarkerRootName) != null)
         {
             return;

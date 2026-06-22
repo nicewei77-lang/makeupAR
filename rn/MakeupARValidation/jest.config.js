@@ -1,3 +1,12 @@
 module.exports = {
-  preset: '@react-native/jest-preset',
+  testEnvironment: 'node',
+  transform: {
+    '^.+\\.(js|jsx|ts|tsx)$': 'babel-jest',
+  },
+  transformIgnorePatterns: [
+    'node_modules/(?!(react-native|@react-native|react-native-safe-area-context)/)',
+  ],
+  globals: {
+    __DEV__: true,
+  },
 };

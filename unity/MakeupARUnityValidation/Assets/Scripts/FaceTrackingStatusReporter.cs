@@ -17,7 +17,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     [SerializeField] private RNBridge rnBridge;
     [SerializeField] private XROrigin xrOrigin;
     [SerializeField] private Camera arCamera;
-    [SerializeField] private float logIntervalSeconds = 1.0f;
+    [SerializeField] private float logIntervalSeconds = 2.0f;
     [SerializeField] private bool drawDebugOverlay;
     [SerializeField] private bool logE1Diagnostics = true;
     [SerializeField] private bool logE2LifecycleDiagnostics = true;
@@ -728,30 +728,35 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         string addedFaces = FormatTrackableList(args.added);
         string updatedFaces = FormatTrackableList(args.updated);
         string removedFaces = FormatRemovedTrackableList(args.removed);
+        bool structuralChange = args.added.Count > 0 || args.removed.Count > 0;
+        bool shouldLogTrackablesChanged = structuralChange || Time.unscaledTime >= nextLogTime;
 
-        Debug.Log(
-            "[E1] face_trackables_changed"
-            + " seq=" + trackablesChangedCount.ToString(CultureInfo.InvariantCulture)
-            + " added=" + args.added.Count.ToString(CultureInfo.InvariantCulture)
-            + " updated=" + args.updated.Count.ToString(CultureInfo.InvariantCulture)
-            + " removed=" + args.removed.Count.ToString(CultureInfo.InvariantCulture)
-            + " addedFaces=" + addedFaces
-            + " updatedFaces=" + updatedFaces
-            + " removedFaces=" + removedFaces);
+        if (shouldLogTrackablesChanged)
+        {
+            Debug.Log(
+                "[E1] face_trackables_changed"
+                + " seq=" + trackablesChangedCount.ToString(CultureInfo.InvariantCulture)
+                + " added=" + args.added.Count.ToString(CultureInfo.InvariantCulture)
+                + " updated=" + args.updated.Count.ToString(CultureInfo.InvariantCulture)
+                + " removed=" + args.removed.Count.ToString(CultureInfo.InvariantCulture)
+                + " addedFaces=" + addedFaces
+                + " updatedFaces=" + updatedFaces
+                + " removedFaces=" + removedFaces);
 
-        Debug.Log(
-            "[E2] trackablesChanged"
-            + " timestamp=" + timestamp
-            + " seq=" + trackablesChangedCount.ToString(CultureInfo.InvariantCulture)
-            + " trackablesChanged.added=" + args.added.Count.ToString(CultureInfo.InvariantCulture)
-            + " trackablesChanged.updated=" + args.updated.Count.ToString(CultureInfo.InvariantCulture)
-            + " trackablesChanged.removed=" + args.removed.Count.ToString(CultureInfo.InvariantCulture)
-            + " addedFaces=" + addedFaces
-            + " updatedFaces=" + updatedFaces
-            + " removedFaces=" + removedFaces);
+            Debug.Log(
+                "[E2] trackablesChanged"
+                + " timestamp=" + timestamp
+                + " seq=" + trackablesChangedCount.ToString(CultureInfo.InvariantCulture)
+                + " trackablesChanged.added=" + args.added.Count.ToString(CultureInfo.InvariantCulture)
+                + " trackablesChanged.updated=" + args.updated.Count.ToString(CultureInfo.InvariantCulture)
+                + " trackablesChanged.removed=" + args.removed.Count.ToString(CultureInfo.InvariantCulture)
+                + " addedFaces=" + addedFaces
+                + " updatedFaces=" + updatedFaces
+                + " removedFaces=" + removedFaces);
+        }
 
         LogStatus(
-            true,
+            structuralChange,
             "trackablesChanged",
             args.added.Count,
             args.updated.Count,
@@ -841,13 +846,14 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             return;
         }
 
+        string regionFingerprint = rnBridge.BuildFaceFeatureRegionSnapshotLogFields();
         string fingerprint = lifecycle.Status
             + "|active=" + lifecycle.ActiveFaceId
             + "|state=" + lifecycle.TrackingState
             + "|count=" + lifecycle.FaceCount.ToString(CultureInfo.InvariantCulture)
             + "|total=" + lifecycle.TotalTrackables.ToString(CultureInfo.InvariantCulture)
             + "|mesh=" + lifecycle.MeshSummary
-            + "|regions=" + rnBridge.BuildFaceFeatureRegionSnapshotJsonFragment();
+            + "|regions=" + regionFingerprint;
 
         if (!force
             && fingerprint == lastFeatureSnapshotFingerprint
@@ -869,7 +875,8 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + " meshUvs=" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
             + " rawCameraFrameStored=false"
             + " offDeviceUpload=false"
-            + " payload=" + snapshotJson);
+            + regionFingerprint
+            + " snapshotBytes=" + snapshotJson.Length.ToString(CultureInfo.InvariantCulture));
 
         rnBridge.SendFaceFeatureSnapshotEvent(snapshotJson);
         lastFeatureSnapshotFingerprint = fingerprint;

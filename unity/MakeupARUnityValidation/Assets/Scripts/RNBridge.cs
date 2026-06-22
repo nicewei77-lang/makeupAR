@@ -16,8 +16,12 @@ public sealed class RNBridge : MonoBehaviour
     {
         public int version;
         public string recipeId;
+        public string recipeBatchId;
         public string lookId;
         public double sentAtMs;
+        public string activeRegions;
+        public int layerCount;
+        public int enabledLayerCount;
         public string region;
         public string layer;
         public string color;
@@ -31,6 +35,23 @@ public sealed class RNBridge : MonoBehaviour
         public string rendererMode;
         public string candidateId;
         public string variantId;
+        public float coverage;
+        public string finish;
+        public float textureAmount;
+        public float roughness;
+        public float specular;
+        public float specularPower;
+        public float glossBoost;
+        public float shimmer;
+        public string shimmerColor;
+        public bool skinAdaptive;
+        public bool preserveDetail;
+        public string materialId;
+        public string shaderMode;
+        public int passCount;
+        public string maskTextureId;
+        public bool cameraBackdropAvailable;
+        public bool lightEstimateAvailable;
         public RecipeLayerPayload[] layers;
     }
 
@@ -39,8 +60,12 @@ public sealed class RNBridge : MonoBehaviour
     {
         public string id;
         public string recipeId;
+        public string recipeBatchId;
         public string lookId;
         public double sentAtMs;
+        public string activeRegions;
+        public int layerCount;
+        public int enabledLayerCount;
         public string region;
         public string layer;
         public string color;
@@ -55,6 +80,23 @@ public sealed class RNBridge : MonoBehaviour
         public string candidateId;
         public string variantId;
         public bool enabled;
+        public float coverage;
+        public string finish;
+        public float textureAmount;
+        public float roughness;
+        public float specular;
+        public float specularPower;
+        public float glossBoost;
+        public float shimmer;
+        public string shimmerColor;
+        public bool skinAdaptive;
+        public bool preserveDetail;
+        public string materialId;
+        public string shaderMode;
+        public int passCount;
+        public string maskTextureId;
+        public bool cameraBackdropAvailable;
+        public bool lightEstimateAvailable;
     }
 
     [Serializable]
@@ -68,6 +110,11 @@ public sealed class RNBridge : MonoBehaviour
         public string variantId;
         public string lookId;
         public string recipeId;
+        public string recipeBatchId;
+        public string activeRegions;
+        public int layerCount;
+        public int enabledLayerCount;
+        public int payloadBytes;
         public string region;
         public string texture;
         public double sentAtMs;
@@ -96,8 +143,13 @@ public sealed class RNBridge : MonoBehaviour
         public Color Color;
         public float Opacity;
         public string RecipeId;
+        public string RecipeBatchId;
         public string LookId;
         public double SentAtMs;
+        public string ActiveRegions;
+        public int LayerCount;
+        public int EnabledLayerCount;
+        public int PayloadBytes;
         public string TextureSample;
         public string TextureMode;
         public float Intensity;
@@ -107,6 +159,23 @@ public sealed class RNBridge : MonoBehaviour
         public string CandidateId;
         public string VariantId;
         public bool Enabled;
+        public float Coverage;
+        public string Finish;
+        public float TextureAmount;
+        public float Roughness;
+        public float Specular;
+        public float SpecularPower;
+        public float GlossBoost;
+        public float Shimmer;
+        public string ShimmerColor;
+        public bool SkinAdaptive;
+        public bool PreserveDetail;
+        public string MaterialId;
+        public string ShaderMode;
+        public int PassCount;
+        public string MaskTextureId;
+        public bool CameraBackdropAvailable;
+        public bool LightEstimateAvailable;
     }
 
     private sealed class RegionFeatureState
@@ -121,9 +190,31 @@ public sealed class RNBridge : MonoBehaviour
         public string BlendMode = string.Empty;
         public float Intensity;
         public float Feather;
+        public string RecipeBatchId = "none";
+        public string ActiveRegions = "none";
+        public int LayerCount;
+        public int EnabledLayerCount;
+        public int PayloadBytes;
         public string RendererMode = "e3e4-baseline";
         public string CandidateId = "e3e4-baseline";
         public string VariantId = "baseline-v0";
+        public float Coverage;
+        public string Finish = "validation-placeholder";
+        public float TextureAmount;
+        public float Roughness;
+        public float Specular;
+        public float SpecularPower;
+        public float GlossBoost;
+        public float Shimmer;
+        public string ShimmerColor = "#FFFFFF";
+        public bool SkinAdaptive;
+        public bool PreserveDetail = true;
+        public string MaterialId = "none";
+        public string ShaderMode = "unlit-alpha-validation";
+        public int PassCount;
+        public string MaskTextureId = "none";
+        public bool CameraBackdropAvailable;
+        public bool LightEstimateAvailable;
         public string MaskSource = "centroid_broad";
         public string BoundaryRenderer = "triangle_subset";
         public string TrackingState = "None";
@@ -161,6 +252,8 @@ public sealed class RNBridge : MonoBehaviour
     private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
         new Dictionary<string, RegionFeatureState>();
     private bool faceRenderersSuppressed;
+    private float nextFaceRendererSuppressionRefreshTime;
+    private int lastSuppressedFaceTrackableCount = -1;
 
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -172,11 +265,6 @@ public sealed class RNBridge : MonoBehaviour
         RefreshSceneReferences();
         EnsureRegionMaskOverlay();
         EnsureReferenceCaptureExporter();
-
-        if (overlayMaterial != null)
-        {
-            ApplyMaterialColor(overlayMaterial, new Color(1.0f, 1.0f, 1.0f, 0.06f));
-        }
     }
 
     private IEnumerator Start()
@@ -188,7 +276,7 @@ public sealed class RNBridge : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (faceRenderersSuppressed)
+        if (faceRenderersSuppressed && ShouldRefreshFaceRendererSuppression())
         {
             ApplyFaceRendererSuppression();
         }
@@ -209,18 +297,36 @@ public sealed class RNBridge : MonoBehaviour
                 throw new ArgumentException("Recipe JSON did not parse into a payload.");
             }
 
-            List<ParsedRecipeLayer> layers = ParseRecipeLayers(recipe);
+            int payloadBytes = json.Length;
+            List<ParsedRecipeLayer> layers = ParseRecipeLayers(recipe, payloadBytes);
+            string recipeBatchId = NormalizeRecipeBatchId(recipe.recipeBatchId, recipe.recipeId);
+            string activeRegions = NormalizeActiveRegions(recipe.activeRegions, layers);
+            int layerCount = recipe.layerCount > 0 ? recipe.layerCount : layers.Count;
+            int enabledLayerCount = recipe.enabledLayerCount > 0
+                ? recipe.enabledLayerCount
+                : CountEnabledLayers(layers);
+            ApplyBatchMetadata(
+                layers,
+                recipeBatchId,
+                activeRegions,
+                layerCount,
+                enabledLayerCount,
+                payloadBytes);
             Debug.Log(
                 "[E4] recipe_parse"
                 + " version=" + recipe.version.ToString(CultureInfo.InvariantCulture)
                 + " layerCount=" + layers.Count.ToString(CultureInfo.InvariantCulture)
+                + " declaredLayerCount=" + layerCount.ToString(CultureInfo.InvariantCulture)
+                + " enabledLayerCount=" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
+                + " activeRegions=" + activeRegions
+                + " recipeBatchId=" + recipeBatchId
+                + " payloadBytes=" + payloadBytes.ToString(CultureInfo.InvariantCulture)
                 + " region=" + NormalizeOptional(recipe.region)
                 + " texture=" + NormalizeOptional(recipe.texture)
                 + " sample=" + NormalizeOptional(recipe.sample)
                 + " textureMode=" + NormalizeOptional(recipe.textureMode)
                 + " candidateId=" + NormalizeOptional(recipe.candidateId)
-                + " variantId=" + NormalizeOptional(recipe.variantId)
-                + " raw=" + json);
+                + " variantId=" + NormalizeOptional(recipe.variantId));
 
             foreach (ParsedRecipeLayer layer in layers)
             {
@@ -234,6 +340,10 @@ public sealed class RNBridge : MonoBehaviour
                     + " texture=" + layer.TextureSample
                     + " textureMode=" + layer.TextureMode
                     + " blendMode=" + layer.BlendMode
+                    + " recipeBatchId=" + layer.RecipeBatchId
+                    + " activeRegions=" + layer.ActiveRegions
+                    + " enabledLayerCount=" + layer.EnabledLayerCount.ToString(CultureInfo.InvariantCulture)
+                    + " payloadBytes=" + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
                     + " rendererMode=" + layer.RendererMode
                     + " candidateId=" + layer.CandidateId
                     + " variantId=" + layer.VariantId
@@ -407,6 +517,11 @@ public sealed class RNBridge : MonoBehaviour
                 + " variantId=" + NormalizeOptional(ack.variantId)
                 + " lookId=" + NormalizeOptional(ack.lookId)
                 + " recipeId=" + NormalizeOptional(ack.recipeId)
+                + " recipeBatchId=" + NormalizeOptional(ack.recipeBatchId)
+                + " activeRegions=" + NormalizeOptional(ack.activeRegions)
+                + " layerCount=" + ack.layerCount.ToString(CultureInfo.InvariantCulture)
+                + " enabledLayerCount=" + ack.enabledLayerCount.ToString(CultureInfo.InvariantCulture)
+                + " payloadBytes=" + ack.payloadBytes.ToString(CultureInfo.InvariantCulture)
                 + " region=" + NormalizeOptional(ack.region)
                 + " texture=" + NormalizeOptional(ack.texture)
                 + " sentAtMs=" + ack.sentAtMs.ToString("0", CultureInfo.InvariantCulture)
@@ -437,6 +552,12 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"activeRegionSummary\":\"" + EscapeJsonString(activeRegionSummary) + "\""
             + ",\"appliedTextureSampleSummary\":\"" + EscapeJsonString(appliedTextureSampleSummary) + "\""
             + ",\"regions\":" + BuildRegionsJson();
+    }
+
+    public string BuildFaceFeatureRegionSnapshotLogFields()
+    {
+        return " activeRegions=" + NormalizeOptional(BuildActiveRegionSummary())
+            + " appliedTextureSampleSummary=" + NormalizeOptional(BuildAppliedTextureSampleSummary());
     }
 
     private void RefreshSceneReferences()
@@ -506,6 +627,8 @@ public sealed class RNBridge : MonoBehaviour
 
         if (suppressed)
         {
+            nextFaceRendererSuppressionRefreshTime = 0.0f;
+            lastSuppressedFaceTrackableCount = -1;
             ApplyFaceRendererSuppression();
             return;
         }
@@ -519,6 +642,30 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         suppressedFaceRendererStates.Clear();
+        nextFaceRendererSuppressionRefreshTime = 0.0f;
+        lastSuppressedFaceTrackableCount = -1;
+    }
+
+    private bool ShouldRefreshFaceRendererSuppression()
+    {
+        if (faceManager == null)
+        {
+            RefreshSceneReferences();
+            return faceManager != null;
+        }
+
+        int faceCount = CountFaceTrackables();
+        if (faceCount != lastSuppressedFaceTrackableCount)
+        {
+            return true;
+        }
+
+        if (Time.unscaledTime >= nextFaceRendererSuppressionRefreshTime)
+        {
+            return true;
+        }
+
+        return false;
     }
 
     private void ApplyFaceRendererSuppression()
@@ -527,6 +674,9 @@ public sealed class RNBridge : MonoBehaviour
         {
             return;
         }
+
+        lastSuppressedFaceTrackableCount = CountFaceTrackables();
+        nextFaceRendererSuppressionRefreshTime = Time.unscaledTime + 0.25f;
 
         foreach (ARFace face in faceManager.trackables)
         {
@@ -556,6 +706,25 @@ public sealed class RNBridge : MonoBehaviour
                 renderer.enabled = false;
             }
         }
+    }
+
+    private int CountFaceTrackables()
+    {
+        if (faceManager == null)
+        {
+            return 0;
+        }
+
+        int count = 0;
+        foreach (ARFace face in faceManager.trackables)
+        {
+            if (face != null)
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     private static bool IsRegionOverlayRenderer(Renderer renderer)
@@ -610,9 +779,31 @@ public sealed class RNBridge : MonoBehaviour
             BlendMode = result.BlendMode,
             Intensity = result.Intensity,
             Feather = result.Feather,
+            RecipeBatchId = layer.RecipeBatchId,
+            ActiveRegions = layer.ActiveRegions,
+            LayerCount = layer.LayerCount,
+            EnabledLayerCount = layer.EnabledLayerCount,
+            PayloadBytes = layer.PayloadBytes,
             RendererMode = result.RendererMode,
             CandidateId = result.CandidateId,
             VariantId = result.VariantId,
+            Coverage = layer.Coverage,
+            Finish = layer.Finish,
+            TextureAmount = layer.TextureAmount,
+            Roughness = layer.Roughness,
+            Specular = layer.Specular,
+            SpecularPower = layer.SpecularPower,
+            GlossBoost = layer.GlossBoost,
+            Shimmer = layer.Shimmer,
+            ShimmerColor = layer.ShimmerColor,
+            SkinAdaptive = layer.SkinAdaptive,
+            PreserveDetail = layer.PreserveDetail,
+            MaterialId = layer.MaterialId,
+            ShaderMode = layer.ShaderMode,
+            PassCount = layer.PassCount,
+            MaskTextureId = layer.MaskTextureId,
+            CameraBackdropAvailable = layer.CameraBackdropAvailable,
+            LightEstimateAvailable = layer.LightEstimateAvailable,
             MaskSource = result.MaskSource,
             BoundaryRenderer = result.BoundaryRenderer,
             TrackingState = result.TrackingState,
@@ -871,6 +1062,10 @@ public sealed class RNBridge : MonoBehaviour
         RegionFeatureState state = GetLatestActiveRegionFeatureState();
         string region = state != null ? state.Region : "none";
         string activeRegions = BuildActiveRegionSummary();
+        int layerCount = CountKnownRegionFeatureStates();
+        int enabledLayerCount = CountEnabledRegionFeatureStates();
+        int payloadBytes = state != null ? state.PayloadBytes : 0;
+        string recipeBatchId = state != null ? state.RecipeBatchId : "none";
         string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
             ? state.TextureSample
             : "none";
@@ -897,8 +1092,18 @@ public sealed class RNBridge : MonoBehaviour
             + " lookId=" + lookId
             + " region=" + region
             + " activeRegions=" + activeRegions
+            + " recipeBatchId=" + recipeBatchId
+            + " layerCount=" + layerCount.ToString(CultureInfo.InvariantCulture)
+            + " enabledLayerCount=" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
+            + " payloadBytes=" + payloadBytes.ToString(CultureInfo.InvariantCulture)
             + " texture=" + textureSample
             + " sample=" + textureSample
+            + " materialId=" + (state != null ? state.MaterialId : "none")
+            + " shaderMode=" + (state != null ? state.ShaderMode : "unlit-alpha-validation")
+            + " passCount=" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " maskTextureId=" + (state != null ? state.MaskTextureId : "none")
+            + " cameraBackdropAvailable=" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
+            + " lightEstimateAvailable=" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + " color=" + colorHex
             + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSource=" + (state != null ? state.MaskSource : "centroid_broad")
@@ -928,6 +1133,10 @@ public sealed class RNBridge : MonoBehaviour
         RegionFeatureState state = GetLatestActiveRegionFeatureState();
         string region = state != null ? state.Region : "none";
         string activeRegions = BuildActiveRegionSummary();
+        int layerCount = CountKnownRegionFeatureStates();
+        int enabledLayerCount = CountEnabledRegionFeatureStates();
+        int payloadBytes = state != null ? state.PayloadBytes : 0;
+        string recipeBatchId = state != null ? state.RecipeBatchId : "none";
         string textureSample = state != null && !string.IsNullOrWhiteSpace(state.TextureSample)
             ? state.TextureSample
             : "none";
@@ -954,8 +1163,18 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"lookId\":\"" + EscapeJsonString(lookId) + "\""
             + ",\"region\":\"" + EscapeJsonString(region) + "\""
             + ",\"activeRegions\":\"" + EscapeJsonString(activeRegions) + "\""
+            + ",\"recipeBatchId\":\"" + EscapeJsonString(recipeBatchId) + "\""
+            + ",\"layerCount\":" + layerCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"enabledLayerCount\":" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"payloadBytes\":" + payloadBytes.ToString(CultureInfo.InvariantCulture)
             + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
             + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
+            + ",\"materialId\":\"" + EscapeJsonString(state != null ? state.MaterialId : "none") + "\""
+            + ",\"shaderMode\":\"" + EscapeJsonString(state != null ? state.ShaderMode : "unlit-alpha-validation") + "\""
+            + ",\"passCount\":" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureId\":\"" + EscapeJsonString(state != null ? state.MaskTextureId : "none") + "\""
+            + ",\"cameraBackdropAvailable\":" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
+            + ",\"lightEstimateAvailable\":" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
             + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "centroid_broad") + "\""
@@ -1017,6 +1236,35 @@ public sealed class RNBridge : MonoBehaviour
         return latest;
     }
 
+    private int CountKnownRegionFeatureStates()
+    {
+        int count = 0;
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (latestRegionFeatureStates.ContainsKey(region))
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private int CountEnabledRegionFeatureStates()
+    {
+        int count = 0;
+        foreach (string region in FeatureSnapshotRegions)
+        {
+            if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
+                && state.Enabled)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
     private void LogRecipeApplied(
         string source,
         ParsedRecipeLayer layer,
@@ -1033,6 +1281,11 @@ public sealed class RNBridge : MonoBehaviour
         Debug.Log(
             "[E4] recipe_applied"
             + " source=" + source
+            + " recipeBatchId=" + layer.RecipeBatchId
+            + " activeRegions=" + layer.ActiveRegions
+            + " layerCount=" + layer.LayerCount.ToString(CultureInfo.InvariantCulture)
+            + " enabledLayerCount=" + layer.EnabledLayerCount.ToString(CultureInfo.InvariantCulture)
+            + " payloadBytes=" + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
             + " region=" + layer.Region
             + " legacyLayer=" + layer.LegacyLayer
             + " texture=" + layer.TextureSample
@@ -1048,6 +1301,23 @@ public sealed class RNBridge : MonoBehaviour
             + " rendererMode=" + result.RendererMode
             + " candidateId=" + result.CandidateId
             + " variantId=" + result.VariantId
+            + " materialId=" + layer.MaterialId
+            + " shaderMode=" + layer.ShaderMode
+            + " passCount=" + layer.PassCount.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureId=" + layer.MaskTextureId
+            + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + " finish=" + layer.Finish
+            + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + " roughness=" + layer.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
+            + " specular=" + layer.Specular.ToString("0.##", CultureInfo.InvariantCulture)
+            + " specularPower=" + layer.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
+            + " glossBoost=" + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+            + " shimmer=" + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
+            + " shimmerColor=" + layer.ShimmerColor
+            + " skinAdaptive=" + layer.SkinAdaptive.ToString().ToLowerInvariant()
+            + " preserveDetail=" + layer.PreserveDetail.ToString().ToLowerInvariant()
+            + " cameraBackdropAvailable=" + layer.CameraBackdropAvailable.ToString().ToLowerInvariant()
+            + " lightEstimateAvailable=" + layer.LightEstimateAvailable.ToString().ToLowerInvariant()
             + " maskSource=" + result.MaskSource
             + " boundaryRenderer=" + result.BoundaryRenderer
             + " trackingState=" + result.TrackingState
@@ -1079,6 +1349,11 @@ public sealed class RNBridge : MonoBehaviour
             + " variantId=" + result.VariantId
             + " lookId=" + layer.LookId
             + " recipeId=" + layer.RecipeId
+            + " recipeBatchId=" + layer.RecipeBatchId
+            + " activeRegions=" + layer.ActiveRegions
+            + " layerCount=" + layer.LayerCount.ToString(CultureInfo.InvariantCulture)
+            + " enabledLayerCount=" + layer.EnabledLayerCount.ToString(CultureInfo.InvariantCulture)
+            + " payloadBytes=" + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
             + " region=" + layer.Region
             + " texture=" + layer.TextureSample
             + " sentAtMs=" + layer.SentAtMs.ToString("0", CultureInfo.InvariantCulture)
@@ -1103,7 +1378,17 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(layer.Region)
             + "\",\"layer\":\""
             + EscapeJsonString(layer.LegacyLayer)
-            + "\",\"appliedRegion\":\""
+            + "\",\"recipeBatchId\":\""
+            + EscapeJsonString(layer.RecipeBatchId)
+            + "\",\"activeRegions\":\""
+            + EscapeJsonString(layer.ActiveRegions)
+            + "\",\"layerCount\":"
+            + layer.LayerCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"enabledLayerCount\":"
+            + layer.EnabledLayerCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"payloadBytes\":"
+            + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
+            + ",\"appliedRegion\":\""
             + EscapeJsonString(result.Region)
             + "\",\"texture\":\""
             + EscapeJsonString(layer.TextureSample)
@@ -1198,10 +1483,44 @@ public sealed class RNBridge : MonoBehaviour
             + layer.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"feather\":"
             + layer.Feather.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"materialId\":\""
+            + EscapeJsonString(layer.MaterialId)
+            + "\",\"shaderMode\":\""
+            + EscapeJsonString(layer.ShaderMode)
+            + "\",\"passCount\":"
+            + layer.PassCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureId\":\""
+            + EscapeJsonString(layer.MaskTextureId)
+            + "\",\"coverage\":"
+            + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"finish\":\""
+            + EscapeJsonString(layer.Finish)
+            + "\",\"textureAmount\":"
+            + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"roughness\":"
+            + layer.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"specular\":"
+            + layer.Specular.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"specularPower\":"
+            + layer.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"glossBoost\":"
+            + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"shimmer\":"
+            + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"shimmerColor\":\""
+            + EscapeJsonString(layer.ShimmerColor)
+            + "\",\"skinAdaptive\":"
+            + layer.SkinAdaptive.ToString().ToLowerInvariant()
+            + ",\"preserveDetail\":"
+            + layer.PreserveDetail.ToString().ToLowerInvariant()
+            + ",\"cameraBackdropAvailable\":"
+            + layer.CameraBackdropAvailable.ToString().ToLowerInvariant()
+            + ",\"lightEstimateAvailable\":"
+            + layer.LightEstimateAvailable.ToString().ToLowerInvariant()
             + "}");
     }
 
-    private static List<ParsedRecipeLayer> ParseRecipeLayers(RecipePayload recipe)
+    private static List<ParsedRecipeLayer> ParseRecipeLayers(RecipePayload recipe, int payloadBytes)
     {
         List<ParsedRecipeLayer> layers = new List<ParsedRecipeLayer>();
 
@@ -1209,18 +1528,52 @@ public sealed class RNBridge : MonoBehaviour
         {
             for (int index = 0; index < recipe.layers.Length; index++)
             {
-                layers.Add(ParseRecipeLayer(recipe.layers[index], recipe, index));
+                layers.Add(ParseRecipeLayer(recipe.layers[index], recipe, index, payloadBytes));
             }
         }
         else
         {
-            layers.Add(ParseLegacyRecipeLayer(recipe));
+            layers.Add(ParseLegacyRecipeLayer(recipe, payloadBytes));
         }
 
         return layers;
     }
 
-    private static ParsedRecipeLayer ParseRecipeLayer(RecipeLayerPayload layer, RecipePayload recipe, int index)
+    private static void ApplyBatchMetadata(
+        List<ParsedRecipeLayer> layers,
+        string recipeBatchId,
+        string activeRegions,
+        int layerCount,
+        int enabledLayerCount,
+        int payloadBytes)
+    {
+        for (int index = 0; index < layers.Count; index++)
+        {
+            ParsedRecipeLayer layer = layers[index];
+            layer.RecipeBatchId = recipeBatchId;
+            layer.ActiveRegions = activeRegions;
+            layer.LayerCount = layerCount;
+            layer.EnabledLayerCount = enabledLayerCount;
+            layer.PayloadBytes = payloadBytes;
+            layers[index] = layer;
+        }
+    }
+
+    private static int CountEnabledLayers(List<ParsedRecipeLayer> layers)
+    {
+        int count = 0;
+        foreach (ParsedRecipeLayer layer in layers)
+        {
+            if (layer.Enabled)
+            {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    private static ParsedRecipeLayer ParseRecipeLayer(RecipeLayerPayload layer, RecipePayload recipe, int index, int payloadBytes)
     {
         if (layer == null)
         {
@@ -1246,8 +1599,15 @@ public sealed class RNBridge : MonoBehaviour
             Color = parsedColor,
             Opacity = opacity,
             RecipeId = NormalizeRecipeId(layer.recipeId, recipe.recipeId, region, index),
+            RecipeBatchId = NormalizeRecipeBatchId(layer.recipeBatchId, recipe.recipeBatchId, recipe.recipeId),
             LookId = NormalizeLookId(layer.lookId, recipe.lookId),
             SentAtMs = NormalizeSentAtMs(layer.sentAtMs, recipe.sentAtMs),
+            ActiveRegions = NormalizeActiveRegions(layer.activeRegions, recipe.activeRegions),
+            LayerCount = layer.layerCount > 0 ? layer.layerCount : recipe.layerCount,
+            EnabledLayerCount = layer.enabledLayerCount > 0
+                ? layer.enabledLayerCount
+                : recipe.enabledLayerCount,
+            PayloadBytes = payloadBytes,
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(layer.textureMode),
             Intensity = NormalizeIntensity(layer.intensity),
@@ -1256,11 +1616,28 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
             CandidateId = NormalizeCandidateId(layer.candidateId, recipe.candidateId, NormalizeRendererMode(layer.rendererMode, recipe.rendererMode)),
             VariantId = NormalizeVariantId(layer.variantId, recipe.variantId, region, NormalizeRendererMode(layer.rendererMode, recipe.rendererMode)),
-            Enabled = layer.enabled
+            Enabled = layer.enabled,
+            Coverage = NormalizeNonNegativeFloat(layer.coverage, recipe.coverage),
+            Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
+            TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
+            Roughness = NormalizeNonNegativeFloat(layer.roughness, recipe.roughness),
+            Specular = NormalizeNonNegativeFloat(layer.specular, recipe.specular),
+            SpecularPower = NormalizeNonNegativeFloat(layer.specularPower, recipe.specularPower),
+            GlossBoost = NormalizeNonNegativeFloat(layer.glossBoost, recipe.glossBoost),
+            Shimmer = NormalizeNonNegativeFloat(layer.shimmer, recipe.shimmer),
+            ShimmerColor = NormalizeOptional(layer.shimmerColor, recipe.shimmerColor, "#FFFFFF"),
+            SkinAdaptive = layer.skinAdaptive || recipe.skinAdaptive,
+            PreserveDetail = true,
+            MaterialId = NormalizeOptional(layer.materialId, recipe.materialId, textureSample + "-validation-material"),
+            ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
+            PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
+            MaskTextureId = NormalizeOptional(layer.maskTextureId, recipe.maskTextureId, NormalizeVariantId(layer.variantId, recipe.variantId, region, NormalizeRendererMode(layer.rendererMode, recipe.rendererMode))),
+            CameraBackdropAvailable = layer.cameraBackdropAvailable || recipe.cameraBackdropAvailable,
+            LightEstimateAvailable = layer.lightEstimateAvailable || recipe.lightEstimateAvailable
         };
     }
 
-    private static ParsedRecipeLayer ParseLegacyRecipeLayer(RecipePayload recipe)
+    private static ParsedRecipeLayer ParseLegacyRecipeLayer(RecipePayload recipe, int payloadBytes)
     {
         string region = NormalizeRegion(recipe.region, recipe.layer);
         string colorHex = NormalizeColor(recipe.color);
@@ -1281,8 +1658,13 @@ public sealed class RNBridge : MonoBehaviour
             Color = parsedColor,
             Opacity = opacity,
             RecipeId = NormalizeRecipeId(recipe.recipeId, string.Empty, region, 0),
+            RecipeBatchId = NormalizeRecipeBatchId(recipe.recipeBatchId, recipe.recipeId),
             LookId = NormalizeLookId(recipe.lookId, string.Empty),
             SentAtMs = NormalizeSentAtMs(recipe.sentAtMs, 0.0),
+            ActiveRegions = NormalizeActiveRegions(recipe.activeRegions, string.Empty),
+            LayerCount = recipe.layerCount > 0 ? recipe.layerCount : 1,
+            EnabledLayerCount = recipe.enabledLayerCount > 0 ? recipe.enabledLayerCount : 1,
+            PayloadBytes = payloadBytes,
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(recipe.textureMode),
             Intensity = NormalizeIntensity(recipe.intensity),
@@ -1291,7 +1673,24 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = NormalizeRendererMode(recipe.rendererMode, string.Empty),
             CandidateId = NormalizeCandidateId(recipe.candidateId, string.Empty, NormalizeRendererMode(recipe.rendererMode, string.Empty)),
             VariantId = NormalizeVariantId(recipe.variantId, string.Empty, region, NormalizeRendererMode(recipe.rendererMode, string.Empty)),
-            Enabled = true
+            Enabled = true,
+            Coverage = NormalizeNonNegativeFloat(recipe.coverage, 0.0f),
+            Finish = NormalizeOptional(recipe.finish, string.Empty, "validation-placeholder"),
+            TextureAmount = NormalizeTextureAmount(recipe.textureAmount, 0.0f, NormalizeIntensity(recipe.intensity)),
+            Roughness = NormalizeNonNegativeFloat(recipe.roughness, 0.0f),
+            Specular = NormalizeNonNegativeFloat(recipe.specular, 0.0f),
+            SpecularPower = NormalizeNonNegativeFloat(recipe.specularPower, 0.0f),
+            GlossBoost = NormalizeNonNegativeFloat(recipe.glossBoost, 0.0f),
+            Shimmer = NormalizeNonNegativeFloat(recipe.shimmer, 0.0f),
+            ShimmerColor = NormalizeOptional(recipe.shimmerColor, string.Empty, "#FFFFFF"),
+            SkinAdaptive = recipe.skinAdaptive,
+            PreserveDetail = true,
+            MaterialId = NormalizeOptional(recipe.materialId, string.Empty, textureSample + "-validation-material"),
+            ShaderMode = NormalizeOptional(recipe.shaderMode, string.Empty, "unlit-alpha-validation"),
+            PassCount = recipe.passCount > 0 ? recipe.passCount : 1,
+            MaskTextureId = NormalizeOptional(recipe.maskTextureId, string.Empty, NormalizeVariantId(recipe.variantId, string.Empty, region, NormalizeRendererMode(recipe.rendererMode, string.Empty))),
+            CameraBackdropAvailable = recipe.cameraBackdropAvailable,
+            LightEstimateAvailable = recipe.lightEstimateAvailable
         };
     }
 
@@ -1333,6 +1732,53 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         return "e7-baseline-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string NormalizeRecipeBatchId(params string[] candidates)
+    {
+        foreach (string candidate in candidates)
+        {
+            if (!string.IsNullOrWhiteSpace(candidate))
+            {
+                return candidate.Trim();
+            }
+        }
+
+        return "none";
+    }
+
+    private static string NormalizeActiveRegions(string preferred, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return SanitizeLogValue(preferred);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            return SanitizeLogValue(fallback);
+        }
+
+        return "none";
+    }
+
+    private static string NormalizeActiveRegions(string preferred, List<ParsedRecipeLayer> layers)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return SanitizeLogValue(preferred);
+        }
+
+        List<string> activeRegions = new List<string>();
+        foreach (ParsedRecipeLayer layer in layers)
+        {
+            if (layer.Enabled)
+            {
+                activeRegions.Add(layer.Region);
+            }
+        }
+
+        return activeRegions.Count > 0 ? string.Join(",", activeRegions) : "none";
     }
 
     private static string NormalizeLookId(string preferred, string fallback)
@@ -1416,6 +1862,27 @@ public sealed class RNBridge : MonoBehaviour
         return Mathf.Clamp01(intensity);
     }
 
+    private static float NormalizeNonNegativeFloat(float preferred, float fallback)
+    {
+        float value = preferred > 0.0f ? preferred : fallback;
+        return Mathf.Max(0.0f, value);
+    }
+
+    private static float NormalizeTextureAmount(float preferred, float fallback, float defaultValue)
+    {
+        if (preferred > 0.0f)
+        {
+            return Mathf.Clamp01(preferred);
+        }
+
+        if (fallback > 0.0f)
+        {
+            return Mathf.Clamp01(fallback);
+        }
+
+        return Mathf.Clamp01(defaultValue);
+    }
+
     private static float NormalizeFeather(float feather)
     {
         return Mathf.Clamp01(feather);
@@ -1453,12 +1920,13 @@ public sealed class RNBridge : MonoBehaviour
             return "e7-arface-authored-atlas";
         }
 
-        if (candidate == "e7-reference-uv-alpha" || candidate == "arface-reference-uv-alpha" || candidate == "reference-uv-alpha" || candidate == "soft-uv")
-        {
-            return "e7-reference-uv-alpha";
-        }
-
-        if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
+        if (candidate == "e7-reference-uv-atlas"
+            || candidate == "arface-reference-uv-atlas"
+            || candidate == "reference-uv-atlas"
+            || candidate == "e7-reference-uv-alpha"
+            || candidate == "arface-reference-uv-alpha"
+            || candidate == "reference-uv-alpha"
+            || candidate == "soft-uv")
         {
             return "e7-reference-uv-atlas";
         }
@@ -1677,6 +2145,21 @@ public sealed class RNBridge : MonoBehaviour
         return string.IsNullOrWhiteSpace(value) ? "none" : value.Trim();
     }
 
+    private static string NormalizeOptional(string preferred, string fallback, string defaultValue)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            return fallback.Trim();
+        }
+
+        return defaultValue;
+    }
+
     private static string SanitizeLogValue(string value)
     {
         return NormalizeOptional(value).Replace(" ", "_").Replace("\n", "_").Replace("\r", "_");
@@ -1689,7 +2172,8 @@ public sealed class RNBridge : MonoBehaviour
 
     private static void SendUnityEvent(string message, string logPrefix)
     {
-        Debug.Log(logPrefix + " unity_to_rn_send " + message);
+        string logSummary = BuildUnityEventLogSummary(message);
+        Debug.Log(logPrefix + " unity_to_rn_send " + logSummary);
 
 #if UNITY_IOS && !UNITY_EDITOR
         try
@@ -1698,11 +2182,44 @@ public sealed class RNBridge : MonoBehaviour
         }
         catch (Exception exception)
         {
-            Debug.LogError(logPrefix + " unity_to_rn_send_failed error=" + exception.Message + " message=" + message);
+            Debug.LogError(logPrefix + " unity_to_rn_send_failed error=" + exception.Message + " " + logSummary);
         }
 #else
-        Debug.Log(logPrefix + " unity_to_rn_editor_fallback " + message);
+        Debug.Log(logPrefix + " unity_to_rn_editor_fallback " + logSummary);
 #endif
+    }
+
+    private static string BuildUnityEventLogSummary(string message)
+    {
+        return "type=" + SanitizeLogValue(ExtractJsonStringField(message, "type"))
+            + " region=" + SanitizeLogValue(ExtractJsonStringField(message, "region"))
+            + " recipeBatchId=" + SanitizeLogValue(ExtractJsonStringField(message, "recipeBatchId"))
+            + " activeRegions=" + SanitizeLogValue(ExtractJsonStringField(message, "activeRegions"))
+            + " payloadBytes=" + (message != null ? message.Length : 0).ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string ExtractJsonStringField(string json, string key)
+    {
+        if (string.IsNullOrEmpty(json) || string.IsNullOrEmpty(key))
+        {
+            return "none";
+        }
+
+        string needle = "\"" + key + "\":\"";
+        int start = json.IndexOf(needle, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return "none";
+        }
+
+        start += needle.Length;
+        int end = json.IndexOf('"', start);
+        if (end < 0 || end <= start)
+        {
+            return "none";
+        }
+
+        return json.Substring(start, end - start);
     }
 
     private static string EscapeJsonString(string value)

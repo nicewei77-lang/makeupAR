@@ -191,9 +191,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return;
         }
 
-        foreach (string region in recipes.Keys)
+        foreach (KeyValuePair<string, RegionRecipeState> entry in recipes)
         {
-            ApplyRegionToTrackedFaces(region, false);
+            if (!entry.Value.Enabled)
+            {
+                continue;
+            }
+
+            ApplyRegionToTrackedFaces(entry.Key, false);
         }
     }
 
@@ -311,6 +316,25 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.MaskSource = GetMaskSource(recipe.MaskMode);
         result.BoundaryRenderer = GetBoundaryRenderer(recipe.MaskMode);
 
+        if (!recipe.Enabled)
+        {
+            result.StateAction = "disabled";
+            HideRegionViews(region);
+            latestRegionResults[region] = result;
+
+            if (emitLog)
+            {
+                Debug.Log(
+                    "[E3] applied_region_disabled"
+                    + " region=" + region
+                    + " rendererMode=" + recipe.RendererMode
+                    + " candidateId=" + recipe.CandidateId
+                    + " variantId=" + recipe.VariantId);
+            }
+
+            return result;
+        }
+
         if (faceManager == null)
         {
             if (emitLog)
@@ -369,19 +393,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             if (meshApplied)
             {
                 SetViewVisibility(view, true, false);
+                result.Applied = true;
             }
             else if (recipe.MaskMode == RegionMaskMode.BaselineCentroid)
             {
                 SetViewVisibility(view, false, true);
                 result.UsedFallback = true;
+                result.Applied = true;
             }
             else
             {
                 SetViewVisibility(view, false, false);
                 result.UsedFallback = true;
             }
-
-            result.Applied = true;
         }
 
         latestRegionResults[region] = result;
@@ -705,6 +729,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return false;
         }
 
+        if (view.MeshRenderer == null
+            || view.MeshRenderer.sharedMaterial == null
+            || !view.MeshRenderer.sharedMaterial.HasProperty("_MaskTex"))
+        {
+            view.Mesh.Clear();
+            return false;
+        }
+
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
         List<Vector2> textureCoordinates = new List<Vector2>(face.uvs.Length);
         List<int> triangles = new List<int>(face.indices.Length);
@@ -1006,7 +1038,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float probability = probabilityAtlas.GetPixelBilinear(
             Mathf.Clamp01(uvCentroid.x),
             Mathf.Clamp01(uvCentroid.y)).grayscale;
-        return probability >= atlasVariant.Threshold;
+        return probability >= atlasVariant.Threshold
+            && !IsReferenceAtlasEdgeArtifact(uvCentroid);
+    }
+
+    private static bool IsReferenceAtlasEdgeArtifact(Vector2 uv)
+    {
+        const float safeInset = 0.015f;
+        return uv.x <= safeInset
+            || uv.x >= 1.0f - safeInset
+            || uv.y <= safeInset
+            || uv.y >= 1.0f - safeInset;
     }
 
     private static Texture2D GetReferenceAtlasTexture(AtlasVariantDefinition atlasVariant)
@@ -1087,6 +1129,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         Material material = GetOrCreateReferenceUvAlphaMaterial(view, recipe.Region);
+        if (material == null || !material.HasProperty("_MaskTex"))
+        {
+            view.MeshRenderer.enabled = false;
+            view.Mesh.Clear();
+            return;
+        }
+
         view.MeshRenderer.sharedMaterial = material;
 
         AtlasVariantDefinition atlasVariant = ResolveAtlasVariant(
@@ -1150,12 +1199,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Shader shader = Shader.Find("MakeupAR/E7ReferenceUvAlphaMask");
         if (shader == null)
         {
-            shader = Shader.Find("Universal Render Pipeline/Unlit");
-        }
-
-        if (shader == null)
-        {
-            shader = Shader.Find("Standard");
+            Debug.LogWarning(
+                "[E7] reference_uv_alpha_shader_missing"
+                + " region=" + NormalizeRegion(region)
+                + " action=disable_alpha_mesh");
+            return null;
         }
 
         view.ReferenceUvAlphaMaterial = new Material(shader)
@@ -1290,6 +1338,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         foreach (FaceOverlayState faceState in overlays.Values)
         {
             foreach (RegionOverlayView view in faceState.Regions.Values)
+            {
+                SetViewVisibility(view, false, false);
+            }
+        }
+    }
+
+    private void HideRegionViews(string region)
+    {
+        foreach (FaceOverlayState faceState in overlays.Values)
+        {
+            if (faceState.Regions.TryGetValue(region, out RegionOverlayView view))
             {
                 SetViewVisibility(view, false, false);
             }
@@ -1499,12 +1558,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return RegionMaskMode.E7ArFaceAuthoredAtlas;
         }
 
-        if (candidate == "e7-reference-uv-alpha" || candidate == "arface-reference-uv-alpha" || candidate == "reference-uv-alpha" || candidate == "soft-uv")
-        {
-            return RegionMaskMode.E7ReferenceUvAlpha;
-        }
-
-        if (candidate == "e7-reference-uv-atlas" || candidate == "arface-reference-uv-atlas" || candidate == "reference-uv-atlas")
+        if (candidate == "e7-reference-uv-atlas"
+            || candidate == "arface-reference-uv-atlas"
+            || candidate == "reference-uv-atlas"
+            || candidate == "e7-reference-uv-alpha"
+            || candidate == "arface-reference-uv-alpha"
+            || candidate == "reference-uv-alpha"
+            || candidate == "soft-uv")
         {
             return RegionMaskMode.E7ReferenceUvAtlas;
         }
@@ -1985,8 +2045,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private static TrackingVisibility ResolveTrackingVisibility(ARFace face, FaceOverlayState state)
     {
-        const float limitedHoldSeconds = 0.35f;
-        const float limitedFadeSeconds = 1.2f;
         float now = Time.unscaledTime;
 
         if (face.trackingState == TrackingState.Tracking)
@@ -2004,34 +2062,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         state.WasLimitedOrLost = true;
-        float age = now - state.LastTrackedTime;
         string statePrefix = face.trackingState == TrackingState.Limited ? "limited" : "lost";
-
-        if (age <= limitedHoldSeconds)
-        {
-            return new TrackingVisibility
-            {
-                ShouldRender = true,
-                AlphaMultiplier = 0.72f,
-                Action = statePrefix + "_short_hold"
-            };
-        }
-
-        if (age <= limitedFadeSeconds)
-        {
-            return new TrackingVisibility
-            {
-                ShouldRender = true,
-                AlphaMultiplier = 0.32f,
-                Action = statePrefix + "_fade"
-            };
-        }
 
         return new TrackingVisibility
         {
             ShouldRender = false,
             AlphaMultiplier = 0.0f,
-            Action = statePrefix + "_extended_hide"
+            Action = statePrefix + "_hide"
         };
     }
 
@@ -2059,8 +2096,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " trackingState=" + face.trackingState
             + " stateAction=" + visibility.Action
             + " alphaMultiplier=" + visibility.AlphaMultiplier.ToString("0.##", CultureInfo.InvariantCulture)
-            + " holdSeconds=0.35"
-            + " fadeSeconds=1.2"
+            + " holdSeconds=0"
+            + " fadeSeconds=0"
             + " uvAvailable=" + HasUsableUv(face).ToString().ToLowerInvariant()
             + " meshVertexCount=" + GetVertexCount(face).ToString(CultureInfo.InvariantCulture)
             + " meshIndexCount=" + GetIndexCount(face).ToString(CultureInfo.InvariantCulture)
