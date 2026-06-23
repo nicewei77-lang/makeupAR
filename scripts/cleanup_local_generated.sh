@@ -14,7 +14,7 @@ Usage:
 
 Profiles:
   balanced  Remove large reproducible local artifacts while preserving speed-critical dependencies.
-  share     Remove ignored evidence, build outputs, dependency installs, and editor caches before sharing.
+  share     Remove raw evidence, build outputs, dependency installs, and editor caches before sharing.
 
 Modes:
   --dry-run  Print targets and sizes only. This is the default.
@@ -64,7 +64,10 @@ balanced_targets=(
 )
 
 share_targets=(
-  "evidence"
+  "evidence/derived-data"
+  "evidence/logs"
+  "evidence/recovered"
+  "evidence/screen-recordings"
   "unity-builds"
   "rn/MakeupARValidation/unity"
   "rn/MakeupARValidation/ios/build"
@@ -85,6 +88,11 @@ if [[ "$PROFILE" == "share" ]]; then
     "AGENTS.md"
     "TECH_VALIDATION_TEST_PLAN.md"
     "TECH_VALIDATION_RESULT.md"
+    "evidence/README.md"
+    "evidence/evolution"
+    "evidence/screenshots"
+    "evidence/references"
+    "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03"
     "rn/MakeupARValidation/package-lock.json"
     "rn/MakeupARValidation/ios/Podfile.lock"
     "unity/MakeupARUnityValidation/Packages"

@@ -47,4 +47,4 @@
 - For local video inspection, prefer Homebrew `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe` when available.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
-- Do not commit generated/cache state: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode derived data, `evidence/`, or `.DS_Store`.
+- Do not commit generated/cache state: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode derived data, raw evidence, or `.DS_Store`; curated evidence follows `evidence/README.md`.

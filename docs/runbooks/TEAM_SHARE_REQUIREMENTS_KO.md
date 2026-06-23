@@ -34,7 +34,7 @@ bash scripts/cleanup_local_generated.sh --profile share --dry-run
 bash scripts/cleanup_local_generated.sh --profile share --apply
 ```
 
-`share` 프로필은 Git이 추적하지 않는 evidence, build output, dependency install, Unity editor cache만 제거한다. 소스, lockfile, Unity `Packages/`, Unity `ProjectSettings/`, RN iOS 프로젝트 설정은 보존한다.
+`share` 프로필은 raw/generated evidence, build output, dependency install, Unity editor cache를 제거한다. curated evidence, 소스, lockfile, Unity `Packages/`, Unity `ProjectSettings/`, RN iOS 프로젝트 설정은 보존한다.
 
 ## 디렉토리 구조
 
@@ -50,7 +50,7 @@ bash scripts/cleanup_local_generated.sh --profile share --apply
 | `docs/roadmaps/active/` | 현재 또는 다음 validation 계획 |
 | `docs/roadmaps/research/` | AR/beauty engine research 근거 |
 | `docs/roadmaps/archive/` | 과거 evidence index/history. 최신 상태를 대체하지 않음 |
-| `evidence/` | 로컬 검증 증거. 공유본에는 포함하지 않음 |
+| `evidence/` | 공유 가능한 curated visual evidence와 선택된 mesh/capture 근거. raw evidence는 포함하지 않음 |
 | `unity-builds/` | Unity iOS export 생성물. 공유본에는 포함하지 않음 |
 
 처음 클론한 팀원은 `rn/MakeupARValidation/README.md`보다 이 문서를 우선한다. RN README는 일반 React Native 템플릿 문서라 이 repo의 Unity/iPhone validation 흐름을 충분히 설명하지 않는다.
@@ -126,6 +126,11 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 - `AGENTS.md`
 - `TECH_VALIDATION_TEST_PLAN.md`
 - `TECH_VALIDATION_RESULT.md`
+- `evidence/README.md`
+- `evidence/evolution/`
+- selected canonical `evidence/screenshots/`
+- `evidence/references/`
+- `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/`
 - `rn/MakeupARValidation/package-lock.json`
 - `rn/MakeupARValidation/ios/Podfile.lock`
 - `unity/MakeupARUnityValidation/Packages/`
@@ -134,7 +139,10 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 
 ## 공유하지 않는 파일
 
-- `evidence/`
+- `evidence/recovered/`
+- `evidence/derived-data/`
+- `evidence/logs/`
+- `evidence/screen-recordings/`
 - `unity-builds/`
 - `rn/MakeupARValidation/unity/`
 - `rn/MakeupARValidation/node_modules/`
@@ -151,7 +159,7 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 | Category | Pre-cleanup size | Decision |
 | --- | ---: | --- |
 | `evidence/derived-data/` | 23GB | 삭제. Xcode DerivedData와 CompilationCache는 재생성 산출물 |
-| `evidence/logs/` | 450MB | 삭제. 현재 결과는 `TECH_VALIDATION_RESULT.md`에 흡수됨 |
+| `evidence/logs/` | 450MB | 삭제. 현재 결과는 `TECH_VALIDATION_RESULT.md`와 curated evidence에 흡수됨 |
 | `evidence/screen-recordings/` | 102MB | 삭제. raw recording은 기본 보존 대상 아님 |
 | `unity-builds/` | 821MB | 삭제. Unity iOS export는 script로 재생성 |
 | `rn/MakeupARValidation/ios/Pods/` | 1.0GB | 삭제. `pod install`로 재생성 |
@@ -165,8 +173,11 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 | --- | --- |
 | `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 boundary와 cosmetic rendering 진입 조건을 아직 설명함 |
 | `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.3 Yellow boundary risk와 cosmetic rendering 전제 조건을 설명함 |
+| `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 이번 cosmetic rendering 실험 범위와 진입 조건을 바로 확인하는 계획서 |
 | `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 성능 비교 계약으로 재사용 가능 |
 | `scripts/e7_reference_atlas/fast_uv_atlas_gate.py` | 작고 추적된 재현 도구. 현재 cosmetic modeling 기본 문맥에서는 읽지 않아도 되지만 과거 face-boundary 판단 재검토에 필요 |
+| `evidence/evolution/` | 처음 mesh 가능성, broad mask 한계, region precision Yellow, Ref UV sweep, smooth-mask accepted 흐름을 설명하는 대표 시각 근거 |
+| `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/` | best current clean frame + ARFace export + projected mesh overlay. gold-mask drawing input과 face mesh 가능성 근거 |
 
 ## 현재 호환성 판단
 
@@ -178,6 +189,6 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 
 - 클론/공유/정리/세팅 질문은 이 문서를 먼저 확인한다.
 - 현재 milestone 판단은 항상 `TECH_VALIDATION_RESULT.md` snapshot을 우선한다.
-- `evidence/`가 없는 것은 정상적인 공유 상태다. 과거 evidence 경로는 result/history 문서의 참조이며 공유본에 원본 파일이 없을 수 있다.
+- 공유본에는 curated `evidence/`가 있어야 한다. 단, raw logs, raw recordings, recovered cache, duplicate frame batches는 없어야 한다.
 - `node_modules`, `Pods`, Unity `Library`, `unity-builds`, `rn/MakeupARValidation/unity`는 생성물이다. 필요하면 재설치/재생성하고, 커밋하지 않는다.
 - Docker를 전제로 작업을 설계하지 않는다. 단, 순수 오프라인 분석만 별도 분리될 때는 새 계획에서 검토한다.

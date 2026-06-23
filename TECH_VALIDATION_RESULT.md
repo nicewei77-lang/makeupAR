@@ -76,6 +76,7 @@ Active temporary docs:
 - `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
 - `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.03 / E7.3 v2.1 boundary engine quality plan. Phase 0 Contract Reset is complete; keep until v2.1 decisions are absorbed into this result doc or the team explicitly closes E7.3 as Yellow.
 - `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: active reference-driven UV atlas implementation plan for the next E7.03 region precision hardening slice; use for pre-gold capture-pair work and later one-frame round-trip gating.
+- `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md`: team-facing E7.4/E7.5 cosmetic rendering check plan. Use it to align on scope and entry conditions only; it does not override the E7.3 Yellow boundary or authorize renderer implementation by itself.
 - `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
 - Deferred docs to create only when needed: `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
 
@@ -86,7 +87,7 @@ Default reading route:
 - For E7.3 region precision, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.3 sections and the `docs/roadmaps/research/E7_AXIS1_*` reports.
 - For E7.03 boundary work, read `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` first. It supersedes the old demo-plausible E7.3 Green bar with Q3 overlay-ready validation and the v2.1 experiment order.
 - For reference-driven UV atlas work before gold mask authoring, read `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` and keep the official pair status pending until a clean frame and synchronized ARFace export are captured from the same runtime moment.
-- For E7.4/E7.5 cosmetic rendering and demo looks, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
+- For team-facing E7.4/E7.5 cosmetic rendering scope review, read `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md`; for implementation planning, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
 - For E7.6 performance, read `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`.
 - Read base research or benchmark reports only for fallback, SDK comparison, licensing, or architecture decisions.
 

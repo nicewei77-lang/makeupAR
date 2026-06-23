@@ -6,7 +6,7 @@ Use this runbook when the local `makeupAR` workspace is low on disk space or bef
 
 Default working policy: use the `balanced` cleanup profile. It removes large reproducible generated artifacts and preserves durable evidence plus speed-critical dependency caches.
 
-Sharing policy: use the `share` cleanup profile after verification. It removes ignored evidence, generated build products, dependency installs, and editor caches so the directory is source-first and small.
+Sharing policy: use the `share` cleanup profile after verification. It preserves curated evidence and removes raw/generated evidence, generated build products, dependency installs, and editor caches so the directory is source-first and small.
 
 Video policy: do not save screen recordings by default. Record only when motion, elapsed time, or a continuous scenario is core evidence. If a raw recording is captured, extract metadata, representative frames, or a contact sheet and delete the raw recording when it is no longer needed.
 
@@ -64,7 +64,10 @@ Keep these by default because they either contain milestone evidence or avoid ex
 
 ## Share Cleanup Removes
 
-- `evidence/`
+- `evidence/derived-data/`
+- `evidence/logs/`
+- `evidence/recovered/`
+- `evidence/screen-recordings/`
 - `unity-builds/`
 - `rn/MakeupARValidation/unity/`
 - `rn/MakeupARValidation/ios/build/`
@@ -79,7 +82,17 @@ Keep these by default because they either contain milestone evidence or avoid ex
 - `unity/MakeupARUnityValidation/UserSettings/`
 - repository-local `.DS_Store` files
 
-Use `share` only after the current evidence has been absorbed into `TECH_VALIDATION_RESULT.md` or separate team-readable docs. It intentionally makes the next run slower because teammates must reinstall dependencies, reimport Unity packages, and regenerate UnityFramework.
+Use `share` only after raw evidence has been absorbed into `TECH_VALIDATION_RESULT.md`, curated `evidence/evolution/`, or another team-readable doc. It intentionally makes the next run slower because teammates must reinstall dependencies, reimport Unity packages, and regenerate UnityFramework.
+
+## Share Cleanup Preserves
+
+- `evidence/README.md`
+- `evidence/evolution/`
+- selected canonical `evidence/screenshots/`
+- `evidence/references/`
+- `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/`
+
+Curated evidence should remain small and representative. Do not keep raw frame batches, duplicate recovered attachment folders, or raw recordings in the shareable set.
 
 ## Optional Manual Video Pruning
 

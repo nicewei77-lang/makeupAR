@@ -22,8 +22,36 @@ evidence/derived-data/
 *.app
 *.dSYM/
 
-# Local validation evidence. Keep evidence artifacts locally only.
-evidence/
+# Local validation evidence. Share only curated visual evidence.
+evidence/*
+!evidence/README.md
+!evidence/evolution/
+!evidence/evolution/**
+!evidence/screenshots/
+evidence/screenshots/*
+!evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/
+evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/*
+!evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/01-frontal-hud.jpg
+!evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/02-left-angle-hud.jpg
+!evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/03-right-angle-hud.jpg
+!evidence/screenshots/e7-03-p8-runtime-sweep-2026-06-23/
+evidence/screenshots/e7-03-p8-runtime-sweep-2026-06-23/*
+!evidence/screenshots/e7-03-p8-runtime-sweep-2026-06-23/contact-sheet.jpg
+!evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/
+evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/*
+!evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg
+!evidence/references/
+!evidence/references/**
+!evidence/e7-reference-atlas/
+evidence/e7-reference-atlas/*
+!evidence/e7-reference-atlas/capture_pairs/
+evidence/e7-reference-atlas/capture_pairs/*
+!evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/
+evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/*
+!evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json
+!evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/capture_summary.json
+!evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/frame.png
+!evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/projected_mesh_overlay.png
 
 # React Native generated/dependency state
 rn/MakeupARValidation/node_modules/
