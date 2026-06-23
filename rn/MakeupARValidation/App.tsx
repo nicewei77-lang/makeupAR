@@ -131,6 +131,7 @@ const UNITY_EVENT_TYPES = [
   'face_lifecycle',
   'face_feature_snapshot',
   'e7_metric_sample',
+  'e7_reference_capture',
   'recipe_applied',
 ] as const;
 
@@ -260,6 +261,10 @@ type UnityEventPayload = {
   topologyAuditStatus?: string;
   topologyAuditSummary?: string;
   boundaryRenderer?: string;
+  capturePairId?: string;
+  relativeDirectory?: string;
+  coordinateSpaceValidated?: boolean;
+  coordinateSpaceValidationStatus?: string;
   detail?: string;
   frameWidth?: number;
   [key: string]: unknown;
@@ -437,6 +442,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [unityEventStatus, setUnityEventStatus] = useState<UnityEventStatusMap>(
     {},
   );
+  const [captureRequestSequence, setCaptureRequestSequence] = useState(1);
+  const [pendingCapturePairId, setPendingCapturePairId] = useState<
+    string | null
+  >(null);
   useEffect(() => {
     console.log(
       '[E7] unity_screen_mounted',
@@ -647,6 +656,51 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [entryCount, validationViewMode],
   );
 
+  const postReferenceCaptureRequest = useCallback(() => {
+    if (pendingCapturePairId) {
+      console.log(
+        '[E7] reference_capture_request_ignored',
+        `pendingCapturePairId=${pendingCapturePairId}`,
+      );
+      return;
+    }
+
+    const requestedAtMs = Date.now();
+    const capturePairId = buildReferenceCapturePairId(
+      captureRequestSequence,
+      requestedAtMs,
+    );
+    const requestJson = JSON.stringify({
+      capturePairId,
+      requestedAtMs,
+      requestedBy: 'rn-validation-ui',
+      purpose: 'synchronized_capture_one_frame_common_lip_eye_cheek',
+    });
+
+    console.log(
+      '[E7] reference_capture_request_post',
+      `capturePairId=${capturePairId}`,
+      `requestedAtMs=${requestedAtMs}`,
+      'regions=lip,eye,cheek',
+      'purpose=synchronized_capture_one_frame_common_lip_eye_cheek',
+    );
+
+    setPendingCapturePairId(capturePairId);
+    setCaptureRequestSequence(sequence => sequence + 1);
+    setValidationViewMode('clean');
+    postRegionOverlayVisibility(false, 'capture_pair_preclean');
+
+    unityRef.current?.postMessage(
+      'RNBridge',
+      'CaptureE7ReferenceFrameJson',
+      requestJson,
+    );
+  }, [
+    captureRequestSequence,
+    pendingCapturePairId,
+    postRegionOverlayVisibility,
+  ]);
+
   const handleUnityMessage = useCallback(
     (event: UnityMessageEvent) => {
       const rawMessage = String(event.nativeEvent.message ?? '');
@@ -683,11 +737,28 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           postRecipeAck(parsed, receivedAtMs);
         }
 
+        if (parsed.type === 'e7_reference_capture') {
+          const captureStatus = String(parsed.status ?? 'unknown');
+          if (
+            captureStatus === 'exported' ||
+            captureStatus === 'failed' ||
+            captureStatus === 'busy'
+          ) {
+            setPendingCapturePairId(currentPairId =>
+              currentPairId === parsed.capturePairId || captureStatus === 'failed'
+                ? null
+                : currentPairId,
+            );
+          }
+        }
+
         const logPrefix =
           parsed.type === 'face_feature_snapshot'
             ? '[E5] rn_face_feature_snapshot_received'
             : parsed.type === 'e7_metric_sample'
             ? '[E7] rn_metric_sample_received'
+            : parsed.type === 'e7_reference_capture'
+            ? '[E7] rn_reference_capture_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -960,6 +1031,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             })}
           </View>
         </View>
+
+        {validationViewMode === 'clean' && (
+          <View style={styles.captureDock}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={Boolean(pendingCapturePairId)}
+              style={({ pressed }) => [
+                styles.captureButton,
+                pendingCapturePairId && styles.captureButtonPending,
+                pressed && styles.closeButtonPressed,
+              ]}
+              onPress={postReferenceCaptureRequest}
+            >
+              <Text style={styles.captureButtonText}>
+                {pendingCapturePairId ? 'Capturing' : 'Capture Pair'}
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {showFullDebug && (
           <View style={styles.debugPanel}>
@@ -1572,6 +1662,8 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `face_feature_snapshot ${formatFaceFeatureSnapshotSummary(event)}`;
     case 'e7_metric_sample':
       return `e7_metric_sample ${formatE7MetricSummary(event)}`;
+    case 'e7_reference_capture':
+      return `e7_reference_capture ${formatE7ReferenceCaptureSummary(event)}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -1620,9 +1712,26 @@ function formatUnityEventTypeStatus(
       return `e7_metric_sample: ${formatE7MetricSummary(parsed)} ${
         event.receivedAt
       }`;
+    case 'e7_reference_capture':
+      return `e7_reference_capture: ${formatE7ReferenceCaptureSummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7ReferenceCaptureSummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} pair=${String(
+    event.capturePairId ?? 'pair_face_0001',
+  )} dir=${String(event.relativeDirectory ?? 'n/a')} mesh=${String(
+    event.meshVertexCount ?? 'n/a',
+  )}/${String(event.meshIndexCount ?? 'n/a')}/${String(
+    event.meshUvCount ?? 'n/a',
+  )} frameWidth=${String(event.frameWidth ?? 'n/a')} coordinate=${String(
+    event.coordinateSpaceValidationStatus ??
+      (event.coordinateSpaceValidated ? 'validated' : 'pending'),
+  )}`;
 }
 
 function formatE7MetricSummary(event: UnityEventPayload) {
@@ -1914,6 +2023,15 @@ function countActiveRegions(activeRegions: ActiveRegionMap) {
   );
 }
 
+function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
+  const timestamp = new Date(requestedAtMs)
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\.\d{3}Z$/, 'Z');
+
+  return `pair_face_${timestamp}_${String(sequence).padStart(2, '0')}`;
+}
+
 type OpacitySliderProps = {
   value: number;
   width: number;
@@ -2081,6 +2199,33 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '800',
     letterSpacing: 0,
+  },
+  captureDock: {
+    alignSelf: 'stretch',
+    marginBottom: 16,
+  },
+  captureButton: {
+    alignSelf: 'stretch',
+    minHeight: 44,
+    minWidth: 0,
+    borderRadius: 8,
+    backgroundColor: 'rgba(217, 75, 116, 0.88)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.48)',
+    paddingHorizontal: 8,
+  },
+  captureButtonPending: {
+    backgroundColor: 'rgba(55, 65, 81, 0.88)',
+  },
+  captureButtonText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    textTransform: 'uppercase',
   },
   viewModeRow: {
     minHeight: 40,

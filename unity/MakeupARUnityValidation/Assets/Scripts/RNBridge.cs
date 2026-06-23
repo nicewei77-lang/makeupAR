@@ -223,6 +223,7 @@ public sealed class RNBridge : MonoBehaviour
 
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private Material overlayMaterial;
+    [SerializeField] private E7SynchronizedCaptureExporter referenceCaptureExporter;
     [SerializeField] private FaceTrackingStatusReporter statusReporter;
 
     private E3RegionMaskOverlay regionMaskOverlay;
@@ -244,6 +245,7 @@ public sealed class RNBridge : MonoBehaviour
     {
         RefreshSceneReferences();
         EnsureRegionMaskOverlay();
+        EnsureReferenceCaptureExporter();
         SetFaceRenderersSuppressed(true);
     }
 
@@ -390,6 +392,11 @@ public sealed class RNBridge : MonoBehaviour
         SendUnityEvent(json, "[E7]");
     }
 
+    public void SendE7ReferenceCaptureEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
     public void SetE7RegionOverlayVisibleJson(string json)
     {
         try
@@ -425,6 +432,41 @@ public sealed class RNBridge : MonoBehaviour
         catch (Exception exception)
         {
             Debug.LogError("[E7] region_overlay_visibility_failed raw=" + json + " error=" + exception.Message);
+        }
+    }
+
+    public void CaptureE7ReferenceFrameJson(string json)
+    {
+        try
+        {
+            EnsureReferenceCaptureExporter();
+
+            if (referenceCaptureExporter == null)
+            {
+                throw new InvalidOperationException("E7 reference capture exporter is unavailable.");
+            }
+
+            referenceCaptureExporter.CaptureReferenceFrameJson(json);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError("[E7] reference_capture_request_failed raw=" + json + " error=" + exception.Message);
+            SendE7ReferenceCaptureEvent(
+                "{\"type\":\"e7_reference_capture\""
+                + ",\"status\":\"failed\""
+                + ",\"capturePairId\":\"pair_face_0001\""
+                + ",\"regions\":[\"lip\",\"eye\",\"cheek\"]"
+                + ",\"relativeDirectory\":\"\""
+                + ",\"detail\":\""
+                + EscapeJsonString(exception.Message)
+                + "\""
+                + ",\"meshVertexCount\":0"
+                + ",\"meshIndexCount\":0"
+                + ",\"meshUvCount\":0"
+                + ",\"frameWidth\":0"
+                + ",\"coordinateSpaceValidated\":false"
+                + ",\"coordinateSpaceValidationStatus\":\"request_failed\""
+                + "}");
         }
     }
 
@@ -538,6 +580,27 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         regionMaskOverlay.Configure(faceManager);
+    }
+
+    private void EnsureReferenceCaptureExporter()
+    {
+        RefreshSceneReferences();
+
+        if (referenceCaptureExporter == null)
+        {
+            referenceCaptureExporter = FindFirstObjectByType<E7SynchronizedCaptureExporter>();
+        }
+
+        if (referenceCaptureExporter == null)
+        {
+            referenceCaptureExporter = gameObject.AddComponent<E7SynchronizedCaptureExporter>();
+        }
+
+        referenceCaptureExporter.Configure(
+            faceManager,
+            Camera.main,
+            statusReporter,
+            this);
     }
 
     private void SetFaceRenderersSuppressed(bool suppressed)
