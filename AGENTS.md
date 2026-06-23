@@ -12,7 +12,7 @@
 - Start each session with `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`; read `TECH_VALIDATION_TEST_PLAN.md` only when changing the validation contract or checking milestone/evidence rules.
 - Treat the result snapshot as latest status, active docs, evidence summary, stop rules, and next boundary.
 - For AR engine validation, read only the current milestone section of `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`; if it conflicts with the result snapshot, the snapshot wins.
-- For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
+- For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
 
 ## Build Loop
 - Before Unity/RN real-device builds, stop and report the build question, primary path, compare-only paths, validation contract, evidence matrix, and out-of-scope items; build only after user approval.

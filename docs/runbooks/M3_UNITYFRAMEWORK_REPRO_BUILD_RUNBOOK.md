@@ -29,7 +29,19 @@ From the repo root:
 bash scripts/build_m3_unityframework.sh
 ```
 
-The script writes timestamped logs under `evidence/logs/` and uses ignored Xcode derived data under `evidence/derived-data/m3-unityframework-repro-<timestamp>`.
+By default, the script uses temporary Unity/Xcode full logs and temporary Xcode DerivedData, then deletes them after the RN/package frameworks are synced. It keeps only a small artifact verification summary under `evidence/logs/`.
+
+Retain full build logs only for a specific evidence pass:
+
+```sh
+BUILD_LOG_MODE=full bash scripts/build_m3_unityframework.sh
+```
+
+Retain DerivedData only for local debugging:
+
+```sh
+KEEP_DERIVED_DATA=1 bash scripts/build_m3_unityframework.sh
+```
 
 ## Expected Output
 

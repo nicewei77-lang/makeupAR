@@ -142,8 +142,8 @@ Red 조건:
 
 ## 8. 공유 문서
 
-- [E7 master plan](../../../E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md)
+- [E7 master plan](E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md)
 - [현재 결과 스냅샷](../../../TECH_VALIDATION_RESULT.md)
 - [Cosmetic rendering research - GPT](../research/E7_AXIS2_COSMETIC_RENDERING_GPT.md)
 - [Cosmetic rendering research - Claude](../research/E7_AXIS2_COSMETIC_RENDERING_CLAUDE.md)
-- [Performance evidence plan](../../../E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md)
+- [Performance evidence plan](E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md)

@@ -7,12 +7,49 @@ UNITY_BIN="${UNITY_BIN:-/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Con
 EXPORT_PATH="$ROOT_DIR/unity-builds/ios-export"
 LOG_DIR="$ROOT_DIR/evidence/logs"
 TIMESTAMP="${TIMESTAMP:-$(date '+%Y-%m-%d-%H%M%S')}"
-DERIVED_DATA="${DERIVED_DATA:-$ROOT_DIR/evidence/derived-data/m3-unityframework-repro-$TIMESTAMP}"
+BUILD_LOG_MODE="${BUILD_LOG_MODE:-summary}"
+KEEP_DERIVED_DATA="${KEEP_DERIVED_DATA:-0}"
+CUSTOM_DERIVED_DATA=0
+BUILD_TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/makeupar-unityframework-$TIMESTAMP.XXXXXX")"
+BUILD_TMP_CLEANED=0
+if [[ -n "${DERIVED_DATA:-}" ]]; then
+  CUSTOM_DERIVED_DATA=1
+else
+  DERIVED_DATA="$BUILD_TMP_ROOT/DerivedData"
+fi
+
+cleanup_build_tmp_root() {
+  if [[ "$BUILD_TMP_CLEANED" == "1" || ! -d "$BUILD_TMP_ROOT" ]]; then
+    return
+  fi
+
+  if [[ "$KEEP_DERIVED_DATA" == "1" && "$CUSTOM_DERIVED_DATA" != "1" ]]; then
+    echo "Keeping temporary build workspace: $BUILD_TMP_ROOT"
+    BUILD_TMP_CLEANED=1
+    return
+  fi
+
+  rm -rf "$BUILD_TMP_ROOT"
+  BUILD_TMP_CLEANED=1
+  echo "Removed temporary build workspace: $BUILD_TMP_ROOT"
+}
+
+trap cleanup_build_tmp_root EXIT
+
 PROJECT_FILE="$EXPORT_PATH/Unity-iPhone.xcodeproj/project.pbxproj"
 NATIVE_PROXY_HEADER="$UNITY_PROJECT/Assets/Plugins/iOS/NativeCallProxy.h"
 
-UNITY_EXPORT_LOG="$LOG_DIR/m3-repro-unity-export-$TIMESTAMP.log"
-XCODE_BUILD_LOG="$LOG_DIR/m3-repro-xcodebuild-unityframework-$TIMESTAMP.log"
+if [[ "$BUILD_LOG_MODE" == "full" ]]; then
+  BUILD_LOG_DIR="$LOG_DIR"
+elif [[ "$BUILD_LOG_MODE" == "summary" ]]; then
+  BUILD_LOG_DIR="$BUILD_TMP_ROOT"
+else
+  echo "Unsupported BUILD_LOG_MODE: $BUILD_LOG_MODE (expected summary or full)" >&2
+  exit 2
+fi
+
+UNITY_EXPORT_LOG="$BUILD_LOG_DIR/m3-repro-unity-export-$TIMESTAMP.log"
+XCODE_BUILD_LOG="$BUILD_LOG_DIR/m3-repro-xcodebuild-unityframework-$TIMESTAMP.log"
 VERIFY_LOG="$LOG_DIR/m3-repro-artifact-verification-$TIMESTAMP.log"
 
 RN_FRAMEWORK_DIR="$ROOT_DIR/rn/MakeupARValidation/unity/builds/ios"
@@ -33,11 +70,12 @@ echo "Unity project: $UNITY_PROJECT"
 echo "Unity binary: $UNITY_BIN"
 echo "Export path: $EXPORT_PATH"
 echo "Derived data: $DERIVED_DATA"
+echo "Build log mode: $BUILD_LOG_MODE"
 echo "Timestamp: $TIMESTAMP"
 
 require_file "$UNITY_BIN"
 require_file "$NATIVE_PROXY_HEADER"
-mkdir -p "$LOG_DIR" "$DERIVED_DATA" "$RN_FRAMEWORK_DIR"
+mkdir -p "$LOG_DIR" "$BUILD_LOG_DIR" "$DERIVED_DATA" "$RN_FRAMEWORK_DIR"
 
 echo
 echo "== Unity iOS export =="
@@ -69,15 +107,31 @@ done
 
 echo
 echo "== Build UnityFramework target =="
-xcodebuild \
-  -project "$EXPORT_PATH/Unity-iPhone.xcodeproj" \
-  -scheme UnityFramework \
-  -configuration Release \
-  -sdk iphoneos \
-  -destination "generic/platform=iOS" \
-  -derivedDataPath "$DERIVED_DATA" \
-  CODE_SIGNING_ALLOWED=NO \
-  build 2>&1 | tee "$XCODE_BUILD_LOG"
+run_xcodebuild() {
+  xcodebuild \
+    -project "$EXPORT_PATH/Unity-iPhone.xcodeproj" \
+    -scheme UnityFramework \
+    -configuration Release \
+    -sdk iphoneos \
+    -destination "generic/platform=iOS" \
+    -derivedDataPath "$DERIVED_DATA" \
+    CODE_SIGNING_ALLOWED=NO \
+    build
+}
+
+if [[ "$BUILD_LOG_MODE" == "full" ]]; then
+  if ! run_xcodebuild 2>&1 | tee "$XCODE_BUILD_LOG"; then
+    echo "UnityFramework build failed. Full log: $XCODE_BUILD_LOG" >&2
+    exit 1
+  fi
+else
+  if ! run_xcodebuild > "$XCODE_BUILD_LOG" 2>&1; then
+    echo "UnityFramework build failed. Last 80 log lines:" >&2
+    tail -n 80 "$XCODE_BUILD_LOG" >&2
+    exit 1
+  fi
+  grep "BUILD SUCCEEDED" "$XCODE_BUILD_LOG" || true
+fi
 
 require_file "$PRODUCT_FRAMEWORK/UnityFramework"
 mkdir -p "$PRODUCT_FRAMEWORK/Headers"
@@ -139,8 +193,17 @@ echo "== Verify artifact =="
 
 cat "$VERIFY_LOG"
 
+cleanup_build_tmp_root
+
 echo
 echo "Done."
-echo "Unity export log: $UNITY_EXPORT_LOG"
-echo "Xcode build log: $XCODE_BUILD_LOG"
+if [[ "$BUILD_LOG_MODE" == "full" ]]; then
+  echo "Unity export log: $UNITY_EXPORT_LOG"
+  echo "Xcode build log: $XCODE_BUILD_LOG"
+elif [[ "$KEEP_DERIVED_DATA" == "1" && "$CUSTOM_DERIVED_DATA" != "1" ]]; then
+  echo "Full Unity/Xcode logs remain with kept temporary build workspace: $BUILD_TMP_ROOT"
+else
+  echo "Full Unity/Xcode logs were temporary and not retained."
+  echo "Set BUILD_LOG_MODE=full to retain them under evidence/logs for a specific evidence pass."
+fi
 echo "Verification log: $VERIFY_LOG"

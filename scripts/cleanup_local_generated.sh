@@ -9,13 +9,16 @@ usage() {
 Usage:
   bash scripts/cleanup_local_generated.sh --profile balanced --dry-run
   bash scripts/cleanup_local_generated.sh --profile balanced --apply
+  bash scripts/cleanup_local_generated.sh --profile share --dry-run
+  bash scripts/cleanup_local_generated.sh --profile share --apply
 
 Profiles:
   balanced  Remove large reproducible local artifacts while preserving speed-critical dependencies.
+  share     Remove ignored evidence, build outputs, dependency installs, and editor caches before sharing.
 
 Modes:
   --dry-run  Print targets and sizes only. This is the default.
-  --apply    Remove the balanced cleanup targets after safety checks.
+  --apply    Remove the selected profile targets after safety checks.
 USAGE
 }
 
@@ -45,7 +48,7 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$PROFILE" != "balanced" ]]; then
+if [[ "$PROFILE" != "balanced" && "$PROFILE" != "share" ]]; then
   echo "[cleanup] Unsupported profile: $PROFILE" >&2
   exit 2
 fi
@@ -53,28 +56,58 @@ fi
 repo_root="$(git rev-parse --show-toplevel)"
 cd "$repo_root"
 
-targets=(
+balanced_targets=(
   "evidence/derived-data"
   "unity-builds"
   "rn/MakeupARValidation/unity"
   "rn/MakeupARValidation/ios/build"
 )
 
-preserved=(
-  "evidence/logs"
-  "evidence/screenshots"
-  "evidence/screen-recordings"
-  "rn/MakeupARValidation/node_modules"
+share_targets=(
+  "evidence"
+  "unity-builds"
+  "rn/MakeupARValidation/unity"
+  "rn/MakeupARValidation/ios/build"
   "rn/MakeupARValidation/ios/Pods"
+  "rn/MakeupARValidation/ios/MakeupARValidation.xcworkspace"
+  "rn/MakeupARValidation/ios/.xcode.env.local"
+  "rn/MakeupARValidation/node_modules"
+  "rn/MakeupARValidation/vendor"
+  "rn/MakeupARValidation/android"
   "unity/MakeupARUnityValidation/Library"
+  "unity/MakeupARUnityValidation/Logs"
+  "unity/MakeupARUnityValidation/UserSettings"
 )
+
+if [[ "$PROFILE" == "share" ]]; then
+  targets=("${share_targets[@]}")
+  preserved=(
+    "AGENTS.md"
+    "TECH_VALIDATION_TEST_PLAN.md"
+    "TECH_VALIDATION_RESULT.md"
+    "rn/MakeupARValidation/package-lock.json"
+    "rn/MakeupARValidation/ios/Podfile.lock"
+    "unity/MakeupARUnityValidation/Packages"
+    "unity/MakeupARUnityValidation/ProjectSettings"
+  )
+else
+  targets=("${balanced_targets[@]}")
+  preserved=(
+    "evidence/logs"
+    "evidence/screenshots"
+    "evidence/screen-recordings"
+    "rn/MakeupARValidation/node_modules"
+    "rn/MakeupARValidation/ios/Pods"
+    "unity/MakeupARUnityValidation/Library"
+  )
+fi
 
 echo "[cleanup] repo: $repo_root"
 echo "[cleanup] profile: $PROFILE"
 echo "[cleanup] mode: $MODE"
 echo
 
-echo "[cleanup] preserved speed/evidence paths:"
+echo "[cleanup] preserved paths:"
 for path in "${preserved[@]}"; do
   if [[ -e "$path" ]]; then
     du -sh "$path" 2>/dev/null | sed 's/^/[keep] /'

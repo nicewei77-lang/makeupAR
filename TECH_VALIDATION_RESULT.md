@@ -30,6 +30,8 @@ Latest E7.03 P8 runtime sweep build/log/visual review: 2026-06-23 KST
 
 Latest E7.03 smooth-mask validation app cleanup/user acceptance: 2026-06-23 KST
 
+Latest workspace share cleanup/document structure pass: 2026-06-23 KST
+
 ## Current Session Snapshot
 
 This snapshot is the default entry point for future Codex sessions. Read this section first, then lazy-load only the milestone-specific plan or research document needed for the current task.
@@ -47,6 +49,7 @@ Current boundary:
 - The old E7.03 Green bar of "better than E3/E4 baseline" or "demo-plausible" is superseded. E7.03 Green now requires Q3 overlay-ready validation for `lip`, `cheek`, and `eye`, with runtime/visual evidence and region-separated scoring.
 - Conservative alternative: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow lifecycle risk with formal 3-cycle evidence.
 - Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode inside E7.3; do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports the next boundary, or until the team explicitly accepts the remaining E7.3 risk.
+- Workspace/share state: source-first cleanup is complete for the current handoff pass. Current checked size is `24M` total (`.git` about `22M`; source/doc/script working tree about `2M`). Root active docs are limited to `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, and `TECH_VALIDATION_RESULT.md`; active E7 plans now live under `docs/roadmaps/active/`; team onboarding/share requirements live in `docs/runbooks/TEAM_SHARE_REQUIREMENTS_KO.md`; ignored evidence/build/dependency/editor outputs are expected to be absent after `scripts/cleanup_local_generated.sh --profile share`.
 
 Current status:
 
@@ -70,21 +73,21 @@ Current status:
 
 Active temporary docs:
 
-- `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
-- `E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.03 / E7.3 v2.1 boundary engine quality plan. Phase 0 Contract Reset is complete; keep until v2.1 decisions are absorbed into this result doc or the team explicitly closes E7.3 as Yellow.
+- `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
+- `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.03 / E7.3 v2.1 boundary engine quality plan. Phase 0 Contract Reset is complete; keep until v2.1 decisions are absorbed into this result doc or the team explicitly closes E7.3 as Yellow.
 - `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: active reference-driven UV atlas implementation plan for the next E7.03 region precision hardening slice; use for pre-gold capture-pair work and later one-frame round-trip gating.
-- `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
+- `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
 - Deferred docs to create only when needed: `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
 
 Default reading route:
 
 - Always read `AGENTS.md` and this snapshot.
 - Read `TECH_VALIDATION_TEST_PLAN.md` only when changing the stable validation contract or checking milestone/evidence rules.
-- For E7.3 region precision, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.3 sections and the `docs/roadmaps/research/E7_AXIS1_*` reports.
-- For E7.03 boundary work, read `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` first. It supersedes the old demo-plausible E7.3 Green bar with Q3 overlay-ready validation and the v2.1 experiment order.
+- For E7.3 region precision, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.3 sections and the `docs/roadmaps/research/E7_AXIS1_*` reports.
+- For E7.03 boundary work, read `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` first. It supersedes the old demo-plausible E7.3 Green bar with Q3 overlay-ready validation and the v2.1 experiment order.
 - For reference-driven UV atlas work before gold mask authoring, read `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` and keep the official pair status pending until a clean frame and synchronized ARFace export are captured from the same runtime moment.
-- For E7.4/E7.5 cosmetic rendering and demo looks, read `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
-- For E7.6 performance, read `E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`.
+- For E7.4/E7.5 cosmetic rendering and demo looks, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
+- For E7.6 performance, read `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`.
 - Read base research or benchmark reports only for fallback, SDK comparison, licensing, or architecture decisions.
 
 Stop rules:
@@ -127,7 +130,7 @@ Status: Yellow overall / blocked from E7.4. Implementation/build/install evidenc
 
 Decision:
 
-- E7.03 Phase 0 Contract Reset is complete. `E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active E7.03 boundary engine plan.
+- E7.03 Phase 0 Contract Reset is complete. `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` v2.1 is the active E7.03 boundary engine plan.
 - E7.03 v2.1 Phase 1 Validation UI/Evidence Hygiene is implemented in the RN validation UI, JS-verified, and smoke-verified through a fresh real-device build/install/launch/runtime-log pass.
 - E7.03 v2.1 Phase 2 ARFace authored atlas MVP is implemented in Unity and RN, with manual vertex label groups for `lip`, `cheek`, and `eye`, topology/UV audit evidence metadata, RN-dispatchable atlas variants, and preserved E3/E4 baseline plus current procedural candidate paths.
 - E7 reference-driven UV atlas pre-gold setup was initialized locally before P2 capture: RN display/evidence wording identifies the current atlas path as a manual heuristic baseline, and `evidence/e7-reference-atlas/` contains the ignored local skeleton, manifest schema, manifest, and earlier pending `pair_lip_0001` capture-pair README. Current P2 evidence uses the newer common `pair_face_*` capture folders.
@@ -313,15 +316,30 @@ Document policy:
 Local cleanup policy:
 
 - Use `bash scripts/cleanup_local_generated.sh --profile balanced --dry-run` before applying cleanup.
-- The balanced profile removes large reproducible generated artifacts while preserving `node_modules`, iOS `Pods`, Unity `Library`, logs, screenshots, and existing evidence directories. Future raw recordings should not be created or kept by default.
+- The balanced profile removes large reproducible generated artifacts while preserving `node_modules`, iOS `Pods`, Unity `Library`, logs, screenshots, and existing evidence directories. Use `--profile share` before handing the directory to teammates; it removes ignored evidence, dependency installs, editor caches, and build products.
+- To prevent workspace growth, keep `evidence/`, `unity-builds/`, RN `node_modules`, iOS `Pods`, Xcode DerivedData/build folders, Unity `Library`/`Logs`/`UserSettings`, raw recordings, and full build logs out of source control and remove them with the cleanup profiles when they are no longer active evidence/debug state.
+- `scripts/build_m3_unityframework.sh` now defaults to temporary DerivedData plus temporary Unity/Xcode full logs and keeps only the small artifact verification summary. Use `BUILD_LOG_MODE=full` or `KEEP_DERIVED_DATA=1` only for a specific evidence/debug pass.
 - After cleanup, the next real-device Unity/RN session must regenerate UnityFramework with `bash scripts/build_m3_unityframework.sh`.
 - Detailed cleanup procedure lives in `docs/runbooks/LOCAL_WORKSPACE_CLEANUP_RUNBOOK.md`.
+- Team onboarding, share execution requirements, directory structure, and local-only values live in `docs/runbooks/TEAM_SHARE_REQUIREMENTS_KO.md`.
 
 Token policy:
 
 - Future sessions should start from `AGENTS.md` plus `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`.
 - Do not load all research reports by default.
 - Load only the research axis that matches the current E7 milestone.
+- Do not load `docs/roadmaps/active/`, `docs/roadmaps/research/`, or `docs/roadmaps/archive/` as whole folders. Use `docs/roadmaps/README.md` as the menu and open only the selected file.
+- For `_KO.md` / `_KR.md` companion pairs, agents should read the `_KO.md` primary implementation plan and skip `_KR.md` unless user-facing wording is specifically needed.
+- For broad search, exclude lockfiles and generated project/config files unless the task is dependency or native project troubleshooting: `package-lock.json`, `Podfile.lock`, Xcode `project.pbxproj`, and Unity `ProjectSettings/*.asset`.
+- For large code hotspots, use symbol search plus targeted ranges instead of opening whole files by default: `rn/MakeupARValidation/App.tsx`, `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`, `unity/MakeupARUnityValidation/Assets/Scripts/FaceTrackingStatusReporter.cs`, and `unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs`.
+
+Result growth policy:
+
+- Keep this file as a compact routing and decision record, not a full log dump.
+- Record only the latest decision, evidence paths, known limitations, and next boundary. Do not paste full build logs, full console streams, raw JSON dumps, frame lists, or long analysis transcripts into this file.
+- When a milestone accumulates old details, move historical evidence lists and superseded narrative into `docs/roadmaps/archive/TECH_VALIDATION_HISTORY_YYYY-MM-DD.md`, then keep only the current high-signal summary here.
+- If `Current Session Snapshot` becomes hard to scan, compress older bullets into one status bullet plus archive references before adding new work.
+- Prefer metadata, contact sheets, representative frames, and short summary logs over raw recordings or full logs. Keep raw/heavy artifacts local under ignored `evidence/` only while they are active decision evidence.
 
 ## Next Milestone Boundary
 
