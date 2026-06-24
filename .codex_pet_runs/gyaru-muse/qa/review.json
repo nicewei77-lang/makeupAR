@@ -1,0 +1,962 @@
+{
+  "ok": true,
+  "frames_root": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames",
+  "errors": [],
+  "warnings": [],
+  "rows": [
+    {
+      "state": "idle",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8857,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 145
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8818,
+          "bbox": [
+            62,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 157
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8813,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 126
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8753,
+          "bbox": [
+            62,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 139
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8904,
+          "bbox": [
+            61,
+            5,
+            131,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 160
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/idle/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8733,
+          "bbox": [
+            62,
+            5,
+            129,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 132
+        }
+      ]
+    },
+    {
+      "state": "running-right",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12053,
+          "bbox": [
+            34,
+            5,
+            157,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 378
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11599,
+          "bbox": [
+            46,
+            5,
+            146,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 395
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11461,
+          "bbox": [
+            46,
+            5,
+            146,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 419
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11752,
+          "bbox": [
+            40,
+            5,
+            151,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 381
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11346,
+          "bbox": [
+            45,
+            5,
+            147,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 395
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11380,
+          "bbox": [
+            35,
+            5,
+            156,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 344
+        },
+        {
+          "index": 6,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10383,
+          "bbox": [
+            54,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 306
+        },
+        {
+          "index": 7,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-right/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10662,
+          "bbox": [
+            48,
+            5,
+            143,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 324
+        }
+      ]
+    },
+    {
+      "state": "running-left",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 12053,
+          "bbox": [
+            34,
+            5,
+            157,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 378
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11599,
+          "bbox": [
+            46,
+            5,
+            146,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 395
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11461,
+          "bbox": [
+            46,
+            5,
+            146,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 419
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11752,
+          "bbox": [
+            40,
+            5,
+            151,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 381
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11346,
+          "bbox": [
+            45,
+            5,
+            147,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 395
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11380,
+          "bbox": [
+            35,
+            5,
+            156,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 344
+        },
+        {
+          "index": 6,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10383,
+          "bbox": [
+            54,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 306
+        },
+        {
+          "index": 7,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running-left/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10662,
+          "bbox": [
+            48,
+            5,
+            143,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 324
+        }
+      ]
+    },
+    {
+      "state": "waving",
+      "expected_frames": 4,
+      "actual_frames": 4,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waving/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9900,
+          "bbox": [
+            56,
+            5,
+            135,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 165
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waving/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10143,
+          "bbox": [
+            55,
+            5,
+            136,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 150
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waving/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9893,
+          "bbox": [
+            56,
+            5,
+            136,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 196
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waving/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9845,
+          "bbox": [
+            56,
+            5,
+            135,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 167
+        }
+      ]
+    },
+    {
+      "state": "jumping",
+      "expected_frames": 5,
+      "actual_frames": 5,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/jumping/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 15515,
+          "bbox": [
+            38,
+            5,
+            154,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 403
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/jumping/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11580,
+          "bbox": [
+            45,
+            5,
+            147,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 199
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/jumping/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 17975,
+          "bbox": [
+            24,
+            5,
+            167,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 340
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/jumping/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 11609,
+          "bbox": [
+            44,
+            5,
+            148,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 173
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/jumping/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 16205,
+          "bbox": [
+            36,
+            5,
+            156,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 404
+        }
+      ]
+    },
+    {
+      "state": "failed",
+      "expected_frames": 8,
+      "actual_frames": 8,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8864,
+          "bbox": [
+            63,
+            5,
+            128,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 127
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9105,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 116
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9214,
+          "bbox": [
+            60,
+            5,
+            131,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 131
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9429,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 149
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8770,
+          "bbox": [
+            63,
+            5,
+            129,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 138
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8983,
+          "bbox": [
+            62,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 127
+        },
+        {
+          "index": 6,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/06.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9261,
+          "bbox": [
+            59,
+            5,
+            133,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 107
+        },
+        {
+          "index": 7,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/failed/07.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9115,
+          "bbox": [
+            62,
+            5,
+            129,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 132
+        }
+      ]
+    },
+    {
+      "state": "waiting",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9179,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 125
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9128,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 133
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9693,
+          "bbox": [
+            57,
+            5,
+            134,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 150
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9467,
+          "bbox": [
+            58,
+            5,
+            133,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 174
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9364,
+          "bbox": [
+            61,
+            5,
+            130,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 141
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/waiting/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 9101,
+          "bbox": [
+            62,
+            5,
+            129,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 140
+        }
+      ]
+    },
+    {
+      "state": "running",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10736,
+          "bbox": [
+            52,
+            5,
+            139,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 114
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10502,
+          "bbox": [
+            55,
+            5,
+            137,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 119
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10872,
+          "bbox": [
+            54,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 124
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10832,
+          "bbox": [
+            53,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 134
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10711,
+          "bbox": [
+            53,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 119
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/running/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10645,
+          "bbox": [
+            54,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 115
+        }
+      ]
+    },
+    {
+      "state": "review",
+      "expected_frames": 6,
+      "actual_frames": 6,
+      "extraction_method": "components",
+      "ok": true,
+      "errors": [],
+      "warnings": [],
+      "frames": [
+        {
+          "index": 0,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/00.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8933,
+          "bbox": [
+            63,
+            5,
+            128,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 82
+        },
+        {
+          "index": 1,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/01.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8886,
+          "bbox": [
+            64,
+            5,
+            127,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 73
+        },
+        {
+          "index": 2,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/02.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8810,
+          "bbox": [
+            63,
+            5,
+            128,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 94
+        },
+        {
+          "index": 3,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/03.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 10080,
+          "bbox": [
+            54,
+            5,
+            138,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 88
+        },
+        {
+          "index": 4,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/04.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8888,
+          "bbox": [
+            64,
+            5,
+            127,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 77
+        },
+        {
+          "index": 5,
+          "file": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/frames/review/05.png",
+          "width": 192,
+          "height": 208,
+          "nontransparent_pixels": 8895,
+          "bbox": [
+            63,
+            5,
+            128,
+            203
+          ],
+          "edge_pixels": 0,
+          "chroma_adjacent_pixels": 72
+        }
+      ]
+    }
+  ]
+}
