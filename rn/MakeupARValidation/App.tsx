@@ -25,22 +25,105 @@ import {
 
 LogBox.ignoreAllLogs(true);
 
-const RECIPE_COLOR_OPTIONS = [
+export const RECIPE_COLOR_OPTIONS = [
   { name: 'rose', color: '#D94B74' },
   { name: 'coral', color: '#E67B5F' },
   { name: 'nude', color: '#B9826B' },
+  { name: 'berry', color: '#A8325F' },
+  { name: 'red', color: '#C21F3A' },
 ] as const;
 
 const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
-const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
+export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   {
     name: 'matte_lip',
     label: 'matte lip',
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'normal',
-    intensity: 0.58,
-    feather: 0.18,
+    secondaryColor: '#F29BAA',
+    intensity: 0.68,
+    feather: 0.16,
+    coverage: 0.5,
+    finish: 'matte',
+    roughness: 0.88,
+    specular: 0.04,
+    specularPower: 8,
+    glossBoost: 0,
+    gradientAmount: 0.08,
+    preserveDetail: true,
+  },
+  {
+    name: 'gloss_lip',
+    label: 'gloss lip',
+    region: 'lip',
+    textureMode: 'sample',
+    blendMode: 'normal',
+    secondaryColor: '#FFB3C4',
+    intensity: 0.7,
+    feather: 0.14,
+    coverage: 0.5,
+    finish: 'gloss',
+    roughness: 0.18,
+    specular: 0.72,
+    specularPower: 38,
+    glossBoost: 0.92,
+    gradientAmount: 0.12,
+    preserveDetail: true,
+  },
+  {
+    name: 'full_lip',
+    label: 'full lip',
+    region: 'lip',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#E06482',
+    intensity: 0.74,
+    feather: 0.12,
+    coverage: 0.82,
+    finish: 'satin',
+    roughness: 0.46,
+    specular: 0.14,
+    specularPower: 16,
+    glossBoost: 0.06,
+    gradientAmount: 0.04,
+    preserveDetail: true,
+  },
+  {
+    name: 'gradient_lip',
+    label: 'gradient lip',
+    region: 'lip',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#F7A1A7',
+    intensity: 0.7,
+    feather: 0.2,
+    coverage: 0.7,
+    finish: 'gradient',
+    roughness: 0.62,
+    specular: 0.08,
+    specularPower: 12,
+    glossBoost: 0.02,
+    gradientAmount: 0.74,
+    preserveDetail: true,
+  },
+  {
+    name: 'overline_lip',
+    label: 'overline lip',
+    region: 'lip',
+    textureMode: 'sample',
+    blendMode: 'normal',
+    secondaryColor: '#D94B74',
+    intensity: 0.5,
+    feather: 0.1,
+    coverage: 0.46,
+    finish: 'overline',
+    roughness: 0.44,
+    specular: 0.1,
+    specularPower: 18,
+    glossBoost: 0.04,
+    gradientAmount: 0.18,
+    preserveDetail: true,
   },
   {
     name: 'soft_blush',
@@ -48,8 +131,17 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'normal',
+    secondaryColor: '#F5A49B',
     intensity: 0.56,
     feather: 0.46,
+    coverage: 1,
+    finish: 'powder',
+    roughness: 0.92,
+    specular: 0.02,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
   },
   {
     name: 'shimmer_eye',
@@ -57,8 +149,17 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'eye',
     textureMode: 'sample',
     blendMode: 'screen',
+    secondaryColor: '#F8D6B3',
     intensity: 0.58,
     feather: 0.38,
+    coverage: 1,
+    finish: 'shimmer',
+    roughness: 0.5,
+    specular: 0.18,
+    specularPower: 22,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
   },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
@@ -67,23 +168,39 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Debug' },
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
-const E7_EVIDENCE_MODE = 'smooth-mask-validation';
+const E7_EVIDENCE_MODE = 'lip-makeup-validation-v1';
+const E7_LIP_LOOK_ID = 'lip_makeup_validation_v1';
+const E7_RECIPE_PREFIX = 'lip-style-v1';
 
-type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
-type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
-type RecipeTextureSample = (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
-type RendererMode = 'smooth-region-mask';
+export type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
+export type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
+export type RecipeTextureSample =
+  (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
+export const LIP_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
+  RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureSample =>
+      textureSample.region === 'lip' &&
+      (textureSample.name === 'matte_lip' ||
+        textureSample.name === 'gloss_lip'),
+  );
+export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
+  | 'lip-drawn-style-atlas-v1'
+  | 'lip-drawn-mask-v1'
+  | 'cheek-drawn-mask-v1'
+  | 'eye-drawn-mask-v1'
+  | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
   | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
-type RegionRecipe = {
+export type RegionRecipe = {
   color: RecipeColor;
   opacity: number;
+  intensity: number;
   textureSample: RecipeTextureSample;
 };
-type ActiveRegionMap = Record<RecipeRegion, boolean>;
+export type ActiveRegionMap = Record<RecipeRegion, boolean>;
 
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
@@ -91,40 +208,49 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
   RecipeTextureSample
 > = {
-  lip: RECIPE_TEXTURE_SAMPLE_OPTIONS[0],
-  cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS[1],
-  eye: RECIPE_TEXTURE_SAMPLE_OPTIONS[2],
+  lip: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
+    textureSample => textureSample.name === 'matte_lip',
+  ) as RecipeTextureSample,
+  cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
+    textureSample => textureSample.name === 'soft_blush',
+  ) as RecipeTextureSample,
+  eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
+    textureSample => textureSample.name === 'shimmer_eye',
+  ) as RecipeTextureSample,
 };
-const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
+export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.52,
+    opacity: 0.72,
+    intensity: 0.68,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
     opacity: 0.44,
+    intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
   eye: {
     color: DEFAULT_RECIPE_COLOR,
     opacity: 0.48,
+    intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
-  lip: 'lip-smooth-mask-v1',
-  cheek: 'cheek-smooth-mask-v1',
-  eye: 'eye-smooth-mask-v1',
+  lip: 'lip-drawn-style-atlas-v1',
+  cheek: 'cheek-drawn-mask-v1',
+  eye: 'eye-drawn-mask-v1',
 };
-const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
+export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,
-  cheek: true,
-  eye: true,
+  cheek: false,
+  eye: false,
 };
-const OPACITY_STEP = 0.05;
+const INTENSITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
+export const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -134,6 +260,140 @@ const UNITY_EVENT_TYPES = [
   'e7_reference_capture',
   'recipe_applied',
 ] as const;
+
+export function buildValidationRecipeBatchPayload(
+  recipes: Record<RecipeRegion, RegionRecipe>,
+  enabledRegions: ActiveRegionMap,
+  focusRegion: RecipeRegion,
+  rendererMode: RendererMode,
+  sentAtMs: number,
+) {
+  const lookId = E7_LIP_LOOK_ID;
+  const recipeBatchId = `${E7_RECIPE_PREFIX}-batch-${Math.round(sentAtMs)}`;
+  const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
+  const enabledLayerCount = countActiveRegions(enabledRegions);
+  const layers = RECIPE_REGION_OPTIONS.map(region => {
+    const recipe = recipes[region];
+    const sample = recipe.textureSample;
+    const layerIntensity =
+      region === 'lip' ? recipe.intensity : sample.intensity;
+    const maskTextureId = DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+    const layerRecipeId = `${E7_RECIPE_PREFIX}-${region}-${
+      sample.name
+    }-${Math.round(sentAtMs)}`;
+
+    return {
+      id: `${region}-${sample.name}`,
+      recipeId: layerRecipeId,
+      recipeBatchId,
+      lookId,
+      sentAtMs,
+      rendererMode,
+      activeRegions: activeRegionSummary,
+      layerCount: RECIPE_REGION_OPTIONS.length,
+      enabledLayerCount,
+      region,
+      layer: region,
+      color: recipe.color.color,
+      secondaryColor: sample.secondaryColor,
+      opacity: recipe.opacity,
+      texture: sample.name,
+      sample: sample.name,
+      textureMode: sample.textureMode,
+      intensity: layerIntensity,
+      feather: sample.feather,
+      blendMode: sample.blendMode,
+      enabled: enabledRegions[region],
+      coverage: sample.coverage,
+      finish: sample.finish,
+      textureAmount: layerIntensity,
+      roughness: sample.roughness,
+      specular: sample.specular,
+      specularPower: sample.specularPower,
+      glossBoost: sample.glossBoost,
+      gradientAmount: sample.gradientAmount,
+      shimmer: sample.name === 'shimmer_eye' ? layerIntensity : 0,
+      shimmerColor:
+        sample.name === 'shimmer_eye' ? sample.secondaryColor : '#FFFFFF',
+      skinAdaptive: false,
+      preserveDetail: sample.preserveDetail,
+      materialId: `${sample.name}-validation-material`,
+      shaderMode:
+        region === 'lip'
+          ? 'lip-style-atlas-validation'
+          : 'unlit-alpha-validation',
+      passCount: 1,
+      maskTextureId,
+      cameraBackdropAvailable: false,
+      lightEstimateAvailable: false,
+    };
+  });
+  const focusSample = recipes[focusRegion].textureSample;
+  const focusIntensity =
+    focusRegion === 'lip'
+      ? recipes[focusRegion].intensity
+      : focusSample.intensity;
+
+  return {
+    version: 1,
+    recipeBatchId,
+    recipeId: recipeBatchId,
+    lookId,
+    sentAtMs,
+    rendererMode,
+    region: focusRegion,
+    activeRegions: activeRegionSummary,
+    layerCount: layers.length,
+    enabledLayerCount,
+    texture: focusSample.name,
+    sample: focusSample.name,
+    textureMode: focusSample.textureMode,
+    secondaryColor: focusSample.secondaryColor,
+    coverage: focusSample.coverage,
+    finish: focusSample.finish,
+    textureAmount: focusIntensity,
+    roughness: focusSample.roughness,
+    specular: focusSample.specular,
+    specularPower: focusSample.specularPower,
+    glossBoost: focusSample.glossBoost,
+    gradientAmount: focusSample.gradientAmount,
+    shimmer: focusSample.name === 'shimmer_eye' ? focusIntensity : 0,
+    shimmerColor:
+      focusSample.name === 'shimmer_eye'
+        ? focusSample.secondaryColor
+        : '#FFFFFF',
+    skinAdaptive: false,
+    preserveDetail: focusSample.preserveDetail,
+    materialId: `${focusSample.name}-validation-material`,
+    shaderMode:
+      focusRegion === 'lip'
+        ? 'lip-style-atlas-validation'
+        : 'unlit-alpha-validation',
+    passCount: 1,
+    maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion],
+    cameraBackdropAvailable: false,
+    lightEstimateAvailable: false,
+    layers,
+  };
+}
+
+export function buildValidationRecipeBatchJson(
+  recipes: Record<RecipeRegion, RegionRecipe>,
+  enabledRegions: ActiveRegionMap,
+  focusRegion: RecipeRegion,
+  rendererMode: RendererMode,
+  sentAtMs: number,
+) {
+  return JSON.stringify(
+    buildValidationRecipeBatchPayload(
+      recipes,
+      enabledRegions,
+      focusRegion,
+      rendererMode,
+      sentAtMs,
+    ),
+  );
+}
 
 type UnityMessageEvent = {
   nativeEvent: {
@@ -190,6 +450,7 @@ type UnityEventPayload = {
   appliedRegion?: string;
   applied?: boolean;
   color?: string;
+  secondaryColor?: string;
   opacity?: number;
   texture?: string;
   sample?: string;
@@ -206,6 +467,9 @@ type UnityEventPayload = {
   regionMaskTriangles?: number;
   regionAppliedTriangles?: number;
   uvAvailable?: boolean;
+  sourceTriangles?: number;
+  culledTriangles?: number;
+  meshCullingMode?: string;
   maskTriangles?: number;
   meshVertexCount?: number;
   meshIndexCount?: number;
@@ -228,6 +492,7 @@ type UnityEventPayload = {
   specular?: number;
   specularPower?: number;
   glossBoost?: number;
+  gradientAmount?: number;
   shimmer?: number;
   shimmerColor?: string;
   skinAdaptive?: boolean;
@@ -236,6 +501,14 @@ type UnityEventPayload = {
   shaderMode?: string;
   passCount?: number;
   maskTextureId?: string;
+  maskTextureDiagnosticStatus?: string;
+  maskTextureWidth?: number;
+  maskTextureHeight?: number;
+  maskTextureActivePixelCountGt8?: number;
+  maskTextureActiveCoverageGt8?: number;
+  maskTextureActiveBbox?: string;
+  maskTextureThresholdPixelCount?: number;
+  maskTextureThresholdCoverage?: number;
   cameraBackdropAvailable?: boolean;
   lightEstimateAvailable?: boolean;
   sampleWindowMs?: number;
@@ -471,92 +744,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       rendererMode: RendererMode,
       sentAtMs: number,
     ) => {
-      const lookId = 'smooth_region_mask';
-      const recipePrefix = 'smooth-mask';
-      const recipeBatchId = `${recipePrefix}-batch-${Math.round(sentAtMs)}`;
-      const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
-      const enabledLayerCount = countActiveRegions(enabledRegions);
-      const layers = RECIPE_REGION_OPTIONS.map(region => {
-        const recipe = recipes[region];
-        const maskTextureId = DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
-        const layerRecipeId = `${recipePrefix}-${region}-${
-          recipe.textureSample.name
-        }-${Math.round(sentAtMs)}`;
-
-        return {
-          id: `${region}-${recipe.textureSample.name}`,
-          recipeId: layerRecipeId,
-          recipeBatchId,
-          lookId,
-          sentAtMs,
-          rendererMode,
-          activeRegions: activeRegionSummary,
-          layerCount: RECIPE_REGION_OPTIONS.length,
-          enabledLayerCount,
-          region,
-          layer: region,
-          color: recipe.color.color,
-          opacity: recipe.opacity,
-          texture: recipe.textureSample.name,
-          sample: recipe.textureSample.name,
-          textureMode: recipe.textureSample.textureMode,
-          intensity: recipe.textureSample.intensity,
-          feather: recipe.textureSample.feather,
-          blendMode: recipe.textureSample.blendMode,
-          enabled: enabledRegions[region],
-          coverage: 0,
-          finish: 'validation-placeholder',
-          textureAmount: recipe.textureSample.intensity,
-          roughness: 0,
-          specular: 0,
-          specularPower: 0,
-          glossBoost: 0,
-          shimmer: 0,
-          shimmerColor: '#FFFFFF',
-          skinAdaptive: false,
-          preserveDetail: true,
-          materialId: `${recipe.textureSample.name}-validation-material`,
-          shaderMode: 'unlit-alpha-validation',
-          passCount: 1,
-          maskTextureId,
-          cameraBackdropAvailable: false,
-          lightEstimateAvailable: false,
-        };
-      });
-
-      return JSON.stringify({
-        version: 1,
-        recipeBatchId,
-        recipeId: recipeBatchId,
-        lookId,
-        sentAtMs,
+      return buildValidationRecipeBatchJson(
+        recipes,
+        enabledRegions,
+        focusRegion,
         rendererMode,
-        region: focusRegion,
-        activeRegions: activeRegionSummary,
-        layerCount: layers.length,
-        enabledLayerCount,
-        texture: recipes[focusRegion].textureSample.name,
-        sample: recipes[focusRegion].textureSample.name,
-        textureMode: recipes[focusRegion].textureSample.textureMode,
-        coverage: 0,
-        finish: 'validation-placeholder',
-        textureAmount: recipes[focusRegion].textureSample.intensity,
-        roughness: 0,
-        specular: 0,
-        specularPower: 0,
-        glossBoost: 0,
-        shimmer: 0,
-        shimmerColor: '#FFFFFF',
-        skinAdaptive: false,
-        preserveDetail: true,
-        materialId: `${recipes[focusRegion].textureSample.name}-validation-material`,
-        shaderMode: 'unlit-alpha-validation',
-        passCount: 1,
-        maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion],
-        cameraBackdropAvailable: false,
-        lightEstimateAvailable: false,
-        layers,
-      });
+        sentAtMs,
+      );
     },
     [],
   );
@@ -580,7 +774,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
-        'lookId=smooth_region_mask',
+        `lookId=${E7_LIP_LOOK_ID}`,
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
@@ -602,10 +796,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     (payload: UnityEventPayload, receivedAtMs: number) => {
       const ackJson = JSON.stringify({
         type: 'recipe_ack',
-        runId: payload.runId ?? 'smooth-mask',
+        runId: payload.runId ?? E7_RECIPE_PREFIX,
         phase: payload.phase ?? 'smooth_mask',
         rendererMode: payload.rendererMode ?? DEFAULT_RENDERER_MODE,
-        lookId: payload.lookId ?? 'smooth_region_mask',
+        lookId: payload.lookId ?? E7_LIP_LOOK_ID,
         recipeId: payload.recipeId ?? 'none',
         recipeBatchId: payload.recipeBatchId ?? payload.recipeId ?? 'none',
         activeRegions:
@@ -745,7 +939,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             captureStatus === 'busy'
           ) {
             setPendingCapturePairId(currentPairId =>
-              currentPairId === parsed.capturePairId || captureStatus === 'failed'
+              currentPairId === parsed.capturePairId ||
+              captureStatus === 'failed'
                 ? null
                 : currentPairId,
             );
@@ -824,11 +1019,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     return () => clearTimeout(initialPostTimer);
   }, [postRecipeBatch]);
 
-  const selectedRecipe = regionRecipes[focusedRegion];
-  const selectedColor = selectedRecipe.color;
-  const selectedTextureSample = selectedRecipe.textureSample;
+  const lipRecipe = regionRecipes.lip;
+  const selectedColor = lipRecipe.color;
+  const selectedTextureSample = lipRecipe.textureSample;
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
-  const opacity = selectedRecipe.opacity;
+  const lipIntensity = lipRecipe.intensity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
   const latestRecipe = unityEventStatus.recipe_applied?.parsed;
@@ -841,11 +1036,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       validationViewMode !== 'clean',
       'validation_view_mode_changed',
     );
-  }, [
-    postRegionOverlayVisibility,
-    validationViewMode,
-    unityInitializedAt,
-  ]);
+  }, [postRegionOverlayVisibility, validationViewMode, unityInitializedAt]);
 
   const latestRecipeRecord = unityEventStatus.recipe_applied;
   const recipeLatencyMs = getRecipeAckLatencyMs(
@@ -902,72 +1093,67 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectColor = useCallback(
     (color: RecipeColor) => {
       const nextRecipe = {
-        ...selectedRecipe,
+        ...regionRecipes.lip,
         color,
-      };
-
-      setRegionRecipes(currentRecipes => ({
-        ...currentRecipes,
-        [focusedRegion]: nextRecipe,
-      }));
-      postRecipeBatch(
-        {
-          ...regionRecipes,
-          [focusedRegion]: nextRecipe,
-        },
-        activeRegions,
-      );
-    },
-    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes, selectedRecipe],
-  );
-
-  const updateOpacity = useCallback(
-    (nextOpacity: number) => {
-      const nextRecipe = {
-        ...selectedRecipe,
-        opacity: nextOpacity,
-      };
-
-      setRegionRecipes(currentRecipes => ({
-        ...currentRecipes,
-        [focusedRegion]: nextRecipe,
-      }));
-      postRecipeBatch(
-        {
-          ...regionRecipes,
-          [focusedRegion]: nextRecipe,
-        },
-        activeRegions,
-      );
-    },
-    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes, selectedRecipe],
-  );
-
-  const selectTextureSample = useCallback(
-    (textureSample: RecipeTextureSample) => {
-      const nextRegion = textureSample.region;
-      const nextRecipe = {
-        ...regionRecipes[nextRegion],
-        textureSample,
       };
       const nextRecipes = {
         ...regionRecipes,
-        [nextRegion]: nextRecipe,
-      };
-      const nextActiveRegions = {
-        ...activeRegions,
-        [nextRegion]: true,
+        lip: nextRecipe,
       };
 
-      setFocusedRegion(nextRegion);
+      setFocusedRegion('lip');
       setRegionRecipes(nextRecipes);
-      setActiveRegions(nextActiveRegions);
-      postRecipeBatch(nextRecipes, nextActiveRegions, nextRegion);
+      postRecipeBatch(nextRecipes, activeRegions, 'lip');
     },
     [activeRegions, postRecipeBatch, regionRecipes],
   );
 
-  const opacityPercent = Math.round(opacity * 100);
+  const updateLipIntensity = useCallback(
+    (nextIntensity: number) => {
+      const nextRecipe = {
+        ...regionRecipes.lip,
+        intensity: nextIntensity,
+      };
+      const nextRecipes = {
+        ...regionRecipes,
+        lip: nextRecipe,
+      };
+
+      setFocusedRegion('lip');
+      setRegionRecipes(nextRecipes);
+      postRecipeBatch(nextRecipes, activeRegions, 'lip');
+    },
+    [activeRegions, postRecipeBatch, regionRecipes],
+  );
+
+  const selectTextureSample = useCallback(
+    (textureSample: RecipeTextureSample) => {
+      if (textureSample.region !== 'lip') {
+        return;
+      }
+
+      const nextRecipe = {
+        ...regionRecipes.lip,
+        textureSample,
+      };
+      const nextRecipes = {
+        ...regionRecipes,
+        lip: nextRecipe,
+      };
+      const nextActiveRegions = {
+        ...activeRegions,
+        lip: true,
+      };
+
+      setFocusedRegion('lip');
+      setRegionRecipes(nextRecipes);
+      setActiveRegions(nextActiveRegions);
+      postRecipeBatch(nextRecipes, nextActiveRegions, 'lip');
+    },
+    [activeRegions, postRecipeBatch, regionRecipes],
+  );
+
+  const intensityPercent = Math.round(lipIntensity * 100);
 
   return (
     <View style={styles.unityScreen}>
@@ -1178,90 +1364,77 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               })}
             </View>
 
-            {showFullControls && (
-              <>
-                <View style={styles.colorButtonRow}>
-                  {RECIPE_COLOR_OPTIONS.map(colorOption => {
-                    const isSelected = colorOption.name === selectedColor.name;
+            <View style={styles.colorButtonRow}>
+              {RECIPE_COLOR_OPTIONS.map(colorOption => {
+                const isSelected = colorOption.name === selectedColor.name;
 
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
-                        key={colorOption.name}
-                        style={({ pressed }) => [
-                          styles.colorButton,
-                          { backgroundColor: colorOption.color },
-                          isSelected && styles.colorButtonSelected,
-                          pressed && styles.colorButtonPressed,
-                        ]}
-                        onPress={() => selectColor(colorOption)}
-                      >
-                        <Text style={styles.colorButtonText}>
-                          {colorOption.name}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={colorOption.name}
+                    testID={`lip-color-${colorOption.name}`}
+                    style={({ pressed }) => [
+                      styles.colorButton,
+                      { backgroundColor: colorOption.color },
+                      isSelected && styles.colorButtonSelected,
+                      pressed && styles.colorButtonPressed,
+                    ]}
+                    onPress={() => selectColor(colorOption)}
+                  >
+                    <Text style={styles.colorButtonText}>
+                      {colorOption.name}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-                <View style={styles.textureButtonRow}>
-                  {RECIPE_TEXTURE_SAMPLE_OPTIONS.map(textureOption => {
-                    const isSelected =
-                      textureOption.name === selectedTextureSample.name;
-                    const isCurrentRegion =
-                      textureOption.region === focusedRegion;
+            <View style={styles.textureButtonRow}>
+              {LIP_TEXTURE_STYLE_OPTIONS.map(textureOption => {
+                const isSelected =
+                  textureOption.name === selectedTextureSample.name;
 
-                    return (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityState={{ selected: isSelected }}
-                        key={textureOption.name}
-                        style={({ pressed }) => [
-                          styles.textureButton,
-                          isSelected && styles.textureButtonSelected,
-                          isCurrentRegion && styles.textureButtonCurrentRegion,
-                          pressed && styles.colorButtonPressed,
-                        ]}
-                        onPress={() => selectTextureSample(textureOption)}
-                      >
-                        <Text
-                          style={[
-                            styles.textureButtonText,
-                            isSelected && styles.textureButtonTextSelected,
-                          ]}
-                        >
-                          {textureOption.name}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.textureButtonRegionText,
-                            isSelected && styles.textureButtonTextSelected,
-                          ]}
-                        >
-                          {textureOption.region}
-                        </Text>
-                      </Pressable>
-                    );
-                  })}
-                </View>
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={textureOption.name}
+                    testID={`lip-finish-${textureOption.name}`}
+                    style={({ pressed }) => [
+                      styles.textureButton,
+                      isSelected && styles.textureButtonSelected,
+                      pressed && styles.colorButtonPressed,
+                    ]}
+                    onPress={() => selectTextureSample(textureOption)}
+                  >
+                    <Text
+                      style={[
+                        styles.textureButtonText,
+                        isSelected && styles.textureButtonTextSelected,
+                      ]}
+                    >
+                      {textureOption.name === 'gloss_lip' ? 'Glow' : 'Matte'}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
 
-                <OpacitySlider
-                  value={opacity}
-                  width={sliderWidth}
-                  onLayoutWidth={setSliderWidth}
-                  onChange={updateOpacity}
-                />
+            <ValueSlider
+              label="Intensity"
+              value={lipIntensity}
+              width={sliderWidth}
+              fillColor={selectedColor.color}
+              onLayoutWidth={setSliderWidth}
+              onChange={updateLipIntensity}
+            />
 
-                <Text style={styles.recipeValueText} numberOfLines={3}>
-                  active {activeRegionSummary} / focus {focusedRegion} /{' '}
-                  {selectedColor.name} {selectedColor.color} / opacity{' '}
-                  {opacityPercent}% / texture {selectedTextureSample.name} /
-                  mode {selectedTextureSample.textureMode} / intensity{' '}
-                  {selectedTextureSample.intensity.toFixed(2)}
-                </Text>
-              </>
-            )}
+            <Text style={styles.recipeValueText} numberOfLines={3}>
+              active {activeRegionSummary} / focus {focusedRegion} / lip{' '}
+              {selectedColor.name} {selectedColor.color} / intensity{' '}
+              {intensityPercent}% / finish {selectedTextureSample.name}
+            </Text>
 
             <Text style={styles.recipeAppliedText} numberOfLines={2}>
               {formatRecipeAppliedSummary(
@@ -1430,12 +1603,12 @@ function E7StatusPanel({
       </View>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `look=${String(
-              metric.lookId ?? 'smooth_region_mask',
-            )} active=${String(
-              metric.activeRegionSummary ?? metric.activeRegions ?? currentRegions,
+          ? `look=${String(metric.lookId ?? E7_LIP_LOOK_ID)} active=${String(
+              metric.activeRegionSummary ??
+                metric.activeRegions ??
+                currentRegions,
             )}`
-          : `look=smooth_region_mask active=${currentRegions}`}
+          : `look=${E7_LIP_LOOK_ID} active=${currentRegions}`}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
@@ -1468,7 +1641,9 @@ function E7StatusPanel({
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `mask=${String(metric.maskSource ?? 'smooth_region_mask')} uv=${String(
+          ? `mask=${String(
+              metric.maskSource ?? 'smooth_region_mask',
+            )} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
             )} triangles=${String(
               metric.regionMaskTriangles ?? metric.maskTriangles ?? 'n/a',
@@ -1596,11 +1771,9 @@ function buildEvidenceMetadataLines({
   return [
     `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
-    `rendererMode=${selectedRendererMode} look=smooth_region_mask`,
+    `rendererMode=${selectedRendererMode} look=${E7_LIP_LOOK_ID}`,
     `activeRegions=${activeRegionSummary} focusRegion=${focusedRegion}`,
-    `metricRegion=${formatLifecycleValue(
-      latestMetric?.region,
-    )}`,
+    `metricRegion=${formatLifecycleValue(latestMetric?.region)}`,
     `trackingState=${readTrackingState(
       latestLifecycle,
       latestMetric,
@@ -1742,12 +1915,10 @@ function formatE7MetricSummary(event: UnityEventPayload) {
   )} thermal=${String(event.thermalEvidenceType ?? 'n/a')} phase=${String(
     event.phase ?? 'smooth_mask',
   )} mode=${String(event.rendererMode ?? 'smooth-region-mask')} look=${String(
-    event.lookId ?? 'smooth_region_mask',
+    event.lookId ?? E7_LIP_LOOK_ID,
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
-  )} enabled=${String(
-    event.enabledLayerCount ?? 'n/a',
-  )} topology=${String(
+  )} enabled=${String(event.enabledLayerCount ?? 'n/a')} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
   )} uv=${String(event.regionUvAvailable ?? event.uvAvailable ?? false)}`;
 }
@@ -1761,12 +1932,13 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
   console.log(
     '[E7] recipe_latency',
     `runId=${String(
-      event.runId ?? `smooth-mask-rn-${new Date().toISOString().slice(0, 10)}`,
+      event.runId ??
+        `${E7_RECIPE_PREFIX}-rn-${new Date().toISOString().slice(0, 10)}`,
     )}`,
     `phase=${String(event.phase ?? 'smooth_mask')}`,
     `timestampMs=${receivedAtMs}`,
     `rendererMode=${String(event.rendererMode ?? 'smooth-region-mask')}`,
-    `lookId=${String(event.lookId ?? 'smooth_region_mask')}`,
+    `lookId=${String(event.lookId ?? E7_LIP_LOOK_ID)}`,
     `recipeId=${String(event.recipeId ?? 'none')}`,
     `recipeBatchId=${String(event.recipeBatchId ?? event.recipeId ?? 'none')}`,
     `activeRegions=${String(
@@ -1955,9 +2127,18 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.meshTriangles ?? 'n/a',
   )} mask=${String(
     event.maskTriangles ?? event.regionMaskTriangles ?? 'n/a',
-  )} uv=${String(event.uvAvailable ?? false)} state=${String(
-    event.stateAction ?? 'n/a',
-  )} topology=${String(
+  )} cull=${String(event.culledTriangles ?? 'n/a')}/${String(
+    event.sourceTriangles ?? 'n/a',
+  )} cullMode=${String(event.meshCullingMode ?? 'n/a')} uv=${String(
+    event.uvAvailable ?? false,
+  )} state=${String(event.stateAction ?? 'n/a')} src=${String(
+    event.maskSource ?? 'n/a',
+  )} texGt8=${String(
+    event.maskTextureActivePixelCountGt8 ?? 'n/a',
+  )}/${formatMetricNumber(
+    event.maskTextureActiveCoverageGt8,
+    3,
+  )} texBbox=${String(event.maskTextureActiveBbox ?? 'n/a')} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
   )} latency=${formatMetricNumber(latencyMs)}ms`;
 }
@@ -2032,19 +2213,23 @@ function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
   return `pair_face_${timestamp}_${String(sequence).padStart(2, '0')}`;
 }
 
-type OpacitySliderProps = {
+type ValueSliderProps = {
+  label: string;
   value: number;
   width: number;
+  fillColor: string;
   onLayoutWidth: (width: number) => void;
   onChange: (value: number) => void;
 };
 
-function OpacitySlider({
+function ValueSlider({
+  label,
   value,
   width,
+  fillColor,
   onLayoutWidth,
   onChange,
-}: OpacitySliderProps) {
+}: ValueSliderProps) {
   const clampedWidth = Math.max(width, 1);
   const fillWidth = value * clampedWidth;
 
@@ -2055,7 +2240,7 @@ function OpacitySlider({
         Math.min(event.nativeEvent.locationX, clampedWidth),
       );
       const steppedValue =
-        Math.round(raw / clampedWidth / OPACITY_STEP) * OPACITY_STEP;
+        Math.round(raw / clampedWidth / INTENSITY_STEP) * INTENSITY_STEP;
 
       return Number(Math.max(0, Math.min(1, steppedValue)).toFixed(2));
     },
@@ -2090,7 +2275,7 @@ function OpacitySlider({
   return (
     <View style={styles.opacityControl}>
       <View style={styles.opacityHeader}>
-        <Text style={styles.opacityLabel}>Opacity</Text>
+        <Text style={styles.opacityLabel}>{label}</Text>
         <Text style={styles.opacityValue}>{value.toFixed(2)}</Text>
       </View>
       <View
@@ -2100,7 +2285,12 @@ function OpacitySlider({
         onLayout={handleLayout}
         {...panResponder.panHandlers}
       >
-        <View style={[styles.sliderFill, { width: fillWidth }]} />
+        <View
+          style={[
+            styles.sliderFill,
+            { width: fillWidth, backgroundColor: fillColor },
+          ]}
+        />
         <View style={[styles.sliderThumb, { left: fillWidth }]} />
       </View>
     </View>
@@ -2577,6 +2767,9 @@ const styles = StyleSheet.create({
     borderColor: '#FDE68A',
     borderWidth: 2,
   },
+  regionButtonDisabled: {
+    opacity: 0.42,
+  },
   regionButtonText: {
     color: '#F9FAFB',
     fontSize: 13,
@@ -2593,7 +2786,7 @@ const styles = StyleSheet.create({
   },
   colorButton: {
     flex: 1,
-    minHeight: 42,
+    minHeight: 38,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -2609,18 +2802,21 @@ const styles = StyleSheet.create({
   },
   colorButtonText: {
     color: '#FFFFFF',
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0,
     textTransform: 'uppercase',
   },
   textureButtonRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
   textureButton: {
-    flex: 1,
-    minHeight: 48,
+    flexGrow: 1,
+    flexBasis: '45%',
+    minWidth: 128,
+    minHeight: 42,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',

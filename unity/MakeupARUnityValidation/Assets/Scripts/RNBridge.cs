@@ -25,6 +25,7 @@ public sealed class RNBridge : MonoBehaviour
         public string region;
         public string layer;
         public string color;
+        public string secondaryColor;
         public float opacity;
         public string texture;
         public string sample;
@@ -40,6 +41,7 @@ public sealed class RNBridge : MonoBehaviour
         public float specular;
         public float specularPower;
         public float glossBoost;
+        public float gradientAmount;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -67,6 +69,7 @@ public sealed class RNBridge : MonoBehaviour
         public string region;
         public string layer;
         public string color;
+        public string secondaryColor;
         public float opacity;
         public string texture;
         public string sample;
@@ -83,6 +86,7 @@ public sealed class RNBridge : MonoBehaviour
         public float specular;
         public float specularPower;
         public float glossBoost;
+        public float gradientAmount;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -134,6 +138,8 @@ public sealed class RNBridge : MonoBehaviour
         public string LegacyLayer;
         public string ColorHex;
         public Color Color;
+        public string SecondaryColorHex;
+        public Color SecondaryColor;
         public float Opacity;
         public string RecipeId;
         public string RecipeBatchId;
@@ -157,6 +163,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public float GradientAmount;
         public float Shimmer;
         public string ShimmerColor;
         public bool SkinAdaptive;
@@ -175,6 +182,7 @@ public sealed class RNBridge : MonoBehaviour
         public bool Enabled;
         public bool Applied;
         public string ColorHex = string.Empty;
+        public string SecondaryColorHex = string.Empty;
         public float Opacity;
         public string TextureSample = string.Empty;
         public string TextureMode = string.Empty;
@@ -182,7 +190,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Intensity;
         public float Feather;
         public string RecipeBatchId = "none";
-        public string LookId = "smooth_region_mask";
+        public string LookId = "lip_makeup_validation_v1";
         public string ActiveRegions = "none";
         public int LayerCount;
         public int EnabledLayerCount;
@@ -195,6 +203,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public float GradientAmount;
         public float Shimmer;
         public string ShimmerColor = "#FFFFFF";
         public bool SkinAdaptive;
@@ -785,7 +794,17 @@ public sealed class RNBridge : MonoBehaviour
             layer.Feather,
             layer.BlendMode,
             layer.RendererMode,
-            layer.MaskTextureId);
+            layer.MaskTextureId,
+            layer.SecondaryColorHex,
+            layer.SecondaryColor,
+            layer.Coverage,
+            layer.Finish,
+            layer.Roughness,
+            layer.Specular,
+            layer.SpecularPower,
+            layer.GlossBoost,
+            layer.GradientAmount,
+            layer.PreserveDetail);
     }
 
     private void RememberRegionFeatureState(
@@ -798,6 +817,7 @@ public sealed class RNBridge : MonoBehaviour
             Enabled = layer.Enabled,
             Applied = result.Applied,
             ColorHex = layer.ColorHex,
+            SecondaryColorHex = layer.SecondaryColorHex,
             Opacity = layer.Opacity,
             TextureSample = result.TextureSample,
             TextureMode = result.TextureMode,
@@ -818,6 +838,7 @@ public sealed class RNBridge : MonoBehaviour
             Specular = layer.Specular,
             SpecularPower = layer.SpecularPower,
             GlossBoost = layer.GlossBoost,
+            GradientAmount = layer.GradientAmount,
             Shimmer = layer.Shimmer,
             ShimmerColor = layer.ShimmerColor,
             SkinAdaptive = layer.SkinAdaptive,
@@ -954,6 +975,14 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"sample\":\"" + EscapeJsonString(state.TextureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
                 + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
+                + ",\"secondaryColor\":\"" + EscapeJsonString(state.SecondaryColorHex) + "\""
+                + ",\"coverage\":" + state.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"finish\":\"" + EscapeJsonString(state.Finish) + "\""
+                + ",\"roughness\":" + state.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"specular\":" + state.Specular.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"specularPower\":" + state.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"glossBoost\":" + state.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"gradientAmount\":" + state.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
@@ -1016,6 +1045,9 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
+                + ",\"coverage\":" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+                + ",\"finish\":\"" + EscapeJsonString(state != null ? state.Finish : "none") + "\""
+                + ",\"gradientAmount\":" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"meshTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"appliedTriangles\":" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"uvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
@@ -1069,7 +1101,15 @@ public sealed class RNBridge : MonoBehaviour
             + " cameraBackdropAvailable=" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + " lightEstimateAvailable=" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + " color=" + colorHex
+            + " secondaryColor=" + (state != null ? state.SecondaryColorHex : "none")
             + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
+            + " coverage=" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " finish=" + (state != null ? state.Finish : "none")
+            + " roughness=" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " specular=" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " specularPower=" + (state != null ? state.SpecularPower : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " glossBoost=" + (state != null ? state.GlossBoost : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " gradientAmount=" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSource=" + (state != null ? state.MaskSource : "smooth_region_mask")
             + " boundaryRenderer=" + (state != null ? state.BoundaryRenderer : "smooth_alpha_mask")
             + " maskStatus=smooth_mask_runtime"
@@ -1124,7 +1164,15 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"cameraBackdropAvailable\":" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + ",\"lightEstimateAvailable\":" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
+            + ",\"secondaryColor\":\"" + EscapeJsonString(state != null ? state.SecondaryColorHex : "none") + "\""
             + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"coverage\":" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"finish\":\"" + EscapeJsonString(state != null ? state.Finish : "none") + "\""
+            + ",\"roughness\":" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"specular\":" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"specularPower\":" + (state != null ? state.SpecularPower : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"glossBoost\":" + (state != null ? state.GlossBoost : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"gradientAmount\":" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "smooth_region_mask") + "\""
             + ",\"boundaryRenderer\":\"" + EscapeJsonString(state != null ? state.BoundaryRenderer : "smooth_alpha_mask") + "\""
             + ",\"maskStatus\":\"smooth_mask_runtime\""
@@ -1201,7 +1249,7 @@ public sealed class RNBridge : MonoBehaviour
         string applied = result.Applied ? "true" : "false";
         string phase = GetPhaseForRenderer(layer.RendererMode);
         string runId = GetRunIdForRenderer(layer.RendererMode);
-        string visualLatencyObservation = "pending_smooth_mask_visual_review";
+        string visualLatencyObservation = "pending_lip_makeup_visual_review";
         Debug.Log(
             "[E4] recipe_applied"
             + " source=" + source
@@ -1219,6 +1267,7 @@ public sealed class RNBridge : MonoBehaviour
             + " feather=" + layer.Feather.ToString("0.##", CultureInfo.InvariantCulture)
             + " blendMode=" + layer.BlendMode
             + " color=" + layer.ColorHex
+            + " secondaryColor=" + layer.SecondaryColorHex
             + " opacity=" + layer.Opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " applied=" + applied
             + " appliedRegion=" + result.Region
@@ -1234,6 +1283,7 @@ public sealed class RNBridge : MonoBehaviour
             + " specular=" + layer.Specular.ToString("0.##", CultureInfo.InvariantCulture)
             + " specularPower=" + layer.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
             + " glossBoost=" + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+            + " gradientAmount=" + layer.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + " shimmer=" + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
             + " shimmerColor=" + layer.ShimmerColor
             + " skinAdaptive=" + layer.SkinAdaptive.ToString().ToLowerInvariant()
@@ -1242,11 +1292,22 @@ public sealed class RNBridge : MonoBehaviour
             + " lightEstimateAvailable=" + layer.LightEstimateAvailable.ToString().ToLowerInvariant()
             + " maskSource=" + result.MaskSource
             + " boundaryRenderer=" + result.BoundaryRenderer
+            + " maskTextureDiagnosticStatus=" + result.MaskTextureDiagnosticStatus
+            + " maskTextureSize=" + result.MaskTextureWidth.ToString(CultureInfo.InvariantCulture)
+            + "x" + result.MaskTextureHeight.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureGt8Pixels=" + result.MaskTextureActivePixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureGt8Coverage=" + result.MaskTextureActiveCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + " maskTextureGt8Bbox=" + result.MaskTextureActiveBbox
+            + " maskTextureThresholdPixels=" + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureThresholdCoverage=" + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
             + " trackingState=" + result.TrackingState
             + " stateAction=" + result.StateAction
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + " sourceTriangles=" + result.SourceTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " meshTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " maskTriangles=" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " culledTriangles=" + result.CulledTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " meshCullingMode=" + result.MeshCullingMode
             + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " topologyAuditSummary=" + SanitizeLogValue(result.TopologyAuditSummary));
@@ -1322,7 +1383,23 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(result.MaskSource)
             + "\",\"boundaryRenderer\":\""
             + EscapeJsonString(result.BoundaryRenderer)
-            + "\",\"trackingState\":\""
+            + "\",\"maskTextureDiagnosticStatus\":\""
+            + EscapeJsonString(result.MaskTextureDiagnosticStatus)
+            + "\",\"maskTextureWidth\":"
+            + result.MaskTextureWidth.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureHeight\":"
+            + result.MaskTextureHeight.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureActivePixelCountGt8\":"
+            + result.MaskTextureActivePixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureActiveCoverageGt8\":"
+            + result.MaskTextureActiveCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + ",\"maskTextureActiveBbox\":\""
+            + EscapeJsonString(result.MaskTextureActiveBbox)
+            + "\",\"maskTextureThresholdPixelCount\":"
+            + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureThresholdCoverage\":"
+            + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
+            + ",\"trackingState\":\""
             + EscapeJsonString(result.TrackingState)
             + "\",\"stateAction\":\""
             + EscapeJsonString(result.StateAction)
@@ -1338,14 +1415,21 @@ public sealed class RNBridge : MonoBehaviour
             + appliedFrame.ToString(CultureInfo.InvariantCulture)
             + ",\"visualLatencyConfirmedByRecording\":false"
             + ",\"visualLatencyObservation\":\""
-            + EscapeJsonString("pending_smooth_mask_visual_review")
+            + EscapeJsonString("pending_lip_makeup_visual_review")
             + "\""
             + ",\"faceCount\":"
             + result.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"sourceTriangles\":"
+            + result.SourceTriangleCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshTriangles\":"
             + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
             + ",\"maskTriangles\":"
             + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"culledTriangles\":"
+            + result.CulledTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"meshCullingMode\":\""
+            + EscapeJsonString(result.MeshCullingMode)
+            + "\""
             + ",\"uvAvailable\":"
             + result.UvAvailable.ToString().ToLowerInvariant()
             + ",\"meshVertexCount\":"
@@ -1361,6 +1445,8 @@ public sealed class RNBridge : MonoBehaviour
             + "\""
             + ",\"color\":\""
             + EscapeJsonString(layer.ColorHex)
+            + "\",\"secondaryColor\":\""
+            + EscapeJsonString(layer.SecondaryColorHex)
             + "\",\"opacity\":"
             + layer.Opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"intensity\":"
@@ -1389,6 +1475,8 @@ public sealed class RNBridge : MonoBehaviour
             + layer.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"glossBoost\":"
             + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"gradientAmount\":"
+            + layer.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"shimmer\":"
             + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"shimmerColor\":\""
@@ -1470,12 +1558,21 @@ public sealed class RNBridge : MonoBehaviour
 
         string region = NormalizeRegion(layer.region, layer.layer);
         string colorHex = NormalizeColor(layer.color);
+        string secondaryColorHex = NormalizeSecondaryColor(
+            layer.secondaryColor,
+            recipe.secondaryColor,
+            colorHex);
         float opacity = Mathf.Clamp01(layer.opacity);
         string textureSample = NormalizeTextureSample(region, layer.texture, layer.sample);
 
         if (!ColorUtility.TryParseHtmlString(colorHex, out Color parsedColor))
         {
             throw new ArgumentException("Recipe color is not a valid HTML color: " + colorHex);
+        }
+
+        if (!ColorUtility.TryParseHtmlString(secondaryColorHex, out Color parsedSecondaryColor))
+        {
+            throw new ArgumentException("Recipe secondary color is not a valid HTML color: " + secondaryColorHex);
         }
 
         return new ParsedRecipeLayer
@@ -1485,6 +1582,8 @@ public sealed class RNBridge : MonoBehaviour
             LegacyLayer = string.IsNullOrWhiteSpace(layer.layer) ? region : layer.layer,
             ColorHex = colorHex,
             Color = parsedColor,
+            SecondaryColorHex = secondaryColorHex,
+            SecondaryColor = parsedSecondaryColor,
             Opacity = opacity,
             RecipeId = NormalizeRecipeId(layer.recipeId, recipe.recipeId, region, index),
             RecipeBatchId = NormalizeRecipeBatchId(layer.recipeBatchId, recipe.recipeBatchId, recipe.recipeId),
@@ -1503,17 +1602,18 @@ public sealed class RNBridge : MonoBehaviour
             BlendMode = NormalizeBlendMode(layer.blendMode, textureSample),
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
             Enabled = layer.enabled,
-            Coverage = NormalizeNonNegativeFloat(layer.coverage, recipe.coverage),
+            Coverage = Mathf.Max(0.0f, layer.coverage),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
             TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
-            Roughness = NormalizeNonNegativeFloat(layer.roughness, recipe.roughness),
-            Specular = NormalizeNonNegativeFloat(layer.specular, recipe.specular),
-            SpecularPower = NormalizeNonNegativeFloat(layer.specularPower, recipe.specularPower),
-            GlossBoost = NormalizeNonNegativeFloat(layer.glossBoost, recipe.glossBoost),
-            Shimmer = NormalizeNonNegativeFloat(layer.shimmer, recipe.shimmer),
+            Roughness = Mathf.Max(0.0f, layer.roughness),
+            Specular = Mathf.Max(0.0f, layer.specular),
+            SpecularPower = Mathf.Max(0.0f, layer.specularPower),
+            GlossBoost = Mathf.Max(0.0f, layer.glossBoost),
+            GradientAmount = Mathf.Max(0.0f, layer.gradientAmount),
+            Shimmer = Mathf.Max(0.0f, layer.shimmer),
             ShimmerColor = NormalizeOptional(layer.shimmerColor, recipe.shimmerColor, "#FFFFFF"),
             SkinAdaptive = layer.skinAdaptive || recipe.skinAdaptive,
-            PreserveDetail = true,
+            PreserveDetail = layer.preserveDetail || recipe.preserveDetail,
             MaterialId = NormalizeOptional(layer.materialId, recipe.materialId, textureSample + "-validation-material"),
             ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
             PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
@@ -1548,6 +1648,21 @@ public sealed class RNBridge : MonoBehaviour
         return color.Trim();
     }
 
+    private static string NormalizeSecondaryColor(string preferred, string secondary, string fallback)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        if (!string.IsNullOrWhiteSpace(secondary))
+        {
+            return secondary.Trim();
+        }
+
+        return fallback;
+    }
+
     private static string NormalizeRecipeId(string preferred, string secondaryRecipeId, string region, int index)
     {
         if (!string.IsNullOrWhiteSpace(preferred))
@@ -1560,7 +1675,7 @@ public sealed class RNBridge : MonoBehaviour
             return secondaryRecipeId.Trim();
         }
 
-        return "smooth-mask-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
+        return "lip-style-v1-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
     }
 
     private static string NormalizeRecipeBatchId(params string[] values)
@@ -1622,7 +1737,7 @@ public sealed class RNBridge : MonoBehaviour
             return secondaryLookId.Trim();
         }
 
-        return "smooth_region_mask";
+        return "lip_makeup_validation_v1";
     }
 
     private static double NormalizeSentAtMs(double preferred, double secondarySentAtMs)
@@ -1650,7 +1765,12 @@ public sealed class RNBridge : MonoBehaviour
                 "Recipe sample does not match texture for region " + region + ": " + sample);
         }
 
-        if ((region == "lip" && value == "matte_lip")
+        if ((region == "lip"
+                && (value == "matte_lip"
+                    || value == "gloss_lip"
+                    || value == "full_lip"
+                    || value == "gradient_lip"
+                    || value == "overline_lip"))
             || (region == "cheek" && value == "soft_blush")
             || (region == "eye" && value == "shimmer_eye"))
         {
@@ -1747,7 +1867,7 @@ public sealed class RNBridge : MonoBehaviour
     private static string GetRunIdForRenderer(string rendererMode)
     {
         string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return "smooth-mask-" + date;
+        return "lip-style-v1-" + date;
     }
 
     private static string NormalizeMaskTextureId(string preferred, string secondary, string region)
@@ -1759,7 +1879,12 @@ public sealed class RNBridge : MonoBehaviour
 
         string value = preferred.Trim();
         string expected = GetDefaultMaskTextureId(region);
-        if (value == expected)
+        if (value == expected
+            || (region == "lip" && (value == "lip-style-atlas-v1"
+                || value == "lip-smooth-mask-v1"
+                || value == "lip-drawn-mask-v1"))
+            || (region == "cheek" && value == "cheek-smooth-mask-v1")
+            || (region == "eye" && value == "eye-smooth-mask-v1"))
         {
             return value;
         }
@@ -1773,11 +1898,11 @@ public sealed class RNBridge : MonoBehaviour
         switch (region)
         {
             case "cheek":
-                return "cheek-smooth-mask-v1";
+                return "cheek-drawn-mask-v1";
             case "eye":
-                return "eye-smooth-mask-v1";
+                return "eye-drawn-mask-v1";
             default:
-                return "lip-smooth-mask-v1";
+                return "lip-drawn-style-atlas-v1";
         }
     }
 
