@@ -24,6 +24,12 @@ KNOWN_FILES = (
     "lip_mesh_draft_meta.json",
     "lip_variants.json",
 )
+USER_ADJUSTMENT_KEYS = (
+    "cornerReach",
+    "upperLipTightness",
+    "lowerLipTightness",
+    "verticalOffset",
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -212,6 +218,15 @@ def ready_gate_failures(input_dir: Path, files: dict[str, Any]) -> list[str]:
     user_adjustment = fusion.get("inputs", {}).get("userAdjustment", {})
     if user_adjustment.get("status") != "user_confirmed":
         failures.append("userAdjustment_required_not_confirmed")
+    if user_adjustment.get("confirmedByUser") is not True:
+        failures.append("userAdjustment_required_not_confirmed")
+    params = user_adjustment.get("params", {})
+    if not isinstance(params, dict) or any(key not in params for key in USER_ADJUSTMENT_KEYS):
+        failures.append("userAdjustment_required_fields_missing")
+    if user_adjustment.get("legacyKeysPresent") and (
+        not isinstance(params, dict) or any(key not in params for key in USER_ADJUSTMENT_KEYS)
+    ):
+        failures.append("userAdjustment_legacy_only_not_accepted")
     if "required_failure_mode_type_not_classified" in readiness_warnings:
         failures.append("failureModeType_required_not_classified")
     if "failureModeType" not in fusion.get("inputs", {}) and "failureMode" not in fusion.get("inputs", {}):

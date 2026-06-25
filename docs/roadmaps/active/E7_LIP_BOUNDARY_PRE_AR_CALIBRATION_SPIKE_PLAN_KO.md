@@ -1,6 +1,6 @@
 # E7 Lip-First Pre-AR Boundary Calibration Spike Plan
 
-Last updated: 2026-06-25 KST
+Last updated: 2026-06-26 KST
 
 Status: Phase 0-3 prep bundle complete / Next implementation milestones are M1 buildless personalized lip package, M2 in-app pre-filter calibration slice, M3 runtime candidate sweep / Runtime candidate not created / E7.3 remains Yellow
 
@@ -293,18 +293,62 @@ Edge-case examples:
 - lipstick already applied before calibration.
 - glossy lips causing specular edge confusion.
 
+### Color / Gradient Downstream Uses
+
+Color/gradient 추출이 가능해졌다는 것은 boundary 생성기가 생겼다는 뜻이 아니라, **프레임 선택과 렌더링 검증에 쓸 수 있는 경량 센서가 생겼다는 뜻**이다.
+
+우선순위가 높은 downstream use:
+
+1. Calibration quality check.
+   - 현재 M1에서 이미 구현된 기본 용도다.
+   - `lowContrastWarning`, `shadowWarning`, `specularWarning`으로 현재 capture가 boundary fusion 입력으로 안전한지 판단한다.
+   - 이 판단은 `ready` 승격이 아니라 `partial` / retake / review 사유를 명확히 하는 데 쓴다.
+
+2. Best-of-N calibration selector.
+   - neutral 또는 expression capture를 여러 장 찍은 뒤, 각 frame의 ARFace tracking, Apple Vision availability, face parsing coverage, color/gradient confidence를 함께 점수화한다.
+   - 가장 좋은 capture pair만 M1 reference / fusion 기준으로 사용한다.
+   - 모든 후보가 낮으면 자동 승격하지 않고 retake 또는 user review로 보낸다.
+
+3. Retake reason generator.
+   - `lowContrastWarning=true`: 입술-피부 색/경계 신호가 약하므로 균일한 조명 또는 더 선명한 capture가 필요하다.
+   - `shadowWarning=true`: 얼굴 하단 그림자/역광 가능성이 높으므로 조명 방향을 바꾸고 다시 캡처한다.
+   - `specularWarning=true`: 광택/반사가 edge 판단을 방해할 수 있으므로 gloss/립밤/반사 조건을 줄이고 다시 캡처한다.
+   - 이 안내는 product onboarding 문구가 아니라 validation-only capture guide다.
+
+4. Makeup visibility detector for later E7.4/E7.5 validation.
+   - 원본 lip/skin 색과 makeup 적용 후 lip/skin 색 변화를 비교해 "화장이 실제로 보였는지"를 숫자로 확인한다.
+   - 이는 cosmetic renderer 구현 승인이 아니라, 나중에 E7.4/E7.5가 명시적으로 열렸을 때 pigment/finish visibility evidence로만 쓴다.
+
+5. Spill detector for later overlay checks.
+   - Makeup 적용 후 outside skin band의 색 변화가 커지면 skin spill 가능성으로 기록한다.
+   - inner-mouth/teeth 주변 색 변화가 커지면 inner-mouth spill 가능성으로 기록한다.
+   - 이 판단은 mask를 자동 확장하지 않고, `lip-safe-v0`, user adjustment, 또는 retake/review 사유를 고르는 보조 신호로만 쓴다.
+
+금지:
+
+- Color/gradient만으로 lip boundary를 만들거나 확장하지 않는다.
+- Color/gradient를 인종, 피부색 class, 민감 특성 분류에 쓰지 않는다.
+- Color/gradient downstream use를 근거로 E7.3 Green, E7.4/E7.5/E7.6, product readiness, live runtime inference를 승인하지 않는다.
+
 ## 9. User Adjustment Role
 
 사용자 조정은 실패를 감추는 꼼수가 아니라 개인차를 줄이는 필수 보정층이다.
 
-초기 control은 네 개로 제한한다.
+초기 control은 네 개로 제한하되, 실제 관찰된 실패 유형에 직접 대응시킨다.
 
 | Control | 의미 | 범위 제안 | Runtime 저장값 |
 | --- | --- | --- | --- |
-| `tightness` | 전체 lip mask를 좁히거나 넓힘 | `-1.0..1.0` | threshold/local scale |
-| `upperLowerBalance` | upper/lower lip 비율 조정 | `-1.0..1.0` | upper/lower alpha bias |
-| `cornerShrink` | 입꼬리 spill 줄임 | `0.0..1.0` | corner falloff |
-| `verticalOffset` | 전체 mask 상하 이동 | `-1.0..1.0` | UV/local offset |
+| `cornerReach` | 가로 폭 / 입꼬리 도달 보정. `+`는 입꼬리 쪽으로 확장, `-`는 입꼬리 spill 축소 | `-1.0..1.0` | corner reach / horizontal local scale |
+| `upperLipTightness` | 윗입술 위쪽 번짐 또는 부족 보정. `+`는 더 타이트하게, `-`는 더 덮게 | `-1.0..1.0` | upper-lip threshold / local vertical scale |
+| `lowerLipTightness` | 아랫입술 아래쪽 번짐 또는 부족 보정. `+`는 더 타이트하게, `-`는 더 덮게 | `-1.0..1.0` | lower-lip threshold / local vertical scale |
+| `verticalOffset` | 전체 mask 상하 이동. image-space 기준 `+`는 아래, `-`는 위 | `-1.0..1.0` | UV/local offset |
+
+실증 반영:
+
+- 가로 크기가 작은 경우가 많고 입꼬리까지 잡지 못하므로 `cornerShrink` 단방향 control은 폐기한다. 다음 contract에서는 `cornerReach`가 입꼬리 확장과 축소를 모두 담당한다.
+- 아랫입술 번짐이 많고 윗입술도 번질 수 있으므로 전체 `tightness` 하나로 처리하지 않는다. `upperLipTightness`와 `lowerLipTightness`를 분리한다.
+- 높낮이 불만은 boundary 품질 문제와 UX 문제를 헷갈리게 만들 수 있으므로 `verticalOffset`은 유지하되, 이 값으로도 해결되지 않으면 reference mask / projection coordinate issue로 되돌린다.
+- Legacy aliases인 `tightness`, `upperLowerBalance`, `cornerShrink`는 기존 artifacts 읽기용으로만 남긴다. 새 M1 ready 또는 `lip-tight-user-v0` user-confirmed claim은 `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset` 네 값이 명시될 때만 허용한다.
 
 UX 원칙:
 
@@ -373,7 +417,7 @@ Step 7. Auto boundary preview
   lip-tight-auto-v0 / lip-safe-v0 비교
 
 Step 8. User adjustment
-  tightness, upperLowerBalance, cornerShrink, verticalOffset
+  cornerReach, upperLipTightness, lowerLipTightness, verticalOffset
 
 Step 9. Save calibration package
   local validation artifact
@@ -423,7 +467,7 @@ Phase 1에서 만들 화면은 product onboarding이 아니라 AR 진입 전 val
 | Apple Vision lip contour result | saved captures | `visionLipContour` | M1 ready에는 `available` contour가 필요하다. 구현 전 `not_run`은 partial이다. |
 | Required face parsing result | neutral/open/smile preferred | `faceParsing` | M1 ready에는 local/offline `silver` 이상이 필요하다. live runtime/Core ML 구현 금지. |
 | Color/gradient confidence summary | saved captures | `colorGradientConfidence` | M1 ready에는 `computed` 필요. 단독 boundary 결정 금지. |
-| User adjustment params | adjusted/save steps | `userAdjustment` | M1 ready에는 `user_confirmed` 필요. `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`, plus status showing whether zero values are user-confirmed or only assumed. |
+| User adjustment params | adjusted/save steps | `userAdjustment` | M1 ready에는 `user_confirmed` 필요. `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset`, plus status showing whether zero values are user-confirmed or only assumed. |
 | Extension slots | package-level only | `extensions.cheek`, `extensions.eye` | 현재는 `reserved_only`; cheek/eye 알고리즘을 시작하지 않는다. |
 
 ## 12. Calibration Data Package
@@ -559,9 +603,9 @@ Required shape:
       "confirmedByUser": false,
       "uiImplemented": false,
       "params": {
-        "tightness": 0,
-        "upperLowerBalance": 0,
-        "cornerShrink": 0,
+        "cornerReach": 0,
+        "upperLipTightness": 0,
+        "lowerLipTightness": 0,
         "verticalOffset": 0
       }
     }
@@ -715,7 +759,7 @@ Color/gradient is required confidence evidence, but never wins alone.
 - Apple Vision contour is required before M1 ready and can tighten the outer contour when it agrees with gold/silver or when no better reference exists and confidence is acceptable.
 - Mesh-derived structural draft can seed or constrain a reference-mask candidate through the M1 implementation path in Section 14A. It is required as a review artifact for M1 audit, not gold, and must still become an accepted screen-space mask before UV projection.
 - Color/gradient is required for M1 ready and can only change `confidenceSummary` and `rejectedSignalReasons`; it cannot expand or create a boundary alone.
-- User adjustment is required for M1 ready and is applied last as scalar parameters: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`.
+- User adjustment is required for M1 ready and is applied last as scalar parameters: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset`.
 - Failure-mode type classification and blendshape/face-state signals are required before M1 ready; if unavailable, the result remains partial with exact missing reasons.
 - If Apple Vision or face parsing is absent, Phase 2 is `partial` or `blocked`, not `ready`, even when a manual/reference mask exists.
 
@@ -739,7 +783,7 @@ Candidate generation rules:
 | Candidate | Required source | Boundary behavior | Confidence / rejection rule |
 | --- | --- | --- | --- |
 | `lip-tight-auto-v0` | neutral + smile/yaw + accepted gold/silver/reference mask + required Vision/parsing/color/failure/blendshape signals | tight outer contour, conservative color confidence, no user bias | reject color-only edges; partial if any required M1 signal is missing |
-| `lip-tight-user-v0` | `lip-tight-auto-v0` + user-confirmed adjustment params | applies tightness, upper/lower balance, corner shrink, vertical offset | partial if adjustment is not explicitly user-confirmed; does not override inner-mouth exclusion |
+| `lip-tight-user-v0` | `lip-tight-auto-v0` + user-confirmed adjustment params | applies corner reach, independent upper/lower tightness, and vertical offset | partial if adjustment is not explicitly user-confirmed; does not override inner-mouth exclusion |
 | `lip-safe-v0` | open_close + accepted pucker + inner-mouth exclusion + corner falloff + required Vision/parsing reference signals | smaller spill-prevention mask; accepts under-coverage before teeth/skin spill | partial if any required M1 signal is missing; wins only after failure-mode evidence supports it |
 
 ### `fusionSummary.json` contract
@@ -772,9 +816,9 @@ Candidate generation rules:
       "confirmedByUser": false,
       "uiImplemented": false,
       "params": {
-        "tightness": 0,
-        "upperLowerBalance": 0,
-        "cornerShrink": 0,
+        "cornerReach": 0,
+        "upperLipTightness": 0,
+        "lowerLipTightness": 0,
         "verticalOffset": 0
       }
     }
@@ -1087,18 +1131,18 @@ Preset profiles use two separate namespaces:
 
 | Field | Meaning | Namespace rule |
 | --- | --- | --- |
-| `userAdjustmentBias` | initial bias for the four Section 9 scalars: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset` | user-adjustment namespace |
+| `userAdjustmentBias` | initial bias for the four Section 9 scalars: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset` | user-adjustment namespace |
 | `maskDerivationNote` | candidate-generation notes such as feather tendency, coverage tendency, confidence warning, or inner-mouth exclusion strength | candidate-generation namespace |
 
 `featherTendency` and `coverageTendency` here are draft-stage notes, not the Section 15 runtime `coverage` / `feather` tuning controls.
 
 | Preset profile | `userAdjustmentBias` | `maskDerivationNote` | Candidate preference |
 | --- | --- | --- | --- |
-| `thin` | `tightness` positive | conservative coverage tendency | start with `lip-tight-auto-v0` |
-| `full` | `tightness` negative | coverage-friendly draft tendency, still bounded by accepted reference mask | start with `lip-tight-auto-v0` |
-| `wide` | `cornerShrink` lower | preserve wider corner range if no spill is observed | start with `lip-tight-auto-v0`; review corners |
+| `thin` | `upperLipTightness` / `lowerLipTightness` positive | conservative coverage tendency | start with `lip-tight-auto-v0` |
+| `full` | `upperLipTightness` / `lowerLipTightness` negative | coverage-friendly draft tendency, still bounded by accepted reference mask | start with `lip-tight-auto-v0` |
+| `wide` | `cornerReach` positive | preserve or extend wider corner range if no spill is observed | start with `lip-tight-auto-v0`; review corners |
 | `soft-edge` | no required scalar bias | lower confidence warning; feather tendency only | require review before promotion |
-| `inner-safe` | `cornerShrink` higher | stronger inner-mouth exclusion | prefer `lip-safe-v0` |
+| `inner-safe` | `lowerLipTightness` positive, `cornerReach` neutral or negative | stronger inner-mouth / lower-face spill prevention | prefer `lip-safe-v0` |
 
 ### Flow placement
 
@@ -1186,9 +1230,9 @@ Candidate:
   lip-safe-v0
 
 Adjustment:
-  tightness
-  upperLowerBalance
-  cornerShrink
+  cornerReach
+  upperLipTightness
+  lowerLipTightness
   verticalOffset
 
 Evidence:
@@ -1490,7 +1534,7 @@ personalized lip package
 Work:
 
 - Install only the M1/M2-approved candidates: `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0`.
-- Add the four minimal adjustment controls only: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`.
+- Add the four minimal adjustment controls only: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset`.
 - Run one-build / many-candidate sweep across neutral, open/close, smile, pucker, and yaw; any skipped state requires an explicit waiver and keeps the result capped at partial/Yellow-risk.
 - Record FPS/frame-time, recipe latency, mesh counts, fallback flag, active candidate, and representative visual evidence; missing runtime evidence keeps the sweep partial.
 

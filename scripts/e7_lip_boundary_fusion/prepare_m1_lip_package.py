@@ -31,6 +31,20 @@ DEFAULT_CAPTURE_PAIR = Path(
     "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03"
 )
 EXPECTED_CANDIDATES = ("lip-tight-auto-v0", "lip-tight-user-v0", "lip-safe-v0")
+USER_ADJUSTMENT_KEYS = (
+    "cornerReach",
+    "upperLipTightness",
+    "lowerLipTightness",
+    "verticalOffset",
+)
+LEGACY_USER_ADJUSTMENT_KEYS = ("tightness", "upperLowerBalance", "cornerShrink")
+DEFAULT_USER_ADJUSTMENT = {
+    "status": "default_zero_assumed_not_user_confirmed",
+    "confirmedByUser": False,
+    "uiImplemented": False,
+    "reviewedInBuildlessContactSheet": False,
+    "params": {key: 0 for key in USER_ADJUSTMENT_KEYS},
+}
 
 
 @dataclass(frozen=True)
@@ -129,6 +143,12 @@ def parse_args() -> argparse.Namespace:
         "--skip-color-gradient",
         action="store_true",
         help="Leave colorGradientConfidence as required_not_run.",
+    )
+    parser.add_argument(
+        "--user-adjustment-review",
+        type=Path,
+        default=None,
+        help="Buildless user_adjustment_review.json selecting one generated candidate.",
     )
     parser.add_argument(
         "--inner-mouth-status",
@@ -854,6 +874,135 @@ def write_candidate_mask(path: Path, image: Image.Image) -> int:
     return int(np.count_nonzero(np.asarray(image) > 0))
 
 
+def default_user_adjustment() -> dict[str, Any]:
+    return json.loads(json.dumps(DEFAULT_USER_ADJUSTMENT))
+
+
+def resolve_review_path(review_path: Path, repo_root: Path, base_dir: Path) -> Path:
+    if review_path.is_absolute():
+        return review_path
+    if review_path.exists():
+        return review_path.resolve()
+    repo_relative = repo_root / review_path
+    if repo_relative.exists():
+        return repo_relative.resolve()
+    return (base_dir / review_path).resolve()
+
+
+def validate_user_adjustment_review(
+    review_path: Path | None,
+    repo_root: Path,
+    output_dir: Path,
+) -> tuple[dict[str, Any], Path | None, list[str]]:
+    if review_path is None:
+        return default_user_adjustment(), None, []
+    resolved_review = resolve_review_path(review_path, repo_root, output_dir)
+    if not resolved_review.exists():
+        adjustment = default_user_adjustment()
+        adjustment["status"] = "review_file_missing_not_user_confirmed"
+        adjustment["reviewPath"] = str(resolved_review)
+        return adjustment, None, [f"user_adjustment_review_missing:{resolved_review}"]
+
+    review = load_json(resolved_review)
+    adjustment = default_user_adjustment()
+    adjustment.update(
+        {
+            "status": str(review.get("status") or "invalid_review_not_user_confirmed"),
+            "confirmedByUser": bool(review.get("confirmedByUser", False)),
+            "uiImplemented": False,
+            "reviewedInBuildlessContactSheet": True,
+            "reviewPath": str(resolved_review),
+            "selectedCandidateId": review.get("selectedCandidateId"),
+            "observedFixes": review.get("observedFixes", []),
+            "knownWeaknesses": review.get("knownWeaknesses", []),
+            "legacyKeysPresent": [
+                key for key in LEGACY_USER_ADJUSTMENT_KEYS if key in (review.get("params") or {})
+            ],
+        }
+    )
+
+    params = review.get("params")
+    missing = [key for key in USER_ADJUSTMENT_KEYS if not isinstance(params, dict) or key not in params]
+    non_numeric = [
+        key
+        for key in USER_ADJUSTMENT_KEYS
+        if isinstance(params, dict) and key in params and not isinstance(params[key], (int, float))
+    ]
+    if missing or non_numeric:
+        adjustment["status"] = "invalid_review_not_user_confirmed"
+        adjustment["missing"] = missing
+        adjustment["nonNumeric"] = non_numeric
+        return adjustment, None, []
+
+    normalized_params = {key: float(params[key]) for key in USER_ADJUSTMENT_KEYS}
+    adjustment["params"] = normalized_params
+    if review.get("status") != "user_confirmed" or review.get("confirmedByUser") is not True:
+        adjustment["status"] = "review_not_user_confirmed"
+        return adjustment, None, []
+
+    candidate_id = review.get("selectedCandidateId")
+    selected_mask_path = review.get("selectedMaskPath")
+    candidates_path = resolved_review.parent / "user_adjustment_candidates.json"
+    if candidates_path.exists():
+        candidates = load_json(candidates_path).get("candidates", [])
+        selected = next((item for item in candidates if item.get("candidateId") == candidate_id), None)
+        if selected:
+            selected_mask_path = selected.get("maskPath")
+            adjustment["params"] = {key: float(selected["params"][key]) for key in USER_ADJUSTMENT_KEYS}
+            adjustment["candidateMetrics"] = selected.get("metrics", {})
+        else:
+            adjustment["status"] = "selected_candidate_not_found_not_user_confirmed"
+            return adjustment, None, []
+
+    if not selected_mask_path:
+        adjustment["status"] = "selected_mask_missing_not_user_confirmed"
+        return adjustment, None, []
+
+    selected_mask = resolve_review_path(Path(selected_mask_path), repo_root, resolved_review.parent)
+    if not selected_mask.exists():
+        adjustment["status"] = "selected_mask_file_missing_not_user_confirmed"
+        adjustment["selectedMaskPath"] = str(selected_mask)
+        return adjustment, None, []
+
+    adjustment["status"] = "user_confirmed"
+    adjustment["confirmedByUser"] = True
+    adjustment["selectedMaskPath"] = str(selected_mask)
+    return adjustment, selected_mask, []
+
+
+def apply_user_adjustment_review(
+    output_dir: Path,
+    frame: Image.Image,
+    user_adjustment: dict[str, Any],
+    selected_mask_path: Path | None,
+) -> None:
+    if user_adjustment.get("status") != "user_confirmed" or selected_mask_path is None:
+        return
+    selected = Image.open(selected_mask_path).convert("L")
+    if selected.size != frame.size:
+        raise ValueError(f"user_adjustment_mask_size_mismatch:{selected.size}:frame={frame.size}")
+    target = output_dir / "lip-tight-user-v0_mask.png"
+    selected.save(target)
+    mask_overlay(frame, selected).save(output_dir / "lip-tight-user-v0_user_adjusted_overlay.png")
+    user_adjustment = dict(user_adjustment)
+    user_adjustment["appliedMaskPath"] = str(target)
+    user_adjustment["appliedOverlayPath"] = str(output_dir / "lip-tight-user-v0_user_adjusted_overlay.png")
+    user_adjustment["positivePixels"] = int(np.count_nonzero(np.asarray(selected) > 0))
+    write_json(output_dir / "user_adjustment_applied.json", user_adjustment)
+
+    generation_path = output_dir / "lip_candidate_generation.json"
+    generation = load_json(generation_path) if generation_path.exists() else {}
+    generation["userAdjustmentReview"] = {
+        "status": user_adjustment.get("status"),
+        "confirmedByUser": user_adjustment.get("confirmedByUser"),
+        "selectedCandidateId": user_adjustment.get("selectedCandidateId"),
+        "params": user_adjustment.get("params"),
+        "selectedMaskPath": str(selected_mask_path),
+        "appliedMaskPath": str(target),
+    }
+    write_json(generation_path, generation)
+
+
 def apply_face_parsing_to_reference(
     output_dir: Path,
     frame: Image.Image,
@@ -1057,6 +1206,7 @@ def build_calibration_package(
     vision_lip_contour: dict[str, Any] | None,
     face_parsing: dict[str, Any] | None,
     color_gradient: dict[str, Any] | None,
+    user_adjustment: dict[str, Any] | None,
 ) -> dict[str, Any]:
     capture_pair_id = export.get("capturePairId") or output_dir.name
     calibration_id = "lip-calib-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-m1-v0"
@@ -1127,13 +1277,13 @@ def build_calibration_package(
             for candidate_id in EXPECTED_CANDIDATES
         },
         "correction": {
-            "userAdjustmentParams": {
-                "tightness": 0,
-                "upperLowerBalance": 0,
-                "cornerShrink": 0,
-                "verticalOffset": 0,
-            },
-            "userAdjustmentStatus": "default_zero_assumed_not_user_confirmed",
+            "userAdjustmentParams": (user_adjustment or default_user_adjustment())["params"],
+            "userAdjustmentStatus": (user_adjustment or default_user_adjustment())["status"],
+            "userAdjustmentConfirmedByUser": bool(
+                (user_adjustment or default_user_adjustment()).get("confirmedByUser", False)
+            ),
+            "userAdjustmentSelectedCandidateId": (user_adjustment or {}).get("selectedCandidateId"),
+            "userAdjustmentReviewPath": (user_adjustment or {}).get("reviewPath"),
         },
         "failureModeType": {
             "status": "required_not_classified",
@@ -1243,6 +1393,7 @@ def write_m1_summary(
     decision = "ready" if not gate_failures else ("blocked" if blockers or not reference_meta else "partial")
     fusion_summary = load_json(fusion_path) if fusion_path.exists() else {}
     reference_signals = fusion_summary.get("inputs", {}).get("referenceSignals", {})
+    user_adjustment = fusion_summary.get("inputs", {}).get("userAdjustment", {})
     uv_summary = load_json(uv_path) if uv_path.exists() else {}
     draft_meta = load_json(output_dir / "lip_mesh_draft_meta.json") if (output_dir / "lip_mesh_draft_meta.json").exists() else {}
     summary = {
@@ -1294,6 +1445,16 @@ def write_m1_summary(
             if (output_dir / "color_gradient_overlay.png").exists()
             else None,
         },
+        "userAdjustment": {
+            "status": user_adjustment.get("status", "missing"),
+            "confirmedByUser": bool(user_adjustment.get("confirmedByUser", False)),
+            "selectedCandidateId": user_adjustment.get("selectedCandidateId"),
+            "params": user_adjustment.get("params"),
+            "legacyKeysPresent": user_adjustment.get("legacyKeysPresent", []),
+            "appliedPath": str(output_dir / "user_adjustment_applied.json")
+            if (output_dir / "user_adjustment_applied.json").exists()
+            else None,
+        },
         "uvRoundTripRan": uv_summary.get("artifacts", {}).get("round_trip_overlay.png") not in {None, "pending"},
         "phase2Status": status_value(fusion_path, "phase2Status"),
         "phase3ExecutionStatus": status_value(uv_path, "phase3ExecutionStatus"),
@@ -1328,6 +1489,7 @@ def write_m1_summary(
         f"- Apple Vision contour available count: `{summary['appleVisionLipContour']['availableCount']}`",
         f"- Face parsing silver count: `{summary['faceParsing']['silverCount']}`",
         f"- Color/gradient computed count: `{summary['colorGradient']['computedCount']}`",
+        f"- User adjustment status: `{summary['userAdjustment']['status']}`",
         f"- Boundary quality proof: `{str(summary['boundaryQualityProof']).lower()}`",
         f"- Next step: {summary['nextStep']}.",
         "",
@@ -1579,6 +1741,16 @@ def main() -> int:
         output_dir,
         capture_pair_id,
     )
+    user_adjustment, selected_user_mask, user_adjustment_blockers = validate_user_adjustment_review(
+        args.user_adjustment_review,
+        repo_root,
+        output_dir,
+    )
+    blockers.extend(user_adjustment_blockers)
+    try:
+        apply_user_adjustment_review(output_dir, frame, user_adjustment, selected_user_mask)
+    except ValueError as exc:
+        blockers.append(str(exc))
     write_input_manifest(
         output_dir,
         repo_root,
@@ -1606,6 +1778,7 @@ def main() -> int:
         vision_lip_contour,
         face_parsing,
         color_gradient,
+        user_adjustment,
     )
     package_path = output_dir / f"{package['calibrationId']}.json"
     write_json(package_path, package)

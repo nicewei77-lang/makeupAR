@@ -19,6 +19,14 @@ from typing import Any
 REQUIRED_STEPS = ("neutral", "open_close", "smile", "yaw", "pucker")
 REQUIRED_ARFACE_FIELDS = ("screenVertices", "uvs", "indices", "clipW")
 CANDIDATE_IDS = ("lip-tight-auto-v0", "lip-tight-user-v0", "lip-safe-v0")
+USER_ADJUSTMENT_KEYS = (
+    "cornerReach",
+    "upperLipTightness",
+    "lowerLipTightness",
+    "verticalOffset",
+)
+LEGACY_USER_ADJUSTMENT_KEYS = ("tightness", "upperLowerBalance", "cornerShrink")
+DEFAULT_USER_ADJUSTMENT_PARAMS = {key: 0 for key in USER_ADJUSTMENT_KEYS}
 FUSION_PRIORITY = (
     "human_reviewed_gold_mask",
     "face_parsing_lip_labels_silver_until_reviewed",
@@ -314,23 +322,31 @@ def user_adjustment_status(package: dict[str, Any]) -> dict[str, Any]:
     correction = package.get("correction", {})
     params = correction.get("userAdjustmentParams")
     declared_status = correction.get("userAdjustmentStatus")
+    confirmed_by_user = bool(correction.get("userAdjustmentConfirmedByUser", False))
     if not isinstance(params, dict):
         return {
             "status": declared_status or "default_zero_assumed",
-            "params": {
-                "tightness": 0,
-                "upperLowerBalance": 0,
-                "cornerShrink": 0,
-                "verticalOffset": 0,
-            },
+            "params": dict(DEFAULT_USER_ADJUSTMENT_PARAMS),
+            "confirmedByUser": confirmed_by_user,
         }
-    expected_keys = ("tightness", "upperLowerBalance", "cornerShrink", "verticalOffset")
+    expected_keys = USER_ADJUSTMENT_KEYS
     missing = [key for key in expected_keys if key not in params]
+    legacy_keys_present = [key for key in LEGACY_USER_ADJUSTMENT_KEYS if key in params]
     if missing:
+        status = "partial"
+    elif declared_status == "user_confirmed" and not confirmed_by_user:
         status = "partial"
     else:
         status = declared_status or "available"
-    return {"status": status, "params": params, "missing": missing}
+    return {
+        "status": status,
+        "params": {key: params.get(key, 0) for key in expected_keys},
+        "missing": missing,
+        "legacyKeysPresent": legacy_keys_present,
+        "confirmedByUser": confirmed_by_user,
+        "selectedCandidateId": correction.get("userAdjustmentSelectedCandidateId"),
+        "reviewPath": correction.get("userAdjustmentReviewPath"),
+    }
 
 
 def decide_candidates(
@@ -397,7 +413,7 @@ def decide_candidates(
         "lip-tight-user-v0": {
             "status": user_status,
             "primaryInputs": ["lip-tight-auto-v0", "userAdjustmentParams"],
-            "rule": "apply tightness, upper/lower balance, corner shrink, and vertical offset after auto fusion",
+            "rule": "apply corner reach, independent upper/lower tightness, and vertical offset after auto fusion",
             "rejectedSignalReasons": user_reasons,
         },
         "lip-safe-v0": {
