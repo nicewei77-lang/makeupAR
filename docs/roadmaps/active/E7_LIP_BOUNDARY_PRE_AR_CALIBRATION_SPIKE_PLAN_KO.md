@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25 KST
 
-Status: Phase 3 UV Projection preparation ready / Active E7.03 / E7.3 lip-first boundary calibration planning contract
+Status: Phase 3 UV Projection preparation ready / Mesh-derived structural draft + preset profile extension planning-only / Active E7.03 / E7.3 lip-first boundary calibration planning contract
 
 ## 0. One-line Decision
 
@@ -42,6 +42,7 @@ Phase 3 preparation note:
 - The buildless Phase 3 stub exists at `scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`. It reads `fusionSummary.json`, validates one same-moment capture pair plus a screen-space lip reference mask, and can emit `summary.json` / `summary.md` with `ready|partial|blocked` when execution inputs are missing.
 - When an accepted screen-space lip mask and matching capture pair are supplied, the same stub can produce the first offline artifact set: `lip_probability.png`, `lip_coverage.png`, `lip_unknown.png`, `lip_debug_votes.png`, `lip_variants.json`, `round_trip_overlay.png`, `summary.json`, and `summary.md`.
 - Phase 3 status is `Phase 3 UV Projection preparation ready` only. It does not mean one-frame round-trip has been run, does not create a runtime candidate, does not run Unity/iPhone builds, and does not mark E7.3 Green.
+- Mesh-derived structural draft / preset profile extension is planning-only. It strengthens future Phase 2/3 inputs but does not create a new actionable phase.
 
 Phase map note:
 
@@ -50,6 +51,7 @@ Phase map note:
 - Phase 1: pre-AR calibration flow and package contract. Complete.
 - Phase 2: boundary fusion contract and buildless summary stub. Ready.
 - Phase 3: UV projection / one-frame round-trip preparation. Ready for execution when a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are supplied.
+- Mesh-derived structural draft and `LipPresetProfile` are post-Phase-3 design constraints for improving future Phase 2 reference-mask candidates. They do not change the next boundary.
 - Sections about runtime tracking, RN validation UI, user adjustment, edge cases, evidence, and G/Y/R are design constraints for later implementation slices, not separate Phase 4-6 milestones in this document.
 
 ## 1. 왜 이 문서가 필요한가
@@ -666,6 +668,7 @@ Color/gradient only changes confidence, never wins alone.
 - Human-reviewed gold wins when it comes from the same runtime moment as the ARFace export.
 - Face parsing `silver` can seed `upper/lower/inner-mouth` labels, but it is never called product gold until human-reviewed.
 - Apple Vision contour can tighten the outer contour when it agrees with gold/silver or when no better reference exists and confidence is acceptable.
+- Mesh-derived structural draft can seed or constrain a reference-mask candidate only through the planning-only extension in Section 14A. It is optional, not gold, and must still become an accepted screen-space mask before Phase 3.
 - Color/gradient can only change `confidenceSummary` and `rejectedSignalReasons`; it cannot expand or create a boundary alone.
 - User adjustment is applied last as scalar parameters: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`.
 - If all semantic/reference signals are absent, Phase 2 is `partial`, not `ready`, because Phase 3 would only receive topology with no lip evidence.
@@ -795,6 +798,7 @@ Mandatory rules:
 
 - `frame.png` and `arface_export.json` must come from the same runtime moment.
 - Use `screenVertices`, `uvs`, `indices`, and `clipW` or equivalent perspective-correction field.
+- A mesh-derived structural draft is not a projection input by itself. It can enter Phase 3 only after it is accepted as a screen-space lip reference mask with traceable source signals.
 - Reject or down-weight back-facing, occluded, tiny projected-area, and grazing-angle triangles.
 - Count votes only from front-most visible triangles.
 - Treat low-vote UV regions as unknown, not negative.
@@ -890,6 +894,107 @@ Phase 2 Boundary Fusion ready != UV back-projection complete.
 Phase 2 Boundary Fusion ready != runtime mask implemented.
 Phase 2 Boundary Fusion ready != E7.3 Green.
 ```
+
+## 14A. Mesh-Derived Structural Draft and Preset Profile Extension
+
+This section is a planning-only extension. It does not supersede Phase 2 Boundary Fusion, does not execute Phase 3 projection, and does not change the next implementation prompt.
+
+### Current evidence reality
+
+- Current reusable capture evidence includes clean frontal-ish capture pairs and projected mesh overlays, especially `pair_face_20260622T143334Z_03`.
+- Current evidence is not a complete `lip-calib-*` package: neutral/open-close/smile/pucker/yaw calibration captures are not all collected.
+- No accepted human-reviewed lip gold mask exists yet.
+- No real `fusionSummary.json` has been generated from a complete calibration package.
+- Therefore mesh-derived draft work can be designed and visually inspected, but it cannot claim a complete personalized tracking package yet.
+
+### Package naming rule
+
+`PersonalizedRegionTrackingPackage` is a conceptual umbrella only. It is not a new on-disk schema, file name, or source of truth.
+
+The actual package contract remains:
+
+```txt
+schemaVersion=e7-lip-boundary-calibration-v0
+calibrationId=lip-calib-*
+extensions.cheek.status=reserved_only
+extensions.eye.status=reserved_only
+```
+
+### Existing label group reuse
+
+Mesh-derived draft must reuse existing Phase 2 manual vertex label groups where available:
+
+- `lip_ring`
+- `cheekbone_soft_cheek`
+- `eyelid_band`
+
+Do not define this extension as a fresh topology-discovery project. The first draft path is existing label groups plus current export fields, then optional Vision/parsing/user review.
+
+### Derivable signal table
+
+| Signal / feature | Current status | Use in mesh draft | Rule |
+| --- | --- | --- | --- |
+| `screenVertices` | available in current capture exports | project existing lip-ring structure into the clean frame | usable now |
+| `uvs` | available | keep draft tied to ARFace UV space | usable now |
+| `indices` | available | follow triangle edge continuity around the existing label group | usable now |
+| `clipW` | available as projection support | perspective-correct interpolation / projection sanity only | usable now |
+| mesh counts | available, expected `1220/6912/1220` | reject incompatible export shape | usable now |
+| mouth/lip topology seed | available through existing label groups and mesh topology | rough lip-area structural seed | derivable now |
+| lip ring projection | available through label group + screen vertices | first screen-space draft envelope | derivable now |
+| edge continuity | available through indices | avoid disconnected draft islands | derivable now |
+| mouth width / height ratio | derivable from projected structural points | select simple lip preset profile | derivable now |
+| corner distance | derivable from projected structural points when label group is sufficient | detect wide-corner tendency | derivable now |
+| simple area / position ratio | derivable from projected envelope | thin/full/wide rough classification | derivable now |
+| per-vertex normals | not exposed in current accepted export contract | curvature or surface-angle reasoning | exporter extension required |
+| curvature | not exposed and not safely derivable from current fields alone | do not use for current draft scoring | exporter extension required |
+| reliable per-triangle visibility | not exposed | front-most / occlusion rejection | exporter extension required |
+| front-most triangle marking | not exposed | robust UV vote filtering | exporter extension required |
+| blendshape values | current capture export records unavailable | expression-conditioned draft refinement | exporter extension required |
+
+`screenVertices` depth-like values are projection-support metadata only. Do not treat them as normals, curvature, or reliable visibility evidence.
+
+### LipPresetProfile rule
+
+`LipPresetProfile` selects an initial shape policy. It is not a runtime candidate id.
+
+Allowed candidate ids remain:
+
+- `lip-tight-auto-v0`
+- `lip-tight-user-v0`
+- `lip-safe-v0`
+- `lip-smooth-mask-v1` as broad baseline only
+
+Do not create `lip-thin-v0`, `lip-full-v0`, `lip-wide-v0`, `lip-soft-edge-v0`, or `lip-inner-safe-v0` as runtime candidates.
+
+Preset profiles use two separate namespaces:
+
+| Field | Meaning | Namespace rule |
+| --- | --- | --- |
+| `userAdjustmentBias` | initial bias for the four Section 9 scalars: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset` | user-adjustment namespace |
+| `maskDerivationNote` | candidate-generation notes such as feather, coverage, confidence warning, or inner-mouth exclusion strength | candidate-generation namespace |
+
+`feather` and `coverage` are not user adjustment scalars and are not product/material runtime controls in this section.
+
+| Preset profile | `userAdjustmentBias` | `maskDerivationNote` | Candidate preference |
+| --- | --- | --- | --- |
+| `thin` | `tightness` positive | conservative coverage | start with `lip-tight-auto-v0` |
+| `full` | `tightness` negative | coverage-friendly draft allowed, still bounded by accepted reference mask | start with `lip-tight-auto-v0` |
+| `wide` | `cornerShrink` lower | preserve wider corner range if no spill is observed | start with `lip-tight-auto-v0`; review corners |
+| `soft-edge` | no required scalar bias | lower confidence warning; feather derivation note only | require review before promotion |
+| `inner-safe` | `cornerShrink` higher | stronger inner-mouth exclusion | prefer `lip-safe-v0` |
+
+### Flow placement
+
+```txt
+existing label groups + current export fields
+-> mesh-derived structural draft
+-> optional Vision/parsing/color/user review comparison
+-> accepted screen-space lip reference mask
+-> Phase 2 Boundary Fusion candidate decision
+-> Phase 3 UV Projection
+```
+
+The draft is useful only if it helps produce a better accepted reference mask. It is not a substitute for gold review or one-frame round-trip.
 
 ## 15. Runtime Lightweight Tracking
 
