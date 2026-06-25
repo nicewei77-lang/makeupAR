@@ -1962,6 +1962,206 @@ Decision:
 Do not mark E7.3 Green. Record whether M1 is ready / partial / blocked, and name the next concrete step: implement/run Apple Vision, implement/run local face parsing, compute color/gradient, confirm user adjustment, capture pucker/blendshape evidence, fix mesh draft, create/reference-approve mask, fix fusion summary, fix UV projection, or proceed to M2 build gate only after all current M1 gates pass. Keep failure-mode classification as future eval work after boundary quality improves.
 ```
 
+## 24B. Overnight Multi-Agent Launch Contract
+
+Use this section when the user asks Codex to run unattended multi-agent work until the deadline or until the remaining app usage is exhausted.
+
+### Run Window
+
+```txt
+Deadline: 2026-06-26 12:00 KST
+Usage budget: no internal token cap; use the remaining Codex app usage until exhausted
+Concurrency: max 3 active sub-agents
+Stop early when: primary goal completes, usage/quota/rate limit is exhausted, build/device/user judgment is required, or the current goal is honestly partial/blocked
+```
+
+The manager is the current Codex thread. Do not spawn agents until the user explicitly says to start.
+
+### Priority Order
+
+1. Primary goal: complete Section 14B `Gold-Reference Mask Derivation Experiment`.
+2. Secondary goal, only if the primary goal completes cleanly and time/usage remains: complete M3A `Buildless Runtime Sweep Prep`.
+3. Do not start M3B, UnityFramework, Xcode, iPhone install, real-device runtime sweep, or Lip G/Y/R.
+
+### Shared Agent Contract
+
+Every sub-agent must receive these rules:
+
+```txt
+Read first:
+- AGENTS.md
+- TECH_VALIDATION_RESULT.md > Current Session Snapshot
+- docs/roadmaps/active/E7_LIP_BOUNDARY_PRE_AR_CALIBRATION_SPIKE_PLAN_KO.md
+
+Hard rules:
+- lip-only
+- local-only
+- no upload
+- no live face parsing/Core ML runtime
+- no UnityFramework/Xcode/iPhone build
+- do not use the rejected manual polygon lineage
+- do not treat raw gold existence as M1 ready
+- do not claim runtime readiness, E7.3 Green, or Lip G/Y/R
+- if judgment is ambiguous, choose partial_needs_review or partial, not ready
+- do not revert edits made by other agents
+
+Required final format:
+- Status: ready|partial|blocked or prep_ready|partial|blocked
+- Changed files
+- Commands run
+- Evidence/artifact paths
+- Blockers
+- Recommended next action
+```
+
+### Launch Sequence
+
+Run agents in this order:
+
+1. Spawn Evidence Agent and Dev Agent in parallel.
+2. While they run, the Manager reviews untouched context only and prepares integration notes.
+3. When Dev produces artifacts, spawn Scoring Agent.
+4. When Scoring produces `selected_policy.json`, spawn Tester Agent.
+5. Manager integrates only after Tester returns.
+6. If Section 14B ends `ready_for_coordinate_pairing` or a useful `partial_needs_review`, and the run still has time/usage, spawn M3A Prep Agent.
+7. Stop on build/device requirement and record the exact build gate question instead of continuing.
+
+### Evidence Agent Prompt
+
+```txt
+Role: Evidence Agent
+Task: Validate Section 14B inputs before generation/scoring.
+
+Scope:
+- Read the shared contract.
+- Validate `evidence/references/e7-user-gold-raw-20260626/manifest.json`.
+- Check file existence, dimensions, hashes, acceptedAsGold, localOnly, uploadAllowed, roles, and source lineage.
+- Confirm rejected `manual_polygon_codex_visual_reference_v0` lineage is not part of the gold allowlist.
+- Identify which gold sets can support mask extraction and which can only support overlay/context review.
+
+Write scope:
+- Read-only unless the Manager explicitly asks for a small validation note.
+
+Done when:
+- Return a compact readiness report with valid inputs, invalid/missing inputs, and exact blockers.
+```
+
+### Dev Agent Prompt
+
+```txt
+Role: Dev Agent
+Task: Implement/run Section 14B buildless mask derivation.
+
+Scope:
+- Read the shared contract.
+- Build or reuse local scripts to extract gold masks, generate candidates, overlays, contact sheet, and candidate metadata.
+- Use only the user-approved gold raw set under `evidence/references/e7-user-gold-raw-20260626/`.
+- Generate at least the minimum useful gold-derived candidate families from Section 14B.
+- Do not overwrite raw gold files.
+
+Write scope:
+- `scripts/e7_lip_mask_derivation/` if code is needed.
+- `evidence/e7-lip-mask-derivation/experiment-YYYYMMDDTHHMMSSZ/`.
+
+Required artifacts:
+- `input_manifest.json`
+- `gold_extracted_masks/*.png`
+- `gold_extraction_report.json`
+- `candidates/<candidateId>/*.png`
+- `overlays/*`
+- `contact_sheet.png`
+- initial `mask_derivation_scores.json` if easy; otherwise leave scoring to Scoring Agent
+- `mask_derivation_summary.md`
+
+Done when:
+- Artifacts exist or the exact blocker is recorded.
+- No runtime/build/device claim is made.
+```
+
+### Scoring Agent Prompt
+
+```txt
+Role: Scoring Agent
+Task: Score Section 14B candidates and select a policy.
+
+Scope:
+- Read the shared contract.
+- Use the latest `evidence/e7-lip-mask-derivation/experiment-*/` produced by Dev.
+- Compute available Section 14B metrics, hard rejects, finalScore, scoreMargin, and unavailable metric reasons.
+- Write `mask_derivation_scores.json` and `selected_policy.json`.
+- If candidates are too close or signals disagree, choose `partial_needs_review`.
+
+Write scope:
+- The latest Section 14B experiment folder only.
+
+Done when:
+- `selected_policy.json` has `experimentDecision`.
+- The summary names `ready_for_coordinate_pairing|partial_needs_review|blocked` and the next action.
+```
+
+### Tester Agent Prompt
+
+```txt
+Role: Tester Agent
+Task: Verify Section 14B output integrity.
+
+Scope:
+- Read the shared contract.
+- Check required artifacts exist.
+- Validate JSON files parse.
+- Search outputs for rejected lineage.
+- Run `git diff --check`.
+- Run focused Python compile/tests only for touched scripts.
+- Do not run UnityFramework, Xcode, RN iPhone install, or device tests.
+
+Write scope:
+- Read-only unless a tiny verification note is requested.
+
+Done when:
+- Return pass/fail with exact files, commands, and residual risks.
+```
+
+### M3A Prep Agent Prompt
+
+```txt
+Role: M3A Prep Agent
+Task: Prepare buildless runtime sweep artifacts only if Section 14B is already complete enough.
+
+Scope:
+- Read the shared contract and M3A section.
+- Confirm whether M1/M2 outputs are actually ready. If not, mark artifacts `draft` or `blocked_by_m1_m2`.
+- Prepare runtime candidate registry draft, adjustment control contract, sweep evidence schema, runtime sweep checklist, prior evidence summary, and static verification summary.
+- Do not install candidates, run device tests, collect runtime evidence, or decide Lip G/Y/R.
+
+Write scope:
+- `evidence/e7-lip-runtime-sweep-prep/prep-YYYYMMDDTHHMMSSZ/`.
+- Only touch RN/Unity source if the Manager explicitly assigns a narrow buildless wiring patch.
+
+Done when:
+- Result is `prep_ready|partial|blocked`.
+- Every candidate has `runtimeReady=false` unless later real-device evidence exists.
+```
+
+### Manager Completion Rules
+
+The Manager must finish by writing a concise final state:
+
+```txt
+Primary Section 14B: ready_for_coordinate_pairing|partial_needs_review|blocked
+M1 state: ready|partial|blocked
+Optional M3A state: prep_ready|partial|blocked|not_run
+Artifacts:
+- ...
+Commands:
+- ...
+Stopped because:
+- completed|usage_exhausted|deadline|blocked|build_gate_required
+Next exact action:
+- ...
+```
+
+If app usage is exhausted before all agents finish, stop without spawning more agents and preserve the last known partial state.
+
 ## 25. Relationship to Other Docs
 
 - `E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: parent E7.03 / E7.3 Q3 boundary contract.
