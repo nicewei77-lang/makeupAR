@@ -29,6 +29,7 @@ Last updated: 2026-06-25 KST
 19. 사용자는 “입술 모양 3D 모델을 만들어두고 상황마다 맞춰 쓰자”는 팀 의견을 물었다. 결론은 독립적인 예쁜 입술 3D 오브젝트를 얹는 방식은 위험하고, **ARFace에 종속된 lip patch / morph model**로 설계하는 방향은 타당하다는 것이다.
 20. 사용자는 “입술 경계를 제대로 잡기 전까지 화장품 모델링은 의미 없냐”고 물었다. 답은 “shader 연구는 병렬로 가능하지만, 실시간 AR 품질 판단은 boundary가 먼저”로 정리했다.
 21. 마지막으로 사용자는 이번 실험 결과, 문제, 문제 분석, 해결책, 세션 내용 전체를 다음 세션 컨텍스트용 문서로 만들어 달라고 했고, 이 문서를 생성했다.
+22. 이후 사용자는 “블렌딩을 쓰면 안 되나, 직접 GPU를 다루면 되지 않나”라고 물었다. 결론은 블렌딩을 써야 하며, native Metal부터 갈 필요 없이 Unity shader의 fixed-function blend / multi-pass GPU renderer부터 검증하는 것이 맞다는 것이다.
 
 따라서 다음 세션은 이 흐름을 이어 받아야 한다. 지금은 “샘플 값을 조금 더 만져보자”가 아니라, **실험 UX, lip boundary, renderer 구조를 고치는 단계**이다.
 
@@ -394,7 +395,145 @@ field별 범위:
 | textureAmount | `0.00-1.00` | 단, shader 개선 후 의미 있음 |
 | glossBoost | `0.00-1.00` | 단, gloss pass 분리 후 의미 있음 |
 
-## 8. 3D 입술 모델 의견에 대한 판단
+## 8. GPU 블렌딩 / 직접 GPU 렌더링 논의
+
+사용자는 “블렌딩을 쓰면 안 되나, 직접 GPU를 다루면 되지 않나”라고 질문했다.
+
+결론:
+
+```txt
+블렌딩은 써야 한다.
+지금 문제는 블렌딩을 쓰면 안 되는 것이 아니라,
+현재 v0가 실제 화장품용 블렌딩을 거의 쓰지 않는다는 점이다.
+```
+
+현재 shader는 일반 alpha blending에 가깝다.
+
+```txt
+입술 mask 안에
+반투명 색을
+SrcAlpha OneMinusSrcAlpha로 얹음
+```
+
+payload에는 `blendMode=multiply`가 들어가지만, 현재 shader pass는 실제 multiply pigment blend가 아니다. 즉, RN recipe의 `blendMode` 값과 GPU의 실제 blend equation이 아직 일치하지 않는다.
+
+### GPU를 쓰는 현실적인 단계
+
+바로 native Metal/custom plugin으로 갈 필요는 없다. RN + Unity + ARKit validation 경로에서는 아래 순서가 더 안전하다.
+
+```txt
+1. Unity shader fixed-function blending
+2. Unity shader multi-pass renderer
+3. 필요하면 camera/background texture sampling
+4. 그래도 부족하면 native Metal/custom plugin
+```
+
+### 우선 가능한 pigment multiply
+
+립 pigment는 단순 alpha overlay보다 multiply 계열이 더 맞다.
+
+목표:
+
+```txt
+원본 입술/피부 색 * 립 색
+```
+
+효과:
+
+```txt
+색이 얼굴 위에 떠 있는 느낌 감소
+원래 입술 명암 일부 보존
+반투명 색종이 느낌 완화
+```
+
+Unity fixed-function blending으로도 1차 근사는 가능하다.
+
+```shader
+Blend DstColor Zero
+```
+
+단, 그냥 pigment color를 곱하면 너무 어두워질 수 있으므로 shader 출력은 아래처럼 설계하는 편이 낫다.
+
+```txt
+sourceColor = lerp(white, lipColor, alpha)
+finalColor = cameraColor * sourceColor
+```
+
+이렇게 하면 alpha가 낮을 때는 원본에 가깝고, alpha가 높을 때는 lip pigment가 더 강하게 섞인다.
+
+### gloss는 pigment와 다른 pass가 맞다
+
+Gloss는 pigment와 같은 방식으로 처리하면 안 된다.
+
+```txt
+pigment = multiply 계열
+gloss = additive 또는 screen 계열
+```
+
+예:
+
+```shader
+Blend SrcAlpha One
+```
+
+또는 screen에 가까운 pass를 따로 만들 수 있다.
+
+따라서 lip renderer v1은 최소 아래처럼 나누는 것이 맞다.
+
+```txt
+Pass 1: base pigment multiply
+Pass 2: lip detail / wrinkle
+Pass 3: gloss highlight additive or screen
+```
+
+### 블렌딩만으로는 boundary를 고칠 수 없다
+
+중요한 점:
+
+```txt
+좋은 블렌딩은 질감을 고친다.
+좋은 boundary model은 위치를 고친다.
+```
+
+만약 mask가 입술 밖으로 벗어난 상태에서 multiply/gloss를 잘 만들면, 결과는 더 자연스럽게 “입술 밖에 잘못 칠한 화장”이 될 수 있다.
+
+정리하면 아래와 같다.
+
+```txt
+경계가 틀림 + 좋은 블렌딩
+= 더 그럴듯하게 잘못 칠해짐
+
+경계가 맞음 + 나쁜 블렌딩
+= 위치는 맞지만 색종이 같음
+
+경계가 맞음 + 좋은 블렌딩
+= 화장처럼 보이기 시작
+```
+
+따라서 다음 세션에서는 boundary와 renderer를 경쟁시키지 않는다. 둘은 병렬로 가되, 실시간 AR 품질 판정은 boundary가 어느 정도 맞은 뒤에 한다.
+
+### 다음 renderer 실험 제안
+
+lip renderer v1의 첫 GPU 실험은 아래가 적당하다.
+
+```txt
+1. 현재 alpha overlay baseline
+2. pigment multiply pass
+3. pigment multiply + separate gloss pass
+4. pigment multiply + lip detail texture + gloss pass
+```
+
+실험 질문:
+
+- `alpha`보다 `multiply`가 피부/입술에 더 자연스럽게 섞이는가?
+- gloss pass가 색 농도와 분리되어 보이는가?
+- detail pass가 noise가 아니라 입술결로 보이는가?
+- boundary가 아직 broad일 때도 renderer 차이가 눈에 보이는가?
+- renderer 차이는 보이지만 boundary 때문에 최종 품질 판정이 막히는가?
+
+이 실험은 native Metal이 아니라 Unity shader에서 먼저 한다. native Metal/custom plugin은 Unity shader와 URP/custom pass로 충분히 해결되지 않을 때만 검토한다.
+
+## 9. 3D 입술 모델 의견에 대한 판단
 
 팀에서 나온 “입술 모양 3D 모델을 만들어두고 상황마다 맞춰 쓰자”는 의견은 방향성이 있다. 단, 구현 형태를 정확히 잡아야 한다.
 
@@ -434,7 +573,7 @@ lip patch/mask 설계를 위한 reference
 ARFace topology/UV에 맞춘 retopology reference
 ```
 
-## 9. 경계 전에는 화장품 모델링이 의미 없는가
+## 10. 경계 전에는 화장품 모델링이 의미 없는가
 
 정확히 말하면 이렇다.
 
@@ -467,7 +606,7 @@ ARFace topology/UV에 맞춘 retopology reference
 - 경계가 안 맞는 상태로 sample quality를 Green/Red 판정
 - `textureAmount`, `glossBoost` 수치만 늘려서 제품처럼 보이길 기대
 
-## 10. 다음 세션 권장 작업 순서
+## 11. 다음 세션 권장 작업 순서
 
 ### Phase A: 실험 UX 복구
 
@@ -511,10 +650,10 @@ ARFace topology/UV에 맞춘 retopology reference
 
 작업:
 
-- base pigment pass
+- base pigment multiply pass
 - detail/wrinkle pass
-- gloss highlight pass
-- 실제 blend mode 또는 유사 구현
+- gloss highlight additive 또는 screen pass
+- 실제 GPU blend mode 또는 유사 구현
 - gloss용 별도 mask/UV band
 - texture용 vertical lip grain
 
@@ -534,7 +673,7 @@ ARFace topology/UV에 맞춘 retopology reference
 - 기존 v0 값은 reference only로 남김
 - 기기에서 one-build / many-sample 방식으로 재검증
 
-## 11. 다음 세션 프롬프트 초안
+## 12. 다음 세션 프롬프트 초안
 
 ```txt
 cwd=/Users/wiseungcheol/Desktop/makeupAR
@@ -548,7 +687,8 @@ docs/roadmaps/active/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md를 이�
 1. Compact HUD를 collapsed bottom sheet + ScrollView 구조로 바꿔 얼굴을 보면서 조정할 수 있게 한다.
 2. 슬라이더를 안정화한다. locationX 직접 사용을 줄이고, drag 중 Unity post를 throttle 또는 release commit으로 바꾼다.
 3. 이번 세션에서는 lip renderer product quality를 주장하지 않는다.
-4. 가능하면 lip-tight-mask-v1 제작/연결 계획까지 세우되, 바로 E7.4 Green을 주장하지 않는다.
+4. GPU blending은 native Metal이 아니라 Unity shader fixed-function blend / multi-pass부터 검증한다.
+5. 가능하면 lip-tight-mask-v1 제작/연결 계획까지 세우되, 바로 E7.4 Green을 주장하지 않는다.
 
 검증:
 - npm test -- --runInBand --watchman=false
@@ -562,7 +702,7 @@ docs/roadmaps/active/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md를 이�
 - 다음 실기기 판정은 Green/Yellow가 아니라 continue / revise / stop으로 기록한다.
 ```
 
-## 12. 현재 결정
+## 13. 현재 결정
 
 이번 lip sample pack v0는 다음처럼 기록한다.
 

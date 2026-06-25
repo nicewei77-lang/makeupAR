@@ -120,6 +120,17 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--face-parsing-min-lip-pixels", type=int, default=64)
     parser.add_argument(
+        "--color-gradient-script",
+        type=Path,
+        default=Path("scripts/e7_lip_boundary_fusion/compute_color_gradient_confidence.py"),
+        help="Buildless color/gradient confidence script path.",
+    )
+    parser.add_argument(
+        "--skip-color-gradient",
+        action="store_true",
+        help="Leave colorGradientConfidence as required_not_run.",
+    )
+    parser.add_argument(
         "--inner-mouth-status",
         choices=("available", "contract_only", "missing"),
         default="contract_only",
@@ -695,6 +706,124 @@ def face_parsing_capture_payload(face_parsing: dict[str, Any] | None) -> dict[st
     }
 
 
+def unavailable_color_gradient(reason: str, frame_path: Path, capture_pair_id: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": "e7-lip-color-gradient-confidence-v0",
+        "createdAtUtc": utc_now(),
+        "status": "unavailable",
+        "unavailableReason": reason,
+        "capturePairId": capture_pair_id,
+        "sourceFramePath": str(frame_path),
+        "sourceFrameSha256": sha256_file(frame_path) if frame_path.exists() else None,
+        "requiredForM1Ready": True,
+        "runtimePrimaryTracker": False,
+        "derivedEvidenceOnly": True,
+        "recommendedUse": "confidence_only_never_boundary_source",
+        "privacy": {
+            "localOnly": True,
+            "offDeviceUpload": False,
+            "rawFrameStoredByThisTool": False,
+        },
+    }
+
+
+def prepare_color_gradient_confidence(
+    args: argparse.Namespace,
+    repo_root: Path,
+    frame_path: Path,
+    output_dir: Path,
+    capture_pair_id: str,
+) -> dict[str, Any] | None:
+    output_json = output_dir / "color_gradient_confidence.json"
+    run_log = output_dir / "color_gradient_run.json"
+    if args.skip_color_gradient:
+        return None
+
+    script = args.color_gradient_script.resolve()
+    lip_mask = output_dir / "lip_reference_mask.png"
+    if not script.exists():
+        color = unavailable_color_gradient(f"color_gradient_script_missing:{script}", frame_path, capture_pair_id)
+        write_json(output_json, color)
+        return color
+    if not lip_mask.exists():
+        color = unavailable_color_gradient("lip_reference_mask_missing", frame_path, capture_pair_id)
+        write_json(output_json, color)
+        return color
+
+    command = [
+        sys.executable,
+        str(script),
+        "--frame",
+        str(frame_path),
+        "--lip-mask",
+        str(lip_mask),
+        "--output-dir",
+        str(output_dir),
+        "--capture-pair-id",
+        capture_pair_id,
+    ]
+    optional_inputs = [
+        ("--face-parsing-lip", output_dir / "face_parsing_lip_mask.png"),
+        ("--face-parsing-skin", output_dir / "face_parsing_skin_mask.png"),
+        ("--vision-contour", output_dir / "apple_vision_lip_contour.json"),
+    ]
+    for flag, path in optional_inputs:
+        if path.exists():
+            command.extend([flag, str(path)])
+
+    completed = subprocess.run(command, cwd=str(repo_root), text=True, capture_output=True)
+    write_json(
+        run_log,
+        {
+            "schemaVersion": "e7-color-gradient-run-log-v0",
+            "createdAtUtc": utc_now(),
+            "command": command,
+            "returnCode": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "localOnly": True,
+        },
+    )
+    if output_json.exists():
+        return load_json(output_json)
+    color = unavailable_color_gradient(f"color_gradient_runner_failed:{completed.returncode}", frame_path, capture_pair_id)
+    write_json(output_json, color)
+    return color
+
+
+def color_gradient_capture_payload(color_gradient: dict[str, Any] | None) -> dict[str, Any]:
+    if not color_gradient:
+        return {
+            "status": "required_not_run",
+            "summary": "required_for_m1_ready",
+        }
+    return {
+        "status": color_gradient.get("status", "unavailable"),
+        "source": color_gradient.get("source"),
+        "requiredForM1Ready": True,
+        "runtimePrimaryTracker": bool(color_gradient.get("runtimePrimaryTracker", False)),
+        "derivedEvidenceOnly": bool(color_gradient.get("derivedEvidenceOnly", True)),
+        "recommendedUse": color_gradient.get(
+            "recommendedUse", "confidence_only_never_boundary_source"
+        ),
+        "confidenceScore": color_gradient.get("confidenceScore"),
+        "lipSkinDelta": color_gradient.get("lipSkinDelta"),
+        "lumaDelta": color_gradient.get("lumaDelta"),
+        "chromaDelta": color_gradient.get("chromaDelta"),
+        "edgeGradientMean": color_gradient.get("edgeGradientMean"),
+        "boundaryHighlightFraction": color_gradient.get("boundaryHighlightFraction"),
+        "skinDarkFraction": color_gradient.get("skinDarkFraction"),
+        "faceParsingLipReferenceIoU": color_gradient.get("faceParsingLipReferenceIoU"),
+        "lowContrastWarning": bool(color_gradient.get("lowContrastWarning", False)),
+        "shadowWarning": bool(color_gradient.get("shadowWarning", False)),
+        "specularWarning": bool(color_gradient.get("specularWarning", False)),
+        "warnings": color_gradient.get("warnings", []),
+        "jsonPath": "color_gradient_confidence.json",
+        "overlayPath": color_gradient.get("overlayPath", "color_gradient_overlay.png"),
+        "unavailableReason": color_gradient.get("unavailableReason"),
+    }
+
+
 def count_mask_pixels(path: Path) -> int:
     if not path.exists():
         return 0
@@ -837,6 +966,7 @@ def make_capture_entry(
     frame_digest: str | None,
     vision_lip_contour: dict[str, Any] | None = None,
     face_parsing: dict[str, Any] | None = None,
+    color_gradient: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     face = export.get("face", {})
     display = export.get("display", {})
@@ -913,10 +1043,7 @@ def make_capture_entry(
         },
         "visionLipContour": vision_capture_payload(vision_lip_contour),
         "faceParsing": face_parsing_capture_payload(face_parsing),
-        "colorGradientConfidence": {
-            "status": "required_not_run",
-            "summary": "required_for_m1_ready",
-        },
+        "colorGradientConfidence": color_gradient_capture_payload(color_gradient),
     }
 
 
@@ -929,6 +1056,7 @@ def build_calibration_package(
     frame_digest: str,
     vision_lip_contour: dict[str, Any] | None,
     face_parsing: dict[str, Any] | None,
+    color_gradient: dict[str, Any] | None,
 ) -> dict[str, Any]:
     capture_pair_id = export.get("capturePairId") or output_dir.name
     calibration_id = "lip-calib-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-m1-v0"
@@ -943,6 +1071,7 @@ def build_calibration_package(
             frame_digest,
             vision_lip_contour,
             face_parsing,
+            color_gradient,
         ),
         make_capture_entry(capture_pair_id, "open_close", True, "deferred", frame, export, None),
         make_capture_entry(capture_pair_id, "smile", True, "deferred", frame, export, None),
@@ -991,6 +1120,7 @@ def build_calibration_package(
         "preFilterSignals": {
             "appleVisionLipContour": vision_capture_payload(vision_lip_contour),
             "faceParsing": face_parsing_capture_payload(face_parsing),
+            "colorGradientConfidence": color_gradient_capture_payload(color_gradient),
         },
         "offlineCandidateConfigs": {
             candidate_id: {"status": "uv_projection_artifact_only", "runtimeReady": False}
@@ -1153,6 +1283,17 @@ def write_m1_summary(
             if (output_dir / "lip_candidate_generation.json").exists()
             else None,
         },
+        "colorGradient": {
+            "computedCount": reference_signals.get("colorGradientComputed", 0),
+            "requiredMissingCount": reference_signals.get("colorGradientRequiredMissing", 0),
+            "warnings": reference_signals.get("colorGradientWarnings", []),
+            "jsonPath": str(output_dir / "color_gradient_confidence.json")
+            if (output_dir / "color_gradient_confidence.json").exists()
+            else None,
+            "overlayPath": str(output_dir / "color_gradient_overlay.png")
+            if (output_dir / "color_gradient_overlay.png").exists()
+            else None,
+        },
         "uvRoundTripRan": uv_summary.get("artifacts", {}).get("round_trip_overlay.png") not in {None, "pending"},
         "phase2Status": status_value(fusion_path, "phase2Status"),
         "phase3ExecutionStatus": status_value(uv_path, "phase3ExecutionStatus"),
@@ -1186,6 +1327,7 @@ def write_m1_summary(
         f"- Reference accepted as gold: `{str(summary['referenceMask']['acceptedAsGold']).lower()}`",
         f"- Apple Vision contour available count: `{summary['appleVisionLipContour']['availableCount']}`",
         f"- Face parsing silver count: `{summary['faceParsing']['silverCount']}`",
+        f"- Color/gradient computed count: `{summary['colorGradient']['computedCount']}`",
         f"- Boundary quality proof: `{str(summary['boundaryQualityProof']).lower()}`",
         f"- Next step: {summary['nextStep']}.",
         "",
@@ -1205,6 +1347,7 @@ def write_input_manifest(
     reference_meta: dict[str, Any] | None,
     vision_lip_contour: dict[str, Any] | None,
     face_parsing: dict[str, Any] | None,
+    color_gradient: dict[str, Any] | None,
 ) -> None:
     manifest = {
         "schemaVersion": "e7-lip-m1-input-manifest-v1",
@@ -1251,6 +1394,17 @@ def write_input_manifest(
             else None,
             "overlay": "face_parsing_overlay.png"
             if (output_dir / "face_parsing_overlay.png").exists()
+            else None,
+        },
+        "colorGradientInput": {
+            "runRequested": not bool(args.skip_color_gradient),
+            "script": rel(args.color_gradient_script, repo_root),
+            "status": color_gradient.get("status") if color_gradient else "required_not_run",
+            "artifact": "color_gradient_confidence.json"
+            if (output_dir / "color_gradient_confidence.json").exists()
+            else None,
+            "overlay": "color_gradient_overlay.png"
+            if (output_dir / "color_gradient_overlay.png").exists()
             else None,
         },
         "limits": {
@@ -1405,6 +1559,7 @@ def main() -> int:
             None,
             vision_lip_contour,
             face_parsing,
+            None,
         )
         write_blocked_review_needed(output_dir, draft_meta, blockers)
         write_m1_summary(output_dir, None, blockers + ["missing_reproducible_reference_mask"], args)
@@ -1417,6 +1572,13 @@ def main() -> int:
             output_dir / "lip_reference_mask_overlay.png"
         )
         write_json(output_dir / "lip_reference_mask_meta.json", reference_meta)
+    color_gradient = prepare_color_gradient_confidence(
+        args,
+        repo_root,
+        frame_path,
+        output_dir,
+        capture_pair_id,
+    )
     write_input_manifest(
         output_dir,
         repo_root,
@@ -1426,6 +1588,7 @@ def main() -> int:
         reference_meta,
         vision_lip_contour,
         face_parsing,
+        color_gradient,
     )
 
     if blockers:
@@ -1442,6 +1605,7 @@ def main() -> int:
         sha256_file(frame_path),
         vision_lip_contour,
         face_parsing,
+        color_gradient,
     )
     package_path = output_dir / f"{package['calibrationId']}.json"
     write_json(package_path, package)
