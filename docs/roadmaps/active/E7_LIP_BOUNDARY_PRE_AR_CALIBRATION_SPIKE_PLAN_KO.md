@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25 KST
 
-Status: Phase 1 calibration flow contract complete / Active E7.03 / E7.3 lip-first boundary calibration planning contract
+Status: Phase 3 UV Projection preparation ready / Active E7.03 / E7.3 lip-first boundary calibration planning contract
 
 ## 0. One-line Decision
 
@@ -29,6 +29,28 @@ Phase 1 completion note:
 - Pre-AR calibration capture steps, required input signals, local package schema, privacy rules, and Phase 2/3 handoff contract are defined below.
 - Phase 1 is documentation-only; it does not include RN UI implementation, Apple Vision implementation, face parsing implementation, UnityFramework build, Xcode build, iPhone runtime evidence, or E7.3 Green evidence.
 - The next actionable boundary is Phase 2 Boundary Fusion using the local `lip-calib-*` package contract from this document.
+
+Phase 2 completion note:
+
+- Boundary Fusion input readiness, signal priority, candidate decision rules, `fusionSummary.json` / `fusionSummary.md` shape, and Phase 3 UV Projection handoff fields are fixed below.
+- A buildless local contract stub exists at `scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py` to read a `lip-calib-*` package and emit the Phase 2 summary contract without image processing, upload, live face parsing, Core ML, UnityFramework, Xcode, or iPhone runtime work.
+- Phase 2 status is `Phase 2 Boundary Fusion ready` for contract/stub handoff only. It does not produce runtime masks, does not run UV back-projection, and does not mark E7.3 Green.
+
+Phase 3 preparation note:
+
+- UV Projection / one-frame round-trip input contract, missing-input rules, output artifact names, and a buildless local preparation/execution stub are fixed below.
+- The buildless Phase 3 stub exists at `scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`. It reads `fusionSummary.json`, validates one same-moment capture pair plus a screen-space lip reference mask, and can emit `summary.json` / `summary.md` with `ready|partial|blocked` when execution inputs are missing.
+- When an accepted screen-space lip mask and matching capture pair are supplied, the same stub can produce the first offline artifact set: `lip_probability.png`, `lip_coverage.png`, `lip_unknown.png`, `lip_debug_votes.png`, `lip_variants.json`, `round_trip_overlay.png`, `summary.json`, and `summary.md`.
+- Phase 3 status is `Phase 3 UV Projection preparation ready` only. It does not mean one-frame round-trip has been run, does not create a runtime candidate, does not run Unity/iPhone builds, and does not mark E7.3 Green.
+
+Phase map note:
+
+- This lip-first calibration slice uses only Phase 0-3 as actionable milestones.
+- Phase 0: document/routing contract. Complete.
+- Phase 1: pre-AR calibration flow and package contract. Complete.
+- Phase 2: boundary fusion contract and buildless summary stub. Ready.
+- Phase 3: UV projection / one-frame round-trip preparation. Ready for execution when a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are supplied.
+- Sections about runtime tracking, RN validation UI, user adjustment, edge cases, evidence, and G/Y/R are design constraints for later implementation slices, not separate Phase 4-6 milestones in this document.
 
 ## 1. 왜 이 문서가 필요한가
 
@@ -428,9 +450,71 @@ Required shape:
 ```json
 {
   "schemaVersion": "e7-lip-boundary-calibration-v0",
-  "calibrationId": "lip-calib-YYYYMMDD-HHMMSS",
+  "calibrationId": "lip-calib-YYYYMMDD-HHMMSS-v0",
   "region": "lip",
-  "sourceCapturePairIds": ["pair_lip_neutral_0001"],
+  "status": "draft|ready_for_boundary_fusion|ready_for_uv_projection|rejected",
+  "createdAt": "YYYY-MM-DDTHH:mm:ss+09:00",
+  "sourceCapturePairIds": [
+    "pair_lip_neutral_0001",
+    "pair_lip_open_close_0001",
+    "pair_lip_smile_0001",
+    "pair_lip_yaw_left_0001"
+  ],
+  "captureSet": [
+    {
+      "capturePairId": "pair_lip_neutral_0001",
+      "step": "neutral",
+      "required": true,
+      "captureStatus": "captured|deferred|rejected",
+      "cleanFrame": {
+        "localProcessingInput": true,
+        "longTermStored": false,
+        "derivedEvidenceOnly": true,
+        "frameDigest": "sha256-or-null"
+      },
+      "arFace": {
+        "screenVertices": "available",
+        "uvs": "available",
+        "indices": "available",
+        "clipW": "available",
+        "meshCounts": {
+          "vertices": 1220,
+          "indices": 6912,
+          "uvs": 1220
+        }
+      },
+      "tracking": {
+        "state": "Tracking",
+        "faceCount": 1,
+        "meshCountStatus": "valid"
+      },
+      "blendshapeSnapshot": {
+        "status": "available|unavailable",
+        "jawOpen": 0,
+        "mouthSmileLeft": 0,
+        "mouthSmileRight": 0,
+        "mouthFunnel": 0,
+        "mouthPucker": 0
+      },
+      "visionLipContour": {
+        "status": "not_run|available|low_confidence|unavailable",
+        "coordinateSpace": "image_normalized",
+        "confidence": null
+      },
+      "faceParsing": {
+        "status": "not_run|silver|human_reviewed_gold|unavailable",
+        "labels": ["upper_lip", "lower_lip", "inner_mouth"],
+        "localOnly": true
+      },
+      "colorGradientConfidence": {
+        "status": "computed|not_run",
+        "summary": "helper_only",
+        "lowContrastWarning": false,
+        "shadowWarning": false,
+        "specularWarning": false
+      }
+    }
+  ],
   "lipBoundaryVersion": "lip-calibrated-uv-v0",
   "runtimeCandidateIds": [
     "lip-tight-auto-v0",
@@ -454,26 +538,108 @@ Required shape:
       "verticalOffset": 0
     }
   },
+  "phase2BoundaryFusionInput": {
+    "requiredSteps": ["neutral", "open_close", "smile", "yaw"],
+    "optionalSteps": ["pucker"],
+    "referenceSignals": [
+      "visionLipContour",
+      "faceParsing",
+      "colorGradientConfidence",
+      "userAdjustmentParams"
+    ],
+    "fusionCandidatesToProduce": [
+      "lip-tight-auto-v0",
+      "lip-tight-user-v0",
+      "lip-safe-v0"
+    ],
+    "doNotPromoteToGreen": true
+  },
+  "phase3UvProjectionInput": {
+    "requiresSameMomentFrameAndArFaceExport": true,
+    "requiredArFaceFields": ["screenVertices", "uvs", "indices", "clipW"],
+    "projectionRules": [
+      "perspective_correct_uv",
+      "front_most_visible_triangle_only",
+      "grazing_angle_downweight",
+      "unknown_not_negative"
+    ],
+    "expectedArtifacts": [
+      "lip_probability.png",
+      "lip_coverage.png",
+      "lip_unknown.png",
+      "lip_debug_votes.png",
+      "lip_variants.json",
+      "round_trip_overlay.png",
+      "summary.json",
+      "summary.md"
+    ]
+  },
+  "extensions": {
+    "cheek": {
+      "status": "reserved_only"
+    },
+    "eye": {
+      "status": "reserved_only"
+    }
+  },
   "confidenceSummary": {
     "visionContour": "available",
     "faceParsing": "silver_or_unavailable",
     "colorGradient": "helper_only",
-    "humanReview": "pending"
+    "humanReview": "pending",
+    "calibrationFlow": "phase1_contract_complete"
   },
   "privacy": {
+    "localOnly": true,
     "rawFrameStored": false,
-    "offDeviceUpload": false
+    "longTermRawFrameStored": false,
+    "offDeviceUpload": false,
+    "backendUpload": false,
+    "userProfileSync": false
   }
 }
 ```
 
 Notes:
 
-- `rawFrameStored=false`는 long-term package 기준이다. Calibration 중 local frame을 잠깐 만들 수 있지만, official evidence만 남기고 raw frame batch는 삭제한다.
+- `cleanFrame.localProcessingInput=true`는 calibration 중 로컬 메모리/임시 파일로만 쓰는 입력 신호를 뜻한다.
+- `rawFrameStored=false`와 `longTermRawFrameStored=false`는 long-term package 기준이다. Calibration 중 local frame을 잠깐 만들 수 있지만, derived evidence만 남기고 raw frame batch는 삭제한다.
 - `sourceCapturePairIds`는 evidence traceability를 위해 남긴다.
 - `faceParsing=silver_or_unavailable`은 face parsing이 없더라도 plan이 막히지 않게 한다.
+- `status=ready_for_boundary_fusion`은 Phase 2가 reference signal fusion을 시작할 수 있다는 뜻이지 E7.3 Green이 아니다.
+- `status=ready_for_uv_projection`은 Phase 3 one-frame round-trip / UV atlas 준비가 가능하다는 뜻이지 runtime quality evidence가 아니다.
 
 ## 13. Boundary Fusion Model
+
+Phase 2의 목적은 완성된 lip mask를 만드는 것이 아니라, Phase 1 package를 읽어 어떤 신호를 채택/거절하고 어떤 candidate를 Phase 3로 넘길지 결정 가능하게 만드는 것이다.
+
+Local contract stub:
+
+```txt
+python3 scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py \
+  path/to/lip-calib-YYYYMMDD-HHMMSS-v0.json \
+  --output-dir /tmp/e7-lip-fusion
+```
+
+이 stub은 `fusionSummary.json` / `fusionSummary.md` contract를 만든다. 실제 `screenLipReferenceMask` image, face parsing mask, Core ML output, UV atlas, runtime texture는 만들지 않는다.
+
+### Phase 2 input readiness
+
+`lip-calib-*` package는 아래 조건을 만족해야 Phase 2 입력으로 받을 수 있다.
+
+| Input | Required | Accept rule | Reject / down-weight rule |
+| --- | --- | --- | --- |
+| Package metadata | Yes | `schemaVersion=e7-lip-boundary-calibration-v0`, `region=lip`, `calibrationId` starts with `lip-calib-` | non-lip region, unsupported schema, missing id |
+| Privacy flags | Yes | `localOnly=true`, `rawFrameStored=false`, `longTermRawFrameStored=false`, `offDeviceUpload=false`, `backendUpload=false` | any off-device/upload/raw long-term flag |
+| `neutral` | Yes | captured, Tracking, faceCount 1, ARFace fields available | missing, Limited/Lost, faceCount not 1, missing ARFace bridge |
+| `open_close` | Yes | captured or representative closed/open record, ARFace fields available | missing means inner-mouth exclusion cannot be trusted |
+| `smile` | Yes | captured, corner stretch visible enough for review | missing means corner falloff is partial |
+| `yaw` | Yes | at least one `yaw`, `yaw_left`, or `yaw_right` capture | missing means side/corner projection stability is partial |
+| `pucker` | Optional | captured if time allows | missing is `deferred`, not blocker |
+| Apple Vision slot | Yes as slot | `available` can support contour; `not_run` remains explicit | low confidence or unavailable cannot win alone |
+| Face parsing slot | Optional | `human_reviewed_gold` > `silver` > `not_run` | `silver` stays silver until human review |
+| Color/gradient | Helper | computed warnings lower confidence | color-only boundary is rejected |
+| User adjustment | Required as params | missing values default to zero for contract, then record partial if a key is missing | never replaces reference evidence |
 
 우선순위:
 
@@ -494,6 +660,16 @@ User adjustment corrects the final practical boundary.
 Color/gradient only changes confidence, never wins alone.
 ```
 
+### Signal fusion policy
+
+- ARFace topology is the attachment domain. A reference signal outside plausible projected ARFace lip/corner topology is rejected or clipped before Phase 3.
+- Human-reviewed gold wins when it comes from the same runtime moment as the ARFace export.
+- Face parsing `silver` can seed `upper/lower/inner-mouth` labels, but it is never called product gold until human-reviewed.
+- Apple Vision contour can tighten the outer contour when it agrees with gold/silver or when no better reference exists and confidence is acceptable.
+- Color/gradient can only change `confidenceSummary` and `rejectedSignalReasons`; it cannot expand or create a boundary alone.
+- User adjustment is applied last as scalar parameters: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`.
+- If all semantic/reference signals are absent, Phase 2 is `partial`, not `ready`, because Phase 3 would only receive topology with no lip evidence.
+
 Candidate outputs:
 
 | Candidate | Meaning | Default use |
@@ -508,6 +684,98 @@ Promotion rule:
 - `lip-tight-auto-v0` can be promoted only if it beats broad baseline in neutral and at least one expression scenario.
 - `lip-tight-user-v0` is the expected main candidate if automatic contour is close but not exact.
 - `lip-safe-v0` wins if broad/tight candidates repeatedly paint skin, teeth, or inner mouth.
+
+Candidate generation rules:
+
+| Candidate | Required source | Boundary behavior | Confidence / rejection rule |
+| --- | --- | --- | --- |
+| `lip-tight-auto-v0` | neutral + smile/yaw + best available gold/silver/Vision signal | tight outer contour, conservative color confidence, no user bias | reject color-only edges; partial if no gold/silver/Vision signal exists |
+| `lip-tight-user-v0` | `lip-tight-auto-v0` + user adjustment params | applies tightness, upper/lower balance, corner shrink, vertical offset | partial if adjustment params are missing; does not override inner-mouth exclusion |
+| `lip-safe-v0` | open_close + inner-mouth exclusion + corner falloff | smaller spill-prevention mask; accepts under-coverage before teeth/skin spill | wins if tight candidates paint teeth, inner mouth, or lower-face skin |
+
+### `fusionSummary.json` contract
+
+```json
+{
+  "schemaVersion": "e7-lip-boundary-fusion-summary-v0",
+  "fusionId": "fusion-lip-calib-YYYYMMDD-HHMMSS-v0",
+  "calibrationId": "lip-calib-YYYYMMDD-HHMMSS-v0",
+  "region": "lip",
+  "phase2Status": "ready|partial|blocked",
+  "inputs": {
+    "captureSet": {
+      "neutral": [{"capturePairId": "pair_lip_neutral_0001", "acceptedForFusion": true}],
+      "open_close": [{"capturePairId": "pair_lip_open_close_0001", "acceptedForFusion": true}],
+      "smile": [{"capturePairId": "pair_lip_smile_0001", "acceptedForFusion": true}],
+      "yaw": [{"capturePairId": "pair_lip_yaw_left_0001", "acceptedForFusion": true}],
+      "pucker": []
+    },
+    "referenceSignals": {
+      "humanReviewedGold": 0,
+      "faceParsingSilver": 0,
+      "visionContourAvailable": 0,
+      "visionContourLowConfidence": 0,
+      "colorGradientComputed": 0,
+      "colorGradientWarnings": []
+    },
+    "userAdjustment": {
+      "status": "available|default_zero_assumed|partial",
+      "params": {
+        "tightness": 0,
+        "upperLowerBalance": 0,
+        "cornerShrink": 0,
+        "verticalOffset": 0
+      }
+    }
+  },
+  "fusionPolicy": {
+    "priority": [
+      "human_reviewed_gold_mask",
+      "face_parsing_lip_labels_silver_until_reviewed",
+      "apple_vision_lip_contour",
+      "arface_topology_projection",
+      "color_gradient_confidence_helper_only",
+      "user_adjustment_params",
+      "failure_mode_type_preset"
+    ],
+    "runtimeRule": "no_live_face_parsing_or_core_ml_runtime"
+  },
+  "candidateOutputs": {
+    "lip-tight-auto-v0": {
+      "status": "ready_for_mask_derivation|partial_contract_only|blocked",
+      "rejectedSignalReasons": []
+    },
+    "lip-tight-user-v0": {
+      "status": "ready_for_mask_derivation|partial_contract_only|blocked",
+      "rejectedSignalReasons": []
+    },
+    "lip-safe-v0": {
+      "status": "ready_for_mask_derivation|partial_contract_only|blocked",
+      "rejectedSignalReasons": []
+    }
+  },
+  "phase3OutputContract": {
+    "screenSpaceLipReferenceMask": {
+      "requiredFields": ["maskPath", "capturePairId", "coordinateSpace", "acceptedSignalIds"]
+    },
+    "innerMouthExclusion": {
+      "source": "open_close first, faceParsing/vision if available, user review if ambiguous"
+    },
+    "cornerFalloff": {
+      "source": "smile and yaw corner stretch/spill review"
+    },
+    "upperLowerSplit": {
+      "source": "faceParsing labels first, Vision contour second, geometric split fallback only with low confidence"
+    },
+    "confidenceSummary": {
+      "source": "per-capture signal confidence plus global phase2Status"
+    },
+    "rejectedSignalReasons": []
+  }
+}
+```
+
+`fusionSummary.md`는 같은 내용을 사람이 빠르게 읽는 요약으로 남긴다. 실제 raw frame 경로나 장기 보관 위치를 적지 않고, `capturePairId`, signal status, candidate status, rejected reasons만 적는다.
 
 ## 14. Screen Mask to ARFace UV/Vertex Projection
 
@@ -544,6 +812,83 @@ lip_variants.json
 round_trip_overlay.png
 summary.json
 summary.md
+```
+
+Local preparation / execution stub:
+
+```txt
+python3 scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py \
+  path/to/fusionSummary.json \
+  --capture-pair path/to/pair_lip_neutral_0001 \
+  --mask path/to/lip_reference_mask.png \
+  --mask-source human_reviewed_gold \
+  --accepted-signal-id human_reviewed_lip_mask \
+  --inner-mouth-status available \
+  --corner-falloff-status available \
+  --upper-lower-status available \
+  --output-dir /tmp/e7-lip-uv-projection
+```
+
+Preparation behavior:
+
+- If `fusionSummary.json` is missing or Phase 2 is `blocked`, Phase 3 execution is `blocked`.
+- If the same-moment capture pair is missing `frame.png` or `arface_export.json`, Phase 3 execution is `blocked`.
+- If the accepted screen-space lip reference mask is missing, Phase 3 execution is `blocked` rather than generating fake PNGs.
+- If inner-mouth exclusion, corner falloff, or upper/lower split are still `contract_only`, Phase 3 execution is `partial` even if the basic round-trip can run.
+- If `coordinateSpaceValidated=false`, the script records a warning; the next review must inspect `round_trip_overlay.png` before trusting the projection.
+- The script may read a local frame/mask/export to produce derived evidence, but it does not store raw frames long-term, upload data, run live face parsing/Core ML, build UnityFramework, or modify runtime shaders/materials.
+
+### Phase 2 / Phase 3 output contract
+
+Phase 1이 다음 단계에 넘기는 것은 UI 화면 시안이 아니라 local calibration package와 capture record contract다.
+
+Phase 2 Boundary Fusion receives:
+
+- `lip-calib-*` package metadata.
+- `captureSet` entries for `neutral`, `open_close`, `smile`, and at least one `yaw`.
+- optional `pucker` entry, or explicit `deferred` reason.
+- Apple Vision lip contour slot per saved capture, even if status is `not_run`.
+- optional face parsing slot per useful capture, even if status is `not_run` or `unavailable`.
+- color/gradient confidence summary per capture.
+- user adjustment params, initially all zero until the adjustment step is implemented.
+- privacy flags proving `localOnly=true`, `rawFrameStored=false`, and `offDeviceUpload=false`.
+
+Phase 2 Boundary Fusion produces:
+
+- `screenLipReferenceMask` or equivalent derived local mask for each accepted capture.
+- `innerMouthExclusion` decision.
+- `cornerFalloff` decision.
+- `upperLowerSplit` decision.
+- candidate decisions for `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0`.
+- `fusionSummary.json` / `fusionSummary.md` with confidence and rejected-signal reasons.
+
+Phase 3 UV Projection receives:
+
+- Phase 2 accepted screen-space lip reference mask: `maskPath`, `capturePairId`, `coordinateSpace=image_pixel|image_normalized`, `acceptedSignalIds`, `derivedEvidenceOnly=true`.
+- `innerMouthExclusion`: open/close evidence, face parsing/Vision/user-review source, and rejection reason if unavailable.
+- `cornerFalloff`: left/right corner confidence, smile/yaw source ids, and spill-prevention bias.
+- `upperLowerSplit`: upper/lower confidence and fallback label if only geometric split exists.
+- `confidenceSummary`: overall `phase2Status`, per-signal confidence, and whether the mask is gold/silver/reference-only.
+- `rejectedSignalReasons`: missing/low-confidence Vision, unavailable face parsing, color-only edge, missing ARFace field, privacy flag violation, or optional pucker deferred.
+- same-moment ARFace `screenVertices`, `uvs`, `indices`, and `clipW`.
+- `capturePairId` traceability for every projection input.
+- rejection/down-weight rules for occluded, tiny, back-facing, or grazing triangles.
+
+Phase 3 UV Projection produces:
+
+- `uvProbabilityMap`, `upperLipMap`, `lowerLipMap`, `innerMouthExclusionMap`, and `cornerFalloffMap`.
+- `vertexWeightSet`.
+- `round_trip_overlay.png` and `roundTripScore`.
+- `lip_variants.json` with runtime candidate ids.
+- `summary.json` / `summary.md` that separates `roundTripScore`, `calibrationScore`, and future `evalScore`.
+
+Completion rule:
+
+```txt
+Phase 2 Boundary Fusion ready = input/fusion/candidate/output contract and buildless summary stub complete.
+Phase 2 Boundary Fusion ready != UV back-projection complete.
+Phase 2 Boundary Fusion ready != runtime mask implemented.
+Phase 2 Boundary Fusion ready != E7.3 Green.
 ```
 
 ## 15. Runtime Lightweight Tracking
@@ -747,11 +1092,14 @@ Runtime evidence must record:
 Buildless evidence:
 
 - `git diff --check`.
+- If Boundary Fusion contract stub changes: `python3 -m py_compile scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py`.
+- If Phase 3 projection preparation stub changes: `python3 -m py_compile scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`.
 - If RN changes happen later: `npm test -- --runInBand --watchman=false`, `./node_modules/.bin/tsc --noEmit`, `npm run lint`.
 - If projection scripts change later: Python compile check.
 
 Offline evidence:
 
+- `fusionSummary.json` and `fusionSummary.md`.
 - one-frame round-trip overlay.
 - original frame + reference mask + projected mesh overlay.
 - candidate preview contact sheet.
@@ -810,18 +1158,21 @@ Stop and re-scope if:
 
 Recommended future implementation order:
 
-1. Create this doc and route it from the result snapshot.
-2. Add data-contract stubs for `lip-calibrated-uv-v0`.
-3. Create or reuse one synchronized lip capture pair.
-4. Produce one human-reviewed lip gold mask on that frame.
-5. Run one-frame round-trip.
-6. Generate `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0` candidate config.
-7. Add runtime candidate selection without changing broad baseline.
-8. Add minimal user adjustment controls.
-9. Run one-build / many-candidate runtime sweep.
-10. Record lip G/Y/R and next boundary.
+This document's actionable phase map stops at Phase 3. Later runtime tracking, RN UI controls, user adjustment, and edge-case validation are intentionally written as design constraints until a future implementation slice explicitly promotes them into new phases.
 
-Do not skip steps 3-5 and jump straight to runtime candidate claims.
+1. Phase 0: Create this doc and route it from the result snapshot. Complete.
+2. Phase 1: Define capture flow, input signal matrix, `lip-calib-*` schema, privacy policy, and Phase 2/3 handoff contract. Complete.
+3. Phase 2: Fix Boundary Fusion input readiness, signal priority, confidence/rejection rules, candidate output contract, and buildless `fusionSummary` stub. Complete.
+4. Phase 3 preparation: fix one-frame UV projection input checks, output artifact contract, and buildless preparation/execution stub. Ready.
+5. Phase 3 execution: run one-frame screen mask -> ARFace UV -> screen round-trip only after a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are present.
+6. Produce one human-reviewed lip gold mask or explicit silver-only fallback on that frame if it does not already exist.
+7. Generate `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0` candidate config.
+8. Add runtime candidate selection without changing broad baseline.
+9. Add minimal user adjustment controls.
+10. Run one-build / many-candidate runtime sweep only after build approval.
+11. Record lip G/Y/R and next boundary.
+
+Do not skip steps 5-6 and jump straight to runtime candidate claims.
 
 ## 24. Next Implementation Prompt
 
@@ -836,7 +1187,7 @@ Read first:
 - docs/roadmaps/active/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md only for the v0 runtime failure context
 
 Goal:
-Implement the first buildless slice of the E7.03 lip-first pre-AR boundary calibration spike.
+Execute the first buildless Phase 3 one-frame UV projection round-trip for the E7.03 lip-first pre-AR boundary calibration spike, using the completed Phase 2 Boundary Fusion contract and Phase 3 preparation stub.
 
 Scope:
 - lip only
@@ -846,14 +1197,17 @@ Scope:
 - do not upload or persist raw camera frames by default
 
 Preferred first slice:
-1. Add a local candidate/config contract for lip-calibrated-uv-v0.
-2. Add or verify a one-frame lip round-trip input path from a synchronized capture pair.
-3. Produce offline artifacts only: lip_probability, lip_variants, summary.
-4. If code changes are needed, run buildless checks first.
-5. Stop before UnityFramework/Xcode/iPhone build unless the user approves the build gate.
+1. Generate or locate a real `fusionSummary.json` from a `lip-calib-*` package.
+2. Select one same-moment lip capture pair with `frame.png` and `arface_export.json`.
+3. Provide an accepted screen-space lip reference mask on that same frame; record whether it is human-reviewed gold, silver, Vision/reference, or blocked.
+4. Make inner-mouth exclusion, corner falloff, upper/lower split, confidence summary, and rejected-signal reasons explicit.
+5. Run `python3 scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py ...` in buildless mode.
+6. Produce offline artifacts only: lip_probability, lip_coverage, lip_unknown, lip_debug_votes, lip_variants, round_trip_overlay, summary.
+7. If inputs are insufficient, record `ready|partial|blocked` and the exact missing input; do not invent masks or fake artifacts.
+8. Stop before UnityFramework/Xcode/iPhone build unless the user approves the build gate.
 
 Decision:
-Do not mark E7.3 Green. Record only whether the lip-first calibration path is continue / revise / stop.
+Do not mark E7.3 Green. Record whether Phase 3 UV Projection execution is ready / partial / blocked, and keep Phase 2 Boundary Fusion as contract-ready unless new input evidence changes it.
 ```
 
 ## 25. Relationship to Other Docs
