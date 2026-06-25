@@ -16,8 +16,7 @@ from pathlib import Path
 from typing import Any
 
 
-REQUIRED_STEPS = ("neutral", "open_close", "smile", "yaw")
-OPTIONAL_STEPS = ("pucker",)
+REQUIRED_STEPS = ("neutral", "open_close", "smile", "yaw", "pucker")
 REQUIRED_ARFACE_FIELDS = ("screenVertices", "uvs", "indices", "clipW")
 CANDIDATE_IDS = ("lip-tight-auto-v0", "lip-tight-user-v0", "lip-safe-v0")
 FUSION_PRIORITY = (
@@ -25,7 +24,7 @@ FUSION_PRIORITY = (
     "face_parsing_lip_labels_silver_until_reviewed",
     "apple_vision_lip_contour",
     "arface_topology_projection",
-    "color_gradient_confidence_helper_only",
+    "color_gradient_confidence_required_confidence_only",
     "user_adjustment_params",
     "failure_mode_type_preset",
 )
@@ -131,7 +130,7 @@ def summarize_capture_set(package: dict[str, Any]) -> tuple[dict[str, Any], list
         captures_by_step.setdefault(step, []).append(capture)
 
     summary: dict[str, Any] = {}
-    for step in REQUIRED_STEPS + OPTIONAL_STEPS:
+    for step in REQUIRED_STEPS:
         captures = captures_by_step.get(step, [])
         accepted = []
         for capture in captures:
@@ -155,8 +154,8 @@ def summarize_capture_set(package: dict[str, Any]) -> tuple[dict[str, Any], list
             )
         if step in REQUIRED_STEPS and not captures:
             rejected.append(f"missing_required_capture:{step}")
-        if step in OPTIONAL_STEPS and not captures:
-            warnings.append(f"optional_capture_deferred:{step}")
+        if step in REQUIRED_STEPS and captures and not any(item["acceptedForFusion"] for item in accepted):
+            warnings.append(f"required_capture_not_accepted:{step}")
         summary[step] = accepted
     return summary, rejected, warnings
 
@@ -165,13 +164,41 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
     signals = {
         "humanReviewedGold": 0,
         "faceParsingSilver": 0,
+        "faceParsingRequiredAvailable": 0,
+        "faceParsingRequiredMissing": 0,
+        "manualReferenceMask": 0,
+        "meshStructuralDraftReference": 0,
         "visionContourAvailable": 0,
+        "visionContourRequiredMissing": 0,
         "visionContourLowConfidence": 0,
         "colorGradientComputed": 0,
+        "colorGradientRequiredMissing": 0,
         "colorGradientWarnings": [],
+        "screenLipReferenceMask": None,
     }
     rejected: list[str] = []
     warnings: list[str] = []
+
+    reference_mask = package.get("screenLipReferenceMask")
+    if isinstance(reference_mask, dict):
+        signals["screenLipReferenceMask"] = {
+            "status": reference_mask.get("status"),
+            "path": reference_mask.get("maskPath"),
+            "capturePairId": reference_mask.get("capturePairId"),
+            "source": reference_mask.get("source"),
+            "reviewStatus": reference_mask.get("reviewStatus"),
+            "acceptedAsGold": bool(reference_mask.get("acceptedAsGold")),
+            "acceptedSignalIds": reference_mask.get("acceptedSignalIds", []),
+        }
+        source = str(reference_mask.get("source", ""))
+        status = str(reference_mask.get("status", ""))
+        if status in {"available", "reference_ready", "accepted_reference"}:
+            if "mesh" in source or "lip_ring" in source:
+                signals["meshStructuralDraftReference"] += 1
+            else:
+                signals["manualReferenceMask"] += 1
+            if not reference_mask.get("acceptedAsGold"):
+                warnings.append("screen_lip_reference_mask_not_human_reviewed_gold")
 
     for capture in package.get("captureSet", []):
         capture_id = capture.get("capturePairId", "unknown_capture")
@@ -180,19 +207,26 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
             signals["humanReviewedGold"] += 1
         elif face_parsing_status == "silver":
             signals["faceParsingSilver"] += 1
+        if face_parsing_status in {"human_reviewed_gold", "silver"}:
+            signals["faceParsingRequiredAvailable"] += 1
+        else:
+            signals["faceParsingRequiredMissing"] += 1
 
         vision = capture.get("visionLipContour", {})
         vision_status = vision.get("status")
         if vision_status == "available":
+            signals["visionContourAvailable"] += 1
             confidence = vision.get("confidence")
             if isinstance(confidence, (int, float)) and confidence < 0.45:
+                signals["visionContourAvailable"] -= 1
                 signals["visionContourLowConfidence"] += 1
                 rejected.append(f"{capture_id}:vision_contour_low_confidence")
-            else:
-                signals["visionContourAvailable"] += 1
         elif vision_status == "low_confidence":
             signals["visionContourLowConfidence"] += 1
             rejected.append(f"{capture_id}:vision_contour_low_confidence")
+            signals["visionContourRequiredMissing"] += 1
+        else:
+            signals["visionContourRequiredMissing"] += 1
 
         color = capture.get("colorGradientConfidence", {})
         if color.get("status") == "computed":
@@ -202,13 +236,23 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
                     warning = f"{capture_id}:{key}"
                     signals["colorGradientWarnings"].append(warning)
                     warnings.append(warning)
+        else:
+            signals["colorGradientRequiredMissing"] += 1
 
     if not (
         signals["humanReviewedGold"]
         or signals["faceParsingSilver"]
+        or signals["manualReferenceMask"]
+        or signals["meshStructuralDraftReference"]
         or signals["visionContourAvailable"]
     ):
         warnings.append("no_reference_signal_available_yet")
+    if signals["visionContourAvailable"] == 0:
+        warnings.append("required_apple_vision_lip_contour_not_available")
+    if signals["faceParsingRequiredAvailable"] == 0:
+        warnings.append("required_face_parsing_lip_labels_not_available")
+    if signals["colorGradientComputed"] == 0:
+        warnings.append("required_color_gradient_confidence_not_computed")
     return signals, rejected, warnings
 
 
@@ -232,10 +276,12 @@ def summarize_privacy(package: dict[str, Any]) -> tuple[dict[str, bool], list[st
 
 
 def user_adjustment_status(package: dict[str, Any]) -> dict[str, Any]:
-    params = package.get("correction", {}).get("userAdjustmentParams")
+    correction = package.get("correction", {})
+    params = correction.get("userAdjustmentParams")
+    declared_status = correction.get("userAdjustmentStatus")
     if not isinstance(params, dict):
         return {
-            "status": "default_zero_assumed",
+            "status": declared_status or "default_zero_assumed",
             "params": {
                 "tightness": 0,
                 "upperLowerBalance": 0,
@@ -245,7 +291,11 @@ def user_adjustment_status(package: dict[str, Any]) -> dict[str, Any]:
         }
     expected_keys = ("tightness", "upperLowerBalance", "cornerShrink", "verticalOffset")
     missing = [key for key in expected_keys if key not in params]
-    return {"status": "available" if not missing else "partial", "params": params, "missing": missing}
+    if missing:
+        status = "partial"
+    else:
+        status = declared_status or "available"
+    return {"status": status, "params": params, "missing": missing}
 
 
 def decide_candidates(
@@ -257,11 +307,14 @@ def decide_candidates(
     has_reference = bool(
         reference_signals["humanReviewedGold"]
         or reference_signals["faceParsingSilver"]
+        or reference_signals.get("manualReferenceMask")
+        or reference_signals.get("meshStructuralDraftReference")
         or reference_signals["visionContourAvailable"]
     )
+    blocking_warnings = list(warnings)
     if blockers:
         base_status = "blocked"
-    elif has_reference:
+    elif has_reference and not blocking_warnings:
         base_status = "ready_for_mask_derivation"
     else:
         base_status = "partial_contract_only"
@@ -269,17 +322,19 @@ def decide_candidates(
     auto_reasons = []
     if not has_reference:
         auto_reasons.append("needs_gold_silver_or_vision_reference")
+    if blocking_warnings:
+        auto_reasons.extend(f"phase2_not_ready:{warning}" for warning in blocking_warnings)
     if reference_signals["colorGradientWarnings"]:
         auto_reasons.append("color_gradient_warning_lowers_confidence")
 
     user_status = base_status
     user_reasons = list(auto_reasons)
-    if user_adjustment["status"] not in {"available", "default_zero_assumed"}:
+    if user_adjustment["status"] != "user_confirmed":
         user_status = "partial_contract_only" if not blockers else "blocked"
-        user_reasons.append("user_adjustment_params_partial")
+        user_reasons.append(f"user_adjustment_status:{user_adjustment['status']}")
 
     safe_reasons = list(auto_reasons)
-    if any("missing_required_capture:open_close" in item for item in blockers):
+    if any("missing_required_capture:open_close" in item for item in blockers + warnings):
         safe_reasons.append("inner_mouth_seed_missing")
 
     return {
@@ -307,9 +362,7 @@ def decide_candidates(
 def phase2_status(blockers: list[str], warnings: list[str]) -> str:
     if blockers:
         return "blocked"
-    blocking_warnings = [
-        warning for warning in warnings if not warning.startswith("optional_capture_deferred:")
-    ]
+    blocking_warnings = list(warnings)
     if blocking_warnings:
         return "partial"
     return "ready"
@@ -338,8 +391,23 @@ def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]
     blockers.extend(privacy_blockers)
 
     user_adjustment = user_adjustment_status(package)
-    if user_adjustment["status"] == "partial":
-        warnings.append("user_adjustment_params_partial")
+    if user_adjustment["status"] != "user_confirmed":
+        warnings.append(f"user_adjustment_params_{user_adjustment['status']}")
+        warnings.append("required_user_adjustment_not_confirmed")
+
+    failure_mode = package.get("failureModeType") or package.get("failureMode")
+    if not isinstance(failure_mode, dict) or failure_mode.get("status") not in {
+        "classified",
+        "available",
+        "user_confirmed",
+    }:
+        warnings.append("required_failure_mode_type_not_classified")
+
+    if not any(
+        capture.get("blendshapeSnapshot", {}).get("status") == "available"
+        for capture in package.get("captureSet", [])
+    ):
+        warnings.append("required_blendshape_snapshot_not_available")
 
     candidate_outputs = decide_candidates(blockers, warnings, reference_signals, user_adjustment)
     status = phase2_status(blockers, warnings)
@@ -361,24 +429,52 @@ def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]
         },
         "fusionPolicy": {
             "priority": list(FUSION_PRIORITY),
-            "colorGradientRule": "confidence_helper_only_never_wins_alone",
+            "colorGradientRule": "required_confidence_signal_never_wins_alone",
             "faceParsingRule": "offline_silver_until_human_reviewed",
+            "requiredM1Signals": [
+                "pucker",
+                "appleVisionLipContour",
+                "faceParsingLipLabels",
+                "colorGradientConfidence",
+                "userConfirmedAdjustment",
+                "failureModeType",
+                "blendshapeSnapshot",
+            ],
             "runtimeRule": "no_live_face_parsing_or_core_ml_runtime",
         },
         "candidateOutputs": candidate_outputs,
+        "readiness": {
+            "status": status,
+            "blockers": sorted(set(blockers)),
+            "warnings": sorted(set(warnings)),
+            "deferredRequiredCaptures": sorted(
+                reason.split(":", 1)[1]
+                for reason in warnings + blockers
+                if reason.startswith("missing_required_capture:")
+                or reason.startswith("required_capture_not_accepted:")
+            ),
+            "artifactExistenceIsSuccess": False,
+        },
         "phase3OutputContract": {
             "screenSpaceLipReferenceMask": {
-                "status": "ready_for_generation" if status == "ready" else status,
+                "status": (
+                    "available_reference"
+                    if reference_signals.get("manualReferenceMask")
+                    or reference_signals.get("meshStructuralDraftReference")
+                    or reference_signals.get("humanReviewedGold")
+                    else ("ready_for_generation" if status == "ready" else status)
+                ),
+                "current": reference_signals.get("screenLipReferenceMask"),
                 "requiredFields": ["maskPath", "capturePairId", "coordinateSpace", "acceptedSignalIds"],
             },
             "innerMouthExclusion": {
-                "source": "open_close first, faceParsing/vision if available, user review if ambiguous"
+                "source": "open_close plus required faceParsing/vision, user review if ambiguous"
             },
             "cornerFalloff": {
                 "source": "smile and yaw corner stretch/spill review"
             },
             "upperLowerSplit": {
-                "source": "faceParsing labels first, Vision contour second, geometric split fallback only with low confidence"
+                "source": "required faceParsing labels first, required Vision contour second, geometric split fallback only with low confidence"
             },
             "confidenceSummary": {
                 "source": "per-capture signal confidence plus global phase2Status"

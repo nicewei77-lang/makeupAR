@@ -452,28 +452,56 @@ def build_lip_variants(
     candidate_id: str,
     threshold: float,
 ) -> None:
+    offline_configs = {
+        "lip-tight-auto-v0": {
+            "status": "uv_projection_artifact_only",
+            "runtimeReady": False,
+            "threshold": threshold,
+            "maskTexture": "lip_probability.png",
+            "useUserAdjustment": False,
+        },
+        "lip-tight-user-v0": {
+            "status": "uv_projection_artifact_only",
+            "runtimeReady": False,
+            "threshold": threshold,
+            "maskTexture": "lip_probability.png",
+            "useUserAdjustment": True,
+        },
+        "lip-safe-v0": {
+            "status": "uv_projection_artifact_only",
+            "runtimeReady": False,
+            "threshold": max(0.65, threshold),
+            "maskTexture": "lip_probability.png",
+            "useUserAdjustment": True,
+            "rule": "prefer spill prevention before recall",
+        },
+    }
     variants = {
         "schemaVersion": "e7-lip-uv-projection-variants-v0",
         "region": "lip",
         "primaryCandidateId": candidate_id,
+        "offlineCandidateConfigs": offline_configs,
         "variants": [
             {
                 "candidateId": "lip-tight-auto-v0",
                 "threshold": threshold,
                 "maskTexture": "lip_probability.png",
                 "useUserAdjustment": False,
+                "runtimeReady": False,
             },
             {
                 "candidateId": "lip-tight-user-v0",
                 "threshold": threshold,
                 "maskTexture": "lip_probability.png",
                 "useUserAdjustment": True,
+                "runtimeReady": False,
             },
             {
                 "candidateId": "lip-safe-v0",
                 "threshold": max(0.65, threshold),
                 "maskTexture": "lip_probability.png",
                 "useUserAdjustment": True,
+                "runtimeReady": False,
                 "rule": "prefer spill prevention before recall",
             },
         ],
@@ -493,6 +521,10 @@ def write_summary_md(path: Path, summary: dict[str, Any]) -> None:
         f"- Calibration id: `{summary['fusion'].get('calibrationId')}`",
         f"- Capture pair: `{summary['inputs']['capturePair'].get('capturePairId')}`",
         f"- Mask source: `{summary['inputs']['screenSpaceLipReferenceMask']['source']}`",
+        f"- Round-trip kind: `{summary['roundTripKind']}`",
+        f"- Boundary quality proof: `{str(summary['boundaryQualityProof']).lower()}`",
+        f"- Coordinate-space audit: `{summary['coordinateSpaceAuditStatus']}`",
+        f"- Visibility confidence: `{summary['visibilityConfidence']}`",
         "- Scope: lip only; cheek/eye remain extension slots only.",
         "- Limits: buildless, local-only, no live face parsing/Core ML runtime, no upload, no E7.3 Green claim.",
         "",
@@ -522,6 +554,11 @@ def build_base_summary(
         "schemaVersion": "e7-lip-uv-projection-summary-v0",
         "createdAtUtc": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "phase3ExecutionStatus": status_from(blockers, warnings),
+        "roundTripKind": "same_frame_self_reconstruction",
+        "boundaryQualityProof": False,
+        "coordinateSpaceAuditStatus": "blocked" if blockers else "pending",
+        "visibilityConfidence": "blocked" if blockers else "partial",
+        "heldOutEvalPlanStatus": "missing",
         "fusion": {
             "path": str(fusion_path),
             "schemaVersion": fusion.get("schemaVersion"),
@@ -562,6 +599,7 @@ def build_base_summary(
             "grazingAngleDownweight": "contract_only_in_this_stub",
             "unknownNotNegative": True,
             "oneFrameRoundTripOnly": True,
+            "sameFrameRoundTripCountsAsBoundaryQuality": False,
         },
         "artifacts": {name: "pending" for name in EXPECTED_ARTIFACTS},
         "blockers": sorted(set(blockers)),
@@ -693,6 +731,8 @@ def run_projection(
 
     summary["roundTripScore"] = metrics(predicted, mask)
     summary["projectionStats"] = {
+        "roundTripKind": summary["roundTripKind"],
+        "boundaryQualityProof": False,
         "uvResolution": args.uv_resolution,
         "sampleStride": args.sample_stride,
         "renderStride": args.render_stride,
@@ -731,6 +771,15 @@ def main() -> int:
     blockers, warnings, export, frame, mask = validate_contract(args, fusion, capture_files)
     blockers.extend(capture_path_blockers)
     summary = build_base_summary(args, fusion_path, fusion, capture_files, blockers, warnings)
+    if export is None:
+        summary["coordinateSpaceAuditStatus"] = "blocked"
+        summary["visibilityConfidence"] = "blocked"
+    else:
+        summary["coordinateSpaceAuditStatus"] = (
+            "passed" if export.get("coordinateSpaceValidated", False) else "pending"
+        )
+        missing_arface = any(reason.startswith("missing_arface_") for reason in blockers)
+        summary["visibilityConfidence"] = "blocked" if missing_arface else "partial"
 
     can_project = (
         summary["phase3ExecutionStatus"] != "blocked"
