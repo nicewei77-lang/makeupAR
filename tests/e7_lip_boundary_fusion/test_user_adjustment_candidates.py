@@ -82,6 +82,28 @@ class UserAdjustmentCandidateTests(unittest.TestCase):
         )
         self.assertEqual(int(np.count_nonzero(adjusted & self.inner)), 0)
 
+    def test_negative_upper_tightness_keeps_lower_lip_pixels(self):
+        adjusted = apply_user_adjustment(
+            self.base,
+            {"cornerReach": 0, "upperLipTightness": -0.05, "lowerLipTightness": 0, "verticalOffset": 0},
+            self.upper,
+            self.lower,
+            None,
+        )
+        split_y = 52
+        self.assertGreater(int(np.count_nonzero(adjusted[split_y + 1 :])), 0)
+
+    def test_negative_lower_tightness_keeps_upper_lip_pixels(self):
+        adjusted = apply_user_adjustment(
+            self.base,
+            {"cornerReach": 0, "upperLipTightness": 0, "lowerLipTightness": -0.05, "verticalOffset": 0},
+            self.upper,
+            self.lower,
+            None,
+        )
+        split_y = 52
+        self.assertGreater(int(np.count_nonzero(adjusted[: split_y + 1])), 0)
+
 
 class UserAdjustmentReviewTests(unittest.TestCase):
     def test_legacy_only_params_do_not_confirm_user_adjustment(self):

@@ -21,7 +21,7 @@
 - The script exports Unity iOS, verifies ARKit links, builds `UnityFramework` with signing disabled, copies Unity `Data`, and syncs RN/package framework paths.
 - After sync, run from `rn/MakeupARValidation`: `npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK`.
 - Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; stale Licensing Client IPC can block export (`Unsupported protocol version '1.18.1'`).
-- Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable; stale package frameworks previously caused missing Unity objects/events.
+- Keep the durable `RNUnityView.mm` timing patch hooks in RN `postinstall` and the iOS Podfile; stale package frameworks previously caused missing Unity objects/events.
 
 ## Document Rules
 - Keep this file at 50 lines or fewer.

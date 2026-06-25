@@ -12,51 +12,70 @@
         <header class="topbar">
           <div>
             <h1>E7 Lip User Adjustment</h1>
-            <p class="status-line" id="statusLine">candidate JSON과 이미지 폴더를 불러오면 바로 비교할 수 있습니다.</p>
+            <p class="status-line" id="statusLine">슬라이더와 +/- 버튼으로 네 조정값을 직접 시험합니다.</p>
           </div>
           <div class="top-actions">
-            <button id="loadSampleButton" type="button">샘플 불러오기</button>
+            <button id="loadSampleButton" type="button">샘플 자동 로드</button>
             <label class="file-button">
               후보 JSON
               <input id="candidateJsonInput" type="file" accept=".json,application/json" />
             </label>
             <label class="file-button">
-              이미지 폴더
+              출력 폴더 선택
               <input id="assetFolderInput" type="file" webkitdirectory multiple />
             </label>
           </div>
         </header>
 
-        <nav class="mode-tabs" aria-label="Adjustment mode">
-          <button class="tab active" type="button" data-mode="select">후보 선택</button>
-          <button class="tab" type="button" data-mode="slider">슬라이더</button>
-          <button class="tab" type="button" data-mode="guided">문제별 조정</button>
-        </nav>
-
         <section class="content-grid">
           <section class="main-panel">
-            <div class="mode-panel" data-panel="select">
-              <div class="panel-heading">
-                <h2>후보 선택</h2>
-                <span id="candidateCountBadge" class="badge">0 candidates</span>
-              </div>
-              <div id="candidateGrid" class="candidate-grid"></div>
-            </div>
-
-            <div class="mode-panel hidden" data-panel="slider">
+            <div class="mode-panel" data-panel="slider">
               <div class="panel-heading">
                 <h2>슬라이더 조정</h2>
-                <span class="badge">same param contract</span>
+                <span class="badge">+/- step 0.05</span>
               </div>
-              <div id="sliderControls" class="control-stack"></div>
-            </div>
-
-            <div class="mode-panel hidden" data-panel="guided">
-              <div class="panel-heading">
-                <h2>문제별 조정</h2>
-                <span class="badge">observed failure mapped</span>
+              <div id="sliderControls" class="control-stack">
+                <div class="range-row" data-key="cornerReach">
+                  <label for="range-cornerReach">
+                    cornerReach
+                    <small>+ 입꼬리 쪽 확장, - 입꼬리 spill 축소</small>
+                  </label>
+                  <button class="step-button" type="button" data-action="decrement">-</button>
+                  <input id="range-cornerReach" type="range" min="-1" max="1" step="0.05" value="0" />
+                  <button class="step-button" type="button" data-action="increment">+</button>
+                  <span class="number-pill">0.00</span>
+                </div>
+                <div class="range-row" data-key="upperLipTightness">
+                  <label for="range-upperLipTightness">
+                    upperLipTightness
+                    <small>+ 윗입술을 타이트하게, - 윗입술 덮임 증가</small>
+                  </label>
+                  <button class="step-button" type="button" data-action="decrement">-</button>
+                  <input id="range-upperLipTightness" type="range" min="-1" max="1" step="0.05" value="0" />
+                  <button class="step-button" type="button" data-action="increment">+</button>
+                  <span class="number-pill">0.00</span>
+                </div>
+                <div class="range-row" data-key="lowerLipTightness">
+                  <label for="range-lowerLipTightness">
+                    lowerLipTightness
+                    <small>+ 아랫입술을 타이트하게, - 아랫입술 덮임 증가</small>
+                  </label>
+                  <button class="step-button" type="button" data-action="decrement">-</button>
+                  <input id="range-lowerLipTightness" type="range" min="-1" max="1" step="0.05" value="0" />
+                  <button class="step-button" type="button" data-action="increment">+</button>
+                  <span class="number-pill">0.00</span>
+                </div>
+                <div class="range-row" data-key="verticalOffset">
+                  <label for="range-verticalOffset">
+                    verticalOffset
+                    <small>image-space 기준 + 아래, - 위</small>
+                  </label>
+                  <button class="step-button" type="button" data-action="decrement">-</button>
+                  <input id="range-verticalOffset" type="range" min="-1" max="1" step="0.05" value="0" />
+                  <button class="step-button" type="button" data-action="increment">+</button>
+                  <span class="number-pill">0.00</span>
+                </div>
               </div>
-              <div class="guided-grid" id="guidedControls"></div>
             </div>
           </section>
 
@@ -66,9 +85,13 @@
               <button id="confirmButton" type="button">Confirm</button>
             </div>
             <div class="preview-frame">
-              <img id="selectionPreview" alt="Selected candidate preview" />
+              <img
+                id="selectionPreview"
+                alt="Selected candidate preview"
+                src="./local-assets/e7-user-adjustment-smoke/user_adjustment_candidate_ua-00-baseline_overlay.png"
+              />
               <canvas id="adjustmentCanvas" width="480" height="640"></canvas>
-              <div id="previewFallback" class="preview-fallback">이미지 폴더를 선택하면 미리보기가 표시됩니다.</div>
+              <div id="previewFallback" class="preview-fallback">샘플 자동 로드 또는 후보 출력 폴더 선택 후 미리보기가 표시됩니다.</div>
             </div>
             <dl class="param-readout" id="paramReadout"></dl>
             <div class="export-box">
@@ -84,6 +107,6 @@
         </section>
       </section>
     </main>
-    <script src="./app.js"></script>
+    <script src="./app.js?v=slider-only-20260626-9"></script>
   </body>
 </html>

@@ -6,6 +6,7 @@
     "android": "react-native run-android",
     "ios": "react-native run-ios",
     "lint": "eslint .",
+    "postinstall": "node scripts/apply-rn-unity-timing-fix.js",
     "start": "react-native start",
     "test": "jest"
   },

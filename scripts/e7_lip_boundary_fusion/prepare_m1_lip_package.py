@@ -1286,8 +1286,10 @@ def build_calibration_package(
             "userAdjustmentReviewPath": (user_adjustment or {}).get("reviewPath"),
         },
         "failureModeType": {
-            "status": "required_not_classified",
-            "requiredForM1Ready": True,
+            "status": "deferred_followup",
+            "requiredForM1Ready": False,
+            "deferredUntil": "after_boundary_quality_reaches_initial_target",
+            "purpose": "future_eval_failure_taxonomy_not_current_m1_gate",
         },
         "extensions": {"cheek": {"status": "reserved_only"}, "eye": {"status": "reserved_only"}},
         "privacy": {
@@ -1349,8 +1351,6 @@ def build_gate_failures(
         failures.append("colorGradient_required_not_computed")
     if "required_user_adjustment_not_confirmed" in fusion_warnings:
         failures.append("userAdjustment_required_not_confirmed")
-    if "required_failure_mode_type_not_classified" in fusion_warnings:
-        failures.append("failureModeType_required_not_classified")
     if "required_blendshape_snapshot_not_available" in fusion_warnings:
         failures.append("blendshapeSnapshot_required_not_available")
     if "required_capture_not_accepted:pucker" in fusion_warnings:

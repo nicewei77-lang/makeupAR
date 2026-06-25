@@ -72,7 +72,7 @@ Known build caveats:
 
 - The 2026-06-21 Unity export blocker was stale/conflicting Unity Hub/Editor Licensing Client IPC, not E2 code.
 - The blocker signature included `Unsupported protocol version '1.18.1'` and lost client connection.
-- Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable.
+- Keep the durable `RNUnityView.mm` timing patch hooks in RN `postinstall` and the iOS Podfile.
 - Stale package frameworks previously caused missing Unity objects/events, so framework sync evidence matters.
 
 ### Document and evidence rules

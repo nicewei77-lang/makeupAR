@@ -8,6 +8,11 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
+rn_unity_timing_patch = File.expand_path('../scripts/apply-rn-unity-timing-fix.js', __dir__)
+unless system('node', rn_unity_timing_patch)
+  raise '[MakeupARValidation] Failed to apply RNUnityView.mm timing patch'
+end
+
 linkage = ENV['USE_FRAMEWORKS']
 if linkage != nil
   Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green

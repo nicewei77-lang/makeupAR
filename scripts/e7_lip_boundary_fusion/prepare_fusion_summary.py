@@ -34,7 +34,10 @@ FUSION_PRIORITY = (
     "arface_topology_projection",
     "color_gradient_confidence_required_confidence_only",
     "user_adjustment_params",
-    "failure_mode_type_preset",
+    "blendshape_face_state_correction",
+)
+DEFERRED_FOLLOWUPS = (
+    "failure_mode_type_classification_after_boundary_quality",
 )
 
 
@@ -445,6 +448,7 @@ def phase2_status(blockers: list[str], warnings: list[str]) -> str:
 def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]:
     blockers: list[str] = []
     warnings: list[str] = []
+    deferred_followups: list[str] = list(DEFERRED_FOLLOWUPS)
 
     if package.get("schemaVersion") != "e7-lip-boundary-calibration-v0":
         blockers.append("unsupported_schema_version")
@@ -470,12 +474,13 @@ def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]
         warnings.append("required_user_adjustment_not_confirmed")
 
     failure_mode = package.get("failureModeType") or package.get("failureMode")
-    if not isinstance(failure_mode, dict) or failure_mode.get("status") not in {
+    if isinstance(failure_mode, dict) and failure_mode.get("status") in {
         "classified",
         "available",
         "user_confirmed",
+        "manual_or_heuristic_classified",
     }:
-        warnings.append("required_failure_mode_type_not_classified")
+        deferred_followups.append("failure_mode_type_available_for_future_eval")
 
     if not any(
         capture.get("blendshapeSnapshot", {}).get("status") == "available"
@@ -511,9 +516,9 @@ def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]
                 "faceParsingLipLabels",
                 "colorGradientConfidence",
                 "userConfirmedAdjustment",
-                "failureModeType",
                 "blendshapeSnapshot",
             ],
+            "deferredFollowups": sorted(set(deferred_followups)),
             "runtimeRule": "no_live_face_parsing_or_core_ml_runtime",
         },
         "candidateOutputs": candidate_outputs,

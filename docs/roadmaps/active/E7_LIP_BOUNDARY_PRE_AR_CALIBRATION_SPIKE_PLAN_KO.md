@@ -97,7 +97,7 @@ lip boundary model
 - Face parsing lip/skin/mouth labels의 required pre-filter silver 역할.
 - Color/gradient confidence required pre-filter signal.
 - User adjustment confirmation required for M1 ready.
-- Failure-mode based lip type classification required for M1 ready.
+- Failure-mode taxonomy는 boundary 품질이 1차 목표에 도달한 뒤 future eval/held-out 기록으로 deferred.
 - Runtime lightweight tracking model.
 - Evidence, scoring, G/Y/R criteria.
 - 다음 구현 세션 prompt.
@@ -143,7 +143,7 @@ Pre-AR calibration
   required face parsing mask
   color/gradient confidence
   user adjustment
-  failure-mode type tags
+  deferred failure-mode notes
         |
         v
 Boundary fusion
@@ -181,7 +181,7 @@ Runtime
 | Face parsing | required pixel-level semantic lip/skin/mouth silver signal | offline/calibration | No |
 | Color/gradient | required boundary confidence signal | calibration/offline | No |
 | User adjustment | required final personalization confirmation | calibration | Values only |
-| Failure-mode type | required preset / stress-case selection | calibration/evaluation | Values only |
+| Failure-mode type | deferred failure taxonomy / held-out eval grouping after boundary quality improves | evaluation/future | Values only |
 | Blendshape / face state | required expression correction signal for M1 ready | runtime | Yes, lightweight |
 
 ## 6. Apple Vision Role
@@ -362,9 +362,9 @@ UX 원칙:
 
 유형 분류는 demographic classification이 아니다. 사용자를 인종/성별/민감 특성으로 분류하지 않는다.
 
-분류 대상은 관찰 가능한 failure mode다.
+분류 대상은 관찰 가능한 failure mode다. 다만 M1에서는 Apple Vision, face parsing, color/gradient confidence, user adjustment, pucker/blendshape evidence로 기본 boundary 품질을 먼저 검증한다. Failure-mode type은 이번 M1 ready gate에서 제외하고, 엔진 boundary가 1차 목표 수준에 도달한 뒤 future eval / held-out 기록 단계에서 도입한다.
 
-필수 lip tags:
+Deferred lip tags:
 
 - `thin_lip`
 - `full_lip`
@@ -379,14 +379,14 @@ UX 원칙:
 - `strong_lighting_shadow`
 - `pre_applied_lip_color`
 
-이 tag는 아래 목적으로만 쓴다.
+이 tag는 나중에 아래 목적으로만 쓴다.
 
 - 어떤 preset을 먼저 보여줄지 선택.
 - 어떤 stress test를 꼭 볼지 결정.
 - evaluation matrix에서 실패 원인을 분리.
 - future held-out test set을 구성.
 
-Initial `LipPresetProfile` selection is driven by these tags: `thin_lip -> thin`, `full_lip -> full`, `wide_smile_stretch/asymmetric_corners -> wide`, `low_skin_lip_contrast/facial_hair_or_shadow/strong_lighting_shadow/pre_applied_lip_color -> soft-edge`, and `mouth_open_teeth_visible -> inner-safe`.
+Initial `LipPresetProfile` selection may later be driven by these tags: `thin_lip -> thin`, `full_lip -> full`, `wide_smile_stretch/asymmetric_corners -> wide`, `low_skin_lip_contrast/facial_hair_or_shadow/strong_lighting_shadow/pre_applied_lip_color -> soft-edge`, and `mouth_open_teeth_visible -> inner-safe`. Do not build an automatic type classifier without labeled data. For current M1, only clear input-quality retake reasons such as strong lighting shadow, pre-applied lip color, obvious occlusion/shadow, or neutral-capture mouth-open/teeth visibility should affect capture retry decisions.
 
 ## 11. Pre-AR Calibration UX
 
@@ -669,7 +669,7 @@ Required shape:
     "colorGradient": "required_computed_for_m1_ready",
     "humanReview": "required_accepted_gold_for_m1_ready",
     "userAdjustment": "required_user_confirmed_for_m1_ready",
-    "failureModeType": "required_classified_for_m1_ready",
+    "failureModeType": "deferred_future_eval_not_m1_gate",
     "blendshapeSnapshot": "required_available_for_m1_ready",
     "calibrationFlow": "phase1_contract_complete"
   },
@@ -691,7 +691,8 @@ Notes:
 - `sourceCapturePairIds`는 evidence traceability를 위해 남긴다.
 - `timestamp`, `frame`, `viewport`, and `coordinateSpaces` are projection safety fields, not cosmetic metadata. If these are absent, same-moment capture may exist but coordinate-space trust is still partial.
 - `faceParsing=unavailable|required_not_run` 또는 `visionLipContour!=available`이면 M1은 `partial` 또는 `blocked`이며 ready가 아니다.
-- `colorGradientConfidence!=computed`, `userAdjustment.status!=user_confirmed`, `failureModeType!=classified`, `blendshapeSnapshot!=available`, or missing `pucker`이면 M1은 `partial` 또는 `blocked`이며 ready가 아니다.
+- `colorGradientConfidence!=computed`, `userAdjustment.status!=user_confirmed`, `blendshapeSnapshot!=available`, or missing `pucker`이면 M1은 `partial` 또는 `blocked`이며 ready가 아니다.
+- `failureModeType`은 M1 ready gate가 아니다. 값이 없으면 future eval follow-up으로 기록하고, 현재 M1에서는 기본 boundary 품질을 먼저 검증한다.
 - `status=ready_for_boundary_fusion`은 Phase 2가 reference signal fusion을 시작할 수 있다는 뜻이지 E7.3 Green이 아니다.
 - `status=ready_for_uv_projection`은 Phase 3 one-frame round-trip / UV atlas 준비가 가능하다는 뜻이지 runtime quality evidence가 아니다.
 - `offlineCandidateConfigs` are Phase 3 projection artifacts only. They are not Unity-installed runtime candidates. A later runtime slice must record a separate `runtimeCandidateStatus` such as `installed_in_unity|tested_on_device|rejected`.
@@ -728,7 +729,7 @@ python3 scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py \
 | Face parsing lip labels | Yes | local/offline `silver` or `human_reviewed_gold`; required for M1 ready | `not_run` or unavailable keeps M1 partial/blocked; `silver` stays silver until human review |
 | Color/gradient | Yes | `computed` confidence summary for every accepted capture | color-only boundary is rejected; missing keeps M1 partial/blocked |
 | User adjustment | Yes | `status=user_confirmed` with four params; user-confirmed zero is allowed | never replaces reference evidence; absent/default-assumed values keep M1 partial/blocked |
-| Failure-mode type | Yes | classified validation type/preset with source reason | missing keeps M1 partial/blocked |
+| Failure-mode type | No / deferred | optional future eval type/preset with source reason | missing does not block M1; record as deferred follow-up |
 | Blendshape snapshot | Yes | available jaw/smile/pucker/funnel values or explicit exporter support | missing keeps M1 partial/blocked |
 
 우선순위:
@@ -739,8 +740,8 @@ python3 scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py \
 4. ARFace UV/vertex topology.
 5. Color/gradient confidence.
 6. User adjustment.
-7. Failure-mode type preset.
-8. Blendshape / face-state correction.
+7. Blendshape / face-state correction.
+8. Deferred failure-mode taxonomy for later eval only.
 
 Fusion rule:
 
@@ -760,7 +761,8 @@ Color/gradient is required confidence evidence, but never wins alone.
 - Mesh-derived structural draft can seed or constrain a reference-mask candidate through the M1 implementation path in Section 14A. It is required as a review artifact for M1 audit, not gold, and must still become an accepted screen-space mask before UV projection.
 - Color/gradient is required for M1 ready and can only change `confidenceSummary` and `rejectedSignalReasons`; it cannot expand or create a boundary alone.
 - User adjustment is required for M1 ready and is applied last as scalar parameters: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset`.
-- Failure-mode type classification and blendshape/face-state signals are required before M1 ready; if unavailable, the result remains partial with exact missing reasons.
+- Blendshape/face-state signals are required before M1 ready; if unavailable, the result remains partial with exact missing reasons.
+- Failure-mode type classification is deferred until boundary quality is good enough for meaningful failure taxonomy; missing failure-mode tags do not keep M1 partial.
 - If Apple Vision or face parsing is absent, Phase 2 is `partial` or `blocked`, not `ready`, even when a manual/reference mask exists.
 
 Candidate outputs:
@@ -782,9 +784,9 @@ Candidate generation rules:
 
 | Candidate | Required source | Boundary behavior | Confidence / rejection rule |
 | --- | --- | --- | --- |
-| `lip-tight-auto-v0` | neutral + smile/yaw + accepted gold/silver/reference mask + required Vision/parsing/color/failure/blendshape signals | tight outer contour, conservative color confidence, no user bias | reject color-only edges; partial if any required M1 signal is missing |
+| `lip-tight-auto-v0` | neutral + smile/yaw + accepted gold/silver/reference mask + required Vision/parsing/color/blendshape signals | tight outer contour, conservative color confidence, no user bias | reject color-only edges; partial if any required M1 signal is missing |
 | `lip-tight-user-v0` | `lip-tight-auto-v0` + user-confirmed adjustment params | applies corner reach, independent upper/lower tightness, and vertical offset | partial if adjustment is not explicitly user-confirmed; does not override inner-mouth exclusion |
-| `lip-safe-v0` | open_close + accepted pucker + inner-mouth exclusion + corner falloff + required Vision/parsing reference signals | smaller spill-prevention mask; accepts under-coverage before teeth/skin spill | partial if any required M1 signal is missing; wins only after failure-mode evidence supports it |
+| `lip-safe-v0` | open_close + accepted pucker + inner-mouth exclusion + corner falloff + required Vision/parsing reference signals | smaller spill-prevention mask; accepts under-coverage before teeth/skin spill | partial if any required M1 signal is missing; future failure taxonomy may explain later edge-case behavior |
 
 ### `fusionSummary.json` contract
 
@@ -831,7 +833,10 @@ Candidate generation rules:
       "arface_topology_projection",
       "color_gradient_confidence_required_confidence_only",
       "user_adjustment_params",
-      "failure_mode_type_preset"
+      "blendshape_face_state_correction"
+    ],
+    "deferredFollowups": [
+      "failure_mode_type_classification_after_boundary_quality"
     ],
     "runtimeRule": "no_live_face_parsing_or_core_ml_runtime"
   },
@@ -946,7 +951,7 @@ If this metadata is missing, Phase 3 can still report what is present, but `coor
 
 ### Minimum reference mask creation path
 
-The first Phase 3 projection sanity proof may run with a manual mask, but M1 ready must wait for every required M1 signal: Apple Vision, local/offline face parsing, color/gradient, user-confirmed adjustment, failure-mode type, pucker, blendshape/face-state, accepted/gold reference, coordinate/visibility, held-out/eval, and split/exclusion/falloff evidence. Projection-only proof without those signals is partial.
+The first Phase 3 projection sanity proof may run with a manual mask, but M1 ready must wait for every required M1 signal: Apple Vision, local/offline face parsing, color/gradient, user-confirmed adjustment, pucker, blendshape/face-state, accepted/gold reference, coordinate/visibility, held-out/eval, and split/exclusion/falloff evidence. Failure-mode type is deferred until boundary quality is good enough for meaningful taxonomy. Projection-only proof without the required M1 signals is partial.
 
 Minimum path:
 
@@ -1031,7 +1036,8 @@ Phase 3 UV Projection receives:
 - `cornerFalloff`: left/right corner confidence, smile/yaw source ids, and spill-prevention bias.
 - `upperLowerSplit`: upper/lower confidence and fallback label if only geometric split exists.
 - `confidenceSummary`: overall `phase2Status`, per-signal confidence, and whether the mask has required gold/silver/reference acceptance metadata.
-- `rejectedSignalReasons`: missing/low-confidence Vision, unavailable face parsing, missing color/gradient, unconfirmed user adjustment, missing failure-mode type, missing blendshape/face-state, color-only edge, missing ARFace field, privacy flag violation, or missing pucker.
+- `rejectedSignalReasons`: missing/low-confidence Vision, unavailable face parsing, missing color/gradient, unconfirmed user adjustment, missing blendshape/face-state, color-only edge, missing ARFace field, privacy flag violation, or missing pucker.
+- `deferredFollowups`: include `failure_mode_type_classification_after_boundary_quality` when failure taxonomy is intentionally postponed.
 - same-moment ARFace `screenVertices`, `uvs`, `indices`, and `clipW`.
 - `capturePairId` traceability for every projection input.
 - rejection/down-weight rules for occluded, tiny, back-facing, or grazing triangles.
@@ -1479,7 +1485,7 @@ Work:
 - Create or accept one `lip_reference_mask.png`; manual polygon annotation is allowed for the first proof.
 - Produce Apple Vision lip contour artifacts and metadata for the same frame. If Vision is unavailable or low confidence, M1 remains partial/blocked with the exact reason.
 - Produce local/offline face parsing lip/skin/mouth artifacts and metadata for the same frame. If parsing is unavailable, M1 remains partial/blocked with the exact reason.
-- Produce color/gradient confidence artifacts, user-confirmed adjustment params, failure-mode classification, pucker capture, and blendshape/face-state evidence. If any are unavailable, M1 remains partial/blocked with the exact reason.
+- Produce color/gradient confidence artifacts, user-confirmed adjustment params, pucker capture, and blendshape/face-state evidence. If any required signal is unavailable, M1 remains partial/blocked with the exact reason. Failure-mode classification remains a deferred follow-up, not a current M1 blocker.
 - Generate a real `fusionSummary.json` / `fusionSummary.md` for this capture.
 - Run the buildless UV round-trip stub and produce `lip_probability.png`, `lip_coverage.png`, `lip_unknown.png`, `lip_debug_votes.png`, `lip_variants.json`, `round_trip_overlay.png`, `summary.json`, and `summary.md`.
 - Keep `lip_variants.json` as offline configs with `runtimeReady=false`.
@@ -1489,7 +1495,8 @@ Acceptance:
 - The overlay shows whether the personalized mask lands in the correct coordinate space.
 - Apple Vision contour status is `available`; otherwise M1 is not ready.
 - Face parsing status is `silver` or `human_reviewed_gold`; otherwise M1 is not ready.
-- Color/gradient is `computed`, user adjustment is `user_confirmed`, failure-mode type is classified, pucker capture is accepted, and blendshape/face-state values are available; otherwise M1 is not ready.
+- Color/gradient is `computed`, user adjustment is `user_confirmed`, pucker capture is accepted, and blendshape/face-state values are available; otherwise M1 is not ready.
+- Failure-mode type classification is not required for M1 ready; record it later when the engine boundary is strong enough for useful edge-case taxonomy.
 - Missing normals, curvature, reliable triangle visibility, or front-most triangle support are recorded as limitations and keep M1 partial unless their replacement evidence is explicitly accepted.
 - Result is `ready|partial|blocked` with exact reasons.
 - No UnityFramework/Xcode/iPhone build and no runtime candidate claim.
@@ -1584,7 +1591,7 @@ Preferred first slice:
 3. Produce review artifacts: `lip_mesh_draft.png`, `lip_mesh_draft_overlay.png`, and `lip_mesh_draft_meta.json`.
 4. Provide one accepted/reference `lip_reference_mask.png` on the same frame; manual polygon annotation is allowed for the first proof.
 5. Produce required Apple Vision lip contour artifacts and required local/offline face parsing artifacts for the same frame; if either is unavailable, M1 remains partial/blocked with exact reasons.
-6. Produce required color/gradient confidence, user-confirmed adjustment params, failure-mode classification, pucker capture, and blendshape/face-state artifacts; if any are unavailable, M1 remains partial/blocked with exact reasons.
+6. Produce required color/gradient confidence, user-confirmed adjustment params, pucker capture, and blendshape/face-state artifacts; if any required signal is unavailable, M1 remains partial/blocked with exact reasons. Leave failure-mode classification as a deferred follow-up.
 7. Generate a real `fusionSummary.json` / `fusionSummary.md` for this input.
 8. Run `python3 scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py ...` in buildless mode.
 9. Produce offline package artifacts only: lip_probability, lip_coverage, lip_unknown, lip_debug_votes, lip_variants with offlineCandidateConfigs/runtimeReady=false, round_trip_overlay, summary.
@@ -1592,7 +1599,7 @@ Preferred first slice:
 11. Stop before UnityFramework/Xcode/iPhone build unless the user approves the M2 build gate.
 
 Decision:
-Do not mark E7.3 Green. Record whether M1 is ready / partial / blocked, and name the next concrete step: implement/run Apple Vision, implement/run local face parsing, compute color/gradient, confirm user adjustment, classify failure mode, capture pucker/blendshape evidence, fix mesh draft, create/reference-approve mask, fix fusion summary, fix UV projection, or proceed to M2 build gate only after all M1 gates pass.
+Do not mark E7.3 Green. Record whether M1 is ready / partial / blocked, and name the next concrete step: implement/run Apple Vision, implement/run local face parsing, compute color/gradient, confirm user adjustment, capture pucker/blendshape evidence, fix mesh draft, create/reference-approve mask, fix fusion summary, fix UV projection, or proceed to M2 build gate only after all current M1 gates pass. Keep failure-mode classification as future eval work after boundary quality improves.
 ```
 
 ## 25. Relationship to Other Docs

@@ -227,10 +227,6 @@ def ready_gate_failures(input_dir: Path, files: dict[str, Any]) -> list[str]:
         not isinstance(params, dict) or any(key not in params for key in USER_ADJUSTMENT_KEYS)
     ):
         failures.append("userAdjustment_legacy_only_not_accepted")
-    if "required_failure_mode_type_not_classified" in readiness_warnings:
-        failures.append("failureModeType_required_not_classified")
-    if "failureModeType" not in fusion.get("inputs", {}) and "failureMode" not in fusion.get("inputs", {}):
-        failures.append("failureModeType_required_not_classified")
     if (
         "required_blendshape_snapshot_not_available" in readiness_warnings
         or not fusion.get("inputs", {}).get("blendshapeSnapshot")

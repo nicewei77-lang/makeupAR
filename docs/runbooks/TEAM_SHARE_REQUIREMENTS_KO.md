@@ -91,7 +91,7 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 | `/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity` | build script default Unity path | Unity 설치 위치가 다르면 `UNITY_BIN=/path/to/Unity`로 실행 |
 | `위승철의 iPhone` | local RN iOS device name | 팀원 기기 이름으로 `--device` 값을 교체 |
 | `9G4K6N63MK` | local Apple Development Team | 팀원 Apple Team ID로 `DEVELOPMENT_TEAM` 교체 |
-| package-local `RNUnityView.mm` timing caveat | clean reinstall에서 local `node_modules` patch가 사라질 수 있음 | 공유 후 첫 real-device run에서 Unity view initialization을 재검증하거나 durable patch로 승격 |
+| durable `RNUnityView.mm` timing patch hook | clean reinstall에서 RN `postinstall` / iOS Podfile hook이 package-local patch를 재적용해야 함 | 설치 로그에서 `[rn-unity-timing-fix]`를 확인하고 첫 real-device run에서 Unity view initialization을 재검증 |
 
 팀원은 개인값을 source file에 직접 커밋하지 않는다. 실행할 때 명령어 인자나 환경변수로 넘긴다.
 
@@ -119,7 +119,7 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 - RN 화면에서 smooth-mask validation UI가 뜬다.
 - 실기기에서 Unity initialization, face tracking, RN/Unity event path가 깨지지 않는다.
 
-첫 실행에서 문제가 나면 먼저 `RNUnityView.mm` timing patch caveat와 package framework sync를 의심한다. 이 caveat를 해소하기 전까지 clean reinstall 안정성은 Yellow risk다.
+첫 실행에서 문제가 나면 먼저 `[rn-unity-timing-fix]` hook 실행 여부와 package framework sync를 확인한다. Hook이 실행됐는데도 Unity view가 검은 화면이면 real-device initialization 로그를 다시 수집한다.
 
 ## 보존해야 하는 파일
 
@@ -183,7 +183,7 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 
 - Source/lockfile 기반으로 팀원이 다시 설치하고 UnityFramework를 재생성하는 구조다.
 - 현재 repo는 iPhone validation 전용이다. Android, backend, AI inference, admin, payment, production makeup rendering은 공유 실행 범위가 아니다.
-- Clean reinstall의 남은 Yellow risk는 package-local `RNUnityView.mm` timing caveat다. 공유 전 코드 수정으로 해결하지 않고, 첫 팀원 실행 검증 항목으로 남긴다.
+- Clean reinstall의 `RNUnityView.mm` timing risk는 RN `postinstall`과 iOS Podfile hook으로 완화했다. 첫 팀원 실행에서는 hook 로그와 Unity view initialization을 검증 항목으로 남긴다.
 
 ## 에이전트 작업 규칙
 

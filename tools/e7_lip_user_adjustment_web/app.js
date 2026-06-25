@@ -9,12 +9,19 @@ const PARAM_KEYS = [
   "verticalOffset",
 ];
 const LEGACY_PARAM_KEYS = ["tightness", "upperLowerBalance", "cornerShrink"];
-const DEFAULT_PARAMS = Object.fromEntries(PARAM_KEYS.map((key) => [key, 0]));
+const DEFAULT_PARAMS = {
+  cornerReach: 0,
+  upperLipTightness: 0,
+  lowerLipTightness: 0,
+  verticalOffset: 0,
+};
 const CUSTOM_CANDIDATE_IDS = {
   slider: "ua-web-slider-custom",
-  guided: "ua-web-guided-custom",
 };
 const DEFAULT_SAMPLE_URL = "./local-assets/e7-user-adjustment-smoke/user_adjustment_candidates.json";
+const DEFAULT_SAMPLE_ASSET_DIR = "./local-assets/e7-user-adjustment-smoke";
+const LOCAL_SERVER_URL = "http://127.0.0.1:8787/tools/e7_lip_user_adjustment_web/";
+const SHAPE_SCALE_INTENSITY = 1.15;
 
 const PARAM_META = {
   cornerReach: {
@@ -35,43 +42,12 @@ const PARAM_META = {
   },
 };
 
-const GUIDED_GROUPS = [
-  {
-    title: "가로 폭 / 입꼬리",
-    actions: [
-      ["입꼬리 더 잡기", "cornerReach", 0.05],
-      ["입꼬리 spill 줄이기", "cornerReach", -0.05],
-    ],
-  },
-  {
-    title: "윗입술",
-    actions: [
-      ["윗입술 번짐 줄이기", "upperLipTightness", 0.05],
-      ["윗입술 덮임 늘리기", "upperLipTightness", -0.05],
-    ],
-  },
-  {
-    title: "아랫입술",
-    actions: [
-      ["아랫입술 번짐 줄이기", "lowerLipTightness", 0.05],
-      ["아랫입술 덮임 늘리기", "lowerLipTightness", -0.05],
-    ],
-  },
-  {
-    title: "높낮이",
-    actions: [
-      ["위로 올리기", "verticalOffset", -0.05],
-      ["아래로 내리기", "verticalOffset", 0.05],
-    ],
-  },
-];
-
 const state = {
-  mode: "select",
+  mode: "slider",
   candidatesPayload: null,
   candidates: [],
   selectedCandidateId: null,
-  params: { ...DEFAULT_PARAMS },
+  params: Object.assign({}, DEFAULT_PARAMS),
   assetUrls: new Map(),
   assetFiles: new Map(),
   imageCache: new Map(),
@@ -92,10 +68,7 @@ const els = {
   candidateJsonInput: document.getElementById("candidateJsonInput"),
   assetFolderInput: document.getElementById("assetFolderInput"),
   loadSampleButton: document.getElementById("loadSampleButton"),
-  candidateGrid: document.getElementById("candidateGrid"),
-  candidateCountBadge: document.getElementById("candidateCountBadge"),
   sliderControls: document.getElementById("sliderControls"),
-  guidedControls: document.getElementById("guidedControls"),
   selectionPreview: document.getElementById("selectionPreview"),
   adjustmentCanvas: document.getElementById("adjustmentCanvas"),
   previewFallback: document.getElementById("previewFallback"),
@@ -116,16 +89,28 @@ function roundParam(value) {
   return Number(clamp(value).toFixed(2));
 }
 
+function copyParams(params) {
+  return {
+    cornerReach: Number(params.cornerReach || 0),
+    upperLipTightness: Number(params.upperLipTightness || 0),
+    lowerLipTightness: Number(params.lowerLipTightness || 0),
+    verticalOffset: Number(params.verticalOffset || 0),
+  };
+}
+
+function normalizePath(value) {
+  return String(value || "").split("\\").join("/");
+}
+
 function basename(value) {
-  return String(value || "")
-    .replaceAll("\\", "/")
+  return normalizePath(value)
     .split("/")
     .filter(Boolean)
     .pop();
 }
 
 function repoRelativeUrl(value) {
-  const text = String(value || "").replaceAll("\\", "/");
+  const text = normalizePath(value);
   const markers = ["/evidence/", "/tools/", "/docs/", "/scripts/"];
   for (const marker of markers) {
     const index = text.indexOf(marker);
@@ -137,7 +122,7 @@ function repoRelativeUrl(value) {
 }
 
 function localTmpAssetUrl(value) {
-  const text = String(value || "").replaceAll("\\", "/");
+  const text = normalizePath(value);
   const privateTmpMarker = "/private/tmp/";
   const tmpMarker = "/tmp/";
   const privateIndex = text.indexOf(privateTmpMarker);
@@ -157,9 +142,13 @@ function setStatus(message, tone = "neutral") {
 }
 
 function resolveAssetUrl(pathOrName) {
+  const text = normalizePath(pathOrName);
   const name = basename(pathOrName);
   if (name && state.assetUrls.has(name)) {
     return state.assetUrls.get(name);
+  }
+  if (text.indexOf("./") === 0 || text.indexOf("local-assets/") === 0) {
+    return text.indexOf("./") === 0 ? text : `./${text}`;
   }
   const localUrl = localTmpAssetUrl(pathOrName);
   if (localUrl) {
@@ -177,54 +166,18 @@ function normalizeCandidate(item) {
   return {
     candidateId: item.candidateId,
     label: item.label || item.candidateId,
-    params: { ...DEFAULT_PARAMS, ...(item.params || {}) },
+    params: Object.assign({}, DEFAULT_PARAMS, item.params || {}),
     maskPath: item.maskPath || item.selectedMaskPath || "",
     overlayPath: item.overlayPath || "",
     metrics: item.metrics || {},
   };
 }
 
-function renderCandidates() {
-  els.candidateGrid.innerHTML = "";
-  els.candidateCountBadge.textContent = `${state.candidates.length} candidates`;
-  if (!state.candidates.length) {
-    const empty = document.createElement("div");
-    empty.className = "candidate-placeholder";
-    empty.textContent = "user_adjustment_candidates.json을 불러오세요.";
-    els.candidateGrid.append(empty);
-    return;
-  }
-
-  for (const candidate of state.candidates) {
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = "candidate-card";
-    if (candidate.candidateId === state.selectedCandidateId) {
-      card.classList.add("selected");
-    }
-    const imageUrl = resolveAssetUrl(candidate.overlayPath || candidate.maskPath);
-    if (imageUrl) {
-      const img = document.createElement("img");
-      img.alt = candidate.label;
-      img.src = imageUrl;
-      card.append(img);
-    } else {
-      const placeholder = document.createElement("div");
-      placeholder.className = "candidate-placeholder";
-      placeholder.textContent = candidate.candidateId;
-      card.append(placeholder);
-    }
-    const meta = document.createElement("div");
-    meta.className = "candidate-meta";
-    const title = document.createElement("strong");
-    title.textContent = candidate.candidateId;
-    const label = document.createElement("span");
-    label.textContent = candidate.label;
-    meta.append(title, label);
-    card.append(meta);
-    card.addEventListener("click", () => selectCandidate(candidate.candidateId));
-    els.candidateGrid.append(card);
-  }
+function setParam(key, value) {
+  state.params[key] = roundParam(value);
+  state.confirmed = false;
+  renderSliders();
+  syncAfterParamChange();
 }
 
 function renderSliders() {
@@ -238,6 +191,12 @@ function renderSliders() {
     const help = document.createElement("small");
     help.textContent = PARAM_META[key].help;
     label.append(help);
+    const decrement = document.createElement("button");
+    decrement.type = "button";
+    decrement.className = "step-button";
+    decrement.textContent = "-";
+    decrement.title = `${key} -0.05`;
+    decrement.addEventListener("click", () => setParam(key, state.params[key] - 0.05));
     const input = document.createElement("input");
     input.id = `range-${key}`;
     input.type = "range";
@@ -254,34 +213,14 @@ function renderSliders() {
       state.confirmed = false;
       syncAfterParamChange();
     });
-    row.append(label, input, value);
+    const increment = document.createElement("button");
+    increment.type = "button";
+    increment.className = "step-button";
+    increment.textContent = "+";
+    increment.title = `${key} +0.05`;
+    increment.addEventListener("click", () => setParam(key, state.params[key] + 0.05));
+    row.append(label, decrement, input, increment, value);
     els.sliderControls.append(row);
-  }
-}
-
-function renderGuidedControls() {
-  els.guidedControls.innerHTML = "";
-  for (const group of GUIDED_GROUPS) {
-    const row = document.createElement("section");
-    row.className = "guided-row";
-    const title = document.createElement("strong");
-    title.textContent = group.title;
-    const actions = document.createElement("div");
-    actions.className = "guided-actions";
-    for (const [label, key, delta] of group.actions) {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.textContent = label;
-      button.addEventListener("click", () => {
-        state.params[key] = roundParam(state.params[key] + delta);
-        state.confirmed = false;
-        renderSliders();
-        syncAfterParamChange();
-      });
-      actions.append(button);
-    }
-    row.append(title, actions);
-    els.guidedControls.append(row);
   }
 }
 
@@ -296,54 +235,44 @@ function renderParamReadout() {
   }
 }
 
-function selectedCandidatePreviewUrl() {
-  const candidate = candidateById(state.selectedCandidateId);
-  if (!candidate) {
-    return "";
-  }
-  return resolveAssetUrl(candidate.overlayPath || candidate.maskPath);
-}
-
 function renderPreview() {
   els.selectionPreview.style.display = "none";
   els.adjustmentCanvas.style.display = "none";
   els.previewFallback.style.display = "none";
 
-  if (state.mode === "select") {
-    const url = selectedCandidatePreviewUrl();
-    if (url) {
-      els.selectionPreview.src = url;
-      els.selectionPreview.style.display = "block";
-    } else {
-      els.previewFallback.style.display = "block";
-    }
-    return;
-  }
-
   if (state.generatedMask) {
     drawAdjustmentPreview();
     els.adjustmentCanvas.style.display = "block";
+    return;
+  }
+
+  const previewUrl = samplePreviewUrl();
+  if (previewUrl) {
+    els.selectionPreview.src = previewUrl;
+    els.selectionPreview.style.display = "block";
   } else {
     els.previewFallback.style.display = "block";
   }
 }
 
+function samplePreviewUrl() {
+  const selected = candidateById(state.selectedCandidateId) || state.candidates[0];
+  if (selected && (selected.overlayPath || selected.maskPath)) {
+    return resolveAssetUrl(selected.overlayPath || selected.maskPath);
+  }
+  return `${DEFAULT_SAMPLE_ASSET_DIR}/user_adjustment_candidate_ua-00-baseline_overlay.png`;
+}
+
 function buildReviewPayload() {
-  const isSelect = state.mode === "select";
-  const candidateId = isSelect
-    ? state.selectedCandidateId
-    : CUSTOM_CANDIDATE_IDS[state.mode];
-  const candidate = isSelect ? candidateById(candidateId) : null;
-  const selectedMaskPath = isSelect
-    ? basename(candidate?.maskPath || "")
-    : `user_adjustment_candidate_${candidateId}_mask.png`;
+  const candidateId = CUSTOM_CANDIDATE_IDS.slider;
+  const selectedMaskPath = `user_adjustment_candidate_${candidateId}_mask.png`;
   return {
     schemaVersion: REVIEW_SCHEMA_VERSION,
     status: state.confirmed ? "user_confirmed" : "needs_user_selection",
     confirmedByUser: state.confirmed,
     selectedCandidateId: candidateId,
     selectedMaskPath,
-    params: { ...state.params },
+    params: copyParams(state.params),
     observedFixes: observedFixes(),
     knownWeaknesses: [
       "buildless_web_ui_experiment_only",
@@ -376,31 +305,6 @@ function syncJsonOutput() {
   els.reviewJsonOutput.value = `${JSON.stringify(buildReviewPayload(), null, 2)}\n`;
 }
 
-function selectCandidate(candidateId) {
-  const candidate = candidateById(candidateId);
-  if (!candidate) return;
-  state.selectedCandidateId = candidateId;
-  state.params = { ...DEFAULT_PARAMS, ...candidate.params };
-  state.confirmed = false;
-  renderCandidates();
-  renderSliders();
-  renderParamReadout();
-  renderPreview();
-  syncJsonOutput();
-}
-
-function switchMode(mode) {
-  state.mode = mode;
-  for (const tab of document.querySelectorAll(".tab")) {
-    tab.classList.toggle("active", tab.dataset.mode === mode);
-  }
-  for (const panel of document.querySelectorAll(".mode-panel")) {
-    panel.classList.toggle("hidden", panel.dataset.panel !== mode);
-  }
-  state.confirmed = false;
-  syncAfterParamChange();
-}
-
 async function readFileAsText(file) {
   return await file.text();
 }
@@ -414,27 +318,61 @@ async function loadCandidatePayload(payload, sourceLabel) {
   state.candidatesPayload = payload;
   const sourceCandidates = payload.candidates || payload.candidateOptions || [];
   state.candidates = sourceCandidates.map(normalizeCandidate);
-  const selected = state.candidates[0]?.candidateId || null;
+  const selected = (state.candidates[0] && state.candidates[0].candidateId) || null;
   state.selectedCandidateId = selected;
   if (selected) {
-    state.params = { ...DEFAULT_PARAMS, ...candidateById(selected).params };
+    state.params = Object.assign({}, DEFAULT_PARAMS, candidateById(selected).params);
   }
   state.confirmed = false;
-  renderCandidates();
   renderSliders();
   renderParamReadout();
-  await loadBaseAssets();
-  renderPreview();
-  syncJsonOutput();
-  setStatus(`${sourceLabel} loaded. 이미지가 안 보이면 이미지 폴더 또는 local-assets 연결을 확인하세요.`);
+  try {
+    await loadBaseAssets();
+  } catch {
+    state.assets.frame = null;
+    state.assets.baseMask = null;
+    state.assets.upperMask = null;
+    state.assets.lowerMask = null;
+    state.assets.innerMask = null;
+  }
+  syncAfterParamChange();
+  setStatus(`${sourceLabel} loaded. 샘플 미리보기가 자동으로 표시됩니다.`);
 }
 
 async function loadDefaultSample() {
-  const response = await fetch(DEFAULT_SAMPLE_URL, { cache: "no-store" });
-  if (!response.ok) {
-    throw new Error("sample_not_available: local-assets/e7-user-adjustment-smoke 연결이 필요합니다.");
+  try {
+    const response = await fetch(DEFAULT_SAMPLE_URL, { cache: "no-store" });
+    if (response.ok) {
+      await loadCandidatePayload(await response.json(), "sample user_adjustment_candidates.json");
+      return;
+    }
+  } catch {
+    // Fall through to the path-only sample so the UI is still usable when fetch is unavailable.
   }
-  await loadCandidatePayload(await response.json(), "sample user_adjustment_candidates.json");
+  await loadCandidatePayload(defaultSamplePayload(), "built-in local sample paths");
+}
+
+function defaultSamplePayload() {
+  return {
+    schemaVersion: CANDIDATE_SCHEMA_VERSION,
+    inputs: {
+      framePath: "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/frame.png",
+      baseMaskPath: `${DEFAULT_SAMPLE_ASSET_DIR}/user_adjustment_candidate_ua-00-baseline_mask.png`,
+      upperLipMaskPath: null,
+      lowerLipMaskPath: null,
+      innerMouthMaskPath: null,
+    },
+    candidates: [
+      {
+        candidateId: "ua-00-baseline",
+        label: "baseline",
+        params: Object.assign({}, DEFAULT_PARAMS),
+        maskPath: `${DEFAULT_SAMPLE_ASSET_DIR}/user_adjustment_candidate_ua-00-baseline_mask.png`,
+        overlayPath: `${DEFAULT_SAMPLE_ASSET_DIR}/user_adjustment_candidate_ua-00-baseline_overlay.png`,
+        metrics: {},
+      },
+    ],
+  };
 }
 
 function loadAssetFolder(files) {
@@ -448,10 +386,12 @@ function loadAssetFolder(files) {
     state.assetFiles.set(file.name, file);
     state.assetUrls.set(file.name, URL.createObjectURL(file));
   }
-  renderCandidates();
   loadBaseAssets().then(() => {
     syncAfterParamChange();
     setStatus(`${files.length} image/files loaded for preview.`);
+  }).catch(() => {
+    syncAfterParamChange();
+    setStatus("출력 폴더 이미지를 일부 읽지 못했지만 샘플 미리보기로 계속 표시합니다.", "warn");
   });
 }
 
@@ -495,7 +435,7 @@ async function imageToMask(pathOrName, expectedSize = null) {
 }
 
 async function loadBaseAssets() {
-  const inputs = state.candidatesPayload?.inputs || {};
+  const inputs = (state.candidatesPayload && state.candidatesPayload.inputs) || {};
   const baseline = candidateById("ua-00-baseline") || state.candidates[0] || {};
   const framePath = inputs.framePath || "frame.png";
   const basePath = inputs.baseMaskPath || baseline.maskPath || "lip-tight-auto-v0_mask.png";
@@ -629,13 +569,80 @@ function verticalExpand(mask, pixels, direction, split) {
   return maskFromData(mask, out);
 }
 
-function applySupport(mask, support) {
-  if (!support) return mask;
-  const out = new Uint8Array(mask.data);
-  for (let i = 0; i < out.length; i += 1) {
-    out[i] = out[i] && support.data[i] ? 1 : 0;
+function partBox(mask, predicate) {
+  let minX = mask.width;
+  let minY = mask.height;
+  let maxX = -1;
+  let maxY = -1;
+  let count = 0;
+  for (let y = 0; y < mask.height; y += 1) {
+    const row = y * mask.width;
+    for (let x = 0; x < mask.width; x += 1) {
+      if (!mask.data[row + x] || !predicate(x, y)) continue;
+      count += 1;
+      if (x < minX) minX = x;
+      if (x > maxX) maxX = x;
+      if (y < minY) minY = y;
+      if (y > maxY) maxY = y;
+    }
   }
-  return maskFromData(mask, out);
+  if (!count) return null;
+  return { minX, minY, maxX, maxY, width: maxX - minX + 1, height: maxY - minY + 1, count };
+}
+
+function transformedBounds(box, scaleX, scaleY, anchorX, anchorY, width, height) {
+  const xs = [
+    anchorX + (box.minX - anchorX) * scaleX,
+    anchorX + (box.maxX - anchorX) * scaleX,
+  ];
+  const ys = [
+    anchorY + (box.minY - anchorY) * scaleY,
+    anchorY + (box.maxY - anchorY) * scaleY,
+  ];
+  return {
+    minX: Math.max(0, Math.floor(Math.min(xs[0], xs[1])) - 2),
+    maxX: Math.min(width - 1, Math.ceil(Math.max(xs[0], xs[1])) + 2),
+    minY: Math.max(0, Math.floor(Math.min(ys[0], ys[1])) - 2),
+    maxY: Math.min(height - 1, Math.ceil(Math.max(ys[0], ys[1])) + 2),
+  };
+}
+
+function resampleMaskPart(mask, scaleX, scaleY, anchorX, anchorY, predicate) {
+  const box = partBox(mask, predicate);
+  if (!box || (scaleX === 1 && scaleY === 1)) return cloneMask(mask);
+  const out = new Uint8Array(mask.data);
+  for (let y = 0; y < mask.height; y += 1) {
+    const row = y * mask.width;
+    for (let x = 0; x < mask.width; x += 1) {
+      if (predicate(x, y)) out[row + x] = 0;
+    }
+  }
+  const bounds = transformedBounds(box, scaleX, scaleY, anchorX, anchorY, mask.width, mask.height);
+  let count = 0;
+  for (let y = bounds.minY; y <= bounds.maxY; y += 1) {
+    for (let x = bounds.minX; x <= bounds.maxX; x += 1) {
+      if (!predicate(x, y)) continue;
+      const sourceX = Math.round(anchorX + (x - anchorX) / scaleX);
+      const sourceY = Math.round(anchorY + (y - anchorY) / scaleY);
+      if (
+        sourceX >= 0 &&
+        sourceX < mask.width &&
+        sourceY >= 0 &&
+        sourceY < mask.height &&
+        predicate(sourceX, sourceY) &&
+        mask.data[sourceY * mask.width + sourceX]
+      ) {
+        out[y * mask.width + x] = 1;
+        count += 1;
+      }
+    }
+  }
+  return count ? maskFromData(mask, out) : cloneMask(mask);
+}
+
+function scaleFromAmount(amount, intensity, invert = false) {
+  const direction = invert ? -1 : 1;
+  return clamp(1 + Number(amount || 0) * intensity * direction, 0.55, 1.55);
 }
 
 function applyInnerMouthExclusion(mask, inner) {
@@ -647,54 +654,27 @@ function applyInnerMouthExclusion(mask, inner) {
   return maskFromData(mask, out);
 }
 
-function applyCornerReach(mask, amount, support) {
+function applyCornerReach(mask, amount) {
   const box = bbox(mask);
   if (!box || amount === 0) return cloneMask(mask);
-  const pixels = Math.max(1, Math.round(Math.abs(amount) * Math.max(2, box.width) * 0.18));
-  if (amount > 0) {
-    return applySupport(horizontalExpand(mask, pixels), support);
-  }
-  const out = new Uint8Array(mask.data);
   const centerX = (box.minX + box.maxX) / 2;
-  for (let y = box.minY; y <= box.maxY; y += 1) {
-    const row = y * mask.width;
-    for (let x = box.minX; x <= box.maxX; x += 1) {
-      const keepX = x >= box.minX + pixels && x <= box.maxX - pixels;
-      const centerBand = Math.abs(x - centerX) <= Math.max(1, box.width * 0.18);
-      if (!keepX && !centerBand) out[row + x] = 0;
-    }
-  }
-  return maskFromData(mask, out);
+  const centerY = (box.minY + box.maxY) / 2;
+  const scaleX = scaleFromAmount(amount, SHAPE_SCALE_INTENSITY);
+  return resampleMaskPart(mask, scaleX, 1, centerX, centerY, () => true);
 }
 
 function applyUpperTightness(mask, amount, split, support) {
   const box = bbox(mask);
   if (!box || amount === 0) return cloneMask(mask);
-  const pixels = Math.max(1, Math.round(Math.abs(amount) * Math.max(2, box.height) * 0.22));
-  const out = new Uint8Array(mask.data);
-  if (amount > 0) {
-    const limit = box.minY + pixels;
-    for (let y = box.minY; y < Math.min(limit, split + 1); y += 1) {
-      out.fill(0, y * mask.width, y * mask.width + mask.width);
-    }
-    return maskFromData(mask, out);
-  }
-  return applySupport(verticalExpand(mask, pixels, -1, split), support);
+  const scaleY = scaleFromAmount(amount, SHAPE_SCALE_INTENSITY, true);
+  return resampleMaskPart(mask, 1, scaleY, (box.minX + box.maxX) / 2, split, (x, y) => y <= split);
 }
 
 function applyLowerTightness(mask, amount, split, support) {
   const box = bbox(mask);
   if (!box || amount === 0) return cloneMask(mask);
-  const pixels = Math.max(1, Math.round(Math.abs(amount) * Math.max(2, box.height) * 0.22));
-  const out = new Uint8Array(mask.data);
-  if (amount > 0) {
-    const limit = box.maxY - pixels;
-    for (let y = Math.max(split + 1, limit + 1); y <= box.maxY; y += 1) {
-      out.fill(0, y * mask.width, y * mask.width + mask.width);
-    }
-    return maskFromData(mask, out);
-  }
-  return applySupport(verticalExpand(mask, pixels, 1, split), support);
+  const scaleY = scaleFromAmount(amount, SHAPE_SCALE_INTENSITY, true);
+  return resampleMaskPart(mask, 1, scaleY, (box.minX + box.maxX) / 2, split, (x, y) => y > split);
 }
 
 function applyVerticalOffset(mask, amount) {
@@ -704,21 +684,20 @@ function applyVerticalOffset(mask, amount) {
   return shiftMask(mask, 0, pixels);
 }
 
-function unionMasks(a, b) {
-  if (!a && !b) return null;
-  if (!a) return cloneMask(b);
-  if (!b) return cloneMask(a);
-  const out = new Uint8Array(a.data.length);
+function mergeAddedPixels(original, expanded, support) {
+  if (!support) return expanded;
+  const out = new Uint8Array(original.data);
   for (let i = 0; i < out.length; i += 1) {
-    out[i] = a.data[i] || b.data[i] ? 1 : 0;
+    if (!original.data[i] && expanded.data[i] && support.data[i]) {
+      out[i] = 1;
+    }
   }
-  return maskFromData(a, out);
+  return maskFromData(original, out);
 }
 
 function applyUserAdjustment(base, params, upper, lower, inner) {
-  const support = unionMasks(upper, lower);
   const split = splitY(base, upper, lower);
-  let adjusted = applyCornerReach(base, Number(params.cornerReach || 0), support);
+  let adjusted = applyCornerReach(base, Number(params.cornerReach || 0));
   adjusted = applyUpperTightness(adjusted, Number(params.upperLipTightness || 0), split, upper);
   adjusted = applyLowerTightness(adjusted, Number(params.lowerLipTightness || 0), split, lower);
   adjusted = applyVerticalOffset(adjusted, Number(params.verticalOffset || 0));
@@ -730,7 +709,7 @@ function maskMetrics(mask, baseline) {
   const box = bbox(mask);
   const baseBox = bbox(baseline);
   return {
-    positivePixels: box?.count || 0,
+    positivePixels: box ? box.count : 0,
     bbox: box
       ? {
           available: true,
@@ -745,6 +724,47 @@ function maskMetrics(mask, baseline) {
     bboxWidthDelta: box && baseBox ? box.width - baseBox.width : null,
     bboxHeightDelta: box && baseBox ? box.height - baseBox.height : null,
   };
+}
+
+function maskValue(mask, x, y) {
+  if (!mask || x < 0 || y < 0 || x >= mask.width || y >= mask.height) return 0;
+  return mask.data[y * mask.width + x];
+}
+
+function maskEdge(mask, x, y) {
+  if (!maskValue(mask, x, y)) return false;
+  return (
+    !maskValue(mask, x - 1, y) ||
+    !maskValue(mask, x + 1, y) ||
+    !maskValue(mask, x, y - 1) ||
+    !maskValue(mask, x, y + 1)
+  );
+}
+
+function paintDisplayPixel(display, width, height, x, y, radius) {
+  for (let yy = Math.max(0, y - radius); yy <= Math.min(height - 1, y + radius); yy += 1) {
+    const row = yy * width;
+    for (let xx = Math.max(0, x - radius); xx <= Math.min(width - 1, x + radius); xx += 1) {
+      display[row + xx] = 1;
+    }
+  }
+}
+
+function maskToDisplayMask(mask, displayWidth, displayHeight, scale, radius, edgeOnly = false) {
+  const display = new Uint8Array(displayWidth * displayHeight);
+  const box = bbox(mask);
+  if (!box) return display;
+  for (let y = box.minY; y <= box.maxY; y += 1) {
+    const row = y * mask.width;
+    for (let x = box.minX; x <= box.maxX; x += 1) {
+      if (!mask.data[row + x]) continue;
+      if (edgeOnly && !maskEdge(mask, x, y)) continue;
+      const displayX = Math.max(0, Math.min(displayWidth - 1, Math.round(x * scale)));
+      const displayY = Math.max(0, Math.min(displayHeight - 1, Math.round(y * scale)));
+      paintDisplayPixel(display, displayWidth, displayHeight, displayX, displayY, radius);
+    }
+  }
+  return display;
 }
 
 function updateGeneratedMask() {
@@ -769,10 +789,13 @@ function drawAdjustmentPreview() {
   if (!mask) return;
   const canvas = els.adjustmentCanvas;
   const frame = state.assets.frame;
+  const base = state.assets.baseMask;
   const maxWidth = 390;
-  const scale = Math.min(1, maxWidth / mask.width);
-  canvas.width = Math.max(1, Math.round(mask.width * scale));
-  canvas.height = Math.max(1, Math.round(mask.height * scale));
+  const sourceWidth = frame ? frame.naturalWidth || frame.width : mask.width;
+  const sourceHeight = frame ? frame.naturalHeight || frame.height : mask.height;
+  const scale = Math.min(1, maxWidth / sourceWidth);
+  canvas.width = Math.max(1, Math.round(sourceWidth * scale));
+  canvas.height = Math.max(1, Math.round(sourceHeight * scale));
   const context = canvas.getContext("2d", { willReadFrequently: true });
   context.clearRect(0, 0, canvas.width, canvas.height);
   if (frame) {
@@ -783,25 +806,56 @@ function drawAdjustmentPreview() {
   }
   const image = context.getImageData(0, 0, canvas.width, canvas.height);
   const data = image.data;
+  const fillRadius = 0;
+  const edgeRadius = 0;
+  const currentDisplay = maskToDisplayMask(mask, canvas.width, canvas.height, scale, fillRadius);
+  const baseDisplay = maskToDisplayMask(base, canvas.width, canvas.height, scale, fillRadius);
+  const currentEdge = maskToDisplayMask(mask, canvas.width, canvas.height, scale, edgeRadius, true);
+  const baseEdge = maskToDisplayMask(base, canvas.width, canvas.height, scale, edgeRadius, true);
   for (let y = 0; y < canvas.height; y += 1) {
-    const sourceY = Math.min(mask.height - 1, Math.floor(y / scale));
+    const row = y * canvas.width;
     for (let x = 0; x < canvas.width; x += 1) {
-      const sourceX = Math.min(mask.width - 1, Math.floor(x / scale));
-      if (!mask.data[sourceY * mask.width + sourceX]) continue;
+      const displayIndex = row + x;
       const i = (y * canvas.width + x) * 4;
-      data[i] = data[i] * 0.48 + 255 * 0.52;
-      data[i + 1] = data[i + 1] * 0.48 + 45 * 0.52;
-      data[i + 2] = data[i + 2] * 0.48 + 120 * 0.52;
-      data[i + 3] = 255;
+      const currentHit = currentDisplay[displayIndex];
+      const baseHit = baseDisplay[displayIndex];
+      if (currentHit && baseHit) {
+        data[i] = data[i] * 0.42 + 255 * 0.58;
+        data[i + 1] = data[i + 1] * 0.42 + 45 * 0.58;
+        data[i + 2] = data[i + 2] * 0.42 + 120 * 0.58;
+        data[i + 3] = 255;
+      }
+      if (currentHit && !baseHit) {
+        data[i] = data[i] * 0.62 + 40 * 0.38;
+        data[i + 1] = data[i + 1] * 0.62 + 190 * 0.38;
+        data[i + 2] = data[i + 2] * 0.62 + 105 * 0.38;
+        data[i + 3] = 255;
+      }
+      if (baseHit && !currentHit) {
+        data[i] = data[i] * 0.78 + 0 * 0.22;
+        data[i + 1] = data[i + 1] * 0.78 + 210 * 0.22;
+        data[i + 2] = data[i + 2] * 0.78 + 230 * 0.22;
+        data[i + 3] = 255;
+      }
+      if (baseEdge[displayIndex]) {
+        data[i] = 0;
+        data[i + 1] = 180;
+        data[i + 2] = 190;
+        data[i + 3] = 255;
+      }
+      if (currentEdge[displayIndex]) {
+        data[i] = 255;
+        data[i + 1] = 220;
+        data[i + 2] = 0;
+        data[i + 3] = 255;
+      }
     }
   }
   context.putImageData(image, 0, 0);
 }
 
 function syncAfterParamChange() {
-  if (state.mode !== "select") {
-    updateGeneratedMask();
-  }
+  updateGeneratedMask();
   renderParamReadout();
   renderPreview();
   syncJsonOutput();
@@ -812,7 +866,7 @@ function buildCustomCandidate() {
   return {
     candidateId,
     label: `${state.mode} custom`,
-    params: { ...state.params },
+    params: copyParams(state.params),
     maskPath: `user_adjustment_candidate_${candidateId}_mask.png`,
     overlayPath: null,
     metrics: state.generatedMetrics || {},
@@ -820,20 +874,16 @@ function buildCustomCandidate() {
 }
 
 function buildCandidatesPayloadForExport() {
-  if (state.mode === "select" && state.candidatesPayload) {
-    return state.candidatesPayload;
-  }
   const existing = state.candidatesPayload || {
     schemaVersion: CANDIDATE_SCHEMA_VERSION,
     candidates: [],
   };
   const custom = buildCustomCandidate();
-  const candidates = [
-    ...(existing.candidates || []).filter((item) => item.candidateId !== custom.candidateId),
-    custom,
-  ];
-  return {
-    ...existing,
+  const baseCandidates = existing.candidates || [];
+  const candidates = baseCandidates
+    .filter((item) => item.candidateId !== custom.candidateId)
+    .concat([custom]);
+  return Object.assign({}, existing, {
     schemaVersion: CANDIDATE_SCHEMA_VERSION,
     createdAtUtc: new Date().toISOString(),
     candidateCount: candidates.length,
@@ -854,7 +904,7 @@ function buildCandidatesPayloadForExport() {
       doesNotClaimRuntimeReady: true,
       doesNotClaimE73Green: true,
     },
-  };
+  });
 }
 
 function downloadText(filename, text, mime = "application/json") {
@@ -900,7 +950,7 @@ function maskToCanvas(mask) {
 
 function downloadCustomMask() {
   if (!state.generatedMask) {
-    setStatus("custom mask를 만들려면 이미지 폴더에서 base mask가 필요합니다.", "warn");
+    setStatus("custom mask를 만들려면 출력 폴더에서 base mask가 필요합니다.", "warn");
     return;
   }
   const candidateId = CUSTOM_CANDIDATE_IDS[state.mode] || CUSTOM_CANDIDATE_IDS.slider;
@@ -919,11 +969,7 @@ function downloadCustomMask() {
 }
 
 function confirmCurrent() {
-  if (state.mode === "select" && !state.selectedCandidateId) {
-    setStatus("먼저 후보를 선택하세요.", "warn");
-    return;
-  }
-  if (state.mode !== "select" && !state.generatedMask) {
+  if (!state.generatedMask) {
     setStatus("직접 조정 모드는 base mask가 있어야 확정할 수 있습니다.", "warn");
     return;
   }
@@ -933,7 +979,7 @@ function confirmCurrent() {
 }
 
 function resetParams() {
-  state.params = { ...DEFAULT_PARAMS };
+  state.params = Object.assign({}, DEFAULT_PARAMS);
   state.confirmed = false;
   renderSliders();
   syncAfterParamChange();
@@ -941,10 +987,10 @@ function resetParams() {
 
 function bindEvents() {
   els.loadSampleButton.addEventListener("click", () => {
-    loadDefaultSample().catch((error) => setStatus(error.message, "warn"));
+    loadDefaultSample().catch(() => setStatus("샘플 자동 로드를 완료하지 못했습니다. 출력 폴더를 선택해 주세요.", "warn"));
   });
   els.candidateJsonInput.addEventListener("change", (event) => {
-    const file = event.target.files?.[0];
+    const file = event.target.files && event.target.files[0];
     if (file) {
       loadCandidateJson(file).catch((error) => setStatus(error.message, "warn"));
     }
@@ -953,9 +999,6 @@ function bindEvents() {
     const files = Array.from(event.target.files || []);
     if (files.length) loadAssetFolder(files);
   });
-  for (const tab of document.querySelectorAll(".tab")) {
-    tab.addEventListener("click", () => switchMode(tab.dataset.mode));
-  }
   els.resetParamsButton.addEventListener("click", resetParams);
   els.confirmButton.addEventListener("click", confirmCurrent);
   els.downloadReviewButton.addEventListener("click", downloadReviewJson);
@@ -965,13 +1008,11 @@ function bindEvents() {
 
 function boot() {
   bindEvents();
-  renderCandidates();
   renderSliders();
-  renderGuidedControls();
   renderParamReadout();
   syncJsonOutput();
   loadDefaultSample().catch(() => {
-    setStatus("candidate JSON과 이미지 폴더를 불러오면 바로 비교할 수 있습니다.");
+    setStatus("후보 JSON과 같은 출력 폴더를 선택하면 미리보기가 표시됩니다.");
   });
   window.E7LipUserAdjustmentApi = {
     PARAM_KEYS,
@@ -982,4 +1023,12 @@ function boot() {
   };
 }
 
-boot();
+function redirectFileProtocolToLocalServer() {
+  if (window.location.protocol !== "file:") return false;
+  window.location.replace(LOCAL_SERVER_URL);
+  return true;
+}
+
+if (!redirectFileProtocolToLocalServer()) {
+  boot();
+}

@@ -94,7 +94,7 @@ payload는 항상 3 layers를 유지한다. `lip`만 `enabled=true`이고 `cheek
 | RN iPhone install/launch | pass | `evidence/logs/e7-lip-sample-pack-v0-rn-ios-run-20260625-151236.log` |
 | RNUnityView timing fix 후 reinstall | pass | `evidence/logs/e7-lip-sample-pack-v0-rn-ios-run-unityviewfix-20260625-152046.log` |
 
-주의: `pod install` 이후 `node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm` timing patch가 사라져 Unity view가 검은 화면으로 뜨는 문제가 재발했다. 이번 세션에서 package-local patch를 다시 적용해 재설치했다. 이 패치는 아직 durable하지 않다.
+주의: `pod install` 이후 `node_modules/@azesmway/react-native-unity/ios/RNUnityView.mm` timing patch가 사라져 Unity view가 검은 화면으로 뜨는 문제가 재발했다. 후속 cleanup에서 `rn/MakeupARValidation/scripts/apply-rn-unity-timing-fix.js`, RN `postinstall`, iOS Podfile hook으로 이 패치를 durable하게 재적용하도록 고정했다.
 
 ## 3. 런타임 영상 증거
 
@@ -697,7 +697,7 @@ docs/roadmaps/active/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md를 이�
 - buildless checks 후 필요하면 사용자 승인 받고 iPhone build
 
 주의:
-- RNUnityView.mm timing patch는 package-local caveat다. pod install/clean reinstall 후 사라질 수 있으니 확인한다.
+- RNUnityView.mm timing patch는 RN `postinstall`과 iOS Podfile hook으로 재적용된다. clean reinstall 후에는 hook 실행 로그와 Unity view initialization만 확인한다.
 - 현재 v0 shader는 unlit alpha + weak grain + fixed gloss proxy라 샘플 품질 판단에는 한계가 있다.
 - 다음 실기기 판정은 Green/Yellow가 아니라 continue / revise / stop으로 기록한다.
 ```

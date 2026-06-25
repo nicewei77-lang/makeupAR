@@ -23,6 +23,7 @@ SCHEMA_VERSION = "e7-lip-user-adjustment-candidates-v0"
 REVIEW_SCHEMA_VERSION = "e7-lip-user-adjustment-review-v0"
 PARAM_KEYS = ("cornerReach", "upperLipTightness", "lowerLipTightness", "verticalOffset")
 LEGACY_PARAM_KEYS = ("tightness", "upperLowerBalance", "cornerShrink")
+SHAPE_SCALE_INTENSITY = 1.15
 
 
 @dataclass(frozen=True)
@@ -183,70 +184,96 @@ def row_mask(shape: tuple[int, int], condition: np.ndarray) -> np.ndarray:
     return np.repeat(condition[:, None], shape[1], axis=1)
 
 
+def scale_from_amount(amount: float, intensity: float, invert: bool = False) -> float:
+    direction = -1.0 if invert else 1.0
+    return float(np.clip(1.0 + amount * intensity * direction, 0.55, 1.55))
+
+
+def part_bbox(mask: np.ndarray, predicate: np.ndarray) -> dict[str, Any] | None:
+    ys, xs = np.where(mask & predicate)
+    if len(xs) == 0:
+        return None
+    return {
+        "minX": int(xs.min()),
+        "minY": int(ys.min()),
+        "maxX": int(xs.max()),
+        "maxY": int(ys.max()),
+        "width": int(xs.max() - xs.min() + 1),
+        "height": int(ys.max() - ys.min() + 1),
+        "positivePixels": int(len(xs)),
+    }
+
+
+def resample_mask_part(
+    mask: np.ndarray,
+    scale_x: float,
+    scale_y: float,
+    anchor_x: float,
+    anchor_y: float,
+    predicate: np.ndarray,
+) -> np.ndarray:
+    box = part_bbox(mask, predicate)
+    if box is None or (scale_x == 1.0 and scale_y == 1.0):
+        return mask.copy()
+    height, width = mask.shape
+    out = mask.copy()
+    out[predicate] = False
+
+    tx0 = anchor_x + (box["minX"] - anchor_x) * scale_x
+    tx1 = anchor_x + (box["maxX"] - anchor_x) * scale_x
+    ty0 = anchor_y + (box["minY"] - anchor_y) * scale_y
+    ty1 = anchor_y + (box["maxY"] - anchor_y) * scale_y
+    min_x = max(0, int(np.floor(min(tx0, tx1))) - 2)
+    max_x = min(width - 1, int(np.ceil(max(tx0, tx1))) + 2)
+    min_y = max(0, int(np.floor(min(ty0, ty1))) - 2)
+    max_y = min(height - 1, int(np.ceil(max(ty0, ty1))) + 2)
+
+    for y in range(min_y, max_y + 1):
+        for x in range(min_x, max_x + 1):
+            if not predicate[y, x]:
+                continue
+            source_x = int(round(anchor_x + (x - anchor_x) / scale_x))
+            source_y = int(round(anchor_y + (y - anchor_y) / scale_y))
+            if (
+                0 <= source_x < width
+                and 0 <= source_y < height
+                and predicate[source_y, source_x]
+                and mask[source_y, source_x]
+            ):
+                out[y, x] = True
+    return out if np.any(out) else mask.copy()
+
+
 def apply_corner_reach(mask: np.ndarray, amount: float, support: np.ndarray | None) -> np.ndarray:
     if amount == 0 or not np.any(mask):
         return mask.copy()
     box = bbox(mask)
-    pixels = max(1, int(round(abs(amount) * max(2, box["width"]) * 0.18)))
-    if amount > 0:
-        expanded = mask.copy()
-        for step in range(1, pixels + 1):
-            expanded |= shift_mask(mask, dx=step)
-            expanded |= shift_mask(mask, dx=-step)
-        if support is not None and np.any(support):
-            allowed = dilate(support, max(2, pixels + 2))
-            expanded &= allowed
-        return expanded
-    shrunk = mask.copy()
     center_x = (box["minX"] + box["maxX"]) / 2.0
-    xs = np.arange(mask.shape[1])
-    keep_x = (xs >= box["minX"] + pixels) & (xs <= box["maxX"] - pixels)
-    center_band = np.abs(xs - center_x) <= max(1, box["width"] * 0.18)
-    keep = keep_x | center_band
-    shrunk &= np.repeat(keep[None, :], mask.shape[0], axis=0)
-    return shrunk
+    center_y = (box["minY"] + box["maxY"]) / 2.0
+    scale_x = scale_from_amount(amount, SHAPE_SCALE_INTENSITY)
+    return resample_mask_part(mask, scale_x, 1.0, center_x, center_y, np.ones_like(mask, dtype=bool))
 
 
 def apply_upper_tightness(mask: np.ndarray, amount: float, split_y: int, support: np.ndarray | None) -> np.ndarray:
     if amount == 0 or not np.any(mask):
         return mask.copy()
     box = bbox(mask)
-    pixels = max(1, int(round(abs(amount) * max(2, box["height"]) * 0.22)))
     ys = np.arange(mask.shape[0])
-    upper_rows = ys <= split_y
-    adjusted = mask.copy()
-    if amount > 0:
-        remove_rows = ys < (box["minY"] + pixels)
-        adjusted &= ~row_mask(mask.shape, upper_rows & remove_rows)
-        return adjusted
-    upper_part = mask & row_mask(mask.shape, upper_rows)
-    expanded = adjusted.copy()
-    for step in range(1, pixels + 1):
-        expanded |= shift_mask(upper_part, dy=-step)
-    if support is not None and np.any(support):
-        expanded &= dilate(support, max(2, pixels + 2))
-    return expanded
+    predicate = row_mask(mask.shape, ys <= split_y)
+    scale_y = scale_from_amount(amount, SHAPE_SCALE_INTENSITY, invert=True)
+    center_x = (box["minX"] + box["maxX"]) / 2.0
+    return resample_mask_part(mask, 1.0, scale_y, center_x, float(split_y), predicate)
 
 
 def apply_lower_tightness(mask: np.ndarray, amount: float, split_y: int, support: np.ndarray | None) -> np.ndarray:
     if amount == 0 or not np.any(mask):
         return mask.copy()
     box = bbox(mask)
-    pixels = max(1, int(round(abs(amount) * max(2, box["height"]) * 0.22)))
     ys = np.arange(mask.shape[0])
-    lower_rows = ys > split_y
-    adjusted = mask.copy()
-    if amount > 0:
-        remove_rows = ys > (box["maxY"] - pixels)
-        adjusted &= ~row_mask(mask.shape, lower_rows & remove_rows)
-        return adjusted
-    lower_part = mask & row_mask(mask.shape, lower_rows)
-    expanded = adjusted.copy()
-    for step in range(1, pixels + 1):
-        expanded |= shift_mask(lower_part, dy=step)
-    if support is not None and np.any(support):
-        expanded &= dilate(support, max(2, pixels + 2))
-    return expanded
+    predicate = row_mask(mask.shape, ys > split_y)
+    scale_y = scale_from_amount(amount, SHAPE_SCALE_INTENSITY, invert=True)
+    center_x = (box["minX"] + box["maxX"]) / 2.0
+    return resample_mask_part(mask, 1.0, scale_y, center_x, float(split_y), predicate)
 
 
 def apply_vertical_offset(mask: np.ndarray, amount: float) -> np.ndarray:

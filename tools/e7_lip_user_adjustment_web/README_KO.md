@@ -20,14 +20,17 @@ ln -s /private/tmp/e7-user-adjustment-smoke tools/e7_lip_user_adjustment_web/loc
 
 ## 입력
 
-1. `후보 JSON`: `user_adjustment_candidates.json`
-2. `이미지 폴더`: 위 JSON과 같은 출력 폴더, 또는 `frame.png`, `lip-tight-auto-v0_mask.png`, `face_parsing_upper_lip_mask.png`, `face_parsing_lower_lip_mask.png`, `face_parsing_inner_mouth_mask.png`가 들어 있는 M1 패키지 폴더
+1. `샘플 자동 로드`: 현재 `/private/tmp/e7-user-adjustment-smoke` 샘플을 바로 불러온다.
+2. `후보 JSON`: `user_adjustment_candidates.json`
+3. `출력 폴더 선택`: 위 JSON과 같은 폴더 전체를 선택한다. 예: `/private/tmp/e7-user-adjustment-smoke`
 
-## 세 가지 UI
+개별 PNG 이미지를 하나 고르는 것이 아니다. 후보 생성 결과가 들어 있는 폴더 자체를 선택해야 한다.
 
-- `후보 선택`: 기존 12개 후보 중 하나를 선택한다.
-- `슬라이더`: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset` 네 값을 직접 조정한다.
-- `문제별 조정`: “입꼬리 더 잡기”, “아랫입술 번짐 줄이기” 같은 문제 문장으로 같은 네 값을 조정한다.
+## UI
+
+- `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset` 네 값을 슬라이더와 `-` / `+` 버튼으로 직접 조정한다.
+- `-` / `+` 버튼은 `0.05` 단위로 움직인다.
+- 후보 선택형과 문제별 조정형은 제거했다. 현재 앱 이식 후보는 이 슬라이더형 하나다.
 
 ## 출력 계약
 
@@ -38,8 +41,8 @@ ln -s /private/tmp/e7-user-adjustment-smoke tools/e7_lip_user_adjustment_web/loc
   "schemaVersion": "e7-lip-user-adjustment-review-v0",
   "status": "user_confirmed",
   "confirmedByUser": true,
-  "selectedCandidateId": "ua-11-balanced-observed",
-  "selectedMaskPath": "user_adjustment_candidate_ua-11-balanced-observed_mask.png",
+  "selectedCandidateId": "ua-web-slider-custom",
+  "selectedMaskPath": "user_adjustment_candidate_ua-web-slider-custom_mask.png",
   "params": {
     "cornerReach": 0.25,
     "upperLipTightness": 0.2,
@@ -49,4 +52,4 @@ ln -s /private/tmp/e7-user-adjustment-smoke tools/e7_lip_user_adjustment_web/loc
 }
 ```
 
-직접 조정 모드는 `user_adjustment_review.json`, `user_adjustment_candidates.json`, `user_adjustment_candidate_<candidateId>_mask.png` 세 파일을 같은 폴더에 저장해야 기존 `prepare_m1_lip_package.py --user-adjustment-review` 검증 경로가 그대로 동작한다.
+`user_adjustment_review.json`, `user_adjustment_candidates.json`, `user_adjustment_candidate_ua-web-slider-custom_mask.png` 세 파일을 같은 폴더에 저장해야 기존 `prepare_m1_lip_package.py --user-adjustment-review` 검증 경로가 그대로 동작한다.

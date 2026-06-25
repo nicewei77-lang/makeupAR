@@ -119,23 +119,6 @@ h2 {
   cursor: pointer;
 }
 
-.mode-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.tab {
-  background: #fff;
-}
-
-.tab.active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
-}
-
 .content-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 420px;
@@ -249,8 +232,8 @@ h2 {
 
 .range-row {
   display: grid;
-  grid-template-columns: 178px minmax(160px, 1fr) 58px;
-  gap: 12px;
+  grid-template-columns: 178px 42px minmax(160px, 1fr) 42px 58px;
+  gap: 8px;
   align-items: center;
   border-bottom: 1px solid var(--line);
   padding-bottom: 12px;
@@ -273,6 +256,15 @@ input[type="range"] {
   accent-color: var(--accent);
 }
 
+.step-button {
+  width: 42px;
+  min-height: 42px;
+  padding: 0;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .number-pill {
   justify-self: end;
   border-radius: 6px;
@@ -280,36 +272,6 @@ input[type="range"] {
   padding: 5px 7px;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-}
-
-.guided-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 10px;
-  margin-top: 14px;
-}
-
-.guided-row {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 10px;
-}
-
-.guided-row strong {
-  display: block;
-  font-size: 14px;
-  margin-bottom: 8px;
-}
-
-.guided-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 7px;
-}
-
-.guided-actions button {
-  min-height: 44px;
-  padding: 8px;
 }
 
 .preview-frame {
@@ -331,7 +293,7 @@ input[type="range"] {
 }
 
 #selectionPreview {
-  display: none;
+  display: block;
 }
 
 #adjustmentCanvas {
@@ -339,6 +301,7 @@ input[type="range"] {
 }
 
 .preview-fallback {
+  display: none;
   color: var(--muted);
   text-align: center;
   padding: 18px;
