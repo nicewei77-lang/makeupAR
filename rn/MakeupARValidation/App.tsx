@@ -40,17 +40,17 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     label: 'matte lip',
     region: 'lip',
     textureMode: 'sample',
-    blendMode: 'normal',
+    blendMode: 'multiply',
     secondaryColor: '#F29BAA',
-    intensity: 0.68,
-    feather: 0.16,
-    coverage: 0.5,
+    intensity: 0.84,
+    feather: 0.14,
+    coverage: 0.78,
     finish: 'matte',
-    roughness: 0.88,
-    specular: 0.04,
-    specularPower: 8,
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
     glossBoost: 0,
-    gradientAmount: 0.08,
+    gradientAmount: 0.02,
     preserveDetail: true,
   },
   {
@@ -58,17 +58,17 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     label: 'gloss lip',
     region: 'lip',
     textureMode: 'sample',
-    blendMode: 'normal',
-    secondaryColor: '#FFB3C4',
-    intensity: 0.7,
-    feather: 0.14,
-    coverage: 0.5,
+    blendMode: 'multiply',
+    secondaryColor: '#FF8EA0',
+    intensity: 0.9,
+    feather: 0.16,
+    coverage: 0.82,
     finish: 'gloss',
-    roughness: 0.18,
-    specular: 0.72,
-    specularPower: 38,
-    glossBoost: 0.92,
-    gradientAmount: 0.12,
+    roughness: 0.08,
+    specular: 0.96,
+    specularPower: 56,
+    glossBoost: 1,
+    gradientAmount: 0.22,
     preserveDetail: true,
   },
   {
@@ -95,16 +95,16 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#F7A1A7',
-    intensity: 0.7,
+    secondaryColor: '#F7B4BC',
+    intensity: 0.86,
     feather: 0.2,
-    coverage: 0.7,
+    coverage: 0.84,
     finish: 'gradient',
-    roughness: 0.62,
-    specular: 0.08,
+    roughness: 0.74,
+    specular: 0.02,
     specularPower: 12,
-    glossBoost: 0.02,
-    gradientAmount: 0.74,
+    glossBoost: 0,
+    gradientAmount: 0.88,
     preserveDetail: true,
   },
   {
@@ -112,7 +112,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     label: 'overline lip',
     region: 'lip',
     textureMode: 'sample',
-    blendMode: 'normal',
+    blendMode: 'multiply',
     secondaryColor: '#D94B74',
     intensity: 0.5,
     feather: 0.1,
@@ -132,7 +132,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'normal',
     secondaryColor: '#F5A49B',
-    intensity: 0.56,
+    intensity: 0.64,
     feather: 0.46,
     coverage: 1,
     finish: 'powder',
@@ -150,7 +150,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'screen',
     secondaryColor: '#F8D6B3',
-    intensity: 0.58,
+    intensity: 0.64,
     feather: 0.38,
     coverage: 1,
     finish: 'shimmer',
@@ -181,10 +181,12 @@ export const LIP_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
     textureSample =>
       textureSample.region === 'lip' &&
       (textureSample.name === 'matte_lip' ||
-        textureSample.name === 'gloss_lip'),
+        textureSample.name === 'gloss_lip' ||
+        textureSample.name === 'gradient_lip'),
   );
 export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
+  | 'lip-vision-boundary-v1'
   | 'lip-drawn-style-atlas-v1'
   | 'lip-drawn-mask-v1'
   | 'cheek-drawn-mask-v1'
@@ -221,19 +223,19 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
 export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.72,
-    intensity: 0.68,
+    opacity: 0.9,
+    intensity: 0.84,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
-    opacity: 0.44,
+    opacity: 0.52,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
   eye: {
     color: DEFAULT_RECIPE_COLOR,
-    opacity: 0.48,
+    opacity: 0.54,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
@@ -258,6 +260,7 @@ const UNITY_EVENT_TYPES = [
   'face_feature_snapshot',
   'e7_metric_sample',
   'e7_reference_capture',
+  'e7_vision_lip_boundary',
   'recipe_applied',
 ] as const;
 
@@ -322,7 +325,7 @@ export function buildValidationRecipeBatchPayload(
         region === 'lip'
           ? 'lip-style-atlas-validation'
           : 'unlit-alpha-validation',
-      passCount: 1,
+      passCount: sample.name === 'gloss_lip' ? 2 : 1,
       maskTextureId,
       cameraBackdropAvailable: false,
       lightEstimateAvailable: false,
@@ -369,7 +372,7 @@ export function buildValidationRecipeBatchPayload(
       focusRegion === 'lip'
         ? 'lip-style-atlas-validation'
         : 'unlit-alpha-validation',
-    passCount: 1,
+    passCount: focusSample.name === 'gloss_lip' ? 2 : 1,
     maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion],
     cameraBackdropAvailable: false,
     lightEstimateAvailable: false,
@@ -534,12 +537,25 @@ type UnityEventPayload = {
   topologyAuditStatus?: string;
   topologyAuditSummary?: string;
   boundaryRenderer?: string;
+  visionBoundaryStatus?: string;
+  visionBoundarySource?: string;
+  visionBoundaryCoordinateMode?: string;
+  visionBoundaryOuterPointCount?: number;
+  visionBoundaryInnerPointCount?: number;
+  visionBoundaryImageWidth?: number;
+  visionBoundaryImageHeight?: number;
+  visionBoundaryAgeMs?: number;
+  outerPointCount?: number;
+  innerPointCount?: number;
+  available?: boolean;
   capturePairId?: string;
   relativeDirectory?: string;
   coordinateSpaceValidated?: boolean;
   coordinateSpaceValidationStatus?: string;
   detail?: string;
   frameWidth?: number;
+  imageWidth?: number;
+  imageHeight?: number;
   [key: string]: unknown;
 };
 
@@ -954,6 +970,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? '[E7] rn_metric_sample_received'
             : parsed.type === 'e7_reference_capture'
             ? '[E7] rn_reference_capture_received'
+            : parsed.type === 'e7_vision_lip_boundary'
+            ? '[E7] rn_vision_lip_boundary_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -1154,6 +1172,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const intensityPercent = Math.round(lipIntensity * 100);
+  const formatLipTextureLabel = useCallback(
+    (textureSample: RecipeTextureSample) => {
+      switch (textureSample.name) {
+        case 'gloss_lip':
+          return 'Glow';
+        case 'gradient_lip':
+          return 'Gradient';
+        default:
+          return 'Matte';
+      }
+    },
+    [],
+  );
 
   return (
     <View style={styles.unityScreen}>
@@ -1414,7 +1445,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                         isSelected && styles.textureButtonTextSelected,
                       ]}
                     >
-                      {textureOption.name === 'gloss_lip' ? 'Glow' : 'Matte'}
+                      {formatLipTextureLabel(textureOption)}
                     </Text>
                   </Pressable>
                 );
@@ -1837,6 +1868,10 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `e7_metric_sample ${formatE7MetricSummary(event)}`;
     case 'e7_reference_capture':
       return `e7_reference_capture ${formatE7ReferenceCaptureSummary(event)}`;
+    case 'e7_vision_lip_boundary':
+      return `e7_vision_lip_boundary ${formatE7VisionLipBoundarySummary(
+        event,
+      )}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -1889,9 +1924,29 @@ function formatUnityEventTypeStatus(
       return `e7_reference_capture: ${formatE7ReferenceCaptureSummary(
         parsed,
       )} ${event.receivedAt}`;
+    case 'e7_vision_lip_boundary':
+      return `e7_vision_lip_boundary: ${formatE7VisionLipBoundarySummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7VisionLipBoundarySummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} available=${String(
+    event.available ?? false,
+  )} source=${String(event.source ?? 'apple_vision_runtime_lip_landmarks')} coord=${String(
+    event.coordinateMode ?? event.visionBoundaryCoordinateMode ?? 'raw-y',
+  )} points=${String(
+    event.outerPointCount ?? event.visionBoundaryOuterPointCount ?? 'n/a',
+  )}/${String(
+    event.innerPointCount ?? event.visionBoundaryInnerPointCount ?? 'n/a',
+  )} image=${String(
+    event.visionBoundaryImageWidth ?? event.frameWidth ?? event.imageWidth ?? 'n/a',
+  )}x${String(
+    event.visionBoundaryImageHeight ?? event.imageHeight ?? 'n/a',
+  )} privacy raw=false offDevice=false`;
 }
 
 function formatE7ReferenceCaptureSummary(event: UnityEventPayload) {
@@ -2119,6 +2174,10 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.region ?? event.layer,
   )} texture=${texture} mode=${String(
     event.textureMode ?? 'n/a',
+  )} blend=${String(event.blendMode ?? 'n/a')} finish=${String(
+    event.finish ?? 'n/a',
+  )} maskTex=${String(
+    event.maskTextureId ?? 'n/a',
   )} color=${String(event.color)} opacity=${String(
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} applied=${String(
@@ -2133,6 +2192,12 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.uvAvailable ?? false,
   )} state=${String(event.stateAction ?? 'n/a')} src=${String(
     event.maskSource ?? 'n/a',
+  )} vision=${String(
+    event.visionBoundaryStatus ?? 'n/a',
+  )}:${String(event.visionBoundaryOuterPointCount ?? 'n/a')}/${String(
+    event.visionBoundaryInnerPointCount ?? 'n/a',
+  )} visionAge=${String(
+    event.visionBoundaryAgeMs ?? 'n/a',
   )} texGt8=${String(
     event.maskTextureActivePixelCountGt8 ?? 'n/a',
   )}/${formatMetricNumber(
@@ -2814,8 +2879,8 @@ const styles = StyleSheet.create({
   },
   textureButton: {
     flexGrow: 1,
-    flexBasis: '45%',
-    minWidth: 128,
+    flexBasis: '30%',
+    minWidth: 92,
     minHeight: 42,
     borderRadius: 8,
     alignItems: 'center',

@@ -216,6 +216,14 @@ public sealed class RNBridge : MonoBehaviour
         public bool LightEstimateAvailable;
         public string MaskSource = "smooth_region_mask";
         public string BoundaryRenderer = "smooth_alpha_mask";
+        public string VisionBoundaryStatus = "not_requested";
+        public string VisionBoundarySource = "none";
+        public string VisionBoundaryCoordinateMode = "none";
+        public int VisionBoundaryOuterPointCount;
+        public int VisionBoundaryInnerPointCount;
+        public int VisionBoundaryImageWidth;
+        public int VisionBoundaryImageHeight;
+        public long VisionBoundaryAgeMs;
         public string TrackingState = "None";
         public string StateAction = "not_started";
         public int MaskTriangleCount;
@@ -402,6 +410,11 @@ public sealed class RNBridge : MonoBehaviour
     }
 
     public void SendE7ReferenceCaptureEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
+    public void SendE7VisionLipBoundaryEvent(string json)
     {
         SendUnityEvent(json, "[E7]");
     }
@@ -851,6 +864,14 @@ public sealed class RNBridge : MonoBehaviour
             LightEstimateAvailable = layer.LightEstimateAvailable,
             MaskSource = result.MaskSource,
             BoundaryRenderer = result.BoundaryRenderer,
+            VisionBoundaryStatus = result.VisionBoundaryStatus,
+            VisionBoundarySource = result.VisionBoundarySource,
+            VisionBoundaryCoordinateMode = result.VisionBoundaryCoordinateMode,
+            VisionBoundaryOuterPointCount = result.VisionBoundaryOuterPointCount,
+            VisionBoundaryInnerPointCount = result.VisionBoundaryInnerPointCount,
+            VisionBoundaryImageWidth = result.VisionBoundaryImageWidth,
+            VisionBoundaryImageHeight = result.VisionBoundaryImageHeight,
+            VisionBoundaryAgeMs = result.VisionBoundaryAgeMs,
             TrackingState = result.TrackingState,
             StateAction = result.StateAction,
             MaskTriangleCount = result.MaskTriangleCount,
@@ -891,6 +912,14 @@ public sealed class RNBridge : MonoBehaviour
             state.RendererMode = result.RendererMode;
             state.MaskSource = result.MaskSource;
             state.BoundaryRenderer = result.BoundaryRenderer;
+            state.VisionBoundaryStatus = result.VisionBoundaryStatus;
+            state.VisionBoundarySource = result.VisionBoundarySource;
+            state.VisionBoundaryCoordinateMode = result.VisionBoundaryCoordinateMode;
+            state.VisionBoundaryOuterPointCount = result.VisionBoundaryOuterPointCount;
+            state.VisionBoundaryInnerPointCount = result.VisionBoundaryInnerPointCount;
+            state.VisionBoundaryImageWidth = result.VisionBoundaryImageWidth;
+            state.VisionBoundaryImageHeight = result.VisionBoundaryImageHeight;
+            state.VisionBoundaryAgeMs = result.VisionBoundaryAgeMs;
             state.TrackingState = result.TrackingState;
             state.StateAction = result.StateAction;
             state.MaskTriangleCount = result.MaskTriangleCount;
@@ -987,6 +1016,14 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(state.BoundaryRenderer) + "\""
+                + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(state.VisionBoundaryStatus) + "\""
+                + ",\"visionBoundarySource\":\"" + EscapeJsonString(state.VisionBoundarySource) + "\""
+                + ",\"visionBoundaryCoordinateMode\":\"" + EscapeJsonString(state.VisionBoundaryCoordinateMode) + "\""
+                + ",\"visionBoundaryOuterPointCount\":" + state.VisionBoundaryOuterPointCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryInnerPointCount\":" + state.VisionBoundaryInnerPointCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryImageWidth\":" + state.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryImageHeight\":" + state.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryAgeMs\":" + state.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
                 + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
                 + ",\"stateAction\":\"" + EscapeJsonString(state.StateAction) + "\""
                 + ",\"intensity\":" + state.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1031,6 +1068,15 @@ public sealed class RNBridge : MonoBehaviour
             string boundaryRenderer = state != null && !string.IsNullOrWhiteSpace(state.BoundaryRenderer)
                 ? state.BoundaryRenderer
                 : "smooth_alpha_mask";
+            string visionBoundaryStatus = state != null && !string.IsNullOrWhiteSpace(state.VisionBoundaryStatus)
+                ? state.VisionBoundaryStatus
+                : "not_requested";
+            string visionBoundarySource = state != null && !string.IsNullOrWhiteSpace(state.VisionBoundarySource)
+                ? state.VisionBoundarySource
+                : "none";
+            string visionBoundaryCoordinateMode = state != null && !string.IsNullOrWhiteSpace(state.VisionBoundaryCoordinateMode)
+                ? state.VisionBoundaryCoordinateMode
+                : "none";
             string qaStatus = "smooth_mask_runtime";
 
             regions.Add("\"" + EscapeJsonString(region) + "\":{"
@@ -1040,6 +1086,14 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(maskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(boundaryRenderer) + "\""
+                + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(visionBoundaryStatus) + "\""
+                + ",\"visionBoundarySource\":\"" + EscapeJsonString(visionBoundarySource) + "\""
+                + ",\"visionBoundaryCoordinateMode\":\"" + EscapeJsonString(visionBoundaryCoordinateMode) + "\""
+                + ",\"visionBoundaryOuterPointCount\":" + (state != null ? state.VisionBoundaryOuterPointCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryInnerPointCount\":" + (state != null ? state.VisionBoundaryInnerPointCount : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryImageWidth\":" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryImageHeight\":" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryAgeMs\":" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
                 + ",\"validationScope\":\"debug\""
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
@@ -1112,6 +1166,14 @@ public sealed class RNBridge : MonoBehaviour
             + " gradientAmount=" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSource=" + (state != null ? state.MaskSource : "smooth_region_mask")
             + " boundaryRenderer=" + (state != null ? state.BoundaryRenderer : "smooth_alpha_mask")
+            + " visionBoundaryStatus=" + (state != null ? state.VisionBoundaryStatus : "not_requested")
+            + " visionBoundarySource=" + (state != null ? state.VisionBoundarySource : "none")
+            + " visionBoundaryCoordinateMode=" + (state != null ? state.VisionBoundaryCoordinateMode : "none")
+            + " visionBoundaryOuterPoints=" + (state != null ? state.VisionBoundaryOuterPointCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryInnerPoints=" + (state != null ? state.VisionBoundaryInnerPointCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryImageSize=" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
+            + "x" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryAgeMs=" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
             + " maskStatus=smooth_mask_runtime"
             + " regionTrackingState=" + (state != null ? state.TrackingState : "None")
             + " regionStateAction=" + (state != null ? state.StateAction : "not_started")
@@ -1175,6 +1237,14 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"gradientAmount\":" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "smooth_region_mask") + "\""
             + ",\"boundaryRenderer\":\"" + EscapeJsonString(state != null ? state.BoundaryRenderer : "smooth_alpha_mask") + "\""
+            + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryStatus : "not_requested") + "\""
+            + ",\"visionBoundarySource\":\"" + EscapeJsonString(state != null ? state.VisionBoundarySource : "none") + "\""
+            + ",\"visionBoundaryCoordinateMode\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryCoordinateMode : "none") + "\""
+            + ",\"visionBoundaryOuterPointCount\":" + (state != null ? state.VisionBoundaryOuterPointCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryInnerPointCount\":" + (state != null ? state.VisionBoundaryInnerPointCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryImageWidth\":" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryImageHeight\":" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryAgeMs\":" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"maskStatus\":\"smooth_mask_runtime\""
             + ",\"regionTrackingState\":\"" + EscapeJsonString(state != null ? state.TrackingState : "None") + "\""
             + ",\"regionStateAction\":\"" + EscapeJsonString(state != null ? state.StateAction : "not_started") + "\""
@@ -1292,6 +1362,14 @@ public sealed class RNBridge : MonoBehaviour
             + " lightEstimateAvailable=" + layer.LightEstimateAvailable.ToString().ToLowerInvariant()
             + " maskSource=" + result.MaskSource
             + " boundaryRenderer=" + result.BoundaryRenderer
+            + " visionBoundaryStatus=" + result.VisionBoundaryStatus
+            + " visionBoundarySource=" + result.VisionBoundarySource
+            + " visionBoundaryCoordinateMode=" + result.VisionBoundaryCoordinateMode
+            + " visionBoundaryOuterPoints=" + result.VisionBoundaryOuterPointCount.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryInnerPoints=" + result.VisionBoundaryInnerPointCount.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryImageSize=" + result.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
+            + "x" + result.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryAgeMs=" + result.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
             + " maskTextureDiagnosticStatus=" + result.MaskTextureDiagnosticStatus
             + " maskTextureSize=" + result.MaskTextureWidth.ToString(CultureInfo.InvariantCulture)
             + "x" + result.MaskTextureHeight.ToString(CultureInfo.InvariantCulture)
@@ -1383,7 +1461,23 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(result.MaskSource)
             + "\",\"boundaryRenderer\":\""
             + EscapeJsonString(result.BoundaryRenderer)
-            + "\",\"maskTextureDiagnosticStatus\":\""
+            + "\",\"visionBoundaryStatus\":\""
+            + EscapeJsonString(result.VisionBoundaryStatus)
+            + "\",\"visionBoundarySource\":\""
+            + EscapeJsonString(result.VisionBoundarySource)
+            + "\",\"visionBoundaryCoordinateMode\":\""
+            + EscapeJsonString(result.VisionBoundaryCoordinateMode)
+            + "\",\"visionBoundaryOuterPointCount\":"
+            + result.VisionBoundaryOuterPointCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryInnerPointCount\":"
+            + result.VisionBoundaryInnerPointCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryImageWidth\":"
+            + result.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryImageHeight\":"
+            + result.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryAgeMs\":"
+            + result.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureDiagnosticStatus\":\""
             + EscapeJsonString(result.MaskTextureDiagnosticStatus)
             + "\",\"maskTextureWidth\":"
             + result.MaskTextureWidth.ToString(CultureInfo.InvariantCulture)
@@ -1880,7 +1974,9 @@ public sealed class RNBridge : MonoBehaviour
         string value = preferred.Trim();
         string expected = GetDefaultMaskTextureId(region);
         if (value == expected
-            || (region == "lip" && (value == "lip-style-atlas-v1"
+            || (region == "lip" && (value == "lip-vision-boundary-v1"
+                || value == "lip-drawn-style-atlas-v1"
+                || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
             || (region == "cheek" && value == "cheek-smooth-mask-v1")

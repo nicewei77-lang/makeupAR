@@ -9,13 +9,12 @@ LOG_DIR="$ROOT_DIR/evidence/logs"
 TIMESTAMP="${TIMESTAMP:-$(date '+%Y-%m-%d-%H%M%S')}"
 BUILD_LOG_MODE="${BUILD_LOG_MODE:-summary}"
 KEEP_DERIVED_DATA="${KEEP_DERIVED_DATA:-0}"
-CUSTOM_DERIVED_DATA=0
+CLEAN_DERIVED_DATA="${CLEAN_DERIVED_DATA:-0}"
+SKIP_UNITY_EXPORT="${SKIP_UNITY_EXPORT:-0}"
 BUILD_TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/makeupar-unityframework-$TIMESTAMP.XXXXXX")"
 BUILD_TMP_CLEANED=0
-if [[ -n "${DERIVED_DATA:-}" ]]; then
-  CUSTOM_DERIVED_DATA=1
-else
-  DERIVED_DATA="$BUILD_TMP_ROOT/DerivedData"
+if [[ -z "${DERIVED_DATA:-}" ]]; then
+  DERIVED_DATA="$ROOT_DIR/unity-builds/xcode-derived-data/UnityFramework"
 fi
 
 cleanup_build_tmp_root() {
@@ -23,7 +22,7 @@ cleanup_build_tmp_root() {
     return
   fi
 
-  if [[ "$KEEP_DERIVED_DATA" == "1" && "$CUSTOM_DERIVED_DATA" != "1" ]]; then
+  if [[ "$KEEP_DERIVED_DATA" == "1" && "$DERIVED_DATA" == "$BUILD_TMP_ROOT"* ]]; then
     echo "Keeping temporary build workspace: $BUILD_TMP_ROOT"
     BUILD_TMP_CLEANED=1
     return
@@ -71,20 +70,47 @@ echo "Unity binary: $UNITY_BIN"
 echo "Export path: $EXPORT_PATH"
 echo "Derived data: $DERIVED_DATA"
 echo "Build log mode: $BUILD_LOG_MODE"
+echo "Clean derived data: $CLEAN_DERIVED_DATA"
+echo "Skip Unity export: $SKIP_UNITY_EXPORT"
 echo "Timestamp: $TIMESTAMP"
 
-require_file "$UNITY_BIN"
+if [[ "$SKIP_UNITY_EXPORT" != "1" ]]; then
+  require_file "$UNITY_BIN"
+fi
 require_file "$NATIVE_PROXY_HEADER"
 mkdir -p "$LOG_DIR" "$BUILD_LOG_DIR" "$DERIVED_DATA" "$RN_FRAMEWORK_DIR"
 
+if [[ "$CLEAN_DERIVED_DATA" == "1" ]]; then
+  if [[ -z "$DERIVED_DATA" || "$DERIVED_DATA" == "/" ]]; then
+    echo "Refusing to clean unsafe DerivedData path: $DERIVED_DATA" >&2
+    exit 2
+  fi
+  echo "Cleaning Xcode DerivedData cache: $DERIVED_DATA"
+  rm -rf "$DERIVED_DATA"
+  mkdir -p "$DERIVED_DATA"
+elif [[ "$CLEAN_DERIVED_DATA" != "0" ]]; then
+  echo "Unsupported CLEAN_DERIVED_DATA: $CLEAN_DERIVED_DATA (expected 0 or 1)" >&2
+  exit 2
+fi
+
+if [[ "$SKIP_UNITY_EXPORT" != "0" && "$SKIP_UNITY_EXPORT" != "1" ]]; then
+  echo "Unsupported SKIP_UNITY_EXPORT: $SKIP_UNITY_EXPORT (expected 0 or 1)" >&2
+  exit 2
+fi
+
 echo
 echo "== Unity iOS export =="
-"$UNITY_BIN" \
-  -batchmode \
-  -quit \
-  -projectPath "$UNITY_PROJECT" \
-  -executeMethod MakeupARValidationSetup.ExportIosProject \
-  -logFile "$UNITY_EXPORT_LOG"
+if [[ "$SKIP_UNITY_EXPORT" == "1" ]]; then
+  echo "Skipping Unity export; reusing existing export at: $EXPORT_PATH"
+  echo "Unity export skipped; reused existing export at: $EXPORT_PATH" > "$UNITY_EXPORT_LOG"
+else
+  "$UNITY_BIN" \
+    -batchmode \
+    -quit \
+    -projectPath "$UNITY_PROJECT" \
+    -executeMethod MakeupARValidationSetup.ExportIosProject \
+    -logFile "$UNITY_EXPORT_LOG"
+fi
 
 require_file "$PROJECT_FILE"
 require_file "$EXPORT_PATH/Data/boot.config"
@@ -96,6 +122,7 @@ for required_entry in \
   "libUnityARKit.a in Frameworks" \
   "libUnityARKitFaceTracking.a in Frameworks" \
   "ARKit.framework in Frameworks" \
+  "Vision.framework in Frameworks" \
   "MetalPerformanceShaders.framework in Frameworks"; do
   if ! grep -q "$required_entry" "$PROJECT_FILE"; then
     echo "Generated Xcode project is missing required ARKit entry: $required_entry" >&2
@@ -200,10 +227,11 @@ echo "Done."
 if [[ "$BUILD_LOG_MODE" == "full" ]]; then
   echo "Unity export log: $UNITY_EXPORT_LOG"
   echo "Xcode build log: $XCODE_BUILD_LOG"
-elif [[ "$KEEP_DERIVED_DATA" == "1" && "$CUSTOM_DERIVED_DATA" != "1" ]]; then
+elif [[ -d "$BUILD_TMP_ROOT" ]]; then
   echo "Full Unity/Xcode logs remain with kept temporary build workspace: $BUILD_TMP_ROOT"
 else
   echo "Full Unity/Xcode logs were temporary and not retained."
   echo "Set BUILD_LOG_MODE=full to retain them under evidence/logs for a specific evidence pass."
 fi
+echo "Xcode DerivedData cache: $DERIVED_DATA"
 echo "Verification log: $VERIFY_LOG"

@@ -54,6 +54,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string MaskTextureActiveBbox;
         public int MaskTextureThresholdPixelCount;
         public float MaskTextureThresholdCoverage;
+        public string VisionBoundaryStatus;
+        public string VisionBoundarySource;
+        public string VisionBoundaryCoordinateMode;
+        public int VisionBoundaryOuterPointCount;
+        public int VisionBoundaryInnerPointCount;
+        public int VisionBoundaryImageWidth;
+        public int VisionBoundaryImageHeight;
+        public long VisionBoundaryAgeMs;
     }
 
     private sealed class RegionRecipeState
@@ -70,7 +78,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Intensity = 1.0f;
         public float Feather = 0.0f;
         public string BlendMode = "normal";
-        public string MaskTextureId = "lip-drawn-style-atlas-v1";
+        public string MaskTextureId = LipDrawnStyleAtlasMaskId;
         public float Coverage = 0.62f;
         public string Finish = "matte";
         public float Roughness = 0.88f;
@@ -102,6 +110,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public Mesh Mesh;
         public MeshRenderer MeshRenderer;
         public Material MaskMaterial;
+        public Texture2D VisionScreenMaskTexture;
+        public Color32[] VisionScreenMaskPixels;
+        public int VisionScreenMaskSequence;
+        public int VisionScreenMaskWidth;
+        public int VisionScreenMaskHeight;
+        public MaskTextureDiagnostics VisionScreenMaskDiagnostics;
     }
 
     private sealed class MaskDefinition
@@ -134,12 +148,31 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public Color32[] Pixels = new Color32[0];
     }
 
+    private struct VisionBoundaryGateInfo
+    {
+        public string Status;
+        public string Source;
+        public string CoordinateMode;
+        public int OuterPointCount;
+        public int InnerPointCount;
+        public int ImageWidth;
+        public int ImageHeight;
+        public long AgeMs;
+    }
+
     [SerializeField] private ARFaceManager faceManager;
+    [SerializeField] private E7VisionLipBoundaryRuntime visionLipBoundaryRuntime;
     [SerializeField] private bool useMeshMasks = true;
 
     private const string RendererMode = "smooth-region-mask";
     private const string MaskSource = "smooth_region_mask";
     private const string BoundaryRenderer = "smooth_alpha_mask";
+    private const string VisionLipBoundaryMaskId = "lip-vision-boundary-v1";
+    private const string LipDrawnStyleAtlasMaskId = "lip-drawn-style-atlas-v1";
+    private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
+    private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_screen_space";
+    private const string VisionBoundaryRuntimeTransform = "flip-y";
+    private const int VisionScreenMaskMaxDimension = 1024;
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -154,6 +187,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static readonly Dictionary<string, MaskTextureSampleData> MaskTextureSampleCache =
         new Dictionary<string, MaskTextureSampleData>();
     private bool overlayRenderingSuppressed;
+    private bool visionCaptureSuppressed;
 
     public void Configure(ARFaceManager manager)
     {
@@ -179,6 +213,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] region_overlay_suppression"
             + " suppressed=" + overlayRenderingSuppressed.ToString().ToLowerInvariant());
+    }
+
+    public void SetVisionCaptureSuppressed(bool suppressed)
+    {
+        visionCaptureSuppressed = suppressed;
+        if (suppressed)
+        {
+            HideAllOverlayViews();
+        }
+
+        Debug.Log(
+            "[E7] vision_lip_boundary_overlay_suppression"
+            + " suppressed=" + visionCaptureSuppressed.ToString().ToLowerInvariant());
     }
 
     public void ClearRecipesAndHideOverlays()
@@ -322,12 +369,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.TopologyAuditStatus = BuildTopologyAuditStatus(face);
             result.TopologyAuditSummary = BuildTopologyAuditSummary(face);
 
-            if (overlayRenderingSuppressed || !visibility.ShouldRender)
+            if (overlayRenderingSuppressed || visionCaptureSuppressed || !visibility.ShouldRender)
             {
                 SetViewVisibility(view, false);
                 if (overlayRenderingSuppressed)
                 {
                     result.StateAction = "suppressed_for_clean_view";
+                }
+                else if (visionCaptureSuppressed)
+                {
+                    result.StateAction = "suppressed_for_vision_capture";
                 }
                 continue;
             }
@@ -337,6 +388,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             int sourceTriangleCount = 0;
             int culledTriangleCount = 0;
             string meshCullingMode = "none";
+            VisionBoundaryGateInfo visionGateInfo = CreateDefaultVisionGateInfo();
+            MaskTextureDiagnostics dynamicMaskDiagnostics = null;
             bool meshApplied = useMeshMasks && TryUpdateFullFaceUvMesh(
                 face,
                 view,
@@ -344,12 +397,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 out triangleCount,
                 out sourceTriangleCount,
                 out culledTriangleCount,
-                out meshCullingMode);
+                out meshCullingMode,
+                out visionGateInfo,
+                out dynamicMaskDiagnostics);
             result.SourceTriangleCount += sourceTriangleCount;
             result.MeshTriangleCount += triangleCount;
             result.MaskTriangleCount += triangleCount;
             result.CulledTriangleCount += culledTriangleCount;
             result.MeshCullingMode = meshCullingMode;
+            ApplyVisionGateInfo(ref result, visionGateInfo);
+            ApplyDynamicMaskDiagnostics(ref result, dynamicMaskDiagnostics);
 
             SetViewVisibility(view, meshApplied);
             result.Applied = result.Applied || meshApplied;
@@ -414,6 +471,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             MaskTextureActiveBbox = "none",
             MaskTextureThresholdPixelCount = 0,
             MaskTextureThresholdCoverage = 0.0f,
+            VisionBoundaryStatus = "not_requested",
+            VisionBoundarySource = "none",
+            VisionBoundaryCoordinateMode = "none",
+            VisionBoundaryOuterPointCount = 0,
+            VisionBoundaryInnerPointCount = 0,
+            VisionBoundaryImageWidth = 0,
+            VisionBoundaryImageHeight = 0,
+            VisionBoundaryAgeMs = 0,
         };
     }
 
@@ -436,11 +501,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.PreserveDetail = recipe.PreserveDetail;
         result.MaskTextureId = recipe.MaskTextureId;
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
-        result.MaskSource = lipStyleAtlas
+        bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
+        result.MaskSource = visionLipBoundary
+            ? VisionLipBoundarySource
+            : lipStyleAtlas
             ? "lip_style_atlas_v1_uv_back_projection"
             : MaskSource;
-        result.BoundaryRenderer = lipStyleAtlas
-            ? "rgba_style_atlas_smooth_alpha"
+        result.BoundaryRenderer = visionLipBoundary
+            ? VisionLipBoundaryRenderer
+            : lipStyleAtlas
+            ? (recipe.BlendMode == "multiply"
+                ? "rgba_style_atlas_pigment_multiply"
+                : "rgba_style_atlas_smooth_alpha")
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
@@ -452,6 +524,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (faceManager == null)
         {
             faceManager = FindFirstObjectByType<ARFaceManager>();
+        }
+
+        if (visionLipBoundaryRuntime == null)
+        {
+            visionLipBoundaryRuntime = FindFirstObjectByType<E7VisionLipBoundaryRuntime>();
         }
     }
 
@@ -511,19 +588,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return view;
     }
 
-    private static bool TryUpdateFullFaceUvMesh(
+    private bool TryUpdateFullFaceUvMesh(
         ARFace face,
         RegionOverlayView view,
         RegionRecipeState recipe,
         out int triangleCount,
         out int sourceTriangleCount,
         out int culledTriangleCount,
-        out string meshCullingMode)
+        out string meshCullingMode,
+        out VisionBoundaryGateInfo visionGateInfo,
+        out MaskTextureDiagnostics dynamicMaskDiagnostics)
     {
         triangleCount = 0;
         sourceTriangleCount = 0;
         culledTriangleCount = 0;
         meshCullingMode = "none";
+        visionGateInfo = CreateDefaultVisionGateInfo();
+        dynamicMaskDiagnostics = null;
 
         if (!HasUsableUv(face) || view.MeshRenderer == null)
         {
@@ -547,6 +628,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         bool shouldCullToMask = ShouldCullMeshToMask(recipe);
+        bool shouldCullToVisionBoundary = ShouldCullMeshToVisionBoundary(recipe);
         MaskTextureSampleData sampleData = null;
         if (shouldCullToMask)
         {
@@ -560,9 +642,60 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             }
         }
 
+        E7VisionLipBoundaryRuntime.BoundarySnapshot visionBoundary = default;
+        if (shouldCullToVisionBoundary)
+        {
+            EnsureVisionLipBoundaryRuntime();
+            if (visionLipBoundaryRuntime == null)
+            {
+                visionGateInfo.Status = "provider_missing";
+                meshCullingMode = "apple_vision_lip_landmark_provider_missing";
+                view.Mesh.Clear();
+                return false;
+            }
+
+            visionLipBoundaryRuntime.SetRuntimeRequested(true);
+            bool visionReady = visionLipBoundaryRuntime.TryGetLatestBoundary(
+                Screen.width,
+                Screen.height,
+                out visionBoundary);
+            visionGateInfo = BuildVisionGateInfo(visionBoundary);
+            meshCullingMode = visionReady
+                ? "apple_vision_lip_landmark_screen_space"
+                : "apple_vision_lip_landmark_pending";
+
+            if (!visionReady)
+            {
+                view.Mesh.Clear();
+                return false;
+            }
+
+            E7VisionLipBoundaryRuntime.BoundarySnapshot screenVisionBoundary =
+                TransformVisionBoundaryForScreen(
+                    visionBoundary,
+                    Screen.width,
+                    Screen.height,
+                    VisionBoundaryRuntimeTransform);
+            visionGateInfo = BuildVisionGateInfo(screenVisionBoundary);
+
+            if (!ApplyVisionBoundaryScreenMask(
+                    view,
+                    visionBoundary,
+                    screenVisionBoundary,
+                    out dynamicMaskDiagnostics))
+            {
+                meshCullingMode = "apple_vision_lip_landmark_screen_mask_unavailable";
+                view.Mesh.Clear();
+                return false;
+            }
+
+            visionBoundary = screenVisionBoundary;
+        }
+
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
         List<Vector2> textureCoordinates = new List<Vector2>(face.uvs.Length);
         List<int> triangles = new List<int>(face.indices.Length);
+        Camera arCamera = Camera.main;
 
         for (int index = 0; index < face.vertices.Length; index++)
         {
@@ -589,6 +722,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             }
 
             sourceTriangleCount++;
+            if (shouldCullToVisionBoundary
+                && !TriangleIntersectsVisionBoundary(
+                    face,
+                    arCamera,
+                    sourceA,
+                    sourceB,
+                    sourceC,
+                    visionBoundary))
+            {
+                culledTriangleCount++;
+                continue;
+            }
+
             if (shouldCullToMask
                 && !TriangleIntersectsMask(
                     face.uvs[sourceA],
@@ -619,6 +765,557 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         view.Mesh.RecalculateNormals();
         view.Mesh.RecalculateBounds();
         return true;
+    }
+
+    private void EnsureVisionLipBoundaryRuntime()
+    {
+        if (visionLipBoundaryRuntime != null)
+        {
+            return;
+        }
+
+        visionLipBoundaryRuntime = FindFirstObjectByType<E7VisionLipBoundaryRuntime>();
+        if (visionLipBoundaryRuntime == null)
+        {
+            visionLipBoundaryRuntime = gameObject.AddComponent<E7VisionLipBoundaryRuntime>();
+        }
+    }
+
+    private static VisionBoundaryGateInfo CreateDefaultVisionGateInfo()
+    {
+        return new VisionBoundaryGateInfo
+        {
+            Status = "not_requested",
+            Source = "none",
+            CoordinateMode = "none",
+            OuterPointCount = 0,
+            InnerPointCount = 0,
+            ImageWidth = 0,
+            ImageHeight = 0,
+            AgeMs = 0
+        };
+    }
+
+    private static VisionBoundaryGateInfo BuildVisionGateInfo(
+        E7VisionLipBoundaryRuntime.BoundarySnapshot snapshot)
+    {
+        return new VisionBoundaryGateInfo
+        {
+            Status = string.IsNullOrWhiteSpace(snapshot.Status) ? "unknown" : snapshot.Status,
+            Source = string.IsNullOrWhiteSpace(snapshot.Source) ? VisionLipBoundarySource : snapshot.Source,
+            CoordinateMode = string.IsNullOrWhiteSpace(snapshot.CoordinateMode) ? "raw-y" : snapshot.CoordinateMode,
+            OuterPointCount = snapshot.OuterPointCount,
+            InnerPointCount = snapshot.InnerPointCount,
+            ImageWidth = snapshot.ImageWidth,
+            ImageHeight = snapshot.ImageHeight,
+            AgeMs = snapshot.AgeMs
+        };
+    }
+
+    private static void ApplyVisionGateInfo(
+        ref RegionApplyResult result,
+        VisionBoundaryGateInfo info)
+    {
+        if (string.IsNullOrWhiteSpace(info.Status))
+        {
+            return;
+        }
+
+        result.VisionBoundaryStatus = info.Status;
+        result.VisionBoundarySource = info.Source;
+        result.VisionBoundaryCoordinateMode = info.CoordinateMode;
+        result.VisionBoundaryOuterPointCount = info.OuterPointCount;
+        result.VisionBoundaryInnerPointCount = info.InnerPointCount;
+        result.VisionBoundaryImageWidth = info.ImageWidth;
+        result.VisionBoundaryImageHeight = info.ImageHeight;
+        result.VisionBoundaryAgeMs = info.AgeMs;
+    }
+
+    private static void ApplyDynamicMaskDiagnostics(
+        ref RegionApplyResult result,
+        MaskTextureDiagnostics diagnostics)
+    {
+        if (diagnostics == null)
+        {
+            return;
+        }
+
+        result.MaskTextureDiagnosticStatus = diagnostics.Status;
+        result.MaskTextureWidth = diagnostics.Width;
+        result.MaskTextureHeight = diagnostics.Height;
+        result.MaskTextureActivePixelCountGt8 = diagnostics.ActivePixelCountGt8;
+        result.MaskTextureActiveCoverageGt8 = diagnostics.ActiveCoverageGt8;
+        result.MaskTextureActiveBbox = diagnostics.ActiveBbox;
+        result.MaskTextureThresholdPixelCount = diagnostics.ThresholdPixelCount;
+        result.MaskTextureThresholdCoverage = diagnostics.ThresholdCoverage;
+    }
+
+    private static bool ApplyVisionBoundaryScreenMask(
+        RegionOverlayView view,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot sourceBoundary,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary,
+        out MaskTextureDiagnostics diagnostics)
+    {
+        diagnostics = new MaskTextureDiagnostics
+        {
+            Status = "vision_screen_mask_unavailable"
+        };
+
+        if (view == null
+            || view.MeshRenderer == null
+            || view.MeshRenderer.sharedMaterial == null
+            || boundary.OuterPoints == null
+            || boundary.InnerPoints == null
+            || boundary.OuterPoints.Length < 3
+            || boundary.InnerPoints.Length < 3
+            || boundary.ImageWidth <= 0
+            || boundary.ImageHeight <= 0)
+        {
+            return false;
+        }
+
+        ResolveVisionScreenMaskSize(boundary.ImageWidth, boundary.ImageHeight, out int width, out int height);
+        EnsureVisionScreenMaskStorage(view, width, height);
+        if (view.VisionScreenMaskTexture == null
+            || view.VisionScreenMaskPixels == null
+            || view.VisionScreenMaskPixels.Length != width * height)
+        {
+            diagnostics.Status = "vision_screen_mask_storage_failed";
+            return false;
+        }
+
+        if (view.VisionScreenMaskSequence != boundary.Sequence)
+        {
+            BuildVisionScreenMaskPixels(view, sourceBoundary, boundary, width, height);
+        }
+
+        Material material = view.MeshRenderer.sharedMaterial;
+        if (material.HasProperty("_MaskTex"))
+        {
+            material.SetTexture("_MaskTex", view.VisionScreenMaskTexture);
+        }
+
+        if (material.HasProperty("_UseScreenSpaceMask"))
+        {
+            material.SetFloat("_UseScreenSpaceMask", 1.0f);
+        }
+
+        diagnostics = view.VisionScreenMaskDiagnostics ?? new MaskTextureDiagnostics
+        {
+            Status = "vision_screen_mask_missing_diagnostics",
+            Width = width,
+            Height = height
+        };
+        return diagnostics.ActivePixelCountGt8 > 0;
+    }
+
+    private static void EnsureVisionScreenMaskStorage(
+        RegionOverlayView view,
+        int width,
+        int height)
+    {
+        if (view.VisionScreenMaskTexture != null
+            && view.VisionScreenMaskWidth == width
+            && view.VisionScreenMaskHeight == height
+            && view.VisionScreenMaskPixels != null
+            && view.VisionScreenMaskPixels.Length == width * height)
+        {
+            return;
+        }
+
+        if (view.VisionScreenMaskTexture != null)
+        {
+            UnityEngine.Object.Destroy(view.VisionScreenMaskTexture);
+        }
+
+        view.VisionScreenMaskTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            name = "E7 Vision Lip Boundary Screen Mask",
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear
+        };
+        view.VisionScreenMaskPixels = new Color32[width * height];
+        view.VisionScreenMaskWidth = width;
+        view.VisionScreenMaskHeight = height;
+        view.VisionScreenMaskSequence = -1;
+        view.VisionScreenMaskDiagnostics = new MaskTextureDiagnostics
+        {
+            Status = "vision_screen_mask_allocated",
+            Width = width,
+            Height = height
+        };
+    }
+
+    private static void BuildVisionScreenMaskPixels(
+        RegionOverlayView view,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot sourceBoundary,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height)
+    {
+        Color32[] pixels = view.VisionScreenMaskPixels;
+        Array.Clear(pixels, 0, pixels.Length);
+        Vector2[] outerPoints = ScaleVisionBoundaryPoints(
+            boundary.OuterPoints,
+            width / (float)Mathf.Max(1, boundary.ImageWidth),
+            height / (float)Mathf.Max(1, boundary.ImageHeight));
+        Vector2[] innerPoints = ScaleVisionBoundaryPoints(
+            boundary.InnerPoints,
+            width / (float)Mathf.Max(1, boundary.ImageWidth),
+            height / (float)Mathf.Max(1, boundary.ImageHeight));
+
+        int minX = width;
+        int minY = height;
+        int maxX = -1;
+        int maxY = -1;
+        CalculateBoundaryBbox(outerPoints, width, height, out int left, out int top, out int right, out int bottom);
+        int activeCount = 0;
+
+        for (int topLeftY = top; topLeftY <= bottom; topLeftY++)
+        {
+            for (int x = left; x <= right; x++)
+            {
+                Vector2 point = new Vector2(x + 0.5f, topLeftY + 0.5f);
+                if (!IsPointInsideLipBoundary(point, outerPoints, innerPoints))
+                {
+                    continue;
+                }
+
+                int textureY = height - 1 - topLeftY;
+                int pixelIndex = textureY * width + x;
+                if (pixelIndex < 0 || pixelIndex >= pixels.Length)
+                {
+                    continue;
+                }
+
+                pixels[pixelIndex] = new Color32(255, 0, 255, 255);
+                activeCount++;
+                minX = Mathf.Min(minX, x);
+                maxX = Mathf.Max(maxX, x);
+                minY = Mathf.Min(minY, topLeftY);
+                maxY = Mathf.Max(maxY, topLeftY);
+            }
+        }
+
+        view.VisionScreenMaskTexture.SetPixels32(pixels);
+        view.VisionScreenMaskTexture.Apply(false, false);
+        view.VisionScreenMaskSequence = boundary.Sequence;
+        int totalPixels = Mathf.Max(1, width * height);
+        Debug.Log(
+            "[E7] vision_lip_boundary_transform_candidates"
+            + " sequence=" + boundary.Sequence.ToString(CultureInfo.InvariantCulture)
+            + " selected=" + VisionBoundaryRuntimeTransform
+            + " sourceCoordinateMode=" + sourceBoundary.CoordinateMode
+            + " screenCoordinateMode=" + boundary.CoordinateMode
+            + " candidates="
+            + BuildVisionTransformCandidateSummary(
+                sourceBoundary,
+                Mathf.Max(1, sourceBoundary.ImageWidth),
+                Mathf.Max(1, sourceBoundary.ImageHeight)));
+        view.VisionScreenMaskDiagnostics = new MaskTextureDiagnostics
+        {
+            Status = activeCount > 0
+                ? "vision_screen_space_outer_minus_inner"
+                : "vision_screen_space_empty",
+            Width = width,
+            Height = height,
+            ActivePixelCountGt8 = activeCount,
+            ActiveCoverageGt8 = activeCount / (float)totalPixels,
+            ActiveBbox = activeCount == 0
+                ? "none"
+                : "left=" + minX.ToString(CultureInfo.InvariantCulture)
+                    + ",top=" + minY.ToString(CultureInfo.InvariantCulture)
+                    + ",right=" + maxX.ToString(CultureInfo.InvariantCulture)
+                    + ",bottom=" + maxY.ToString(CultureInfo.InvariantCulture)
+                    + ",width=" + (maxX - minX + 1).ToString(CultureInfo.InvariantCulture)
+                    + ",height=" + (maxY - minY + 1).ToString(CultureInfo.InvariantCulture),
+            ThresholdPixelCount = activeCount,
+            ThresholdCoverage = activeCount / (float)totalPixels
+        };
+    }
+
+    private static void ResolveVisionScreenMaskSize(
+        int sourceWidth,
+        int sourceHeight,
+        out int width,
+        out int height)
+    {
+        sourceWidth = Mathf.Max(1, sourceWidth);
+        sourceHeight = Mathf.Max(1, sourceHeight);
+        float largest = Mathf.Max(sourceWidth, sourceHeight);
+        float scale = Mathf.Min(1.0f, VisionScreenMaskMaxDimension / largest);
+        width = Mathf.Max(1, Mathf.RoundToInt(sourceWidth * scale));
+        height = Mathf.Max(1, Mathf.RoundToInt(sourceHeight * scale));
+    }
+
+    private static Vector2[] ScaleVisionBoundaryPoints(
+        Vector2[] points,
+        float scaleX,
+        float scaleY)
+    {
+        if (points == null || points.Length == 0)
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        Vector2[] scaled = new Vector2[points.Length];
+        for (int index = 0; index < points.Length; index++)
+        {
+            scaled[index] = new Vector2(points[index].x * scaleX, points[index].y * scaleY);
+        }
+
+        return scaled;
+    }
+
+    private static E7VisionLipBoundaryRuntime.BoundarySnapshot TransformVisionBoundaryForScreen(
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height,
+        string transformMode)
+    {
+        E7VisionLipBoundaryRuntime.BoundarySnapshot transformed = boundary;
+        width = Mathf.Max(1, width);
+        height = Mathf.Max(1, height);
+        transformMode = NormalizeVisionTransformMode(transformMode);
+        transformed.OuterPoints = TransformVisionBoundaryPoints(
+            boundary.OuterPoints,
+            width,
+            height,
+            transformMode);
+        transformed.InnerPoints = TransformVisionBoundaryPoints(
+            boundary.InnerPoints,
+            width,
+            height,
+            transformMode);
+        transformed.ImageWidth = width;
+        transformed.ImageHeight = height;
+        transformed.CoordinateMode = string.IsNullOrWhiteSpace(boundary.CoordinateMode)
+            ? transformMode
+            : boundary.CoordinateMode + "->" + transformMode;
+        return transformed;
+    }
+
+    private static Vector2[] TransformVisionBoundaryPoints(
+        Vector2[] points,
+        int width,
+        int height,
+        string transformMode)
+    {
+        if (points == null || points.Length == 0)
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        Vector2[] transformed = new Vector2[points.Length];
+        for (int index = 0; index < points.Length; index++)
+        {
+            transformed[index] = TransformVisionBoundaryPoint(
+                points[index],
+                width,
+                height,
+                transformMode);
+        }
+
+        return transformed;
+    }
+
+    private static Vector2 TransformVisionBoundaryPoint(
+        Vector2 point,
+        int width,
+        int height,
+        string transformMode)
+    {
+        width = Mathf.Max(1, width);
+        height = Mathf.Max(1, height);
+        transformMode = NormalizeVisionTransformMode(transformMode);
+
+        float x = point.x;
+        float y = point.y;
+        if (transformMode == "flip-x" || transformMode == "flip-xy")
+        {
+            x = width - x;
+        }
+
+        if (transformMode == "flip-y" || transformMode == "flip-xy")
+        {
+            y = height - y;
+        }
+
+        return new Vector2(x, y);
+    }
+
+    private static string BuildVisionTransformCandidateSummary(
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height)
+    {
+        if (boundary.OuterPoints == null || boundary.OuterPoints.Length < 3)
+        {
+            return "none";
+        }
+
+        return "raw=" + BuildVisionBoundaryBboxSummary(boundary.OuterPoints, width, height, "raw")
+            + ";flip-y=" + BuildVisionBoundaryBboxSummary(boundary.OuterPoints, width, height, "flip-y")
+            + ";flip-x=" + BuildVisionBoundaryBboxSummary(boundary.OuterPoints, width, height, "flip-x")
+            + ";flip-xy=" + BuildVisionBoundaryBboxSummary(boundary.OuterPoints, width, height, "flip-xy");
+    }
+
+    private static string BuildVisionBoundaryBboxSummary(
+        Vector2[] points,
+        int width,
+        int height,
+        string transformMode)
+    {
+        Vector2[] transformed = TransformVisionBoundaryPoints(
+            points,
+            width,
+            height,
+            transformMode);
+        CalculateBoundaryBbox(transformed, width, height, out int left, out int top, out int right, out int bottom);
+        return "left=" + left.ToString(CultureInfo.InvariantCulture)
+            + ",top=" + top.ToString(CultureInfo.InvariantCulture)
+            + ",right=" + right.ToString(CultureInfo.InvariantCulture)
+            + ",bottom=" + bottom.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private static string NormalizeVisionTransformMode(string transformMode)
+    {
+        transformMode = string.IsNullOrWhiteSpace(transformMode)
+            ? "raw"
+            : transformMode.Trim().ToLowerInvariant();
+
+        if (transformMode == "raw"
+            || transformMode == "flip-y"
+            || transformMode == "flip-x"
+            || transformMode == "flip-xy")
+        {
+            return transformMode;
+        }
+
+        return "raw";
+    }
+
+    private static void CalculateBoundaryBbox(
+        Vector2[] points,
+        int width,
+        int height,
+        out int left,
+        out int top,
+        out int right,
+        out int bottom)
+    {
+        const int padding = 2;
+        float minX = width;
+        float minY = height;
+        float maxX = -1.0f;
+        float maxY = -1.0f;
+
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            minX = Mathf.Min(minX, point.x);
+            maxX = Mathf.Max(maxX, point.x);
+            minY = Mathf.Min(minY, point.y);
+            maxY = Mathf.Max(maxY, point.y);
+        }
+
+        left = Mathf.Clamp(Mathf.FloorToInt(minX) - padding, 0, width - 1);
+        right = Mathf.Clamp(Mathf.CeilToInt(maxX) + padding, 0, width - 1);
+        top = Mathf.Clamp(Mathf.FloorToInt(minY) - padding, 0, height - 1);
+        bottom = Mathf.Clamp(Mathf.CeilToInt(maxY) + padding, 0, height - 1);
+    }
+
+    private static bool TriangleIntersectsVisionBoundary(
+        ARFace face,
+        Camera arCamera,
+        int sourceA,
+        int sourceB,
+        int sourceC,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        if (face == null
+            || arCamera == null
+            || boundary.OuterPoints == null
+            || boundary.InnerPoints == null
+            || boundary.OuterPoints.Length < 3
+            || boundary.InnerPoints.Length < 3)
+        {
+            return false;
+        }
+
+        Vector2 screenA = ProjectVertexTopLeft(face, arCamera, sourceA);
+        Vector2 screenB = ProjectVertexTopLeft(face, arCamera, sourceB);
+        Vector2 screenC = ProjectVertexTopLeft(face, arCamera, sourceC);
+        Vector2 centroid = (screenA + screenB + screenC) / 3.0f;
+        Vector2 midAB = (screenA + screenB) * 0.5f;
+        Vector2 midBC = (screenB + screenC) * 0.5f;
+        Vector2 midCA = (screenC + screenA) * 0.5f;
+
+        return IsPointInsideLipBoundary(screenA, boundary)
+            || IsPointInsideLipBoundary(screenB, boundary)
+            || IsPointInsideLipBoundary(screenC, boundary)
+            || IsPointInsideLipBoundary(centroid, boundary)
+            || IsPointInsideLipBoundary(midAB, boundary)
+            || IsPointInsideLipBoundary(midBC, boundary)
+            || IsPointInsideLipBoundary(midCA, boundary);
+    }
+
+    private static Vector2 ProjectVertexTopLeft(ARFace face, Camera arCamera, int vertexIndex)
+    {
+        Vector3 world = face.transform.TransformPoint(face.vertices[vertexIndex]);
+        Vector3 screen = arCamera.WorldToScreenPoint(world);
+        return new Vector2(screen.x, Screen.height - screen.y);
+    }
+
+    private static bool IsPointInsideLipBoundary(
+        Vector2 point,
+        E7VisionLipBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        return IsPointInsideLipBoundary(point, boundary.OuterPoints, boundary.InnerPoints);
+    }
+
+    private static bool IsPointInsideLipBoundary(
+        Vector2 point,
+        Vector2[] outerPoints,
+        Vector2[] innerPoints)
+    {
+        return IsPointInPolygon(point, outerPoints)
+            && !IsPointInPolygon(point, innerPoints);
+    }
+
+    private static bool IsPointInPolygon(Vector2 point, Vector2[] polygon)
+    {
+        bool inside = false;
+        int count = polygon != null ? polygon.Length : 0;
+        if (count < 3)
+        {
+            return false;
+        }
+
+        for (int current = 0, previous = count - 1; current < count; previous = current++)
+        {
+            Vector2 a = polygon[current];
+            Vector2 b = polygon[previous];
+            bool crossesY = (a.y > point.y) != (b.y > point.y);
+            if (!crossesY)
+            {
+                continue;
+            }
+
+            float denominator = b.y - a.y;
+            if (Mathf.Abs(denominator) < 0.00001f)
+            {
+                continue;
+            }
+
+            float crossingX = (b.x - a.x) * (point.y - a.y) / denominator + a.x;
+            if (point.x < crossingX)
+            {
+                inside = !inside;
+            }
+        }
+
+        return inside;
     }
 
     private static MaskDefinition ResolveMask(string region, string requestedMaskTextureId)
@@ -660,7 +1357,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (NormalizeRegion(region))
         {
             case "lip":
-                return "lip-drawn-style-atlas-v1";
+                return LipDrawnStyleAtlasMaskId;
             case "cheek":
                 return "cheek-drawn-mask-v1";
             case "eye":
@@ -675,6 +1372,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (mask == null || string.IsNullOrWhiteSpace(mask.ResourcePath))
         {
             return null;
+        }
+
+        if (IsVisionLipBoundaryMask(mask.MaskTextureId))
+        {
+            return GetVisionBoundaryMaskTexture();
         }
 
         if (MaskTextures.TryGetValue(mask.ResourcePath, out Texture2D cached))
@@ -698,6 +1400,26 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return texture;
     }
 
+    private static Texture2D GetVisionBoundaryMaskTexture()
+    {
+        const string cacheKey = "runtime:lip-vision-boundary-v1:white-mask";
+        if (MaskTextures.TryGetValue(cacheKey, out Texture2D cached))
+        {
+            return cached;
+        }
+
+        Texture2D texture = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+        {
+            name = "E7 Vision Lip Boundary White Mask",
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Point
+        };
+        texture.SetPixel(0, 0, Color.white);
+        texture.Apply(false, false);
+        MaskTextures[cacheKey] = texture;
+        return texture;
+    }
+
     private static void ApplyMaskTextureDiagnostics(MaskDefinition mask, ref RegionApplyResult result)
     {
         MaskTextureDiagnostics diagnostics = GetMaskTextureDiagnostics(mask);
@@ -716,6 +1438,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return recipe != null
             && recipe.Region == "lip"
             && IsLipStyleAtlasMask(recipe.MaskTextureId);
+    }
+
+    private static bool ShouldCullMeshToVisionBoundary(RegionRecipeState recipe)
+    {
+        return recipe != null
+            && recipe.Region == "lip"
+            && IsVisionLipBoundaryMask(recipe.MaskTextureId);
     }
 
     private static MaskTextureSampleData GetMaskTextureSampleData(MaskDefinition mask)
@@ -926,6 +1655,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         view.MeshRenderer.sharedMaterial = material;
         material.SetTexture("_MaskTex", maskTexture);
         ApplyMaterialBlendMode(material, recipe.BlendMode);
+        bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
+
+        if (material.HasProperty("_UseScreenSpaceMask"))
+        {
+            material.SetFloat("_UseScreenSpaceMask", visionLipBoundary ? 1.0f : 0.0f);
+        }
 
         if (material.HasProperty("_RegionColor"))
         {
@@ -1000,7 +1735,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_LipStyleMode",
-                IsLipStyleAtlasMask(recipe.MaskTextureId)
+                IsLipStyleAtlasMask(recipe.MaskTextureId) || visionLipBoundary
                     ? ResolveLipStyleMode(recipe.TextureSample)
                     : -1.0f);
         }
@@ -1050,32 +1785,32 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (recipe.TextureSample)
         {
             case "gloss_lip":
-                sampleAlphaScale = Mathf.Lerp(0.34f, 0.52f, recipe.Intensity);
-                brightnessScale = 1.02f;
+                sampleAlphaScale = Mathf.Lerp(0.5f, 0.72f, recipe.Intensity);
+                brightnessScale = 1.06f;
                 break;
             case "full_lip":
-                sampleAlphaScale = Mathf.Lerp(0.44f, 0.64f, recipe.Intensity);
-                brightnessScale = 0.92f;
+                sampleAlphaScale = Mathf.Lerp(0.5f, 0.72f, recipe.Intensity);
+                brightnessScale = 0.94f;
                 break;
             case "gradient_lip":
-                sampleAlphaScale = Mathf.Lerp(0.32f, 0.5f, recipe.Intensity);
-                brightnessScale = 0.98f;
+                sampleAlphaScale = Mathf.Lerp(0.44f, 0.66f, recipe.Intensity);
+                brightnessScale = 1.02f;
                 break;
             case "overline_lip":
-                sampleAlphaScale = Mathf.Lerp(0.22f, 0.34f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.28f, 0.42f, recipe.Intensity);
                 brightnessScale = 0.96f;
                 break;
             case "soft_blush":
-                sampleAlphaScale = Mathf.Lerp(0.26f, 0.42f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.32f, 0.52f, recipe.Intensity);
                 brightnessScale = 1.02f;
                 break;
             case "shimmer_eye":
-                sampleAlphaScale = Mathf.Lerp(0.24f, 0.42f, recipe.Intensity);
-                brightnessScale = Mathf.Lerp(1.0f, 1.08f, recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);
+                brightnessScale = Mathf.Lerp(1.0f, 1.1f, recipe.Intensity);
                 break;
             default:
-                sampleAlphaScale = Mathf.Lerp(0.34f, 0.52f, recipe.Intensity);
-                brightnessScale = 0.95f;
+                sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);
+                brightnessScale = 0.9f;
                 break;
         }
 
@@ -1119,7 +1854,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             case "multiply":
                 sourceBlend = BlendMode.DstColor;
-                destinationBlend = BlendMode.OneMinusSrcAlpha;
+                destinationBlend = BlendMode.Zero;
                 break;
             case "screen":
                 sourceBlend = BlendMode.SrcAlpha;
@@ -1135,6 +1870,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (material.HasProperty("_DstBlend"))
         {
             material.SetInt("_DstBlend", (int)destinationBlend);
+        }
+
+        if (material.HasProperty("_PigmentMultiply"))
+        {
+            material.SetFloat(
+                "_PigmentMultiply",
+                NormalizeBlendMode(blendMode) == "multiply" ? 1.0f : 0.0f);
         }
 
         material.renderQueue = 5000;
@@ -1240,6 +1982,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
         }
 
+        if (material.HasProperty("_PigmentMultiply"))
+        {
+            material.SetFloat("_PigmentMultiply", 0.0f);
+        }
+
+        if (material.HasProperty("_UseScreenSpaceMask"))
+        {
+            material.SetFloat("_UseScreenSpaceMask", 0.0f);
+        }
+
         if (material.HasProperty("_ZWrite"))
         {
             material.SetInt("_ZWrite", 0);
@@ -1325,7 +2077,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         string expected = GetDefaultMaskTextureId(region);
         if (maskTextureId == expected
-            || (region == "lip" && (maskTextureId == "lip-style-atlas-v1"
+            || (region == "lip" && (maskTextureId == VisionLipBoundaryMaskId
+                || maskTextureId == "lip-style-atlas-v1"
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
             || (region == "cheek" && maskTextureId == "cheek-smooth-mask-v1")
@@ -1344,8 +2097,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? string.Empty
             : maskTextureId.Trim();
 
-        return maskTextureId == "lip-drawn-style-atlas-v1"
+        return maskTextureId == LipDrawnStyleAtlasMaskId
             || maskTextureId == "lip-style-atlas-v1";
+    }
+
+    private static bool IsVisionLipBoundaryMask(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        return maskTextureId == VisionLipBoundaryMaskId;
     }
 
     private static string NormalizeOptional(string value)
@@ -1432,7 +2194,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             "[E7] region_mask_state"
             + " rendererMode=" + RendererMode
             + " maskTextureId=" + recipe.MaskTextureId
-            + " maskSource=" + (IsLipStyleAtlasMask(recipe.MaskTextureId)
+            + " maskSource=" + (IsVisionLipBoundaryMask(recipe.MaskTextureId)
+                ? VisionLipBoundarySource
+                : IsLipStyleAtlasMask(recipe.MaskTextureId)
                 ? "lip_style_atlas_v1_uv_back_projection"
                 : MaskSource)
             + " region=" + region
@@ -1476,6 +2240,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " maskTextureGt8Bbox=" + result.MaskTextureActiveBbox
             + " maskTextureThresholdPixels=" + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
             + " maskTextureThresholdCoverage=" + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
+            + " visionBoundaryStatus=" + result.VisionBoundaryStatus
+            + " visionBoundarySource=" + result.VisionBoundarySource
+            + " visionBoundaryCoordinateMode=" + result.VisionBoundaryCoordinateMode
+            + " visionBoundaryOuterPoints=" + result.VisionBoundaryOuterPointCount.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryInnerPoints=" + result.VisionBoundaryInnerPointCount.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryImageSize=" + result.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
+            + "x" + result.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryAgeMs=" + result.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
             + " coverage=" + result.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + " finish=" + result.Finish
             + " roughness=" + result.Roughness.ToString("0.##", CultureInfo.InvariantCulture)

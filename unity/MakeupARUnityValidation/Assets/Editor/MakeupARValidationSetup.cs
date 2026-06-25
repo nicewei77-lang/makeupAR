@@ -2,7 +2,9 @@
 using System.IO;
 using Unity.XR.CoreUtils;
 using UnityEditor;
+using UnityEditor.Callbacks;
 using UnityEditor.SceneManagement;
+using UnityEditor.iOS.Xcode;
 using UnityEditor.XR.ARKit;
 using UnityEditor.XR.Management;
 using UnityEditor.XR.Management.Metadata;
@@ -26,7 +28,7 @@ public static class MakeupARValidationSetup
     [MenuItem("Makeup AR Validation/Configure Project And Scene")]
     public static void ConfigureProjectAndScene()
     {
-        EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+        EnsureIosBuildTarget();
 
         PlayerSettings.companyName = "MakeupAR";
         PlayerSettings.productName = "MakeupARUnityValidation";
@@ -43,7 +45,6 @@ public static class MakeupARValidationSetup
         CreateValidationScene(facePrefab, faceMaterial);
 
         AssetDatabase.SaveAssets();
-        AssetDatabase.Refresh();
         Debug.Log("[M1] Unity AR Foundation validation project and scene configured.");
     }
 
@@ -67,12 +68,54 @@ public static class MakeupARValidationSetup
         Debug.Log("[M1] Unity iOS export result: " + report.summary.result + " at " + exportPath);
     }
 
+    [PostProcessBuild(100)]
+    public static void AddIosNativeFrameworks(BuildTarget target, string pathToBuiltProject)
+    {
+        if (target != BuildTarget.iOS)
+        {
+            return;
+        }
+
+        string projectPath = PBXProject.GetPBXProjectPath(pathToBuiltProject);
+        PBXProject project = new PBXProject();
+        project.ReadFromFile(projectPath);
+        string targetGuid = project.GetUnityFrameworkTargetGuid();
+        project.AddFrameworkToProject(targetGuid, "Vision.framework", false);
+        project.WriteToFile(projectPath);
+
+        Debug.Log("[E7] Added Vision.framework for runtime Apple Vision lip landmark boundary.");
+    }
+
     private static void EnsureFolders()
     {
-        Directory.CreateDirectory("Assets/Scenes");
-        Directory.CreateDirectory("Assets/Prefabs");
-        Directory.CreateDirectory("Assets/Materials");
-        Directory.CreateDirectory(XRSettingsFolder);
+        EnsureAssetFolder("Assets/Scenes");
+        EnsureAssetFolder("Assets/Prefabs");
+        EnsureAssetFolder("Assets/Materials");
+        EnsureAssetFolder(XRSettingsFolder);
+    }
+
+    private static void EnsureIosBuildTarget()
+    {
+        if (EditorUserBuildSettings.activeBuildTarget == BuildTarget.iOS)
+        {
+            return;
+        }
+
+        EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.iOS, BuildTarget.iOS);
+    }
+
+    private static void EnsureAssetFolder(string folderPath)
+    {
+        folderPath = folderPath.Replace('\\', '/');
+        if (folderPath == "Assets" || AssetDatabase.IsValidFolder(folderPath))
+        {
+            return;
+        }
+
+        string parent = Path.GetDirectoryName(folderPath)?.Replace('\\', '/') ?? "Assets";
+        string folderName = Path.GetFileName(folderPath);
+        EnsureAssetFolder(parent);
+        AssetDatabase.CreateFolder(parent, folderName);
     }
 
     private static Material CreateFaceOverlayMaterial()

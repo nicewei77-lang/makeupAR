@@ -260,15 +260,20 @@ test('shows lip color, finish, and intensity controls in HUD mode', async () => 
   expect(hudText).toContain('coral');
   expect(hudText).toContain('Matte');
   expect(hudText).toContain('Glow');
+  expect(hudText).toContain('Gradient');
   expect(hudText).toContain('Intensity');
   expect(hudText).toContain('matte_lip');
 
   pressByText(renderer!, 'Glow');
 
   expect(collectText(renderer!)).toContain('gloss_lip');
+
+  pressByText(renderer!, 'Gradient');
+
+  expect(collectText(renderer!)).toContain('gradient_lip');
 });
 
-test('surfaces lip atlas runtime diagnostics from Unity recipe events', async () => {
+test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -283,6 +288,9 @@ test('surfaces lip atlas runtime diagnostics from Unity recipe events', async ()
     texture: 'matte_lip',
     sample: 'matte_lip',
     textureMode: 'sample',
+    blendMode: 'multiply',
+    finish: 'matte',
+    maskTextureId: 'lip-vision-boundary-v1',
     color: '#D94B74',
     opacity: 0.72,
     intensity: 0.68,
@@ -293,25 +301,35 @@ test('surfaces lip atlas runtime diagnostics from Unity recipe events', async ()
     uvAvailable: true,
     stateAction: 'tracking_render',
     topologyAuditStatus: 'pass_uv_topology_ready',
-    maskSource: 'lip_style_atlas_v1_uv_back_projection',
+    maskSource: 'apple_vision_runtime_lip_landmarks',
+    visionBoundaryStatus: 'ok',
+    visionBoundarySource: 'apple_vision_runtime_lip_landmarks',
+    visionBoundaryCoordinateMode: 'raw-y',
+    visionBoundaryOuterPointCount: 12,
+    visionBoundaryInnerPointCount: 8,
+    visionBoundaryImageWidth: 1179,
+    visionBoundaryImageHeight: 2556,
+    visionBoundaryAgeMs: 90,
     sourceTriangles: 2304,
-    culledTriangles: 2035,
-    meshCullingMode: 'lip_atlas_threshold_sample',
-    maskTextureActivePixelCountGt8: 3026,
-    maskTextureActiveCoverageGt8: 0.011543,
-    maskTextureActiveBbox:
-      'left=208,top=293,right=302,bottom=347,width=95,height=55',
+    culledTriangles: 2081,
+    meshCullingMode: 'apple_vision_lip_landmark_screen_space',
+    maskTextureActivePixelCountGt8: 1,
+    maskTextureActiveCoverageGt8: 1,
+    maskTextureActiveBbox: 'left=0,top=0,right=0,bottom=0,width=1,height=1',
   });
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('lip_style_atlas_v1_uv_back_projection');
+  expect(text).toContain('apple_vision_runtime_lip_landmarks');
+  expect(text).toContain('blend=multiply');
+  expect(text).toContain('finish=matte');
+  expect(text).toContain('maskTex=lip-vision-boundary-v1');
+  expect(text).toContain('vision=ok:12/8');
   expect(text).toContain('texGt8=');
-  expect(text).toContain('3026');
-  expect(text).toContain('0.012');
-  expect(text).toContain('left=208,top=293,right=302,bottom=347');
-  expect(text).toContain('cull=2035/2304');
-  expect(text).toContain('lip_atlas_threshold_sample');
+  expect(text).toContain('1');
+  expect(text).toContain('left=0,top=0,right=0,bottom=0');
+  expect(text).toContain('cull=2081/2304');
+  expect(text).toContain('apple_vision_lip_landmark_screen_space');
 });
 
 test('posts smooth mask renderer by default before build', async () => {
@@ -386,10 +404,20 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(lipLayer.glossBoost).toBe(textureSample.glossBoost);
     expect(lipLayer.gradientAmount).toBe(textureSample.gradientAmount);
     expect(lipLayer.preserveDetail).toBe(textureSample.preserveDetail);
+    expect(lipLayer.blendMode).toBe('multiply');
     if (textureSample.name === 'gloss_lip') {
-      expect(lipLayer.blendMode).toBe('normal');
-      expect(lipLayer.specular).toBeGreaterThan(0.7);
-      expect(lipLayer.glossBoost).toBeGreaterThan(0.9);
+      expect(lipLayer.specular).toBeGreaterThan(0.9);
+      expect(lipLayer.glossBoost).toBe(1);
+      expect(lipLayer.passCount).toBe(2);
+    }
+    if (textureSample.name === 'matte_lip') {
+      expect(lipLayer.preserveDetail).toBe(true);
+      expect(lipLayer.specular).toBe(0);
+      expect(lipLayer.passCount).toBe(1);
+    }
+    if (textureSample.name === 'gradient_lip') {
+      expect(lipLayer.gradientAmount).toBeGreaterThan(0.8);
+      expect(lipLayer.passCount).toBe(1);
     }
     expect(cheekLayer.texture).toBe('soft_blush');
     expect(cheekLayer.maskTextureId).toBe('cheek-drawn-mask-v1');
@@ -431,7 +459,8 @@ test('passes selected lip color, finish, and intensity through payload', () => {
   expect(lipLayer.intensity).toBe(0.85);
   expect(lipLayer.textureAmount).toBe(0.85);
   expect(lipLayer.finish).toBe('gloss');
-  expect(lipLayer.blendMode).toBe('normal');
+  expect(lipLayer.blendMode).toBe('multiply');
+  expect(lipLayer.passCount).toBe(2);
 });
 
 test('keeps Unity face debug surface disabled across view modes', async () => {

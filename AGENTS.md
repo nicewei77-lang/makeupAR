@@ -19,7 +19,7 @@
 - Before builds, exhaust buildless checks first: static tests, Unity batchmode import/compile, existing recording/capture-pair frame analysis, and ARFace export projection/contact-sheet previews.
 - Every approved Unity/RN validation session should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
 - The script exports Unity iOS, verifies ARKit links, builds `UnityFramework` with signing disabled, copies Unity `Data`, and syncs RN/package framework paths.
-- After sync, run from `rn/MakeupARValidation`: `npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK`.
+- After sync, run from `rn/MakeupARValidation`: `npm run ios -- --udid 00008110-0001794E0CD9801E --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK` (`202268054(여서진)`).
 - Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; stale Licensing Client IPC can block export (`Unsupported protocol version '1.18.1'`).
 - Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable; stale package frameworks previously caused missing Unity objects/events.
 
