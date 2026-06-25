@@ -96,6 +96,30 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--apple-vision-min-confidence", type=float, default=0.35)
     parser.add_argument(
+        "--run-face-parsing",
+        action="store_true",
+        help="Run the local/offline face parsing runner for the same frame.",
+    )
+    parser.add_argument(
+        "--face-parsing-dir",
+        type=Path,
+        default=None,
+        help="Existing directory containing real face_parsing_* artifacts to consume.",
+    )
+    parser.add_argument(
+        "--face-parsing-script",
+        type=Path,
+        default=Path("scripts/e7_lip_boundary_fusion/run_face_parsing.py"),
+        help="Local/offline face parsing runner script path.",
+    )
+    parser.add_argument(
+        "--face-parsing-checkpoint",
+        type=Path,
+        default=Path("evidence/e7-lip-m1-models/face-parsing-pytorch/79999_iter.pth"),
+        help="Pretrained face parsing checkpoint path.",
+    )
+    parser.add_argument("--face-parsing-min-lip-pixels", type=int, default=64)
+    parser.add_argument(
         "--inner-mouth-status",
         choices=("available", "contract_only", "missing"),
         default="contract_only",
@@ -508,6 +532,301 @@ def vision_capture_payload(vision: dict[str, Any] | None) -> dict[str, Any]:
     }
 
 
+def unavailable_face_parsing(reason: str, frame_path: Path, capture_pair_id: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": "e7-face-parsing-labels-v0",
+        "createdAtUtc": utc_now(),
+        "status": "unavailable",
+        "unavailableReason": reason,
+        "capturePairId": capture_pair_id,
+        "sourceFramePath": str(frame_path),
+        "sourceFrameSha256": sha256_file(frame_path) if frame_path.exists() else None,
+        "requiredForM1Ready": True,
+        "localOnly": True,
+        "runtimePrimaryTracker": False,
+        "derivedEvidenceOnly": True,
+    }
+
+
+def required_face_parsing_artifacts() -> tuple[str, ...]:
+    return (
+        "face_parsing_labels.json",
+        "face_parsing_lip_mask.png",
+        "face_parsing_upper_lip_mask.png",
+        "face_parsing_lower_lip_mask.png",
+        "face_parsing_inner_mouth_mask.png",
+        "face_parsing_overlay.png",
+        "face_parsing_confidence.json",
+    )
+
+
+def copy_face_parsing_artifacts(source_dir: Path, output_dir: Path) -> dict[str, Any]:
+    missing = []
+    for name in required_face_parsing_artifacts():
+        source = source_dir / name
+        if not source.exists():
+            missing.append(name)
+            continue
+        destination = output_dir / name
+        if source.resolve() != destination.resolve():
+            shutil.copy2(source, destination)
+    if missing:
+        return unavailable_face_parsing(
+            "provided_face_parsing_dir_missing_artifacts:" + ",".join(missing),
+            output_dir / "frame.png",
+            "unknown_capture",
+        )
+    return load_json(output_dir / "face_parsing_labels.json")
+
+
+def prepare_face_parsing_artifacts(
+    args: argparse.Namespace,
+    repo_root: Path,
+    frame_path: Path,
+    export_path: Path,
+    output_dir: Path,
+    capture_pair_id: str,
+) -> dict[str, Any] | None:
+    output_json = output_dir / "face_parsing_labels.json"
+    run_log = output_dir / "face_parsing_run.json"
+
+    if args.face_parsing_dir:
+        face_parsing = copy_face_parsing_artifacts(args.face_parsing_dir.resolve(), output_dir)
+        if face_parsing.get("capturePairId") in {None, "unknown_capture"}:
+            face_parsing["capturePairId"] = capture_pair_id
+            write_json(output_json, face_parsing)
+        return face_parsing
+
+    if not args.run_face_parsing:
+        return None
+
+    script = args.face_parsing_script.resolve()
+    checkpoint = args.face_parsing_checkpoint.resolve()
+    if not script.exists():
+        face_parsing = unavailable_face_parsing(
+            f"face_parsing_script_missing:{script}", frame_path, capture_pair_id
+        )
+        write_json(output_json, face_parsing)
+        return face_parsing
+    if not checkpoint.exists():
+        face_parsing = unavailable_face_parsing(
+            f"face_parsing_checkpoint_missing:{checkpoint}", frame_path, capture_pair_id
+        )
+        write_json(output_json, face_parsing)
+        return face_parsing
+
+    command = [
+        sys.executable,
+        str(script),
+        "--image",
+        str(frame_path),
+        "--checkpoint",
+        str(checkpoint),
+        "--output-dir",
+        str(output_dir),
+        "--capture-pair-id",
+        capture_pair_id,
+        "--arface-export",
+        str(export_path),
+        "--min-lip-pixels",
+        str(args.face_parsing_min_lip_pixels),
+    ]
+    completed = subprocess.run(command, cwd=str(repo_root), text=True, capture_output=True)
+    write_json(
+        run_log,
+        {
+            "schemaVersion": "e7-face-parsing-run-log-v0",
+            "createdAtUtc": utc_now(),
+            "command": command,
+            "returnCode": completed.returncode,
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "localOnly": True,
+        },
+    )
+    if output_json.exists():
+        return load_json(output_json)
+    face_parsing = unavailable_face_parsing(
+        f"face_parsing_runner_failed:{completed.returncode}", frame_path, capture_pair_id
+    )
+    write_json(output_json, face_parsing)
+    return face_parsing
+
+
+def face_parsing_capture_payload(face_parsing: dict[str, Any] | None) -> dict[str, Any]:
+    if not face_parsing:
+        return {
+            "status": "required_not_run",
+            "labels": [],
+            "localOnly": True,
+            "requiredForM1Ready": True,
+        }
+    labels = face_parsing.get("requiredLabels", {})
+    pixel_counts = {
+        name: detail.get("pixelCount")
+        for name, detail in labels.items()
+        if isinstance(detail, dict)
+    }
+    present_labels = [
+        name
+        for name, detail in labels.items()
+        if isinstance(detail, dict) and int(detail.get("pixelCount", 0)) > 0
+    ]
+    artifacts = face_parsing.get("artifacts", {})
+    return {
+        "status": face_parsing.get("status", "unavailable"),
+        "labels": present_labels,
+        "labelSet": face_parsing.get("labelSet"),
+        "localOnly": bool(face_parsing.get("localOnly", True)),
+        "requiredForM1Ready": True,
+        "runtimePrimaryTracker": False,
+        "derivedEvidenceOnly": True,
+        "lipMaskPath": artifacts.get("lipMask", "face_parsing_lip_mask.png"),
+        "upperLipMaskPath": artifacts.get("upperLipMask", "face_parsing_upper_lip_mask.png"),
+        "lowerLipMaskPath": artifacts.get("lowerLipMask", "face_parsing_lower_lip_mask.png"),
+        "innerMouthMaskPath": artifacts.get("innerMouthMask", "face_parsing_inner_mouth_mask.png"),
+        "overlayPath": artifacts.get("overlay", "face_parsing_overlay.png"),
+        "confidencePath": "face_parsing_confidence.json",
+        "requiredLabels": labels,
+        "pixelCounts": pixel_counts,
+        "meanLipConfidence": None,
+        "unavailableReason": face_parsing.get("unavailableReason"),
+        "failureReasons": face_parsing.get("failureReasons", []),
+    }
+
+
+def count_mask_pixels(path: Path) -> int:
+    if not path.exists():
+        return 0
+    return int(np.count_nonzero(np.asarray(Image.open(path).convert("L")) > 0))
+
+
+def effective_region_statuses(
+    args: argparse.Namespace, face_parsing: dict[str, Any] | None, output_dir: Path
+) -> None:
+    if not face_parsing or face_parsing.get("status") != "silver":
+        return
+    if count_mask_pixels(output_dir / "face_parsing_inner_mouth_mask.png") > 0:
+        args.inner_mouth_status = "available"
+    if (
+        count_mask_pixels(output_dir / "face_parsing_upper_lip_mask.png") > 0
+        and count_mask_pixels(output_dir / "face_parsing_lower_lip_mask.png") > 0
+    ):
+        args.upper_lower_status = "available"
+
+
+def binary_mask(path: Path) -> Image.Image:
+    image = Image.open(path).convert("L")
+    return image.point(lambda value: 255 if value > 0 else 0)
+
+
+def write_candidate_mask(path: Path, image: Image.Image) -> int:
+    image.save(path)
+    return int(np.count_nonzero(np.asarray(image) > 0))
+
+
+def apply_face_parsing_to_reference(
+    output_dir: Path,
+    frame: Image.Image,
+    reference_meta: dict[str, Any],
+    face_parsing: dict[str, Any] | None,
+) -> dict[str, Any]:
+    if not face_parsing or face_parsing.get("status") != "silver":
+        return reference_meta
+    reference_path = output_dir / "lip_reference_mask.png"
+    lip_path = output_dir / "face_parsing_lip_mask.png"
+    inner_path = output_dir / "face_parsing_inner_mouth_mask.png"
+    if not reference_path.exists() or not lip_path.exists():
+        return reference_meta
+
+    before_path = output_dir / "lip_reference_mask_before_face_parsing.png"
+    shutil.copy2(reference_path, before_path)
+    reference = binary_mask(reference_path)
+    parsing_lip = binary_mask(lip_path)
+    parsing_lip_expanded = parsing_lip.filter(ImageFilter.MaxFilter(17))
+    fused = ImageChops.multiply(reference, parsing_lip_expanded)
+    inner_pixels = 0
+    if inner_path.exists():
+        parsing_inner = binary_mask(inner_path).filter(ImageFilter.MaxFilter(9))
+        inner_pixels = int(np.count_nonzero(np.asarray(parsing_inner) > 0))
+        fused = ImageChops.subtract(fused, parsing_inner)
+    fused = fused.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    before_pixels = int(np.count_nonzero(np.asarray(reference) > 0))
+    parsing_pixels = int(np.count_nonzero(np.asarray(parsing_lip) > 0))
+    fused_pixels = int(np.count_nonzero(np.asarray(fused) > 0))
+    if fused_pixels < max(64, int(before_pixels * 0.10)):
+        # Keep the reference mask if intersection is implausibly tiny, but record
+        # the failure so parsing cannot silently claim to have improved fusion.
+        fused = reference
+        fusion_status = "not_applied_intersection_too_small"
+    else:
+        fusion_status = "applied"
+    write_candidate_mask(reference_path, fused)
+    mask_overlay(frame, fused).save(output_dir / "lip_reference_mask_overlay.png")
+    auto_pixels = write_candidate_mask(output_dir / "lip-tight-auto-v0_mask.png", fused)
+    user_pixels = write_candidate_mask(output_dir / "lip-tight-user-v0_mask.png", fused)
+    safe = fused.filter(ImageFilter.MinFilter(5))
+    if inner_path.exists():
+        safe = ImageChops.subtract(safe, binary_mask(inner_path).filter(ImageFilter.MaxFilter(13)))
+    safe_pixels = write_candidate_mask(output_dir / "lip-safe-v0_mask.png", safe)
+
+    accepted_signal_ids = list(reference_meta.get("acceptedSignalIds", []))
+    if "face_parsing_lip_labels_silver" not in accepted_signal_ids:
+        accepted_signal_ids.append("face_parsing_lip_labels_silver")
+    known_weaknesses = list(reference_meta.get("knownWeaknesses", []))
+    if "face parsing is silver, not human-reviewed gold" not in known_weaknesses:
+        known_weaknesses.append("face parsing is silver, not human-reviewed gold")
+    reference_meta = dict(reference_meta)
+    reference_meta.update(
+        {
+            "maskSource": f"{reference_meta.get('maskSource', 'reference_mask')}+face_parsing_silver_fusion",
+            "acceptedSignalIds": accepted_signal_ids,
+            "knownWeaknesses": known_weaknesses,
+            "positivePixelsBeforeFaceParsing": before_pixels,
+            "positivePixels": fused_pixels,
+            "coverageRatio": round(fused_pixels / float(frame.width * frame.height), 6),
+            "faceParsingFusion": {
+                "status": fusion_status,
+                "operation": "reference_mask_intersect_dilated_face_parsing_lip_minus_inner_mouth",
+                "parsingLipPixels": parsing_pixels,
+                "innerMouthPixels": inner_pixels,
+                "referencePixelsBefore": before_pixels,
+                "referencePixelsAfter": fused_pixels,
+                "referenceBeforePath": before_path.name,
+                "candidateMasks": {
+                    "lip-tight-auto-v0": "lip-tight-auto-v0_mask.png",
+                    "lip-tight-user-v0": "lip-tight-user-v0_mask.png",
+                    "lip-safe-v0": "lip-safe-v0_mask.png",
+                },
+            },
+        }
+    )
+    write_json(
+        output_dir / "lip_candidate_generation.json",
+        {
+            "schemaVersion": "e7-lip-candidate-generation-v0",
+            "createdAtUtc": utc_now(),
+            "faceParsingAffectedReferenceMask": fusion_status == "applied",
+            "sourceReferenceBefore": before_path.name,
+            "sourceFaceParsingMask": "face_parsing_lip_mask.png",
+            "innerMouthExclusionMask": "face_parsing_inner_mouth_mask.png",
+            "candidatePixels": {
+                "lip-tight-auto-v0": auto_pixels,
+                "lip-tight-user-v0": user_pixels,
+                "lip-safe-v0": safe_pixels,
+            },
+            "fusion": reference_meta["faceParsingFusion"],
+            "limits": {
+                "faceParsingIsSilverNotGold": True,
+                "doesNotClaimE73Green": True,
+                "runtimeReady": False,
+            },
+        },
+    )
+    write_json(output_dir / "lip_reference_mask_meta.json", reference_meta)
+    return reference_meta
+
+
 def make_capture_entry(
     capture_pair_id: str,
     step: str,
@@ -517,6 +836,7 @@ def make_capture_entry(
     export: dict[str, Any],
     frame_digest: str | None,
     vision_lip_contour: dict[str, Any] | None = None,
+    face_parsing: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     face = export.get("face", {})
     display = export.get("display", {})
@@ -592,12 +912,7 @@ def make_capture_entry(
             ),
         },
         "visionLipContour": vision_capture_payload(vision_lip_contour),
-        "faceParsing": {
-            "status": "required_not_run",
-            "labels": [],
-            "localOnly": True,
-            "requiredForM1Ready": True,
-        },
+        "faceParsing": face_parsing_capture_payload(face_parsing),
         "colorGradientConfidence": {
             "status": "required_not_run",
             "summary": "required_for_m1_ready",
@@ -613,6 +928,7 @@ def build_calibration_package(
     reference_meta: dict[str, Any],
     frame_digest: str,
     vision_lip_contour: dict[str, Any] | None,
+    face_parsing: dict[str, Any] | None,
 ) -> dict[str, Any]:
     capture_pair_id = export.get("capturePairId") or output_dir.name
     calibration_id = "lip-calib-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-m1-v0"
@@ -626,6 +942,7 @@ def build_calibration_package(
             export,
             frame_digest,
             vision_lip_contour,
+            face_parsing,
         ),
         make_capture_entry(capture_pair_id, "open_close", True, "deferred", frame, export, None),
         make_capture_entry(capture_pair_id, "smile", True, "deferred", frame, export, None),
@@ -673,6 +990,7 @@ def build_calibration_package(
         },
         "preFilterSignals": {
             "appleVisionLipContour": vision_capture_payload(vision_lip_contour),
+            "faceParsing": face_parsing_capture_payload(face_parsing),
         },
         "offlineCandidateConfigs": {
             candidate_id: {"status": "uv_projection_artifact_only", "runtimeReady": False}
@@ -821,6 +1139,20 @@ def write_m1_summary(
             if (output_dir / "apple_vision_lip_contour_overlay.png").exists()
             else None,
         },
+        "faceParsing": {
+            "silverCount": reference_signals.get("faceParsingSilver", 0),
+            "requiredAvailableCount": reference_signals.get("faceParsingRequiredAvailable", 0),
+            "requiredMissingCount": reference_signals.get("faceParsingRequiredMissing", 0),
+            "labelsPath": str(output_dir / "face_parsing_labels.json")
+            if (output_dir / "face_parsing_labels.json").exists()
+            else None,
+            "overlayPath": str(output_dir / "face_parsing_overlay.png")
+            if (output_dir / "face_parsing_overlay.png").exists()
+            else None,
+            "candidateGenerationPath": str(output_dir / "lip_candidate_generation.json")
+            if (output_dir / "lip_candidate_generation.json").exists()
+            else None,
+        },
         "uvRoundTripRan": uv_summary.get("artifacts", {}).get("round_trip_overlay.png") not in {None, "pending"},
         "phase2Status": status_value(fusion_path, "phase2Status"),
         "phase3ExecutionStatus": status_value(uv_path, "phase3ExecutionStatus"),
@@ -853,6 +1185,7 @@ def write_m1_summary(
         f"- Mesh draft review: `{(summary['meshDraftReview'] or {}).get('status')}`",
         f"- Reference accepted as gold: `{str(summary['referenceMask']['acceptedAsGold']).lower()}`",
         f"- Apple Vision contour available count: `{summary['appleVisionLipContour']['availableCount']}`",
+        f"- Face parsing silver count: `{summary['faceParsing']['silverCount']}`",
         f"- Boundary quality proof: `{str(summary['boundaryQualityProof']).lower()}`",
         f"- Next step: {summary['nextStep']}.",
         "",
@@ -871,6 +1204,7 @@ def write_input_manifest(
     export_path: Path,
     reference_meta: dict[str, Any] | None,
     vision_lip_contour: dict[str, Any] | None,
+    face_parsing: dict[str, Any] | None,
 ) -> None:
     manifest = {
         "schemaVersion": "e7-lip-m1-input-manifest-v1",
@@ -904,6 +1238,19 @@ def write_input_manifest(
             else None,
             "overlay": "apple_vision_lip_contour_overlay.png"
             if (output_dir / "apple_vision_lip_contour_overlay.png").exists()
+            else None,
+        },
+        "faceParsingInput": {
+            "runRequested": bool(args.run_face_parsing),
+            "artifactDirArg": rel(args.face_parsing_dir, repo_root),
+            "script": rel(args.face_parsing_script, repo_root),
+            "checkpoint": rel(args.face_parsing_checkpoint, repo_root),
+            "status": face_parsing.get("status") if face_parsing else "required_not_run",
+            "artifact": "face_parsing_labels.json"
+            if (output_dir / "face_parsing_labels.json").exists()
+            else None,
+            "overlay": "face_parsing_overlay.png"
+            if (output_dir / "face_parsing_overlay.png").exists()
             else None,
         },
         "limits": {
@@ -964,6 +1311,15 @@ def main() -> int:
         output_dir,
         capture_pair_id,
     )
+    face_parsing = prepare_face_parsing_artifacts(
+        args,
+        repo_root,
+        frame_path,
+        export_path,
+        output_dir,
+        capture_pair_id,
+    )
+    effective_region_statuses(args, face_parsing, output_dir)
     local_vertices, screen_vertices, uvs, indices = export_arrays(export)
     if not len(local_vertices):
         blockers.append("missing_arface_localVertices")
@@ -1040,13 +1396,23 @@ def main() -> int:
         )
         blockers.extend(reference_blockers)
     else:
-        write_input_manifest(output_dir, repo_root, args, frame_path, export_path, None, vision_lip_contour)
+        write_input_manifest(
+            output_dir,
+            repo_root,
+            args,
+            frame_path,
+            export_path,
+            None,
+            vision_lip_contour,
+            face_parsing,
+        )
         write_blocked_review_needed(output_dir, draft_meta, blockers)
         write_m1_summary(output_dir, None, blockers + ["missing_reproducible_reference_mask"], args)
         print(json.dumps({"outputDir": str(output_dir), "m1Decision": "blocked"}, indent=2))
         return 2
 
     if reference_meta:
+        reference_meta = apply_face_parsing_to_reference(output_dir, frame, reference_meta, face_parsing)
         mask_overlay(frame, Image.open(output_dir / "lip_reference_mask.png").convert("L")).save(
             output_dir / "lip_reference_mask_overlay.png"
         )
@@ -1059,6 +1425,7 @@ def main() -> int:
         export_path,
         reference_meta,
         vision_lip_contour,
+        face_parsing,
     )
 
     if blockers:
@@ -1074,6 +1441,7 @@ def main() -> int:
         reference_meta or {},
         sha256_file(frame_path),
         vision_lip_contour,
+        face_parsing,
     )
     package_path = output_dir / f"{package['calibrationId']}.json"
     write_json(package_path, package)
@@ -1089,6 +1457,23 @@ def main() -> int:
     )
 
     if not args.skip_round_trip:
+        face_parsing_fusion = reference_meta.get("faceParsingFusion", {})
+        parsing_fused = face_parsing_fusion.get("status") == "applied"
+        mask_source = "face_parsing_silver" if parsing_fused else "manual_reference"
+        accepted_signal_id = (
+            "face_parsing_lip_labels_silver"
+            if parsing_fused
+            else "reproducible_reference_mask"
+        )
+        rejected_reason = (
+            "face_parsing_silver_not_user_approved_gold"
+            if parsing_fused and not reference_meta.get("acceptedAsGold", False)
+            else (
+                "reference_mask_not_user_approved_gold"
+                if not reference_meta.get("acceptedAsGold", False)
+                else "reference_mask_user_approved_gold"
+            )
+        )
         run_command(
             [
                 sys.executable,
@@ -1099,9 +1484,9 @@ def main() -> int:
                 "--mask",
                 str(output_dir / "lip_reference_mask.png"),
                 "--mask-source",
-                "manual_reference",
+                mask_source,
                 "--accepted-signal-id",
-                "reproducible_reference_mask",
+                accepted_signal_id,
                 "--inner-mouth-status",
                 args.inner_mouth_status,
                 "--corner-falloff-status",
@@ -1109,9 +1494,7 @@ def main() -> int:
                 "--upper-lower-status",
                 args.upper_lower_status,
                 "--rejected-signal-reason",
-                "reference_mask_not_user_approved_gold"
-                if not reference_meta.get("acceptedAsGold", False)
-                else "reference_mask_user_approved_gold",
+                rejected_reason,
                 "--output-dir",
                 str(output_dir),
                 "--uv-resolution",

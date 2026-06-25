@@ -166,6 +166,7 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
         "faceParsingSilver": 0,
         "faceParsingRequiredAvailable": 0,
         "faceParsingRequiredMissing": 0,
+        "faceParsingDetails": [],
         "manualReferenceMask": 0,
         "meshStructuralDraftReference": 0,
         "visionContourAvailable": 0,
@@ -210,6 +211,23 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
             signals["faceParsingSilver"] += 1
         if face_parsing_status in {"human_reviewed_gold", "silver"}:
             signals["faceParsingRequiredAvailable"] += 1
+            face_parsing = capture.get("faceParsing", {})
+            signals["faceParsingDetails"].append(
+                {
+                    "capturePairId": capture_id,
+                    "status": face_parsing_status,
+                    "labels": face_parsing.get("labels", []),
+                    "labelSet": face_parsing.get("labelSet"),
+                    "lipMaskPath": face_parsing.get("lipMaskPath"),
+                    "upperLipMaskPath": face_parsing.get("upperLipMaskPath"),
+                    "lowerLipMaskPath": face_parsing.get("lowerLipMaskPath"),
+                    "innerMouthMaskPath": face_parsing.get("innerMouthMaskPath"),
+                    "overlayPath": face_parsing.get("overlayPath"),
+                    "pixelCounts": face_parsing.get("pixelCounts"),
+                    "recommendedUse": "tighten_auto_candidate_and_seed_inner_mouth_upper_lower_split",
+                    "runtimePrimaryTracker": bool(face_parsing.get("runtimePrimaryTracker", False)),
+                }
+            )
         else:
             signals["faceParsingRequiredMissing"] += 1
 
@@ -321,6 +339,7 @@ def decide_candidates(
     reference_signals: dict[str, Any],
     user_adjustment: dict[str, Any],
 ) -> dict[str, Any]:
+    has_face_parsing = bool(reference_signals["faceParsingSilver"] or reference_signals["humanReviewedGold"])
     has_reference = bool(
         reference_signals["humanReviewedGold"]
         or reference_signals["faceParsingSilver"]
@@ -357,8 +376,22 @@ def decide_candidates(
     return {
         "lip-tight-auto-v0": {
             "status": base_status,
-            "primaryInputs": ["neutral", "smile", "yaw", "referenceSignals"],
-            "rule": "tighten to accepted lip reference; reject color-only boundaries",
+            "primaryInputs": [
+                "neutral",
+                "smile",
+                "yaw",
+                "referenceSignals",
+                *(["faceParsingLipLabels"] if has_face_parsing else []),
+            ],
+            "rule": (
+                "tighten to accepted lip reference and face parsing lip labels; reject color-only boundaries"
+                if has_face_parsing
+                else "tighten to accepted lip reference; reject color-only boundaries"
+            ),
+            "faceParsingInfluence": {
+                "used": has_face_parsing,
+                "operation": "intersect reference mask with dilated face parsing lip labels when available",
+            },
             "rejectedSignalReasons": auto_reasons,
         },
         "lip-tight-user-v0": {
@@ -369,8 +402,16 @@ def decide_candidates(
         },
         "lip-safe-v0": {
             "status": base_status,
-            "primaryInputs": ["open_close", "innerMouthExclusion", "cornerFalloff"],
-            "rule": "prefer spill prevention over recall; shrink teeth, inner mouth, and lower-face skin risk",
+            "primaryInputs": ["open_close", "innerMouthExclusion", "cornerFalloff", "faceParsingInnerMouth"],
+            "rule": (
+                "prefer spill prevention over recall; subtract face parsing inner-mouth label and shrink lower-face skin risk"
+                if has_face_parsing
+                else "prefer spill prevention over recall; shrink teeth, inner mouth, and lower-face skin risk"
+            ),
+            "faceParsingInfluence": {
+                "used": has_face_parsing,
+                "operation": "inner_mouth_label_drives_negative_mask_when_available",
+            },
             "rejectedSignalReasons": safe_reasons,
         },
     }
