@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25 KST
 
-Status: Phase 0 document contract complete / Active E7.03 / E7.3 lip-first boundary calibration planning contract
+Status: Phase 1 calibration flow contract complete / Active E7.03 / E7.3 lip-first boundary calibration planning contract
 
 ## 0. One-line Decision
 
@@ -23,6 +23,12 @@ Phase 0 completion note:
 - This planning contract exists and is routed from `TECH_VALIDATION_RESULT.md` and `docs/roadmaps/README.md`.
 - Phase 0 is documentation-only; it does not include code, build, runtime, or device evidence.
 - The next actionable boundary is the first buildless implementation slice: data contract / synchronized lip capture or reuse / one-frame round-trip preparation.
+
+Phase 1 completion note:
+
+- Pre-AR calibration capture steps, required input signals, local package schema, privacy rules, and Phase 2/3 handoff contract are defined below.
+- Phase 1 is documentation-only; it does not include RN UI implementation, Apple Vision implementation, face parsing implementation, UnityFramework build, Xcode build, iPhone runtime evidence, or E7.3 Green evidence.
+- The next actionable boundary is Phase 2 Boundary Fusion using the local `lip-calib-*` package contract from this document.
 
 ## 1. 왜 이 문서가 필요한가
 
@@ -375,6 +381,43 @@ Minimum viable calibration:
 - user adjustment
 
 Pucker는 가능하면 포함하지만, 시간 제한이 있으면 deferred로 표시한다.
+
+### Phase 1 capture flow contract
+
+Phase 1에서 만들 화면은 product onboarding이 아니라 AR 진입 전 validation capture tool이다. 사용자는 짧은 단계별 prompt를 보고 정면/표정/고개 움직임을 수행하고, 앱은 각 단계마다 clean camera frame과 같은 순간의 ARFace export를 묶어 local capture record를 만든다.
+
+| Step | Capture id prefix | User action | UI state | Required capture rule | Pass/fail gate |
+| --- | --- | --- | --- | --- | --- |
+| 1. Face ready | `lip_ready` | 얼굴을 화면 중앙에 둠 | tracking/face/mesh 상태만 표시 | 저장하지 않아도 됨 | `tracking=Tracking`, `faceCount=1`, mesh counts available |
+| 2. Neutral | `lip_neutral` | 입을 자연스럽게 닫고 정면 응시 | clean preview + tiny status | clean frame + same-moment ARFace export | baseline lip boundary seed |
+| 3. Open-close | `lip_open_close` | 입을 살짝 열고 닫음 | 1-2 short captures or mini-burst | closed/open representative frames 중 최소 1개 저장 | inner-mouth/teeth exclusion seed |
+| 4. Smile | `lip_smile` | 자연스럽게 웃음 | corner status visible | smile-stretched frame + ARFace export | corner stretch/corner spill check |
+| 5. Pucker | `lip_pucker` | 입술을 오므림 | optional/defer label supported | pucker frame + ARFace export if time allows | central contraction check; missing이면 `deferred` 기록 |
+| 6. Yaw | `lip_yaw_left` / `lip_yaw_right` | 좌/우 중 하나 이상 고개 회전 | pose direction visible | one yaw frame + ARFace export | side/corner projection stability check |
+| 7. Auto preview | `lip_preview` | 후보 경계 확인 | `lip-tight-auto-v0` / `lip-safe-v0` 비교 | raw frame 저장 없이 derived preview만 생성 | severe spill 여부 확인 |
+| 8. User adjustment | `lip_adjusted` | 4개 slider로 미세 보정 | Full Debug에서 값 표시 | params only; no free-draw mask | `lip-tight-user-v0` params 확정 |
+| 9. Save package | `lip_calib` | local package 저장 | package id/path 표시 | derived package + summary only | `rawFrameStored=false`, `offDeviceUpload=false` |
+
+### Phase 1 input signal matrix
+
+모든 capture record는 같은 순간의 frame/export 일치를 최우선으로 기록한다. 없는 신호는 자동 생성하지 않고 `unavailable`, `deferred`, 또는 `not_run`으로 남긴다.
+
+| Signal | Required for which steps | Contract field | Notes |
+| --- | --- | --- | --- |
+| Clean frame image | neutral, open-close, smile, yaw; pucker if captured | `cleanFrame` | Temporary local processing input. Long-term calibration package에는 raw image를 넣지 않는다. |
+| ARFace screen vertices | all saved captures | `arFace.screenVertices` | 2D reference mask를 ARFace UV/vertex로 옮기는 bridge. |
+| ARFace UVs | all saved captures | `arFace.uvs` | Phase 3 projection의 primary coordinate target. |
+| ARFace indices | all saved captures | `arFace.indices` | triangle projection/back-projection에 필요. |
+| ARFace clipW | all saved captures | `arFace.clipW` | perspective-correct interpolation에 필요. 없으면 projection confidence를 낮춘다. |
+| Tracking state | all steps | `tracking.state` | `Tracking`, `Limited`, `Lost` 등. |
+| Face count | all steps | `tracking.faceCount` | Phase 1에서는 `1`만 pass. |
+| Mesh counts | all saved captures | `tracking.meshCounts` | expected `vertices`, `indices`, `uvs` counts 기록. |
+| Blendshape snapshot | saved captures when available | `blendshapeSnapshot` | `jawOpen`, smile/stretch, pucker/funnel 후보만; 없으면 `unavailable`. |
+| Apple Vision lip contour result slot | saved captures | `visionLipContour` | Phase 1은 자리만 확정한다. 구현 전이면 `not_run`. |
+| Optional face parsing result slot | neutral/open/smile preferred | `faceParsing` | local/offline silver reference slot only. live runtime/Core ML 구현 금지. |
+| Color/gradient confidence summary | saved captures | `colorGradientConfidence` | helper/warning only. 단독 boundary 결정 금지. |
+| User adjustment params | adjusted/save steps | `userAdjustmentParams` | `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`. |
+| Extension slots | package-level only | `extensions.cheek`, `extensions.eye` | 현재는 `reserved_only`; cheek/eye 알고리즘을 시작하지 않는다. |
 
 ## 12. Calibration Data Package
 
