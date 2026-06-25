@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-25 KST
 
-Status: Phase 3 UV Projection preparation ready / Mesh-derived structural draft + preset profile extension planning-only / Active E7.03 / E7.3 lip-first boundary calibration planning contract
+Status: Phase 2 Boundary Fusion contract_ready + execution_not_run / Phase 3 UV Projection preparation_ready + execution_blocked_until_inputs_exist / Runtime candidate not created / E7.3 remains Yellow / Mesh-derived structural draft + preset profile extension planning-only
 
 ## 0. One-line Decision
 
@@ -34,14 +34,14 @@ Phase 2 completion note:
 
 - Boundary Fusion input readiness, signal priority, candidate decision rules, `fusionSummary.json` / `fusionSummary.md` shape, and Phase 3 UV Projection handoff fields are fixed below.
 - A buildless local contract stub exists at `scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py` to read a `lip-calib-*` package and emit the Phase 2 summary contract without image processing, upload, live face parsing, Core ML, UnityFramework, Xcode, or iPhone runtime work.
-- Phase 2 status is `Phase 2 Boundary Fusion ready` for contract/stub handoff only. It does not produce runtime masks, does not run UV back-projection, and does not mark E7.3 Green.
+- Phase 2 status is `contract_ready` and `execution_not_run` for contract/stub handoff only. It does not produce runtime masks, does not run UV back-projection, and does not mark E7.3 Green.
 
 Phase 3 preparation note:
 
 - UV Projection / one-frame round-trip input contract, missing-input rules, output artifact names, and a buildless local preparation/execution stub are fixed below.
 - The buildless Phase 3 stub exists at `scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`. It reads `fusionSummary.json`, validates one same-moment capture pair plus a screen-space lip reference mask, and can emit `summary.json` / `summary.md` with `ready|partial|blocked` when execution inputs are missing.
-- When an accepted screen-space lip mask and matching capture pair are supplied, the same stub can produce the first offline artifact set: `lip_probability.png`, `lip_coverage.png`, `lip_unknown.png`, `lip_debug_votes.png`, `lip_variants.json`, `round_trip_overlay.png`, `summary.json`, and `summary.md`.
-- Phase 3 status is `Phase 3 UV Projection preparation ready` only. It does not mean one-frame round-trip has been run, does not create a runtime candidate, does not run Unity/iPhone builds, and does not mark E7.3 Green.
+- When an accepted screen-space lip mask and matching capture pair are supplied, the same stub can produce the first offline artifact set: `lip_probability.png`, `lip_coverage.png`, `lip_unknown.png`, `lip_debug_votes.png`, `lip_variants.json`, `round_trip_overlay.png`, `summary.json`, and `summary.md`. `lip_variants.json` is an offline candidate-config artifact only, not a Unity-installed runtime candidate claim.
+- Phase 3 status is `preparation_ready` only. Phase 3 execution remains `blocked` until a real `fusionSummary.json`, same-moment capture pair, and accepted screen-space lip reference mask exist. It does not mean one-frame round-trip has been run, does not create a runtime candidate, does not run Unity/iPhone builds, and does not mark E7.3 Green.
 - Mesh-derived structural draft / preset profile extension is planning-only. It strengthens future Phase 2/3 inputs but does not create a new actionable phase.
 
 Phase map note:
@@ -49,8 +49,8 @@ Phase map note:
 - This lip-first calibration slice uses only Phase 0-3 as actionable milestones.
 - Phase 0: document/routing contract. Complete.
 - Phase 1: pre-AR calibration flow and package contract. Complete.
-- Phase 2: boundary fusion contract and buildless summary stub. Ready.
-- Phase 3: UV projection / one-frame round-trip preparation. Ready for execution when a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are supplied.
+- Phase 2: boundary fusion contract and buildless summary stub. `contract_ready`; execution not run.
+- Phase 3: UV projection / one-frame round-trip preparation. `preparation_ready`; execution blocked until a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are supplied.
 - Mesh-derived structural draft and `LipPresetProfile` are post-Phase-3 design constraints for improving future Phase 2 reference-mask candidates. They do not change the next boundary.
 - Sections about runtime tracking, RN validation UI, user adjustment, edge cases, evidence, and G/Y/R are design constraints for later implementation slices, not separate Phase 4-6 milestones in this document.
 
@@ -361,6 +361,8 @@ UX 원칙:
 - evaluation matrix에서 실패 원인을 분리.
 - future held-out test set을 구성.
 
+Initial `LipPresetProfile` selection is driven by these tags: `thin_lip -> thin`, `full_lip -> full`, `wide_smile_stretch/asymmetric_corners -> wide`, `low_skin_lip_contrast/facial_hair_or_shadow/strong_lighting_shadow/pre_applied_lip_color -> soft-edge`, and `mouth_open_teeth_visible -> inner-safe`.
+
 ## 11. Pre-AR Calibration UX
 
 Calibration은 짧고 반복 가능해야 한다.
@@ -440,7 +442,7 @@ Phase 1에서 만들 화면은 product onboarding이 아니라 AR 진입 전 val
 | Apple Vision lip contour result slot | saved captures | `visionLipContour` | Phase 1은 자리만 확정한다. 구현 전이면 `not_run`. |
 | Optional face parsing result slot | neutral/open/smile preferred | `faceParsing` | local/offline silver reference slot only. live runtime/Core ML 구현 금지. |
 | Color/gradient confidence summary | saved captures | `colorGradientConfidence` | helper/warning only. 단독 boundary 결정 금지. |
-| User adjustment params | adjusted/save steps | `userAdjustmentParams` | `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`. |
+| User adjustment params | adjusted/save steps | `userAdjustment` | `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset`, plus status showing whether zero values are user-confirmed or only assumed. |
 | Extension slots | package-level only | `extensions.cheek`, `extensions.eye` | 현재는 `reserved_only`; cheek/eye 알고리즘을 시작하지 않는다. |
 
 ## 12. Calibration Data Package
@@ -468,6 +470,31 @@ Required shape:
       "step": "neutral",
       "required": true,
       "captureStatus": "captured|deferred|rejected",
+      "timestamp": {
+        "arFrameTimestamp": 12345.678,
+        "frameImageTimestamp": 12345.678,
+        "maxDeltaMs": 0
+      },
+      "frame": {
+        "path": "frame.png",
+        "width": 1920,
+        "height": 1440,
+        "orientation": "portrait",
+        "mirrored": true,
+        "colorSpace": "sRGB"
+      },
+      "viewport": {
+        "width": 390,
+        "height": 844,
+        "contentMode": "aspectFill",
+        "safeAreaApplied": true
+      },
+      "coordinateSpaces": {
+        "frameImage": "image_pixel_top_left",
+        "visionLandmarks": "face_bbox_normalized_bottom_left",
+        "screenVertices": "frame_image_pixel_top_left",
+        "referenceMask": "frame_image_pixel_top_left"
+      },
       "cleanFrame": {
         "localProcessingInput": true,
         "longTermStored": false,
@@ -479,6 +506,10 @@ Required shape:
         "uvs": "available",
         "indices": "available",
         "clipW": "available",
+        "screenVerticesPath": "arface_export.json#screenVertices",
+        "uvsPath": "arface_export.json#uvs",
+        "indicesPath": "arface_export.json#indices",
+        "clipWPath": "arface_export.json#clipW",
         "meshCounts": {
           "vertices": 1220,
           "indices": 6912,
@@ -518,11 +549,20 @@ Required shape:
     }
   ],
   "lipBoundaryVersion": "lip-calibrated-uv-v0",
-  "runtimeCandidateIds": [
-    "lip-tight-auto-v0",
-    "lip-tight-user-v0",
-    "lip-safe-v0"
-  ],
+  "offlineCandidateConfigs": {
+    "lip-tight-auto-v0": {
+      "status": "uv_projection_artifact_only",
+      "runtimeReady": false
+    },
+    "lip-tight-user-v0": {
+      "status": "uv_projection_artifact_only",
+      "runtimeReady": false
+    },
+    "lip-safe-v0": {
+      "status": "uv_projection_artifact_only",
+      "runtimeReady": false
+    }
+  },
   "assets": {
     "uvProbabilityMap": "lip_probability.png",
     "vertexWeightSet": "lip_vertex_weights.json",
@@ -533,11 +573,16 @@ Required shape:
   },
   "correction": {
     "blendshapeCorrectionRuleId": "lip-jaw-smile-pucker-v0",
-    "userAdjustmentParams": {
-      "tightness": 0,
-      "upperLowerBalance": 0,
-      "cornerShrink": 0,
-      "verticalOffset": 0
+    "userAdjustment": {
+      "status": "user_confirmed|default_zero_assumed|not_implemented|partial",
+      "confirmedByUser": false,
+      "uiImplemented": false,
+      "params": {
+        "tightness": 0,
+        "upperLowerBalance": 0,
+        "cornerShrink": 0,
+        "verticalOffset": 0
+      }
     }
   },
   "phase2BoundaryFusionInput": {
@@ -547,7 +592,7 @@ Required shape:
       "visionLipContour",
       "faceParsing",
       "colorGradientConfidence",
-      "userAdjustmentParams"
+      "userAdjustment"
     ],
     "fusionCandidatesToProduce": [
       "lip-tight-auto-v0",
@@ -561,10 +606,15 @@ Required shape:
     "requiredArFaceFields": ["screenVertices", "uvs", "indices", "clipW"],
     "projectionRules": [
       "perspective_correct_uv",
-      "front_most_visible_triangle_only",
-      "grazing_angle_downweight",
+      "visibility_confidence_ready_partial_blocked",
+      "grazing_angle_downweight_when_supported",
       "unknown_not_negative"
     ],
+    "visibilityPolicy": {
+      "ready": "front-most visible triangle voting when reliable depth/visibility support is exported",
+      "partial": "perspective-correct UV interpolation with clipW only; no occlusion-safe atlas claim",
+      "blocked": "no clipW or equivalent perspective-correction support"
+    },
     "expectedArtifacts": [
       "lip_probability.png",
       "lip_coverage.png",
@@ -607,9 +657,12 @@ Notes:
 - `cleanFrame.localProcessingInput=true`는 calibration 중 로컬 메모리/임시 파일로만 쓰는 입력 신호를 뜻한다.
 - `rawFrameStored=false`와 `longTermRawFrameStored=false`는 long-term package 기준이다. Calibration 중 local frame을 잠깐 만들 수 있지만, derived evidence만 남기고 raw frame batch는 삭제한다.
 - `sourceCapturePairIds`는 evidence traceability를 위해 남긴다.
+- `timestamp`, `frame`, `viewport`, and `coordinateSpaces` are projection safety fields, not cosmetic metadata. If these are absent, same-moment capture may exist but coordinate-space trust is still partial.
 - `faceParsing=silver_or_unavailable`은 face parsing이 없더라도 plan이 막히지 않게 한다.
 - `status=ready_for_boundary_fusion`은 Phase 2가 reference signal fusion을 시작할 수 있다는 뜻이지 E7.3 Green이 아니다.
 - `status=ready_for_uv_projection`은 Phase 3 one-frame round-trip / UV atlas 준비가 가능하다는 뜻이지 runtime quality evidence가 아니다.
+- `offlineCandidateConfigs` are Phase 3 projection artifacts only. They are not Unity-installed runtime candidates. A later runtime slice must record a separate `runtimeCandidateStatus` such as `installed_in_unity|tested_on_device|rejected`.
+- `userAdjustment.status=default_zero_assumed` or `not_implemented` must not be described as a user-confirmed adjustment. This distinction matters most for `lip-tight-user-v0`.
 
 ## 13. Boundary Fusion Model
 
@@ -641,7 +694,7 @@ python3 scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py \
 | Apple Vision slot | Yes as slot | `available` can support contour; `not_run` remains explicit | low confidence or unavailable cannot win alone |
 | Face parsing slot | Optional | `human_reviewed_gold` > `silver` > `not_run` | `silver` stays silver until human review |
 | Color/gradient | Helper | computed warnings lower confidence | color-only boundary is rejected |
-| User adjustment | Required as params | missing values default to zero for contract, then record partial if a key is missing | never replaces reference evidence |
+| User adjustment | Required as params plus status | values may default to zero only when `status=default_zero_assumed` or `not_implemented`; user-confirmed zero requires `status=user_confirmed` | never replaces reference evidence; `lip-tight-user-v0` remains partial if the UI/user confirmation is absent |
 
 우선순위:
 
@@ -722,7 +775,9 @@ Candidate generation rules:
       "colorGradientWarnings": []
     },
     "userAdjustment": {
-      "status": "available|default_zero_assumed|partial",
+      "status": "user_confirmed|default_zero_assumed|not_implemented|partial",
+      "confirmedByUser": false,
+      "uiImplemented": false,
       "params": {
         "tightness": 0,
         "upperLowerBalance": 0,
@@ -798,12 +853,73 @@ Mandatory rules:
 
 - `frame.png` and `arface_export.json` must come from the same runtime moment.
 - Use `screenVertices`, `uvs`, `indices`, and `clipW` or equivalent perspective-correction field.
+- The capture pair must record frame size, orientation, mirroring, viewport/content mode, and coordinate-space mapping for `frame.png`, Vision landmarks, `screenVertices`, and `referenceMask`.
 - A mesh-derived structural draft is not a projection input by itself. It can enter Phase 3 only after it is accepted as a screen-space lip reference mask with traceable source signals.
-- Reject or down-weight back-facing, occluded, tiny projected-area, and grazing-angle triangles.
-- Count votes only from front-most visible triangles.
+- Visibility handling is graded:
+  - If reliable clip-space depth, front-most marking, or per-triangle visibility is exported, use front-most visible triangle voting and record `visibilityConfidence=ready`.
+  - If only `clipW` is available, use perspective-correct UV interpolation, record `visibilityConfidence=partial`, and do not claim an occlusion-safe atlas.
+  - If neither `clipW` nor equivalent perspective-correction support exists, block Phase 3 projection.
+- Reject or down-weight back-facing, occluded, tiny projected-area, and grazing-angle triangles only when the required geometry/visibility signal exists. Otherwise record the limitation instead of silently pretending the vote is occlusion-safe.
 - Treat low-vote UV regions as unknown, not negative.
 - Run one-frame round-trip before batch atlas generation.
 - Do not treat one-frame round-trip as Q3 runtime evidence.
+
+### Capture pair metadata contract
+
+The minimum same-moment pair is not only `frame.png` plus `arface_export.json`. It must also make the projection coordinate system auditable:
+
+```json
+{
+  "capturePairId": "pair_lip_neutral_0001",
+  "timestamp": {
+    "arFrameTimestamp": 12345.678,
+    "frameImageTimestamp": 12345.678,
+    "maxDeltaMs": 0
+  },
+  "frame": {
+    "path": "frame.png",
+    "width": 1920,
+    "height": 1440,
+    "orientation": "portrait",
+    "mirrored": true,
+    "colorSpace": "sRGB"
+  },
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "contentMode": "aspectFill",
+    "safeAreaApplied": true
+  },
+  "coordinateSpaces": {
+    "frameImage": "image_pixel_top_left",
+    "visionLandmarks": "face_bbox_normalized_bottom_left",
+    "screenVertices": "frame_image_pixel_top_left",
+    "referenceMask": "frame_image_pixel_top_left"
+  },
+  "arFace": {
+    "screenVerticesPath": "arface_export.json#screenVertices",
+    "uvsPath": "arface_export.json#uvs",
+    "indicesPath": "arface_export.json#indices",
+    "clipWPath": "arface_export.json#clipW"
+  }
+}
+```
+
+If this metadata is missing, Phase 3 can still report what is present, but `coordinateSpaceValidated` must remain false or partial until `round_trip_overlay.png` proves there is no y-flip, mirror, scale, or aspect-fill crop mismatch.
+
+### Minimum reference mask creation path
+
+The first Phase 3 proof should not wait for face parsing or Core ML if a manual mask is enough to validate projection math.
+
+Minimum path:
+
+1. Use one neutral same-moment capture pair.
+2. Generate a draft mask by one of: manual polygon annotation on `frame.png`, local face parsing silver mask, Apple Vision outer/inner lips contour rasterization, or existing `lip_ring` mesh draft for review only.
+3. Human-review the overlay.
+4. Save `lip_reference_mask.png` and `lip_reference_mask.meta.json`.
+5. The metadata must include `maskSource`, `reviewedBy`, `capturePairId`, `coordinateSpace`, `imageWidth`, `imageHeight`, `acceptedSignalIds`, and `knownWeaknesses`.
+
+Manual polygon gold/reference is allowed for the first coordinate-space proof because the goal is `screen mask -> ARFace UV -> round-trip`, not face-parsing model validation.
 
 Required artifacts:
 
@@ -817,6 +933,8 @@ round_trip_overlay.png
 summary.json
 summary.md
 ```
+
+`lip_variants.json` must store offline candidate configs with `runtimeReady=false`. Runtime install/test status belongs to a later runtime slice, not Phase 3 projection.
 
 Local preparation / execution stub:
 
@@ -837,6 +955,7 @@ Preparation behavior:
 
 - If `fusionSummary.json` is missing or Phase 2 is `blocked`, Phase 3 execution is `blocked`.
 - If the same-moment capture pair is missing `frame.png` or `arface_export.json`, Phase 3 execution is `blocked`.
+- If the capture pair lacks frame/orientation/mirroring/viewport/coordinate-space metadata, Phase 3 records `coordinateSpaceValidated=false` or partial until overlay review resolves it.
 - If the accepted screen-space lip reference mask is missing, Phase 3 execution is `blocked` rather than generating fake PNGs.
 - If inner-mouth exclusion, corner falloff, or upper/lower split are still `contract_only`, Phase 3 execution is `partial` even if the basic round-trip can run.
 - If `coordinateSpaceValidated=false`, the script records a warning; the next review must inspect `round_trip_overlay.png` before trusting the projection.
@@ -851,10 +970,11 @@ Phase 2 Boundary Fusion receives:
 - `lip-calib-*` package metadata.
 - `captureSet` entries for `neutral`, `open_close`, `smile`, and at least one `yaw`.
 - optional `pucker` entry, or explicit `deferred` reason.
+- capture-pair coordinate metadata: frame dimensions, orientation, mirroring, viewport/content mode, timestamp delta, and coordinate-space mapping.
 - Apple Vision lip contour slot per saved capture, even if status is `not_run`.
 - optional face parsing slot per useful capture, even if status is `not_run` or `unavailable`.
 - color/gradient confidence summary per capture.
-- user adjustment params, initially all zero until the adjustment step is implemented.
+- user adjustment params plus status; zero values must distinguish `user_confirmed` from `default_zero_assumed` or `not_implemented`.
 - privacy flags proving `localOnly=true`, `rawFrameStored=false`, and `offDeviceUpload=false`.
 
 Phase 2 Boundary Fusion produces:
@@ -868,7 +988,8 @@ Phase 2 Boundary Fusion produces:
 
 Phase 3 UV Projection receives:
 
-- Phase 2 accepted screen-space lip reference mask: `maskPath`, `capturePairId`, `coordinateSpace=image_pixel|image_normalized`, `acceptedSignalIds`, `derivedEvidenceOnly=true`.
+- Phase 2 accepted screen-space lip reference mask: `maskPath`, `capturePairId`, `coordinateSpace=frame_image_pixel_top_left` or an explicitly convertible equivalent, `acceptedSignalIds`, `derivedEvidenceOnly=true`.
+- same-moment capture-pair metadata for frame size, orientation, mirroring, viewport/content mode, timestamp delta, and coordinate-space mapping.
 - `innerMouthExclusion`: open/close evidence, face parsing/Vision/user-review source, and rejection reason if unavailable.
 - `cornerFalloff`: left/right corner confidence, smile/yaw source ids, and spill-prevention bias.
 - `upperLowerSplit`: upper/lower confidence and fallback label if only geometric split exists.
@@ -883,16 +1004,19 @@ Phase 3 UV Projection produces:
 - `uvProbabilityMap`, `upperLipMap`, `lowerLipMap`, `innerMouthExclusionMap`, and `cornerFalloffMap`.
 - `vertexWeightSet`.
 - `round_trip_overlay.png` and `roundTripScore`.
-- `lip_variants.json` with runtime candidate ids.
+- `lip_variants.json` with `offlineCandidateConfigs`, each marked `runtimeReady=false`.
 - `summary.json` / `summary.md` that separates `roundTripScore`, `calibrationScore`, and future `evalScore`.
+
+Runtime install state is not part of Phase 3. A later runtime slice may add a separate `runtimeCandidateStatus` field such as `installed_in_unity|tested_on_device|rejected`.
 
 Completion rule:
 
 ```txt
-Phase 2 Boundary Fusion ready = input/fusion/candidate/output contract and buildless summary stub complete.
-Phase 2 Boundary Fusion ready != UV back-projection complete.
-Phase 2 Boundary Fusion ready != runtime mask implemented.
-Phase 2 Boundary Fusion ready != E7.3 Green.
+Phase 2 Boundary Fusion contract_ready = input/fusion/candidate/output contract and buildless summary stub complete.
+Phase 2 Boundary Fusion contract_ready != Boundary Fusion execution complete.
+Phase 2 Boundary Fusion contract_ready != UV back-projection complete.
+Phase 2 Boundary Fusion contract_ready != runtime mask implemented.
+Phase 2 Boundary Fusion contract_ready != E7.3 Green.
 ```
 
 ## 14A. Mesh-Derived Structural Draft and Preset Profile Extension
@@ -971,16 +1095,16 @@ Preset profiles use two separate namespaces:
 | Field | Meaning | Namespace rule |
 | --- | --- | --- |
 | `userAdjustmentBias` | initial bias for the four Section 9 scalars: `tightness`, `upperLowerBalance`, `cornerShrink`, `verticalOffset` | user-adjustment namespace |
-| `maskDerivationNote` | candidate-generation notes such as feather, coverage, confidence warning, or inner-mouth exclusion strength | candidate-generation namespace |
+| `maskDerivationNote` | candidate-generation notes such as feather tendency, coverage tendency, confidence warning, or inner-mouth exclusion strength | candidate-generation namespace |
 
-`feather` and `coverage` are not user adjustment scalars and are not product/material runtime controls in this section.
+`featherTendency` and `coverageTendency` here are draft-stage notes, not the Section 15 runtime `coverage` / `feather` tuning controls.
 
 | Preset profile | `userAdjustmentBias` | `maskDerivationNote` | Candidate preference |
 | --- | --- | --- | --- |
-| `thin` | `tightness` positive | conservative coverage | start with `lip-tight-auto-v0` |
-| `full` | `tightness` negative | coverage-friendly draft allowed, still bounded by accepted reference mask | start with `lip-tight-auto-v0` |
+| `thin` | `tightness` positive | conservative coverage tendency | start with `lip-tight-auto-v0` |
+| `full` | `tightness` negative | coverage-friendly draft tendency, still bounded by accepted reference mask | start with `lip-tight-auto-v0` |
 | `wide` | `cornerShrink` lower | preserve wider corner range if no spill is observed | start with `lip-tight-auto-v0`; review corners |
-| `soft-edge` | no required scalar bias | lower confidence warning; feather derivation note only | require review before promotion |
+| `soft-edge` | no required scalar bias | lower confidence warning; feather tendency only | require review before promotion |
 | `inner-safe` | `cornerShrink` higher | stronger inner-mouth exclusion | prefer `lip-safe-v0` |
 
 ### Flow placement
@@ -1028,6 +1152,8 @@ Unity behavior:
 - On extended lost, hide and re-prime after recovery.
 
 Blendshape correction:
+
+These rules require blendshape values to be exposed by a later exporter/runtime slice; Section 14A records current capture-export blendshape values as unavailable.
 
 | Signal | Intended correction |
 | --- | --- |
@@ -1138,6 +1264,30 @@ Score labels:
 - `evalScore`: measured on held-out frames.
 - `roundTripScore`: projection sanity only, not runtime quality.
 
+Minimum `roundTripScore` shape:
+
+```json
+{
+  "maskToRoundTripIoU": 0.0,
+  "contourMeanErrorPx": null,
+  "contourP95ErrorPx": null,
+  "validTriangleVoteRatio": 0.0,
+  "unknownUvRatio": 0.0,
+  "coverageRatio": 0.0,
+  "coordinateSpaceValidated": false,
+  "visibilityConfidence": "ready|partial|blocked",
+  "requiresHumanOverlayReview": true
+}
+```
+
+Phase 3 one-frame pass means:
+
+- `coordinateSpaceValidated=true`.
+- `round_trip_overlay.png` visually aligns with the source mask.
+- no obvious y-flip, mirror, scale, or aspect-fill crop mismatch.
+- `unknownUvRatio` is recorded and not treated as negative lip evidence.
+- summary separates projection sanity from runtime quality.
+
 Suggested first bars:
 
 ```txt
@@ -1200,7 +1350,14 @@ Buildless evidence:
 - If Boundary Fusion contract stub changes: `python3 -m py_compile scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py`.
 - If Phase 3 projection preparation stub changes: `python3 -m py_compile scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`.
 - If RN changes happen later: `npm test -- --runInBand --watchman=false`, `./node_modules/.bin/tsc --noEmit`, `npm run lint`.
-- If projection scripts change later: Python compile check.
+- If projection scripts change from contract stub to real math, add/run focused tests under `tests/e7_lip_uv_projection/`:
+  - `test_barycentric_inside_triangle.py`
+  - `test_perspective_correct_uv.py`
+  - `test_mask_dimension_mismatch_blocks.py`
+  - `test_missing_clipw_partial_or_blocked.py`
+  - `test_coordinate_space_mismatch_warns.py`
+  - `test_unknown_not_negative.py`
+  - `test_no_fake_artifacts_when_mask_missing.py`
 
 Offline evidence:
 
@@ -1263,21 +1420,21 @@ Stop and re-scope if:
 
 Recommended future implementation order:
 
-This document's actionable phase map stops at Phase 3. Later runtime tracking, RN UI controls, user adjustment, and edge-case validation are intentionally written as design constraints until a future implementation slice explicitly promotes them into new phases.
+This document's actionable phase map stops at Phase 3. Later mesh-derived draft execution, runtime tracking, RN UI controls, user adjustment, and edge-case validation are intentionally written as design constraints until a future implementation slice explicitly promotes them into new phases.
 
 1. Phase 0: Create this doc and route it from the result snapshot. Complete.
 2. Phase 1: Define capture flow, input signal matrix, `lip-calib-*` schema, privacy policy, and Phase 2/3 handoff contract. Complete.
-3. Phase 2: Fix Boundary Fusion input readiness, signal priority, confidence/rejection rules, candidate output contract, and buildless `fusionSummary` stub. Complete.
-4. Phase 3 preparation: fix one-frame UV projection input checks, output artifact contract, and buildless preparation/execution stub. Ready.
+3. Phase 2: Fix Boundary Fusion input readiness, signal priority, confidence/rejection rules, candidate output contract, and buildless `fusionSummary` stub. `contract_ready`; execution not run.
+4. Phase 3 preparation: fix one-frame UV projection input checks, output artifact contract, and buildless preparation/execution stub. `preparation_ready`; execution blocked until inputs exist.
 5. Phase 3 execution: run one-frame screen mask -> ARFace UV -> screen round-trip only after a generated `fusionSummary.json`, same-moment capture pair, and accepted lip reference mask are present.
-6. Produce one human-reviewed lip gold mask or explicit silver-only fallback on that frame if it does not already exist.
-7. Generate `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0` candidate config.
-8. Add runtime candidate selection without changing broad baseline.
+6. Produce one human-reviewed lip gold/reference mask or explicit silver-only fallback on that frame if it does not already exist. Manual polygon annotation is allowed for the first coordinate-space proof.
+7. Generate offline `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0` candidate configs with `runtimeReady=false`.
+8. Add runtime candidate selection only in a later runtime slice, without changing broad baseline.
 9. Add minimal user adjustment controls.
 10. Run one-build / many-candidate runtime sweep only after build approval.
 11. Record lip G/Y/R and next boundary.
 
-Do not skip steps 5-6 and jump straight to runtime candidate claims.
+Do not skip steps 5-6 and jump straight to runtime candidate claims. The next implementation target is coordinate-space round-trip proof, not renderer or product-quality runtime.
 
 ## 24. Next Implementation Prompt
 
@@ -1292,7 +1449,7 @@ Read first:
 - docs/roadmaps/active/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md only for the v0 runtime failure context
 
 Goal:
-Execute the first buildless Phase 3 one-frame UV projection round-trip for the E7.03 lip-first pre-AR boundary calibration spike, using the completed Phase 2 Boundary Fusion contract and Phase 3 preparation stub.
+Execute the first buildless Phase 3 one-frame UV projection round-trip for the E7.03 lip-first pre-AR boundary calibration spike, using the Phase 2 Boundary Fusion contract-ready handoff and Phase 3 preparation stub.
 
 Scope:
 - lip only
@@ -1304,10 +1461,10 @@ Scope:
 Preferred first slice:
 1. Generate or locate a real `fusionSummary.json` from a `lip-calib-*` package.
 2. Select one same-moment lip capture pair with `frame.png` and `arface_export.json`.
-3. Provide an accepted screen-space lip reference mask on that same frame; record whether it is human-reviewed gold, silver, Vision/reference, or blocked.
+3. Provide an accepted screen-space lip reference mask on that same frame; manual polygon annotation, human-reviewed gold, silver, Vision/reference, or mesh-draft review-only input are allowed if the source and weaknesses are recorded.
 4. Make inner-mouth exclusion, corner falloff, upper/lower split, confidence summary, and rejected-signal reasons explicit.
 5. Run `python3 scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py ...` in buildless mode.
-6. Produce offline artifacts only: lip_probability, lip_coverage, lip_unknown, lip_debug_votes, lip_variants, round_trip_overlay, summary.
+6. Produce offline artifacts only: lip_probability, lip_coverage, lip_unknown, lip_debug_votes, lip_variants with offlineCandidateConfigs/runtimeReady=false, round_trip_overlay, summary.
 7. If inputs are insufficient, record `ready|partial|blocked` and the exact missing input; do not invent masks or fake artifacts.
 8. Stop before UnityFramework/Xcode/iPhone build unless the user approves the build gate.
 
@@ -1321,5 +1478,14 @@ Do not mark E7.3 Green. Record whether Phase 3 UV Projection execution is ready 
 - `E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: projection and UV atlas implementation detail source.
 - `E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md`: v0 failure context and why lip boundary comes before sample expansion.
 - `E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: full E7 routing and E7.4 entry gate.
+
+### Non-contract reference ideas
+
+These sources can inspire future design and review language, but they are not Phase 2/3 inputs and do not change the gold/silver/runtime contract.
+
+| Source | Useful idea | Not allowed as |
+| --- | --- | --- |
+| Twinit crawl | zone taxonomy, lip finish/texture vocabulary, future renderer requirement hints | gold mask, training data, runtime evidence, product feature commitment |
+| LiveBeauty / `complete_face_version` | face diversity stress corpus idea and failure-case inspiration | lip boundary label, beauty-score model input, official ARFace atlas input, shareable evidence without license review |
 
 This document narrows the next actionable path to `lip-first pre-AR boundary calibration`.
