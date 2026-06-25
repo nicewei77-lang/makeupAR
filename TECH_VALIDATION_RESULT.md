@@ -32,98 +32,62 @@ Latest E7.03 smooth-mask validation app cleanup/user acceptance: 2026-06-23 KST
 
 Latest workspace share cleanup/document structure pass: 2026-06-23 KST
 
+Latest local Unity install/device build prep: 2026-06-25 KST
+
+Latest post-validation scope reset: 2026-06-25 KST
+
+Latest commercial readiness regulatory guardrail update: 2026-06-25 KST
+
 ## Current Session Snapshot
 
-This snapshot is the default entry point for future Codex sessions. Read this section first, then lazy-load only the milestone-specific plan or research document needed for the current task.
+This snapshot is the default entry point for future Codex sessions. Read this section first, then lazy-load only the files needed for the user's named task.
 
 Current boundary:
 
-- Primary path: E7.03 v2.1 Boundary Engine Quality Experiment. Phase 0 Contract Reset is complete. Phase 1 Validation UI/Evidence Hygiene is implemented, JS-verified, real-device build/log smoke-verified, and user-provided iPhone screenshots confirm Clean / Compact HUD / Full Debug mode visibility. Phase 2 ARFace authored atlas MVP is implemented with manual vertex labels, topology/UV audit metadata, RN-selectable atlas variants, and preserved E3/E4/procedural baselines. Phase 2 is JS/lint verified, UnityFramework build/sync verified, and RN real-device build/install verified; runtime launch/visual evidence is still pending because the iPhone was locked during launch.
-- Reference-driven UV atlas P2 synchronized capture is complete for input collection only. The validation app now exports clean frames plus same-moment ARFace mesh/UV/screen projection data, suppresses Unity face renderers/candidate masks/debug panels during capture, uses unique timestamped `pair_face_*` capture IDs for repeated attempts, and places the capture button away from the front camera. Three copied P2 capture folders are available under `evidence/e7-reference-atlas/capture_pairs/`; `pair_face_20260622T143334Z_03` is the recommended clean reference frame for user gold-mask drawing. No gold mask, UV back-projection, round-trip render, P3/P4 acceptance, MediaPipe runtime, or E7.4 work has started.
-- A no-build A/B UV atlas fast gate was run from the two user-authored mask sets on `pair_face_20260622T143300Z_01` and `pair_face_20260622T143334Z_03`. After fixing the fast-gate back-projection sampling density, `lip`, `cheek`, and `eye` all produce continuation signals, so the offline decision is `continue`. This justifies preparing a small P8 runtime sweep candidate set, but it does not mark E7.03 Green.
-- P8 runtime sweep build/log/visual evidence is collected for the default reference UV runtime path. The frozen runtime candidate set lives under `unity/MakeupARUnityValidation/Assets/Resources/E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/` with exactly 9 reference UV variants (`core`, `balanced`, `soft-wide` for `lip`, `cheek`, and `eye`), and RN/Unity support `rendererMode="e7-reference-uv-atlas"` / `candidateId="arface-reference-uv-atlas"`. The latest iPhone runtime stream confirms `lip`, `cheek`, and `eye` all sample ARFace UV probability atlases with `tracking_render`, mesh/UV counts `1220/6912/1220`, and `usedFallback=false`. User-provided Compact HUD photos confirm the masks appear face-attached, but all three regions remain Yellow because the silhouettes are still jagged/rough and the full white debug face surface is not Q3 overlay-ready makeup rendering.
-- E7.03 smooth-mask validation app cleanup is accepted for the current optimization goal. Candidate/variant selection UI, old capture/reference controls, and stale visual debug paths were removed from the active app surface. The current runtime defaults to one `smooth-region-mask` path with three batched layers (`lip`, `cheek`, `eye`) and per-layer `enabled` flags. HUD status is inside the bottom `Regions` panel instead of floating over the face. User-provided acceptance screenshots are stored at `evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/` and show visible, natural, subtle makeup on the face with Compact HUD reporting `active=lip,cheek,eye`, mesh `v=1220/i=6912/uv=1220`, FPS `52.2-60.2`, and recipe latency `36.0ms`. User visual feedback: the overall makeup is still hard to see, the eye boundary is somewhat lacking, and this validation stage ideally should make the covered region more unmistakable; however, the current result is accepted and the remaining visibility/boundary issue should be handled together with the next cosmetic expression/modeling work. This closes the current app cleanup/optimization goal by user acceptance, but it does not mark E7.03 Green or prove product-quality cosmetic rendering.
-- Phase 2 adds the runtime-selectable `e7-arface-authored-atlas` candidate for `lip`, `cheek`, and `eye`. This is validation-only manual labeling plus evidence metadata, not face parsing, product segmentation, product-quality makeup, or AI/backend work.
-- E7.03 v2.1 now has phase-wide time-saving rules, not only a P2 shortcut: prefer no-build data/registry/offline changes first, JS-only validation second, one real-device install for many candidate/variant/region sweeps third, and UnityFramework/Xcode rebuild only when renderer logic, schema, shader/material contract, package/framework sync, or native integration changes.
-- E7.3 visual evidence has been reviewed from the user-provided screen recording. ARFace mesh/UV is live on-device, but the current procedural candidate is not visually acceptable for `lip` or `eye`; `cheek` lacks a clean E7 candidate sample. Overall E7.3 remains Yellow because the ARFace substrate is viable, but the current candidate masks block E7.4.
-- The old E7.03 Green bar of "better than E3/E4 baseline" or "demo-plausible" is superseded. E7.03 Green now requires Q3 overlay-ready validation for `lip`, `cheek`, and `eye`, with runtime/visual evidence and region-separated scoring.
-- Conservative alternative: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow lifecycle risk with formal 3-cycle evidence.
-- Renderer path: if the accepted M7 risk remains acceptable, stay in validation/hardening mode inside E7.3; do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports the next boundary, or until the team explicitly accepts the remaining E7.3 risk.
-- Workspace/share state: source-first cleanup is complete for the current handoff pass. Current checked size is `24M` total (`.git` about `22M`; source/doc/script working tree about `2M`). Root active docs are limited to `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, and `TECH_VALIDATION_RESULT.md`; active E7 plans now live under `docs/roadmaps/active/`; team onboarding/share requirements live in `docs/runbooks/TEAM_SHARE_REQUIREMENTS_KO.md`; ignored evidence/build/dependency/editor outputs are expected to be absent after `scripts/cleanup_local_generated.sh --profile share`.
+- The repo workflow is now post-validation. The user has accepted the AR validation/app-cleanup phase as complete enough to move on to other work.
+- Old validation evidence remains authoritative for technical claims, but unresolved Yellow items no longer block unrelated product, research, crawler, docs, or prototype tasks.
+- Commercial completion and product readiness are now valid next-work targets. New work should use commercial level as the target standard when product quality, release readiness, data collection, AI, recommendation, commerce, or public marketing claims are involved.
+- Current AR baseline: M0-M6 Green; M7 Yellow / skipped by decision / risk accepted; M8 Yellow because of M7. E1-E5 are validation Green, E6 is Yellow, E7.2 is instrumentation Green, and E7.3 / full visual product-readiness remain Yellow unless new evidence changes them.
+- Current validation app state: the simplified `smooth-region-mask` runtime with `lip`, `cheek`, and `eye` enabled by default was accepted by user screenshots on 2026-06-23. It is usable validation/prototype evidence, not product-quality cosmetic rendering proof.
+- Latest local device state on 2026-06-25: Unity `6000.3.18f1` with iOS module was installed, UnityFramework was regenerated/synced, RN/Pods dependencies were restored, RN static checks passed, and the app built/installed/launched on `CloudsiPhone (00008130-001E08E22E30001C)` using team `BRA7W3G4QS`.
+- Source/share cleanup state: root active docs remain `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, and `TECH_VALIDATION_RESULT.md`; current code/docs/scripts are the shareable source of truth, while generated evidence/build/dependency/editor outputs stay ignored.
 
-Current status:
+Current work mode:
 
-- M0-M6: Green.
-- M7: Yellow / skipped by decision / risk accepted. Do not promote M7 without formal 3-cycle re-entry evidence.
-- M8 foundation closeout: Yellow overall because M7 remains risk-accepted.
-- E1 AR Alignment: Green for validation.
-- E2 Trackable Lifecycle Diagnostics: Green.
-- E3 Region Mask: Green for validation only; masks are broad debug masks.
-- E4 Texture Sample: Green for validation only; texture samples are procedural/debug quality.
-- E5 AI Feature Readiness Snapshot: Green for no-inference handoff; decision recording was explicitly waived only for E5.
-- E6 Engine Decision: Yellow; continue the RN + Unity + ARKit direction, but do not claim product-v1 readiness.
-- E7.0/E7.1 Preflight: Green for preflight only.
-- E7.2 Baseline Instrumentation: Green for baseline instrumentation; decision recording was explicitly waived only for E7.2.
-- E7.3 Region Precision: Yellow overall / blocked from E7.4. Legacy procedural E7 video review remains `lip` Red, `cheek` Yellow / insufficient E7-candidate sample, and `eye` Red. P8 reference UV runtime sweep improves attachment for all three regions, but current P8 region decisions are `lip` Yellow, `cheek` Yellow, and `eye` Yellow pending silhouette/material cleanup and scenario-specific motion review.
-- E7.03 P2 synchronized reference capture: captured / ready for user gold-mask authoring input; this does not change E7.3 region G/Y/R or mark E7.03 Green.
-- E7.03 A/B UV atlas fast gate: Continue / P8 Build Gate already consumed for the first runtime sweep. `lip`, `cheek`, and `eye` all showed useful same-frame and cross-frame UV transfer; this remains offline viability evidence, not runtime Green evidence.
-- E7.03 P8 runtime sweep: build/install/runtime-log/representative-photo evidence collected after Build Gate approval. The runtime path is viable, Compact HUD is visible, and Clean intentionally hides the mask, but no region is Green yet.
-- E7.03 smooth-mask validation app cleanup: accepted for the current validation app optimization goal. The accepted screenshots show a usable, non-obstructed Compact HUD and a natural-enough visible overlay for this validation step. User feedback records that the overall makeup is still subtle/hard to see and the eye boundary needs improvement, but this is acceptable for now and should be resolved with cosmetic expression/modeling. Full E7.3 Region Precision remains Yellow because Q3 overlay-ready motion/scenario evidence is still incomplete.
-- Full E7 visual product-readiness: incomplete.
-
-Active temporary docs:
-
-- `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md`: active E7 master spike plan.
-- `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md`: active E7.03 / E7.3 v2.1 boundary engine quality plan. Phase 0 Contract Reset is complete; keep until v2.1 decisions are absorbed into this result doc or the team explicitly closes E7.3 as Yellow.
-- `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md`: active reference-driven UV atlas implementation plan for the next E7.03 region precision hardening slice; use for pre-gold capture-pair work and later one-frame round-trip gating.
-- `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md`: team-facing E7.4/E7.5 cosmetic rendering check plan. Use it to align on scope and entry conditions only; it does not override the E7.3 Yellow boundary or authorize renderer implementation by itself.
-- `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`: keep for E7.6 performance decision; E7.2 baseline work is complete.
-- Deferred docs to create only when needed: `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` before E7.4, and `E7_DEMO_LOOK_RECIPE_SPEC.md` only if recipe values or preset behavior need a fixed contract.
+- Follow the user's named task first. Commercial productization, product planning, competitor/Twinit research, crawler/data analysis, documentation, prototype UX, and non-AR application work are now in scope when requested.
+- AI/backend/admin/payment/community, Android, commercial SDK, upload/sync, and product-quality makeup rendering are not globally forbidden anymore, but each needs an explicit task or plan plus privacy/security/regulatory notes where relevant.
+- Commercial readiness and public-release completion are active goals, with final readiness gated by `docs/product/COMMERCIAL_READINESS_REGULATORY_GUARDRAILS_KO.md`.
+- If resuming AR engine validation, explicitly choose the slice: M7 re-entry, E7.3 scenario hardening, E7.4/E7.5 cosmetic modeling, E7.6 performance, fallback/SDK comparison, or another named plan.
 
 Default reading route:
 
 - Always read `AGENTS.md` and this snapshot.
-- Read `TECH_VALIDATION_TEST_PLAN.md` only when changing the stable validation contract or checking milestone/evidence rules.
-- For E7.3 region precision, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.3 sections and the `docs/roadmaps/research/E7_AXIS1_*` reports.
-- For E7.03 boundary work, read `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` first. It supersedes the old demo-plausible E7.3 Green bar with Q3 overlay-ready validation and the v2.1 experiment order.
-- For reference-driven UV atlas work before gold mask authoring, read `docs/roadmaps/active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` and keep the official pair status pending until a clean frame and synchronized ARFace export are captured from the same runtime moment.
-- For team-facing E7.4/E7.5 cosmetic rendering scope review, read `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md`; for implementation planning, read `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` E7.4/E7.5 sections and the `docs/roadmaps/research/E7_AXIS2_*` reports.
-- For E7.6 performance, read `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`.
-- Read base research or benchmark reports only for fallback, SDK comparison, licensing, or architecture decisions.
+- For commercial/product work, read `docs/product/COMMERCIAL_READINESS_REGULATORY_GUARDRAILS_KO.md`.
+- For product planning, read `docs/product/AIAR_MakeupGuide기획서_v1.md` or the user-named product doc.
+- For Twinit/competitor research, read `twinit-crawler/README.md`, then targeted CSV/JSONL/markdown outputs.
+- For AR validation continuation, use `docs/roadmaps/README.md` as the menu and open only the relevant active/research file.
+- Read `TECH_VALIDATION_TEST_PLAN.md` only when changing the stable validation contract or auditing old milestone/evidence rules.
 
-Stop rules:
+Post-validation guardrails:
 
-- Do not mark M7 Green unless formal 3-cycle re-entry evidence is collected.
-- Do not proceed to E7.4 or E7.6 from E7.2 logs or E7.3 build/install logs alone.
-- Do not mark any E7.3 region Green without real-device runtime compare logs and representative visual evidence for that region.
-- Do not mark E7.03 Green under the old "baseline-better" or "demo-plausible" standard. Green now requires Q3 overlay-ready validation for all three in-scope regions.
-- Do not treat face parsing as E7.03 live runtime or product/release asset source, do not treat ML Kit Face Mesh as an iPhone runtime candidate, and do not introduce a separate camera session that conflicts with ARKit.
-- Do not claim full E7, visual product readiness, product-v1 readiness, or product-quality makeup from E7.0/E7.1 preflight or E7.2 instrumentation logs.
-- Do not treat E3 as product-quality makeup accuracy; it proves validation-level region independence only.
-- Do not treat E4 as product-quality makeup fidelity; it proves validation/debug texture sample dispatch and visual distinction only.
-- Do not treat E5 or E7.2 recording waivers as general waivers for future milestones.
-- Do not start AI model inference, backend upload, recommendation logic, commercial SDK integration, Android work, raw camera frame storage, or product implementation until a plan explicitly reaches that scope.
+- Do not claim product-v1 readiness, product-quality makeup, full E7 Green, M7 Green, or visual product-readiness from existing validation evidence.
+- Do not treat E3/E4 debug masks/textures or the accepted smooth-mask screenshots as production segmentation or cosmetic fidelity.
+- Work toward commercial-ready status, but do not mark it complete until product evidence, privacy/data mapping, 표시·광고/화장품 claim review, store disclosure, and security/release gates are satisfied.
+- Do not store raw camera frames, perform face/beauty model inference, or upload face-derived data without an explicit privacy-safe plan.
+- Before Unity/RN real-device builds, stop and get approval with the build purpose, evidence target, and out-of-scope items.
 
 Evidence media policy:
 
 - Do not save screen recordings by default.
-- Save a recording only when motion, elapsed time, or a continuous scenario is the core evidence.
-- When a recording is captured, prefer long-term retention of metadata, contact sheets, and representative frames. The raw recording may be deleted after decision review or extraction unless a milestone explicitly requires keeping it.
+- Save a recording only when motion, elapsed time, or a continuous scenario is core evidence.
+- Prefer metadata, contact sheets, representative frames, and short summary logs over raw recordings or full logs.
 
-Key evidence:
+Key evidence pointers:
 
-- E7.3 region precision implementation/build/video review: `evidence/logs/m3-repro-unity-export-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-region-precision-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-region-precision-2026-06-22.log`, `evidence/logs/e7-region-precision-rn-ios-run-default-candidate-2026-06-22.log`, `evidence/logs/e7-region-precision-summary-2026-06-22.md`, `evidence/logs/e7-region-precision-video-analysis-2026-06-22.md`, `evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg`.
-- E7.03 Phase 1 UI/evidence hygiene real-device check: `evidence/logs/m3-repro-unity-export-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/m3-repro-artifact-verification-e7-phase1-ui-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-rn-ios-run-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-runtime-console-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-capture-tooling-2026-06-22-141533.log`, `evidence/logs/e7-phase1-ui-display-info-2026-06-22-141533.log`, `evidence/screenshots/e7-phase1-ui-display-info-2026-06-22-141533.json`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/clean-view.jpg`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/compact-hud.jpg`, `evidence/screenshots/e7-phase1-ui-2026-06-22-141533/full-debug.jpg`.
-- E7.03 Phase 2 ARFace authored atlas MVP build/install check: `evidence/logs/m3-repro-unity-export-e7-phase2-atlas-2026-06-22-151537.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-phase2-atlas-2026-06-22-151537.log`, `evidence/logs/m3-repro-artifact-verification-e7-phase2-atlas-2026-06-22-151537.log`, `evidence/logs/e7-phase2-atlas-2026-06-22-151537-rn-ios-device.log`.
-- E7.03 P2 synchronized reference capture: `evidence/logs/m3-repro-unity-export-2026-06-22-230402.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-2026-06-22-230402.log`, `evidence/logs/m3-repro-artifact-verification-2026-06-22-230402.log`, `evidence/logs/e7-reference-capture-rn-ios-run-2026-06-22-233049.log`, `evidence/logs/e7-reference-capture-runtime-console-2026-06-22-233202.log`, `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143300Z_01/`, `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143305Z_02/`, `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/`.
-- E7.03 A/B UV atlas fast gate: `evidence/e7-reference-atlas/fast-gate-20260622T160307Z/summary.md`, `evidence/e7-reference-atlas/fast-gate-20260622T160307Z/summary.json`, plus per-region `round_trip/`, `cross_frame/`, `uv_overlap/`, `candidate_preview/`, and `atlases/` artifacts. Earlier fast-gate runs are superseded because they used sparse sampling or were debug/smoke runs.
-- E7.03 P8 runtime sweep implementation prep: frozen Unity Resources under `unity/MakeupARUnityValidation/Assets/Resources/E7ReferenceAtlas/e7ref-fastgate-20260622T160307Z-v0/` include 9 probability PNGs, 9 PNG-byte Resources, and `runtime_candidates.json`. Static checks passed: `/Users/wiseungcheol/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/bin/python3 -m py_compile scripts/e7_reference_atlas/fast_uv_atlas_gate.py`, `./node_modules/.bin/tsc --noEmit`, `npm run lint`, and `git diff --check`. This is implementation/static evidence only, not real-device runtime evidence.
-- E7.2 build/runtime: `evidence/logs/m3-repro-unity-export-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-baseline-instrumentation-ack-2026-06-22.log`, `evidence/logs/e7-baseline-rn-ios-run-ack-2026-06-22.log`, `evidence/logs/e7-baseline-runtime-console-ack-2026-06-22.log`, `evidence/logs/e7-baseline-summary-2026-06-22.md`, `evidence/screenshots/e7-baseline-status-panel-2026-06-22.jpg`.
-- E7.0/E7.1 preflight: `evidence/logs/e7-unity-process-cleanup-2026-06-22.log`, `evidence/logs/m3-repro-unity-export-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-preflight-2026-06-22.log`, `evidence/logs/m3-repro-artifact-verification-e7-preflight-2026-06-22.log`, `evidence/logs/e7-build-install-run-2026-06-22.log`, `evidence/logs/e7-runtime-event-preflight-2026-06-22.log`.
-- E5 no-inference snapshot: `evidence/logs/e5-ai-feature-readiness-runtime-2026-06-21.log`, `evidence/screenshots/e5-ai-feature-readiness-rn-status-2026-06-21.jpg`.
-- E4 texture samples: `evidence/logs/e4-texture-samples-runtime-2026-06-21.log`, `evidence/screen-recordings/e4-texture-samples-matte-shimmer-blush-2026-06-21.mp4`, `evidence/screenshots/e4-texture-samples-comparison-2026-06-21.jpg`.
-- E3 region mask: `evidence/logs/e3-region-mask-layer-dispatch-2026-06-21.log`, `evidence/screen-recordings/e3-region-mask-lip-cheek-eye-2026-06-21.mp4`, `evidence/screenshots/e3-region-mask-debug-colors-2026-06-21.jpg`.
-- M6 Unity -> RN events: `evidence/logs/m6-face-state-fix-runtime-2026-06-21.log`, `evidence/screen-recordings/m6-unity-to-rn-events-2026-06-21.mp4`, `evidence/screenshots/m6-rn-face-lost-latest-event-2026-06-21.jpg`, `evidence/screenshots/m6-rn-face-tracked-recipe-event-2026-06-21.jpg`.
+- Curated visual history: `evidence/README.md` and `evidence/evolution/`.
+- Accepted smooth-mask screenshots: `evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/`.
+- Commercial/regulatory guardrails: `docs/product/COMMERCIAL_READINESS_REGULATORY_GUARDRAILS_KO.md`.
+- Detailed E7.3 validation history starts at `## E7.3 Region Precision` below; older full history is archived at `docs/roadmaps/archive/TECH_VALIDATION_HISTORY_2026-06-22.md`.
 
 ## E7.3 Region Precision
 
@@ -294,11 +258,12 @@ Known limitations:
 
 ## Workspace Document State
 
-Active root documents:
+Active routing documents:
 
-- `AGENTS.md`: repository working rules, milestone scope boundaries, document policy, and evidence/cleanup requirements.
-- `TECH_VALIDATION_TEST_PLAN.md`: stable validation contract. Do not update for progress/status unless correcting the contract.
-- `TECH_VALIDATION_RESULT.md`: current snapshot, latest milestone decisions, and next boundary.
+- `AGENTS.md`: repository working rules, post-validation scope boundaries, document policy, and evidence/cleanup requirements.
+- `TECH_VALIDATION_TEST_PLAN.md`: historical/stable validation contract. Do not update for progress/status unless correcting or auditing that contract.
+- `TECH_VALIDATION_RESULT.md`: current post-validation snapshot, validation decision summary, evidence pointers, and next work boundary.
+- `docs/product/COMMERCIAL_READINESS_REGULATORY_GUARDRAILS_KO.md`: commercial-level release target plus privacy, AI, cosmetics/advertising, commerce, and app-store readiness gates.
 
 History archive:
 
@@ -307,8 +272,9 @@ History archive:
 
 Document policy:
 
-- New `M*_..._PLAN.md` or `E*_..._PLAN.md` files are temporary session plans.
-- After a session completes, absorb the result into this file and delete temporary plans unless the user asks to keep them.
+- New validation `M*_..._PLAN.md` or `E*_..._PLAN.md` files are temporary session plans unless explicitly promoted.
+- New product/research/prototype plans should live under the matching `docs/` area and should say whether they are active, reference, or archive material.
+- After a validation session completes, absorb the result into this file and delete temporary plans unless the user asks to keep them.
 - Put reusable procedures in `docs/runbooks/`.
 - Keep roadmap/research docs under `docs/roadmaps/`.
 
@@ -327,8 +293,9 @@ Local cleanup policy:
 Token policy:
 
 - Future sessions should start from `AGENTS.md` plus `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`.
-- Do not load all research reports by default.
-- Load only the research axis that matches the current E7 milestone.
+- Let the user's named task choose the reading path; do not reopen validation roadmaps or research reports by default.
+- For Twinit/competitor work, start with `twinit-crawler/README.md` and targeted outputs instead of scanning the whole collected dataset.
+- For AR continuation, load only the research axis that matches the named E7/M milestone.
 - Do not load `docs/roadmaps/active/`, `docs/roadmaps/research/`, or `docs/roadmaps/archive/` as whole folders. Use `docs/roadmaps/README.md` as the menu and open only the selected file.
 - For `_KO.md` / `_KR.md` companion pairs, agents should read the `_KO.md` primary implementation plan and skip `_KR.md` unless user-facing wording is specifically needed.
 - For broad search, exclude lockfiles and generated project/config files unless the task is dependency or native project troubleshooting: `package-lock.json`, `Podfile.lock`, Xcode `project.pbxproj`, and Unity `ProjectSettings/*.asset`.
@@ -342,12 +309,13 @@ Result growth policy:
 - If `Current Session Snapshot` becomes hard to scan, compress older bullets into one status bullet plus archive references before adding new work.
 - Prefer metadata, contact sheets, representative frames, and short summary logs over raw recordings or full logs. Keep raw/heavy artifacts local under ignored `evidence/` only while they are active decision evidence.
 
-## Next Milestone Boundary
+## Next Work Boundary
 
-E1 AR Alignment, E2 Trackable Lifecycle Diagnostics, E3 Region Mask, E4 Texture Sample, E5 AI Feature Readiness Snapshot, E6 Engine Decision, E7.0/E7.1 preflight, and E7.2 Baseline Instrumentation are complete. The 2026-06-23 smooth-mask validation app cleanup/optimization goal is closed by user acceptance: the app now uses the simplified `smooth-region-mask` runtime surface, hides obsolete selector/capture/debug paths from the active UI, keeps HUD evidence in the bottom controls, and stores only the three accepted screenshots under `evidence/screenshots/e7-smooth-mask-accepted-2026-06-23/`. User feedback for the retained screenshots says the makeup is still generally hard to see and the eye boundary is somewhat lacking, but this is acceptable for closing this step and should be addressed with cosmetic expression/modeling. This closes the current app optimization task, not the full E7.03 quality gate. E7.3 remains Yellow overall because Q3 overlay-ready motion/scenario evidence for all three regions is incomplete, and full E7 visual product-readiness is not complete. M0-M6 remain Green. M7 remains Yellow / skipped by decision / risk accepted.
+The pre-product validation phase is closed for workflow purposes by user direction on 2026-06-25. Existing validation results remain evidence, not a task lock: M0-M6 are Green; M7 is Yellow / skipped by decision / risk accepted; E1-E5 are validation Green; E6 and E7 visual product-readiness remain Yellow. The 2026-06-23 smooth-mask app cleanup is accepted for its validation/prototype goal, but not as product-quality cosmetic rendering.
 
 Next boundary decision:
 
-- Primary path: current validation app optimization is closed; next work should either continue E7.3 scenario hardening from the accepted smooth-mask state, or explicitly open E7.4 cosmetic modeling with a new `E7_COSMETIC_RENDERING_CORE_SUBSPIKE_PLAN.md` and a recorded Yellow boundary risk.
-- Conservative path: run additional M7 re-entry verification if the team wants to replace the accepted M7 Yellow risk with formal 3-cycle lifecycle evidence.
-- Renderer path: do not enter E7.4/E7.5/E7.6 until E7.03 v2.1 evidence supports Q3 overlay-ready validation for all three regions, or until the team explicitly accepts the remaining E7.3 Yellow risk, records the boundary, and treats later renderer/demo evidence as conditional with a Yellow cap.
+- Primary path: follow the user's named next task, including commercial productization, product planning, competitor/Twinit research, crawler/data analysis, docs, prototype UX, or application work.
+- AR continuation path: if the user asks to continue AR engine work, name the slice first and record whether it accepts the current M7/E7.3 Yellow cap or is collecting new evidence to change it.
+- Product/AI/backend path: may start when explicitly requested and should work toward production readiness, but must follow the commercial regulatory guardrails before storing raw face data, uploading face-derived data, running model inference, making 표시·광고 claims, taking payment, or marking readiness complete.
+- Build path: Unity/RN real-device builds still require explicit approval and a short evidence/out-of-scope statement before execution.
