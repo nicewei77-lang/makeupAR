@@ -15,6 +15,7 @@ Token-safe reading rule:
 | `active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` | M6-E6/E7 배경 지시서. 현재 boundary와 다음 세션 라우팅은 `../../TECH_VALIDATION_RESULT.md` snapshot을 우선한다. |
 | `active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 spike boundary, E7.3-E7.6 라우팅, cosmetic renderer 진입 조건. |
 | `active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.03/E7.3 region precision, Q3 overlay-ready 기준, Yellow boundary risk. |
+| `active/E7_LIP_BOUNDARY_PRE_AR_CALIBRATION_SPIKE_PLAN_KO.md` | E7.03 lip-first pre-AR boundary calibration 계약. AR 전에 무겁게 분석하고 AR 중에는 ARFace UV/vertex로 가볍게 추적하는 계획. |
 | `active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 FPS/frame-time, thermal, memory, latency evidence 계약. |
 | `active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 보는 E7.4/E7.5 cosmetic rendering 실험 범위와 진입 조건. |
 | `active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` | future agent용 reference-driven UV atlas 구현 계약. |

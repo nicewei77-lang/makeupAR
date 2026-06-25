@@ -6,6 +6,8 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App from '../App';
 
+const mockUnityPostMessage = jest.fn();
+
 jest.mock('react-native', () => {
   const ReactRuntime = require('react');
 
@@ -71,7 +73,7 @@ jest.mock('@azesmway/react-native-unity', () => {
 
   return ReactRuntime.forwardRef((props: any, ref: any) => {
     ReactRuntime.useImperativeHandle(ref, () => ({
-      postMessage: jest.fn(),
+      postMessage: mockUnityPostMessage,
     }));
 
     return <View testID="unity-view" {...props} />;
@@ -83,6 +85,7 @@ let consoleErrorSpy: jest.SpyInstance;
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  mockUnityPostMessage.mockClear();
   consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   jest.useFakeTimers();
@@ -157,6 +160,31 @@ function pressByText(
   });
 }
 
+function pressByTestID(
+  renderer: ReactTestRenderer.ReactTestRenderer,
+  testID: string,
+) {
+  const button = renderer.root.findByProps({ testID });
+
+  expect(button).toBeTruthy();
+
+  ReactTestRenderer.act(() => {
+    button.props.onPress();
+  });
+}
+
+function getLastRecipePayload() {
+  const recipeCall = [...mockUnityPostMessage.mock.calls]
+    .reverse()
+    .find(
+      call => call[0] === 'RNBridge' && call[1] === 'ApplyRecipeJson',
+    );
+
+  expect(recipeCall).toBeTruthy();
+
+  return JSON.parse(String(recipeCall?.[2]));
+}
+
 test('renders home with neutral validation copy', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -210,23 +238,26 @@ test('keeps validation modes visually compact before build', async () => {
   expect(hudText).toContain('Debug');
   expect(hudText).toContain('Regions');
   expect(hudText).toContain('AR Status');
+  expect(hudText).toContain('daily');
+  expect(hudText).toContain('opac');
   expect(hudText.indexOf('Regions')).toBeLessThan(
     hudText.indexOf('AR Status'),
   );
-  expect(hudText).toContain('active=lip,cheek,eye');
+  expect(hudText).toContain('active=lip');
   expect(hudText).not.toContain('E7.03 HUD');
 
   pressByText(renderer!, 'Clean');
-  expect(collectText(renderer!)).not.toContain('Capture ' + 'Pair');
   expect(collectText(renderer!)).not.toContain('Regions');
   expect(collectText(renderer!)).not.toContain('E7.03 HUD');
+  expect(collectText(renderer!)).not.toContain('opac');
 
   pressByText(renderer!, 'Debug');
   expect(collectText(renderer!)).toContain('Evidence metadata');
-  expect(collectText(renderer!)).toContain('Regions');
+  expect(collectText(renderer!)).not.toContain('AR Status');
+  expect(collectText(renderer!)).not.toContain('opac');
 });
 
-test('posts smooth mask renderer by default before build', async () => {
+test('posts lip daily sample by default before build', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -244,11 +275,117 @@ test('posts smooth mask renderer by default before build', async () => {
 
   expect(recipePostCall).toBeTruthy();
   expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
+  expect(recipePostCall).toContain('lookId=lip_daily');
+  expect(recipePostCall).toContain('finish=cream');
+  expect(recipePostCall).toContain('activeRegions=lip');
+  expect(recipePostCall).toContain('enabledLayerCount=1');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
+
+  const payload = getLastRecipePayload();
+  expect(payload.version).toBe(2);
+  expect(payload.lookId).toBe('lip_daily');
+  expect(payload.activeRegions).toBe('lip');
+  expect(payload.enabledLayerCount).toBe(1);
+  expect(payload.layers).toHaveLength(3);
+  expect(payload.layers.map((layer: any) => layer.enabled)).toEqual([
+    true,
+    false,
+    false,
+  ]);
+  expect(payload.layers[0]).toMatchObject({
+    region: 'lip',
+    texture: 'matte_lip',
+    finish: 'cream',
+    textureAmount: 0.08,
+    glossBoost: 0,
+  });
 });
 
-test('keeps Unity face debug surface disabled across view modes', async () => {
+test('switches lip sample pack values without changing 3-layer contract', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'gloss');
+  let payload = getLastRecipePayload();
+  expect(payload.lookId).toBe('lip_gloss');
+  expect(payload.activeRegions).toBe('lip');
+  expect(payload.enabledLayerCount).toBe(1);
+  expect(payload.layers).toHaveLength(3);
+  expect(payload.layers[0]).toMatchObject({
+    region: 'lip',
+    enabled: true,
+    finish: 'gloss',
+    textureAmount: 0.05,
+    glossBoost: 0.55,
+  });
+  expect(payload.layers[1].enabled).toBe(false);
+  expect(payload.layers[2].enabled).toBe(false);
+
+  pressByText(renderer!, 'texture');
+  payload = getLastRecipePayload();
+  expect(payload.lookId).toBe('lip_texture');
+  expect(payload.activeRegions).toBe('lip');
+  expect(payload.enabledLayerCount).toBe(1);
+  expect(payload.layers[0]).toMatchObject({
+    region: 'lip',
+    enabled: true,
+    finish: 'matte',
+    textureAmount: 0.34,
+    glossBoost: 0,
+  });
+  expect(payload.layers.map((layer: any) => layer.enabled)).toEqual([
+    true,
+    false,
+    false,
+  ]);
+});
+
+test('updates lip color finish and tuning values from HUD', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByTestID(renderer!, 'lip-color-berry');
+
+  let payload = getLastRecipePayload();
+  expect(payload.lookId).toBe('lip_daily');
+  expect(payload.layers[0]).toMatchObject({
+    color: '#B83A55',
+    finish: 'cream',
+    opacity: 0.42,
+  });
+
+  pressByTestID(renderer!, 'lip-finish-matte');
+
+  payload = getLastRecipePayload();
+  expect(payload.layers[0]).toMatchObject({
+    color: '#B83A55',
+    finish: 'matte',
+    roughness: 0.92,
+    specular: 0.02,
+    specularPower: 8,
+    glossBoost: 0,
+  });
+
+  pressByTestID(renderer!, 'lip-tuning-step-opac-up');
+
+  payload = getLastRecipePayload();
+  expect(payload.layers[0]).toMatchObject({
+    color: '#B83A55',
+    finish: 'matte',
+    opacity: 0.45,
+  });
+});
+
+test('keeps Unity face debug surface suppressed while Clean preserves makeup overlay', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -274,7 +411,7 @@ test('keeps Unity face debug surface disabled across view modes', async () => {
     .find(call => call.includes('[E7] rn_region_overlay_visibility_post'));
 
   expect(latestVisibilityPostCall).toBeTruthy();
-  expect(latestVisibilityPostCall).toContain('visible=false');
+  expect(latestVisibilityPostCall).toContain('visible=true');
   expect(latestVisibilityPostCall).toContain('faceDebugSurfaceSuppressed=true');
   expect(latestVisibilityPostCall).toContain('validationViewMode=clean');
 });
@@ -287,13 +424,9 @@ test('allows all regions to be off before build', async () => {
   });
   enterUnityScreen(renderer!);
 
-  for (const region of ['lip', 'cheek', 'eye']) {
-    ReactTestRenderer.act(() => {
-      renderer!.root
-        .findByProps({ testID: `region-toggle-${region}` })
-        .props.onPress();
-    });
-  }
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByProps({ testID: 'region-toggle-lip' }).props.onPress();
+  });
 
   for (const region of ['lip', 'cheek', 'eye']) {
     expect(
@@ -326,18 +459,20 @@ test.each(['lip', 'cheek', 'eye'])(
     const getToggle = () =>
       renderer!.root.findByProps({ testID: `region-toggle-${region}` });
 
-    expect(getToggle().props.accessibilityState.checked).toBe(true);
+    const startsEnabled = region === 'lip';
+
+    expect(getToggle().props.accessibilityState.checked).toBe(startsEnabled);
 
     ReactTestRenderer.act(() => {
       getToggle().props.onPress();
     });
 
-    expect(getToggle().props.accessibilityState.checked).toBe(false);
+    expect(getToggle().props.accessibilityState.checked).toBe(!startsEnabled);
 
     ReactTestRenderer.act(() => {
       getToggle().props.onPress();
     });
 
-    expect(getToggle().props.accessibilityState.checked).toBe(true);
+    expect(getToggle().props.accessibilityState.checked).toBe(startsEnabled);
   },
 );

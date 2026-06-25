@@ -8,6 +8,13 @@ Shader "MakeupAR/SmoothRegionMask"
         _Threshold ("Threshold", Range(0, 1)) = 0.04
         _Feather ("Feather", Range(0, 1)) = 0.5
         _VisibilityAlpha ("Visibility Alpha", Range(0, 1)) = 1
+        _Coverage ("Coverage", Range(0, 1)) = 0.7
+        _TextureAmount ("Texture Amount", Range(0, 1)) = 0
+        _FinishMode ("Finish Mode", Range(-1, 2)) = -1
+        _Roughness ("Roughness", Range(0, 1)) = 0.6
+        _Specular ("Specular", Range(0, 1)) = 0
+        _SpecularPower ("Specular Power", Range(0, 128)) = 16
+        _GlossBoost ("Gloss Boost", Range(0, 1)) = 0
     }
 
     SubShader
@@ -41,6 +48,13 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Threshold;
             float _Feather;
             float _VisibilityAlpha;
+            float _Coverage;
+            float _TextureAmount;
+            float _FinishMode;
+            float _Roughness;
+            float _Specular;
+            float _SpecularPower;
+            float _GlossBoost;
 
             struct appdata
             {
@@ -65,11 +79,33 @@ Shader "MakeupAR/SmoothRegionMask"
             fixed4 frag(v2f input) : SV_Target
             {
                 float probability = tex2D(_MaskTex, input.uv).r;
-                float high = min(1.0, _Threshold + max(_Feather, 0.00001));
-                float alpha = smoothstep(_Threshold, high, probability)
+                float coverage = saturate(_Coverage);
+                float threshold = saturate(_Threshold + (0.70 - coverage) * 0.08);
+                float high = min(1.0, threshold + max(_Feather, 0.00001));
+                float alpha = smoothstep(threshold, high, probability)
                     * _Opacity
                     * _VisibilityAlpha;
-                return fixed4(_RegionColor.rgb, saturate(alpha));
+                float grain = frac(sin(dot(input.uv * 173.0, float2(12.9898, 78.233))) * 43758.5453);
+                float grainScale = 1.0 + (grain - 0.5) * saturate(_TextureAmount) * 0.16;
+                float3 color = saturate(_RegionColor.rgb * grainScale);
+
+                float horizontalCenter = saturate(1.0 - abs(input.uv.x - 0.5) * 2.0);
+                float lowerLipBand = smoothstep(0.36, 0.52, input.uv.y)
+                    * (1.0 - smoothstep(0.68, 0.82, input.uv.y));
+                float highlightShape = pow(horizontalCenter, 3.0) * lowerLipBand * saturate(alpha);
+                float specularShape = pow(saturate(highlightShape), max(1.0, _SpecularPower / 12.0));
+                float specularStrength = saturate(_Specular + _GlossBoost) * saturate(1.0 - _Roughness);
+
+                if (_FinishMode > 1.5)
+                {
+                    color += float3(1.0, 0.94, 0.9) * specularShape * specularStrength;
+                }
+                else if (_FinishMode > 0.5)
+                {
+                    color += float3(1.0, 0.86, 0.78) * highlightShape * _Specular * 0.22;
+                }
+
+                return fixed4(saturate(color), saturate(alpha));
             }
             ENDCG
         }

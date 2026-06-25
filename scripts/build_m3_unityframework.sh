@@ -91,6 +91,7 @@ require_file "$EXPORT_PATH/Data/boot.config"
 
 echo
 echo "== Verify generated ARKit native links =="
+LEGACY_ARKIT_LINKS_FOUND=1
 for required_entry in \
   "UnityARKit.m in Sources" \
   "libUnityARKit.a in Frameworks" \
@@ -98,12 +99,37 @@ for required_entry in \
   "ARKit.framework in Frameworks" \
   "MetalPerformanceShaders.framework in Frameworks"; do
   if ! grep -q "$required_entry" "$PROJECT_FILE"; then
-    echo "Generated Xcode project is missing required ARKit entry: $required_entry" >&2
-    echo "Project file: $PROJECT_FILE" >&2
+    LEGACY_ARKIT_LINKS_FOUND=0
+    echo "Legacy ARKit entry not present: $required_entry"
+    continue
+  fi
+  echo "Found legacy ARKit entry: $required_entry"
+done
+
+if [[ "$LEGACY_ARKIT_LINKS_FOUND" == "0" ]]; then
+  echo "Legacy ARKit native entries were not all present; checking Unity 6000 generated ARKit sources."
+  for required_entry in \
+    "Unity.XR.ARKit.cpp" \
+    "Unity.XR.ARKit_CodeGen.c" \
+    "Unity.XR.ARKit.FaceTracking.cpp" \
+    "Unity.XR.ARKit.FaceTracking_CodeGen.c"; do
+    if ! grep -q "$required_entry" "$PROJECT_FILE"; then
+      echo "Generated Xcode project is missing required ARKit generated source: $required_entry" >&2
+      echo "Project file: $PROJECT_FILE" >&2
+      exit 1
+    fi
+    echo "Found Unity 6000 ARKit generated source: $required_entry"
+  done
+
+  ARKIT_SUBSYSTEM_MANIFEST="$EXPORT_PATH/Data/UnitySubsystems/UnityARKit/UnitySubsystemsManifest.json"
+  require_file "$ARKIT_SUBSYSTEM_MANIFEST"
+  if ! grep -q '"libraryName": "UnityARKit"' "$ARKIT_SUBSYSTEM_MANIFEST"; then
+    echo "UnityARKit subsystem manifest is missing libraryName=UnityARKit" >&2
+    echo "Manifest file: $ARKIT_SUBSYSTEM_MANIFEST" >&2
     exit 1
   fi
-  echo "Found: $required_entry"
-done
+  echo "Found UnityARKit subsystem manifest: $ARKIT_SUBSYSTEM_MANIFEST"
+fi
 
 echo
 echo "== Build UnityFramework target =="

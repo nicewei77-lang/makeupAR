@@ -34,6 +34,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string TopologyAuditSummary;
         public float MaskThreshold;
         public float MaskFeatherUvNormalized;
+        public float Coverage;
+        public string Finish;
+        public float TextureAmount;
+        public float Roughness;
+        public float Specular;
+        public float SpecularPower;
+        public float GlossBoost;
     }
 
     private sealed class RegionRecipeState
@@ -49,6 +56,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Feather = 0.0f;
         public string BlendMode = "normal";
         public string MaskTextureId = "lip-smooth-mask-v1";
+        public float Coverage = 0.0f;
+        public string Finish = "validation-placeholder";
+        public float TextureAmount = 0.0f;
+        public float Roughness = 0.0f;
+        public float Specular = 0.0f;
+        public float SpecularPower = 0.0f;
+        public float GlossBoost = 0.0f;
     }
 
     private sealed class FaceOverlayState
@@ -161,7 +175,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float feather,
         string blendMode,
         string rendererMode,
-        string maskTextureId)
+        string maskTextureId,
+        float coverage,
+        string finish,
+        float textureAmount,
+        float roughness,
+        float specular,
+        float specularPower,
+        float glossBoost)
     {
         region = NormalizeRegion(region);
         opacity = Mathf.Clamp01(opacity);
@@ -177,7 +198,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Intensity = Mathf.Clamp01(intensity),
             Feather = Mathf.Clamp01(feather),
             BlendMode = NormalizeBlendMode(blendMode),
-            MaskTextureId = NormalizeMaskTextureId(region, maskTextureId)
+            MaskTextureId = NormalizeMaskTextureId(region, maskTextureId),
+            Coverage = Mathf.Clamp01(coverage),
+            Finish = NormalizeFinish(finish),
+            TextureAmount = Mathf.Clamp01(textureAmount),
+            Roughness = Mathf.Clamp01(roughness),
+            Specular = Mathf.Clamp01(specular),
+            SpecularPower = Mathf.Clamp(specularPower, 0.0f, 128.0f),
+            GlossBoost = Mathf.Clamp01(glossBoost)
         };
 
         return ApplyRegionToTrackedFaces(region, true);
@@ -304,6 +332,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             TopologyAuditSummary = "none",
             MaskThreshold = mask.Threshold,
             MaskFeatherUvNormalized = mask.FeatherUvNormalized,
+            Coverage = 0.0f,
+            Finish = "validation-placeholder",
+            TextureAmount = 0.0f,
+            Roughness = 0.0f,
+            Specular = 0.0f,
+            SpecularPower = 0.0f,
+            GlossBoost = 0.0f,
         };
     }
 
@@ -317,7 +352,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.BlendMode = recipe.BlendMode;
         result.MaskTextureId = recipe.MaskTextureId;
         result.MaskThreshold = mask.Threshold;
-        result.MaskFeatherUvNormalized = mask.FeatherUvNormalized;
+        result.MaskFeatherUvNormalized = ResolveFeather(recipe, mask);
+        result.Coverage = recipe.Coverage;
+        result.Finish = recipe.Finish;
+        result.TextureAmount = recipe.TextureAmount;
+        result.Roughness = recipe.Roughness;
+        result.Specular = recipe.Specular;
+        result.SpecularPower = recipe.SpecularPower;
+        result.GlossBoost = recipe.GlossBoost;
     }
 
     private void RefreshSceneReferences()
@@ -558,12 +600,47 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         if (material.HasProperty("_Feather"))
         {
-            material.SetFloat("_Feather", mask.FeatherUvNormalized);
+            material.SetFloat("_Feather", ResolveFeather(recipe, mask));
         }
 
         if (material.HasProperty("_VisibilityAlpha"))
         {
             material.SetFloat("_VisibilityAlpha", 1.0f);
+        }
+
+        if (material.HasProperty("_Coverage"))
+        {
+            material.SetFloat("_Coverage", recipe.Coverage);
+        }
+
+        if (material.HasProperty("_TextureAmount"))
+        {
+            material.SetFloat("_TextureAmount", recipe.TextureAmount);
+        }
+
+        if (material.HasProperty("_FinishMode"))
+        {
+            material.SetFloat("_FinishMode", GetFinishMode(recipe.Finish));
+        }
+
+        if (material.HasProperty("_Roughness"))
+        {
+            material.SetFloat("_Roughness", recipe.Roughness);
+        }
+
+        if (material.HasProperty("_Specular"))
+        {
+            material.SetFloat("_Specular", recipe.Specular);
+        }
+
+        if (material.HasProperty("_SpecularPower"))
+        {
+            material.SetFloat("_SpecularPower", recipe.SpecularPower);
+        }
+
+        if (material.HasProperty("_GlossBoost"))
+        {
+            material.SetFloat("_GlossBoost", recipe.GlossBoost);
         }
     }
 
@@ -620,7 +697,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.34f, 0.52f, recipe.Intensity);
-                brightnessScale = 0.95f;
+                brightnessScale = ResolveLipBrightnessScale(recipe);
                 break;
         }
 
@@ -629,6 +706,46 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Mathf.Clamp01(recipe.Color.g * brightnessScale),
             Mathf.Clamp01(recipe.Color.b * brightnessScale),
             Mathf.Clamp01(recipe.Opacity * sampleAlphaScale));
+    }
+
+    private static float ResolveLipBrightnessScale(RegionRecipeState recipe)
+    {
+        if (recipe.Region != "lip")
+        {
+            return 0.95f;
+        }
+
+        switch (recipe.Finish)
+        {
+            case "gloss":
+                return 1.0f;
+            case "matte":
+                return 0.92f;
+            case "cream":
+                return 0.96f;
+            default:
+                return 0.95f;
+        }
+    }
+
+    private static float ResolveFeather(RegionRecipeState recipe, MaskDefinition mask)
+    {
+        return recipe.Feather > 0.0f ? Mathf.Clamp01(recipe.Feather) : mask.FeatherUvNormalized;
+    }
+
+    private static float GetFinishMode(string finish)
+    {
+        switch (finish)
+        {
+            case "matte":
+                return 0.0f;
+            case "cream":
+                return 1.0f;
+            case "gloss":
+                return 2.0f;
+            default:
+                return -1.0f;
+        }
     }
 
     private static void SetViewVisibility(RegionOverlayView view, bool showMesh)
@@ -803,6 +920,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         throw new ArgumentException("Unsupported smooth mask blend mode: " + blendMode);
     }
 
+    private static string NormalizeFinish(string finish)
+    {
+        finish = string.IsNullOrWhiteSpace(finish)
+            ? "validation-placeholder"
+            : finish.Trim().ToLowerInvariant();
+
+        if (finish == "validation-placeholder"
+            || finish == "matte"
+            || finish == "cream"
+            || finish == "gloss")
+        {
+            return finish;
+        }
+
+        throw new ArgumentException("Unsupported smooth mask finish: " + finish);
+    }
+
     private static string NormalizeMaskTextureId(string region, string maskTextureId)
     {
         maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
@@ -916,6 +1050,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " appliedTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " threshold=" + result.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
             + " featherUvNormalized=" + result.MaskFeatherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
+            + " coverage=" + result.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + " finish=" + result.Finish
+            + " textureAmount=" + result.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + " roughness=" + result.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
+            + " specular=" + result.Specular.ToString("0.##", CultureInfo.InvariantCulture)
+            + " specularPower=" + result.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
+            + " glossBoost=" + result.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " regionDecision=smooth_mask_runtime"
             + " smoothing=smooth_alpha_mask"

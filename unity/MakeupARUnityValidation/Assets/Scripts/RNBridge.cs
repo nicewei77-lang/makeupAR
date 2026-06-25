@@ -111,6 +111,11 @@ public sealed class RNBridge : MonoBehaviour
         public int payloadBytes;
         public string region;
         public string texture;
+        public string finish;
+        public float textureAmount;
+        public float glossBoost;
+        public float coverage;
+        public float feather;
         public double sentAtMs;
         public double appliedAtMs;
         public int appliedFrame;
@@ -505,6 +510,11 @@ public sealed class RNBridge : MonoBehaviour
                 + " payloadBytes=" + ack.payloadBytes.ToString(CultureInfo.InvariantCulture)
                 + " region=" + NormalizeOptional(ack.region)
                 + " texture=" + NormalizeOptional(ack.texture)
+                + " finish=" + NormalizeOptional(ack.finish)
+                + " textureAmount=" + ack.textureAmount.ToString("0.##", CultureInfo.InvariantCulture)
+                + " glossBoost=" + ack.glossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+                + " coverage=" + ack.coverage.ToString("0.##", CultureInfo.InvariantCulture)
+                + " feather=" + ack.feather.ToString("0.##", CultureInfo.InvariantCulture)
                 + " sentAtMs=" + ack.sentAtMs.ToString("0", CultureInfo.InvariantCulture)
                 + " appliedAtMs=" + ack.appliedAtMs.ToString("0", CultureInfo.InvariantCulture)
                 + " appliedFrame=" + ack.appliedFrame.ToString(CultureInfo.InvariantCulture)
@@ -785,7 +795,14 @@ public sealed class RNBridge : MonoBehaviour
             layer.Feather,
             layer.BlendMode,
             layer.RendererMode,
-            layer.MaskTextureId);
+            layer.MaskTextureId,
+            layer.Coverage,
+            layer.Finish,
+            layer.TextureAmount,
+            layer.Roughness,
+            layer.Specular,
+            layer.SpecularPower,
+            layer.GlossBoost);
     }
 
     private void RememberRegionFeatureState(
@@ -1267,6 +1284,11 @@ public sealed class RNBridge : MonoBehaviour
             + " payloadBytes=" + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
             + " region=" + layer.Region
             + " texture=" + layer.TextureSample
+            + " finish=" + layer.Finish
+            + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + " glossBoost=" + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
+            + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + " feather=" + layer.Feather.ToString("0.##", CultureInfo.InvariantCulture)
             + " sentAtMs=" + layer.SentAtMs.ToString("0", CultureInfo.InvariantCulture)
             + " appliedAtMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
             + " appliedFrame=" + appliedFrame.ToString(CultureInfo.InvariantCulture)
