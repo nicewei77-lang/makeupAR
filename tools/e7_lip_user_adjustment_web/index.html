@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E7 Lip User Adjustment Review</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="workspace">
+        <header class="topbar">
+          <div>
+            <h1>E7 Lip User Adjustment</h1>
+            <p class="status-line" id="statusLine">candidate JSON과 이미지 폴더를 불러오면 바로 비교할 수 있습니다.</p>
+          </div>
+          <div class="top-actions">
+            <button id="loadSampleButton" type="button">샘플 불러오기</button>
+            <label class="file-button">
+              후보 JSON
+              <input id="candidateJsonInput" type="file" accept=".json,application/json" />
+            </label>
+            <label class="file-button">
+              이미지 폴더
+              <input id="assetFolderInput" type="file" webkitdirectory multiple />
+            </label>
+          </div>
+        </header>
+
+        <nav class="mode-tabs" aria-label="Adjustment mode">
+          <button class="tab active" type="button" data-mode="select">후보 선택</button>
+          <button class="tab" type="button" data-mode="slider">슬라이더</button>
+          <button class="tab" type="button" data-mode="guided">문제별 조정</button>
+        </nav>
+
+        <section class="content-grid">
+          <section class="main-panel">
+            <div class="mode-panel" data-panel="select">
+              <div class="panel-heading">
+                <h2>후보 선택</h2>
+                <span id="candidateCountBadge" class="badge">0 candidates</span>
+              </div>
+              <div id="candidateGrid" class="candidate-grid"></div>
+            </div>
+
+            <div class="mode-panel hidden" data-panel="slider">
+              <div class="panel-heading">
+                <h2>슬라이더 조정</h2>
+                <span class="badge">same param contract</span>
+              </div>
+              <div id="sliderControls" class="control-stack"></div>
+            </div>
+
+            <div class="mode-panel hidden" data-panel="guided">
+              <div class="panel-heading">
+                <h2>문제별 조정</h2>
+                <span class="badge">observed failure mapped</span>
+              </div>
+              <div class="guided-grid" id="guidedControls"></div>
+            </div>
+          </section>
+
+          <aside class="side-panel">
+            <div class="preview-tools">
+              <button id="resetParamsButton" type="button">Reset</button>
+              <button id="confirmButton" type="button">Confirm</button>
+            </div>
+            <div class="preview-frame">
+              <img id="selectionPreview" alt="Selected candidate preview" />
+              <canvas id="adjustmentCanvas" width="480" height="640"></canvas>
+              <div id="previewFallback" class="preview-fallback">이미지 폴더를 선택하면 미리보기가 표시됩니다.</div>
+            </div>
+            <dl class="param-readout" id="paramReadout"></dl>
+            <div class="export-box">
+              <label for="reviewJsonOutput">user_adjustment_review.json</label>
+              <textarea id="reviewJsonOutput" spellcheck="false"></textarea>
+              <div class="export-actions">
+                <button id="downloadReviewButton" type="button">Download review JSON</button>
+                <button id="downloadCandidatesButton" type="button">Download candidates JSON</button>
+                <button id="downloadMaskButton" type="button">Download custom mask PNG</button>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </section>
+    </main>
+    <script src="./app.js"></script>
+  </body>
+</html>
