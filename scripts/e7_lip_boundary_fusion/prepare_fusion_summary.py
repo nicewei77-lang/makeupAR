@@ -171,6 +171,7 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
         "visionContourAvailable": 0,
         "visionContourRequiredMissing": 0,
         "visionContourLowConfidence": 0,
+        "visionContours": [],
         "colorGradientComputed": 0,
         "colorGradientRequiredMissing": 0,
         "colorGradientWarnings": [],
@@ -216,6 +217,22 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
         vision_status = vision.get("status")
         if vision_status == "available":
             signals["visionContourAvailable"] += 1
+            signals["visionContours"].append(
+                {
+                    "capturePairId": capture_id,
+                    "source": vision.get("source"),
+                    "confidence": vision.get("confidence"),
+                    "coordinateSpace": vision.get("coordinateSpace"),
+                    "contourJsonPath": vision.get("contourJsonPath"),
+                    "overlayPath": vision.get("overlayPath"),
+                    "outerLipPointCount": vision.get("outerLipPointCount", 0),
+                    "innerLipPointCount": vision.get("innerLipPointCount", 0),
+                    "outerLipImageBounds": vision.get("outerLipImageBounds"),
+                    "innerLipImageBounds": vision.get("innerLipImageBounds"),
+                    "runtimePrimaryTracker": bool(vision.get("runtimePrimaryTracker", False)),
+                    "recommendedUse": "tighten_or_audit_outer_lip_boundary_against_arface_uv_mask",
+                }
+            )
             confidence = vision.get("confidence")
             if isinstance(confidence, (int, float)) and confidence < 0.45:
                 signals["visionContourAvailable"] -= 1

@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -76,6 +77,24 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Polygon JSON containing polygonPoints/points to rasterize as lip_reference_mask.png.",
     )
+    parser.add_argument(
+        "--run-apple-vision",
+        action="store_true",
+        help="Run the local Apple Vision lip contour extractor for the same frame.",
+    )
+    parser.add_argument(
+        "--apple-vision-contour-json",
+        type=Path,
+        default=None,
+        help="Existing apple_vision_lip_contour.json to copy into the package instead of running Vision.",
+    )
+    parser.add_argument(
+        "--apple-vision-script",
+        type=Path,
+        default=Path("scripts/e7_lip_boundary_fusion/extract_apple_vision_lip_contour.swift"),
+        help="Swift Apple Vision extractor script path.",
+    )
+    parser.add_argument("--apple-vision-min-confidence", type=float, default=0.35)
     parser.add_argument(
         "--inner-mouth-status",
         choices=("available", "contract_only", "missing"),
@@ -328,6 +347,167 @@ def build_reference_from_mask(
     return output_mask, meta, blockers
 
 
+def contour_points(vision: dict[str, Any], contour_id: str) -> list[tuple[float, float]]:
+    contour = vision.get("contours", {}).get(contour_id, {})
+    points = []
+    for point in contour.get("imagePoints", []):
+        if isinstance(point, dict) and isinstance(point.get("x"), (int, float)) and isinstance(
+            point.get("y"), (int, float)
+        ):
+            points.append((float(point["x"]), float(point["y"])))
+    return points
+
+
+def draw_polyline(draw: ImageDraw.ImageDraw, points: list[tuple[float, float]], color: tuple[int, int, int], width: int) -> None:
+    if len(points) < 2:
+        return
+    draw.line(points + [points[0]], fill=color, width=width, joint="curve")
+
+
+def write_vision_overlay(frame: Image.Image, vision: dict[str, Any], output_dir: Path) -> str | None:
+    outer = contour_points(vision, "outerLips")
+    inner = contour_points(vision, "innerLips")
+    if not outer and not inner:
+        return None
+    overlay = frame.copy()
+    draw = ImageDraw.Draw(overlay)
+    draw_polyline(draw, outer, (255, 43, 118), 6)
+    draw_polyline(draw, inner, (255, 214, 80), 5)
+    path = output_dir / "apple_vision_lip_contour_overlay.png"
+    overlay.save(path)
+    return path.name
+
+
+def unavailable_vision(reason: str, frame_path: Path, capture_pair_id: str) -> dict[str, Any]:
+    return {
+        "schemaVersion": "e7-apple-vision-lip-contour-v0",
+        "createdAtUtc": utc_now(),
+        "status": "unavailable",
+        "unavailableReason": reason,
+        "capturePairId": capture_pair_id,
+        "sourceFramePath": str(frame_path),
+        "sourceFrameSha256": sha256_file(frame_path) if frame_path.exists() else None,
+        "requiredForM1Ready": True,
+        "privacy": {
+            "localOnly": True,
+            "offDeviceUpload": False,
+            "rawFrameStoredByThisTool": False,
+        },
+    }
+
+
+def prepare_apple_vision_contour(
+    args: argparse.Namespace,
+    repo_root: Path,
+    frame_path: Path,
+    frame: Image.Image,
+    output_dir: Path,
+    capture_pair_id: str,
+) -> dict[str, Any] | None:
+    output_json = output_dir / "apple_vision_lip_contour.json"
+    run_log = output_dir / "apple_vision_lip_contour_run.json"
+
+    if args.apple_vision_contour_json:
+        source = args.apple_vision_contour_json.resolve()
+        if not source.exists():
+            vision = unavailable_vision(f"provided_contour_json_missing:{source}", frame_path, capture_pair_id)
+            write_json(output_json, vision)
+        else:
+            vision = load_json(source)
+            if source != output_json.resolve():
+                write_json(output_json, vision)
+    elif args.run_apple_vision:
+        script = args.apple_vision_script.resolve()
+        if not script.exists():
+            vision = unavailable_vision(f"apple_vision_script_missing:{script}", frame_path, capture_pair_id)
+            write_json(output_json, vision)
+        else:
+            command = [
+                "xcrun",
+                "swift",
+                str(script),
+                "--image",
+                str(frame_path),
+                "--output-json",
+                str(output_json),
+                "--capture-pair-id",
+                capture_pair_id,
+                "--min-confidence",
+                str(args.apple_vision_min_confidence),
+            ]
+            cache_dir = output_dir / ".swift-module-cache"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            env = os.environ.copy()
+            env["CLANG_MODULE_CACHE_PATH"] = str(cache_dir)
+            env["SWIFT_MODULE_CACHE_PATH"] = str(cache_dir)
+            completed = subprocess.run(
+                command,
+                cwd=str(repo_root),
+                text=True,
+                capture_output=True,
+                env=env,
+            )
+            write_json(
+                run_log,
+                {
+                    "schemaVersion": "e7-apple-vision-run-log-v0",
+                    "createdAtUtc": utc_now(),
+                    "command": command,
+                    "returnCode": completed.returncode,
+                    "moduleCachePath": str(cache_dir),
+                    "stdout": completed.stdout,
+                    "stderr": completed.stderr,
+                    "localOnly": True,
+                },
+            )
+            if output_json.exists():
+                vision = load_json(output_json)
+            else:
+                vision = unavailable_vision(
+                    f"apple_vision_extractor_failed:{completed.returncode}",
+                    frame_path,
+                    capture_pair_id,
+                )
+                write_json(output_json, vision)
+    else:
+        return None
+
+    overlay = write_vision_overlay(frame, vision, output_dir)
+    if overlay:
+        vision["overlayPath"] = overlay
+        write_json(output_json, vision)
+    return vision
+
+
+def vision_capture_payload(vision: dict[str, Any] | None) -> dict[str, Any]:
+    if not vision:
+        return {
+            "status": "required_not_run",
+            "confidence": None,
+            "requiredForM1Ready": True,
+        }
+    contours = vision.get("contours", {})
+    outer = contours.get("outerLips", {})
+    inner = contours.get("innerLips", {})
+    return {
+        "status": vision.get("status", "unavailable"),
+        "source": "apple_vision_vndetectfacelandmarksrequest",
+        "coordinateSpace": "frame_image_pixel_top_left",
+        "visionCoordinateSpace": "face_bbox_normalized_bottom_left",
+        "confidence": vision.get("confidence"),
+        "contourJsonPath": "apple_vision_lip_contour.json",
+        "overlayPath": vision.get("overlayPath"),
+        "outerLipPointCount": outer.get("pointCount", 0),
+        "innerLipPointCount": inner.get("pointCount", 0),
+        "outerLipImageBounds": outer.get("imageBounds"),
+        "innerLipImageBounds": inner.get("imageBounds"),
+        "unavailableReason": vision.get("unavailableReason"),
+        "requiredForM1Ready": True,
+        "runtimePrimaryTracker": False,
+        "derivedEvidenceOnly": True,
+    }
+
+
 def make_capture_entry(
     capture_pair_id: str,
     step: str,
@@ -336,6 +516,7 @@ def make_capture_entry(
     frame: Image.Image,
     export: dict[str, Any],
     frame_digest: str | None,
+    vision_lip_contour: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     face = export.get("face", {})
     display = export.get("display", {})
@@ -374,6 +555,7 @@ def make_capture_entry(
         },
         "coordinateSpaces": {
             "frameImage": "image_pixel_top_left",
+            "visionLandmarks": "face_bbox_normalized_bottom_left",
             "screenVertices": "frame_image_pixel_top_left",
             "referenceMask": "frame_image_pixel_top_left",
         },
@@ -409,11 +591,7 @@ def make_capture_entry(
                 "source", "not_exposed_in_current_capture_export"
             ),
         },
-        "visionLipContour": {
-            "status": "required_not_run",
-            "confidence": None,
-            "requiredForM1Ready": True,
-        },
+        "visionLipContour": vision_capture_payload(vision_lip_contour),
         "faceParsing": {
             "status": "required_not_run",
             "labels": [],
@@ -434,11 +612,21 @@ def build_calibration_package(
     draft_meta: dict[str, Any],
     reference_meta: dict[str, Any],
     frame_digest: str,
+    vision_lip_contour: dict[str, Any] | None,
 ) -> dict[str, Any]:
     capture_pair_id = export.get("capturePairId") or output_dir.name
     calibration_id = "lip-calib-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-m1-v0"
     capture_set = [
-        make_capture_entry(capture_pair_id, "neutral", True, "captured", frame, export, frame_digest),
+        make_capture_entry(
+            capture_pair_id,
+            "neutral",
+            True,
+            "captured",
+            frame,
+            export,
+            frame_digest,
+            vision_lip_contour,
+        ),
         make_capture_entry(capture_pair_id, "open_close", True, "deferred", frame, export, None),
         make_capture_entry(capture_pair_id, "smile", True, "deferred", frame, export, None),
         make_capture_entry(capture_pair_id, "yaw", True, "deferred", frame, export, None),
@@ -482,6 +670,9 @@ def build_calibration_package(
             "derivedEvidenceOnly": True,
             "knownWeaknesses": reference_meta.get("knownWeaknesses", []),
             "path": str(output_dir / "lip_reference_mask.png"),
+        },
+        "preFilterSignals": {
+            "appleVisionLipContour": vision_capture_payload(vision_lip_contour),
         },
         "offlineCandidateConfigs": {
             candidate_id: {"status": "uv_projection_artifact_only", "runtimeReady": False}
@@ -602,6 +793,8 @@ def write_m1_summary(
         blockers,
     )
     decision = "ready" if not gate_failures else ("blocked" if blockers or not reference_meta else "partial")
+    fusion_summary = load_json(fusion_path) if fusion_path.exists() else {}
+    reference_signals = fusion_summary.get("inputs", {}).get("referenceSignals", {})
     uv_summary = load_json(uv_path) if uv_path.exists() else {}
     draft_meta = load_json(output_dir / "lip_mesh_draft_meta.json") if (output_dir / "lip_mesh_draft_meta.json").exists() else {}
     summary = {
@@ -616,6 +809,17 @@ def write_m1_summary(
             "acceptedAsGold": bool(reference_meta.get("acceptedAsGold", False)) if reference_meta else False,
             "reviewStatus": reference_meta.get("reviewStatus") if reference_meta else "missing",
             "reproducible": bool(reference_meta.get("reproducible", False)) if reference_meta else False,
+        },
+        "appleVisionLipContour": {
+            "availableCount": reference_signals.get("visionContourAvailable", 0),
+            "lowConfidenceCount": reference_signals.get("visionContourLowConfidence", 0),
+            "requiredMissingCount": reference_signals.get("visionContourRequiredMissing", 0),
+            "jsonPath": str(output_dir / "apple_vision_lip_contour.json")
+            if (output_dir / "apple_vision_lip_contour.json").exists()
+            else None,
+            "overlayPath": str(output_dir / "apple_vision_lip_contour_overlay.png")
+            if (output_dir / "apple_vision_lip_contour_overlay.png").exists()
+            else None,
         },
         "uvRoundTripRan": uv_summary.get("artifacts", {}).get("round_trip_overlay.png") not in {None, "pending"},
         "phase2Status": status_value(fusion_path, "phase2Status"),
@@ -648,6 +852,7 @@ def write_m1_summary(
         f"- Phase 3 status: `{summary['phase3ExecutionStatus']}`",
         f"- Mesh draft review: `{(summary['meshDraftReview'] or {}).get('status')}`",
         f"- Reference accepted as gold: `{str(summary['referenceMask']['acceptedAsGold']).lower()}`",
+        f"- Apple Vision contour available count: `{summary['appleVisionLipContour']['availableCount']}`",
         f"- Boundary quality proof: `{str(summary['boundaryQualityProof']).lower()}`",
         f"- Next step: {summary['nextStep']}.",
         "",
@@ -665,6 +870,7 @@ def write_input_manifest(
     frame_path: Path,
     export_path: Path,
     reference_meta: dict[str, Any] | None,
+    vision_lip_contour: dict[str, Any] | None,
 ) -> None:
     manifest = {
         "schemaVersion": "e7-lip-m1-input-manifest-v1",
@@ -686,6 +892,19 @@ def write_input_manifest(
             "acceptedAsGold": bool(reference_meta.get("acceptedAsGold", False)) if reference_meta else False,
             "reviewStatus": reference_meta.get("reviewStatus") if reference_meta else None,
             "reproducible": bool(reference_meta.get("reproducible", False)) if reference_meta else False,
+        },
+        "appleVisionInput": {
+            "runRequested": bool(args.run_apple_vision),
+            "contourJsonArg": rel(args.apple_vision_contour_json, repo_root),
+            "script": rel(args.apple_vision_script, repo_root),
+            "minConfidence": args.apple_vision_min_confidence,
+            "status": vision_lip_contour.get("status") if vision_lip_contour else "required_not_run",
+            "artifact": "apple_vision_lip_contour.json"
+            if (output_dir / "apple_vision_lip_contour.json").exists()
+            else None,
+            "overlay": "apple_vision_lip_contour_overlay.png"
+            if (output_dir / "apple_vision_lip_contour_overlay.png").exists()
+            else None,
         },
         "limits": {
             "artifactExistenceIsSuccess": False,
@@ -736,6 +955,15 @@ def main() -> int:
 
     frame = Image.open(frame_path).convert("RGB")
     export = load_json(export_path)
+    capture_pair_id = str(export.get("capturePairId") or capture_pair.name)
+    vision_lip_contour = prepare_apple_vision_contour(
+        args,
+        repo_root,
+        frame_path,
+        frame,
+        output_dir,
+        capture_pair_id,
+    )
     local_vertices, screen_vertices, uvs, indices = export_arrays(export)
     if not len(local_vertices):
         blockers.append("missing_arface_localVertices")
@@ -812,7 +1040,7 @@ def main() -> int:
         )
         blockers.extend(reference_blockers)
     else:
-        write_input_manifest(output_dir, repo_root, args, frame_path, export_path, None)
+        write_input_manifest(output_dir, repo_root, args, frame_path, export_path, None, vision_lip_contour)
         write_blocked_review_needed(output_dir, draft_meta, blockers)
         write_m1_summary(output_dir, None, blockers + ["missing_reproducible_reference_mask"], args)
         print(json.dumps({"outputDir": str(output_dir), "m1Decision": "blocked"}, indent=2))
@@ -823,7 +1051,15 @@ def main() -> int:
             output_dir / "lip_reference_mask_overlay.png"
         )
         write_json(output_dir / "lip_reference_mask_meta.json", reference_meta)
-    write_input_manifest(output_dir, repo_root, args, frame_path, export_path, reference_meta)
+    write_input_manifest(
+        output_dir,
+        repo_root,
+        args,
+        frame_path,
+        export_path,
+        reference_meta,
+        vision_lip_contour,
+    )
 
     if blockers:
         write_m1_summary(output_dir, reference_meta, blockers, args)
@@ -837,6 +1073,7 @@ def main() -> int:
         draft_meta,
         reference_meta or {},
         sha256_file(frame_path),
+        vision_lip_contour,
     )
     package_path = output_dir / f"{package['calibrationId']}.json"
     write_json(package_path, package)

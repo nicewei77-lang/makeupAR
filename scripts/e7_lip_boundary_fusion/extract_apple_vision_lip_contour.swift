@@ -187,6 +187,63 @@ func unavailableResult(
     ]
 }
 
+func orientationLabel(_ orientation: CGImagePropertyOrientation) -> String {
+    switch orientation {
+    case .up: return "up"
+    case .down: return "down"
+    case .left: return "left"
+    case .right: return "right"
+    case .upMirrored: return "upMirrored"
+    case .downMirrored: return "downMirrored"
+    case .leftMirrored: return "leftMirrored"
+    case .rightMirrored: return "rightMirrored"
+    @unknown default: return "unknown"
+    }
+}
+
+func detectFaceLandmarks(image: CGImage) -> (VNDetectFaceLandmarksRequest?, [String: Any], [[String: Any]]) {
+    let orientations: [CGImagePropertyOrientation] = [.up, .right, .left, .down]
+    let revisions = Array(VNDetectFaceLandmarksRequest.supportedRevisions).sorted(by: >)
+    var attempts: [[String: Any]] = []
+
+    for revision in revisions {
+        for orientation in orientations {
+            let request = VNDetectFaceLandmarksRequest()
+            request.revision = revision
+            let handler = VNImageRequestHandler(cgImage: image, orientation: orientation, options: [:])
+            do {
+                try handler.perform([request])
+                let count = request.results?.count ?? 0
+                attempts.append([
+                    "revision": revision,
+                    "orientation": orientationLabel(orientation),
+                    "status": count > 0 ? "faces_found" : "no_face",
+                    "faceObservationCount": count
+                ])
+                if count > 0 {
+                    return (
+                        request,
+                        [
+                            "revision": revision,
+                            "orientation": orientationLabel(orientation)
+                        ],
+                        attempts
+                    )
+                }
+            } catch {
+                attempts.append([
+                    "revision": revision,
+                    "orientation": orientationLabel(orientation),
+                    "status": "request_failed",
+                    "error": error.localizedDescription
+                ])
+            }
+        }
+    }
+
+    return (nil, [:], attempts)
+}
+
 func main() throws {
     let options = try parseOptions()
     let imageUrl = URL(fileURLWithPath: options.imagePath!)
@@ -210,18 +267,15 @@ func main() throws {
         return
     }
 
-    let request = VNDetectFaceLandmarksRequest()
-    let handler = VNImageRequestHandler(cgImage: image, orientation: .up, options: [:])
-    do {
-        try handler.perform([request])
-    } catch {
+    let (requestOrNil, selectedRequest, attempts) = detectFaceLandmarks(image: image)
+    guard let request = requestOrNil else {
         let result = unavailableResult(
             imageUrl: imageUrl,
             options: options,
             width: width,
             height: height,
-            reason: "vision_request_failed:\(error.localizedDescription)"
-        )
+            reason: "no_face_landmark_request_succeeded"
+        ).merging(["attempts": attempts]) { current, _ in current }
         let data = try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: outputUrl)
         return
@@ -279,8 +333,11 @@ func main() throws {
             "framework": "Apple Vision",
             "request": "VNDetectFaceLandmarksRequest",
             "runtimeUse": "calibration_offline_only",
-            "minConfidenceForAvailable": options.minConfidence
+            "minConfidenceForAvailable": options.minConfidence,
+            "selectedRevision": selectedRequest["revision"] as Any,
+            "selectedOrientation": selectedRequest["orientation"] as Any
         ],
+        "attempts": attempts,
         "coordinateSpaces": [
             "visionLandmarks": "face_bbox_normalized_bottom_left",
             "imagePoints": "frame_image_pixel_top_left"
