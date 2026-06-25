@@ -90,18 +90,30 @@ def classify_reference_meta(meta: dict[str, Any]) -> dict[str, Any]:
             "reasons": ["lip_reference_mask_meta.json_missing"],
         }
     reasons = []
+    review_status = str(meta.get("reviewStatus", ""))
+    rejected_by_user = bool(
+        meta.get("rejectedByUser")
+        or meta.get("doNotUseAsReference")
+        or review_status.startswith("rejected")
+    )
+    if rejected_by_user:
+        reasons.append("reference_mask_rejected_by_user")
+        if meta.get("rejectionReason"):
+            reasons.append(str(meta.get("rejectionReason")))
     if not meta.get("acceptedAsGold", False):
         reasons.append("acceptedAsGold_false")
-    if meta.get("reviewStatus") == "needs_user_review_before_gold":
+    if review_status == "needs_user_review_before_gold":
         reasons.append("needs_user_review_before_gold")
     has_polygon = bool(meta.get("polygonPoints") or meta.get("points"))
     has_generator = bool(meta.get("generatorCommand") or meta.get("sourceScript"))
     if not has_generator:
         reasons.append("missing_generator_command_or_source_script")
     classification = "manual-unreproducible"
-    if has_polygon and not meta.get("acceptedAsGold", False):
+    if rejected_by_user:
+        classification = "rejected"
+    elif has_polygon and not meta.get("acceptedAsGold", False):
         classification = "partial"
-    if not has_polygon and not has_generator:
+    if not rejected_by_user and not has_polygon and not has_generator:
         classification = "manual-unreproducible"
     return {
         "classification": classification,
@@ -193,6 +205,13 @@ def ready_gate_failures(input_dir: Path, files: dict[str, Any]) -> list[str]:
     reference_meta = maybe_json(input_dir / "lip_reference_mask_meta.json")
 
     failures = []
+    review_status = str(reference_meta.get("reviewStatus", ""))
+    if (
+        reference_meta.get("rejectedByUser")
+        or reference_meta.get("doNotUseAsReference")
+        or review_status.startswith("rejected")
+    ):
+        failures.append("reference_mask_rejected_by_user")
     if not reference_meta.get("acceptedAsGold", False):
         failures.append("acceptedAsGold_false")
     if fusion.get("phase2Status") != "ready":

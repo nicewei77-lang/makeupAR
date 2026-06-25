@@ -330,6 +330,14 @@ def build_reference_from_polygon(
         polygon.get("reviewStatus")
         or ("human_reviewed_gold" if accepted else "needs_user_review_before_gold")
     )
+    rejected_by_user = bool(
+        polygon.get("rejectedByUser")
+        or polygon.get("doNotUseAsReference")
+        or review_status.startswith("rejected")
+    )
+    if rejected_by_user:
+        review_status = review_status if review_status.startswith("rejected") else "rejected_by_user"
+        blockers.append("reference_mask_rejected_by_user")
     reviewed_by = str(polygon.get("reviewedBy") or "unknown_reviewer")
     accepted_signal_ids = polygon.get("acceptedSignalIds") or ["reference_polygon_json"]
     meta = {
@@ -345,6 +353,11 @@ def build_reference_from_polygon(
         "reviewedBy": reviewed_by,
         "acceptedAsGold": accepted,
         "reviewStatus": review_status,
+        "rejectedByUser": rejected_by_user,
+        "doNotUseAsReference": bool(polygon.get("doNotUseAsReference") or rejected_by_user),
+        "doNotUseAsGold": bool(polygon.get("doNotUseAsGold") or rejected_by_user),
+        "rejectionReason": polygon.get("rejectionReason"),
+        "rejectedSignalIds": polygon.get("rejectedSignalIds", []),
         "imageWidth": frame.width,
         "imageHeight": frame.height,
         "positivePixels": positive,
@@ -377,6 +390,14 @@ def build_reference_from_mask(
         source_meta.get("reviewStatus")
         or ("human_reviewed_gold" if accepted else "needs_user_review_before_gold")
     )
+    rejected_by_user = bool(
+        source_meta.get("rejectedByUser")
+        or source_meta.get("doNotUseAsReference")
+        or review_status.startswith("rejected")
+    )
+    if rejected_by_user:
+        review_status = review_status if review_status.startswith("rejected") else "rejected_by_user"
+        blockers.append("reference_mask_rejected_by_user")
     meta = {
         "schemaVersion": "e7-lip-reference-mask-meta-v0",
         "capturePairId": source_meta.get("capturePairId"),
@@ -392,6 +413,11 @@ def build_reference_from_mask(
         "reviewedBy": source_meta.get("reviewedBy", "unknown_reviewer"),
         "acceptedAsGold": accepted,
         "reviewStatus": review_status,
+        "rejectedByUser": rejected_by_user,
+        "doNotUseAsReference": bool(source_meta.get("doNotUseAsReference") or rejected_by_user),
+        "doNotUseAsGold": bool(source_meta.get("doNotUseAsGold") or rejected_by_user),
+        "rejectionReason": source_meta.get("rejectionReason"),
+        "rejectedSignalIds": source_meta.get("rejectedSignalIds", []),
         "imageWidth": frame.width,
         "imageHeight": frame.height,
         "positivePixels": positive,
@@ -1228,6 +1254,7 @@ def build_calibration_package(
         make_capture_entry(capture_pair_id, "yaw", True, "deferred", frame, export, None),
         make_capture_entry(capture_pair_id, "pucker", True, "deferred", frame, export, None),
     ]
+    adjustment = user_adjustment or default_user_adjustment()
     return {
         "schemaVersion": "e7-lip-boundary-calibration-v0",
         "calibrationId": calibration_id,
@@ -1236,6 +1263,54 @@ def build_calibration_package(
         "createdAtUtc": utc_now(),
         "sourceCapturePairIds": [capture_pair_id],
         "captureSet": capture_set,
+        "personalizedBoundary": {
+            "status": "partial",
+            "generationGoal": "screen_space_lip_mask_to_arface_uv_package",
+            "sourceSignals": {
+                "arFaceTopology": "required_anchor",
+                "meshStructuralDraft": "review_artifact_only",
+                "appleVisionLipContour": vision_capture_payload(vision_lip_contour).get("status"),
+                "faceParsing": face_parsing_capture_payload(face_parsing).get("status"),
+                "colorGradientConfidence": color_gradient_capture_payload(color_gradient).get("status"),
+                "userAdjustment": adjustment["status"],
+            },
+            "screenSpaceReferenceMask": {
+                "status": "generated",
+                "maskPath": "lip_reference_mask.png",
+                "metaPath": "lip_reference_mask_meta.json",
+                "capturePairId": capture_pair_id,
+                "coordinateSpace": reference_meta.get(
+                    "coordinateSpace", "frame_image_pixel_top_left"
+                ),
+                "sourceBlend": reference_meta.get(
+                    "acceptedSignalIds",
+                    ["manual_or_polygon_reference", "arface_lip_ring_review"],
+                ),
+                "acceptedAsGold": bool(reference_meta.get("acceptedAsGold", False)),
+                "reviewStatus": reference_meta.get("reviewStatus", "needs_user_review_before_gold"),
+                "derivedEvidenceOnly": True,
+            },
+            "derivedComponents": {
+                "innerMouthExclusion": {
+                    "status": "contract_only",
+                    "source": "open_close + faceParsing inner_mouth + Vision inner contour + user review",
+                },
+                "cornerFalloff": {
+                    "status": "contract_only",
+                    "source": "smile + yaw + corner reach review",
+                },
+                "upperLowerSplit": {
+                    "status": "contract_only",
+                    "source": "faceParsing upper/lower labels + Vision contour + geometric fallback",
+                },
+            },
+            "userAdjustedBoundary": {
+                "status": adjustment["status"],
+                "candidateId": adjustment.get("selectedCandidateId"),
+                "params": adjustment["params"],
+                "reviewPath": adjustment.get("reviewPath"),
+            },
+        },
         "m1OneFrameProof": {
             "status": "partial",
             "reason": "one existing same-moment neutral-ish capture pair only; expression calibration captures are deferred",
@@ -1277,13 +1352,11 @@ def build_calibration_package(
             for candidate_id in EXPECTED_CANDIDATES
         },
         "correction": {
-            "userAdjustmentParams": (user_adjustment or default_user_adjustment())["params"],
-            "userAdjustmentStatus": (user_adjustment or default_user_adjustment())["status"],
-            "userAdjustmentConfirmedByUser": bool(
-                (user_adjustment or default_user_adjustment()).get("confirmedByUser", False)
-            ),
-            "userAdjustmentSelectedCandidateId": (user_adjustment or {}).get("selectedCandidateId"),
-            "userAdjustmentReviewPath": (user_adjustment or {}).get("reviewPath"),
+            "userAdjustmentParams": adjustment["params"],
+            "userAdjustmentStatus": adjustment["status"],
+            "userAdjustmentConfirmedByUser": bool(adjustment.get("confirmedByUser", False)),
+            "userAdjustmentSelectedCandidateId": adjustment.get("selectedCandidateId"),
+            "userAdjustmentReviewPath": adjustment.get("reviewPath"),
         },
         "failureModeType": {
             "status": "deferred_followup",
@@ -1335,10 +1408,18 @@ def build_gate_failures(
         failures.extend(blockers)
     if not reference_meta:
         failures.append("missing_reproducible_reference_mask")
-    elif not reference_meta.get("acceptedAsGold", False):
-        failures.append("acceptedAsGold_false")
-    elif not reference_meta.get("reproducible", False):
-        failures.append("reference_mask_not_reproducible")
+    else:
+        review_status = str(reference_meta.get("reviewStatus", ""))
+        if (
+            reference_meta.get("rejectedByUser")
+            or reference_meta.get("doNotUseAsReference")
+            or review_status.startswith("rejected")
+        ):
+            failures.append("reference_mask_rejected_by_user")
+        if not reference_meta.get("acceptedAsGold", False):
+            failures.append("acceptedAsGold_false")
+        if not reference_meta.get("reproducible", False):
+            failures.append("reference_mask_not_reproducible")
     if status_value(fusion_path, "phase2Status") != "ready":
         failures.append("phase2Status_not_ready")
     fusion_summary = load_json(fusion_path) if fusion_path.exists() else {}

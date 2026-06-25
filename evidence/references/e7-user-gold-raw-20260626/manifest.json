@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "e7-user-gold-raw-reference-manifest-v0",
+  "createdAtKst": "2026-06-26",
+  "acceptedAsGold": true,
+  "reviewStatus": "user_confirmed_human_painted_gold",
+  "reviewedBy": "user",
+  "localOnly": true,
+  "uploadAllowed": false,
+  "sourceLineage": "user_supplied_human_painted_gold_raw",
+  "rejectedLineageExcluded": "manual_polygon_codex_visual_reference_v0",
+  "usage": {
+    "goldReferenceAsset": true,
+    "offlineCandidateGeneration": true,
+    "offlineCandidateScoring": true,
+    "maskDerivationExperiment": true,
+    "m1ReadyUvProjectionInputRequiresCoordinatePairing": true,
+    "runtimeReady": false,
+    "e73GreenEvidence": false
+  },
+  "files": [
+    {
+      "path": "contact-sheet.png",
+      "sourcePath": "evidence/references/e7-soft-alpha-prebuild/contact-sheet.png",
+      "sha256": "758636922afc298b34c7881c380ce8662385dc5ba112840f7505b8fa44b5f821",
+      "mode": "RGB",
+      "width": 780,
+      "height": 1750,
+      "role": "contact_sheet_gold_reference_visual"
+    },
+    {
+      "path": "combined-soft-alpha-projection.png",
+      "sourcePath": "evidence/references/e7-soft-alpha-prebuild/combined-soft-alpha-projection.png",
+      "sha256": "9b89d1aa49f6f66adc01c5532738063928f17db4f582b8e6bbb0dcafefe31875",
+      "mode": "RGB",
+      "width": 1179,
+      "height": 2556,
+      "role": "combined_face_region_gold_reference_visual"
+    },
+    {
+      "path": "user-gold-lip-mask-gray-20260625-163204.png",
+      "sourcePath": "/Users/wiseungcheol/Downloads/제목 없음 - 2026년 6월 25일 16.32.4.png",
+      "sha256": "29d8e457845fac61842cdaae79324105e4df1df79dbfd85257a2c36d1c753dd0",
+      "mode": "RGBA",
+      "width": 1179,
+      "height": 2556,
+      "role": "lip_mask_only_gold_reference"
+    },
+    {
+      "path": "user-gold-lip-render-20260625-163240.png",
+      "sourcePath": "/Users/wiseungcheol/Downloads/제목 없음 - 2026년 6월 25일 16.32.40.png",
+      "sha256": "2b5e4f45035f10df8b2f93507ef56ffa9cbb2c345101aff9e03a82124e2fb2f9",
+      "mode": "RGBA",
+      "width": 1179,
+      "height": 2556,
+      "role": "lip_render_gold_reference_visual"
+    },
+    {
+      "path": "A_1.png",
+      "sourcePath": "/Users/wiseungcheol/Downloads/A_1.png",
+      "sha256": "0d8a402c0f0274cb259c0d32611720cf4368d0cce9ee5b8504b5941b50ccf66c",
+      "mode": "RGBA",
+      "width": 1179,
+      "height": 2556,
+      "role": "lip_mask_only_gold_reference"
+    },
+    {
+      "path": "A_0.png",
+      "sourcePath": "/Users/wiseungcheol/Downloads/A_0.png",
+      "sha256": "6323ca7313565a3daa9b604652584725692b6d46f542ed92e469b8f236f903d2",
+      "mode": "RGBA",
+      "width": 1179,
+      "height": 2556,
+      "role": "full_face_region_gold_reference_visual"
+    }
+  ]
+}
+

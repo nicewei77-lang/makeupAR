@@ -194,6 +194,12 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
 
     reference_mask = package.get("screenLipReferenceMask")
     if isinstance(reference_mask, dict):
+        review_status = str(reference_mask.get("reviewStatus", ""))
+        rejected_by_user = bool(
+            reference_mask.get("rejectedByUser")
+            or reference_mask.get("doNotUseAsReference")
+            or review_status.startswith("rejected")
+        )
         signals["screenLipReferenceMask"] = {
             "status": reference_mask.get("status"),
             "path": reference_mask.get("maskPath"),
@@ -201,12 +207,18 @@ def summarize_reference_signals(package: dict[str, Any]) -> tuple[dict[str, Any]
             "source": reference_mask.get("source"),
             "reviewStatus": reference_mask.get("reviewStatus"),
             "acceptedAsGold": bool(reference_mask.get("acceptedAsGold")),
+            "rejectedByUser": rejected_by_user,
+            "doNotUseAsReference": bool(reference_mask.get("doNotUseAsReference")),
+            "rejectionReason": reference_mask.get("rejectionReason"),
             "acceptedSignalIds": reference_mask.get("acceptedSignalIds", []),
         }
         source = str(reference_mask.get("source", ""))
         status = str(reference_mask.get("status", ""))
         if status in {"available", "reference_ready", "accepted_reference"}:
-            if "mesh" in source or "lip_ring" in source:
+            if rejected_by_user:
+                warnings.append("screen_lip_reference_mask_rejected_by_user")
+                rejected.append("screen_lip_reference_mask_rejected_by_user")
+            elif "mesh" in source or "lip_ring" in source:
                 signals["meshStructuralDraftReference"] += 1
             else:
                 signals["manualReferenceMask"] += 1
@@ -500,10 +512,12 @@ def build_summary(package_file: Path, package: dict[str, Any]) -> dict[str, Any]
         "calibrationId": package.get("calibrationId"),
         "region": "lip",
         "phase2Status": status,
+        "purpose": "personalized_lip_boundary_handoff_not_pass_fail_only",
         "inputs": {
             "captureSet": capture_summary,
             "referenceSignals": reference_signals,
             "userAdjustment": user_adjustment,
+            "personalizedBoundary": package.get("personalizedBoundary"),
             "privacy": privacy,
         },
         "fusionPolicy": {
