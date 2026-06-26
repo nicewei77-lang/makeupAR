@@ -146,7 +146,7 @@ Local checks before any real-device build:
 - Offline mask inspection for active pixel coverage and bbox: passed.
 - Unity batchmode import/compile previously passed with Unity `6000.3.18f1`.
   After the later brow-specific mask policy change, rerun is pending because the
-  machine currently has only about `252Mi` free on `/System/Volumes/Data`.
+  machine currently has less than `400Mi` free on `/System/Volumes/Data`.
 - TypeScript compile with `npx tsc --noEmit`: passed.
 - RN lint with `npm run lint`: passed.
 - Region renderer route verifier: passed.

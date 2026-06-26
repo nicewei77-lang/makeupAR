@@ -175,7 +175,7 @@ Approval is still required before:
   - Brow Unity contract verifier, brow mask verifier, and region renderer route
     verifier passed.
   - Unity batchmode compile was not rerun after this C# policy change because
-    `/System/Volumes/Data` currently has only about `252Mi` free. No generated
+    `/System/Volumes/Data` currently has less than `400Mi` free. No generated
     cache cleanup was performed without user approval.
 
 ## Build Gate Packet
@@ -191,7 +191,7 @@ Before building on iPhone, report and get user approval for:
   UDID or `DEVELOPMENT_TEAM` should be added as repo defaults.
 - Expected risk: first-loop static UV brow placement may need arch/width/tail
   tuning after visual QA.
-- Local machine risk: current disk free space is about `252Mi`; cleanup should
+- Local machine risk: current disk free space is less than `400Mi`; cleanup should
   happen before real-device export/build. Large generated candidates observed:
   `unity-builds` about `3.1G` and Unity `Library` about `796M`.
 - Out of scope: Android, AI/model inference, backend upload, raw-frame storage,

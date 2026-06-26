@@ -123,7 +123,7 @@ or bridge rewrite.
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
   This compile was before the later brow-specific mask policy change; rerun is
-  pending because the local disk currently has only about `252Mi` free.
+  pending because the local disk currently has less than `400Mi` free.
 
 ## QA Status
 
