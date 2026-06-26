@@ -62,12 +62,12 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     secondaryColor: '#F4A6AF',
     intensity: 0.86,
     feather: 0.24,
-    coverage: 0.84,
+    coverage: 0.92,
     finish: 'gloss',
     roughness: 0.16,
-    specular: 0.62,
+    specular: 0.68,
     specularPower: 42,
-    glossBoost: 0.52,
+    glossBoost: 0.68,
     gradientAmount: 0.12,
     preserveDetail: true,
   },
@@ -95,12 +95,12 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#F3A8B2',
+    secondaryColor: '#EC8FA0',
     intensity: 0.92,
-    feather: 0.31,
-    coverage: 0.96,
+    feather: 0.38,
+    coverage: 0.94,
     finish: 'gradient',
-    roughness: 0.74,
+    roughness: 1,
     specular: 0.02,
     specularPower: 12,
     glossBoost: 0,
@@ -188,6 +188,7 @@ export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
   | 'lip-vision-boundary-v1'
   | 'lip-drawn-style-atlas-v1'
+  | 'lip-drawn-gradient-density-atlas-v1'
   | 'lip-drawn-mask-v1'
   | 'cheek-drawn-mask-v1'
   | 'eye-drawn-mask-v1'
@@ -245,6 +246,19 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   cheek: 'cheek-drawn-mask-v1',
   eye: 'eye-drawn-mask-v1',
 };
+const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
+  'lip-drawn-gradient-density-atlas-v1';
+
+function resolveMaskTextureIdForRecipe(
+  region: RecipeRegion,
+  textureSample: RecipeTextureSample,
+): MaskTextureId {
+  if (region === 'lip' && textureSample.name === 'gradient_lip') {
+    return GRADIENT_LIP_MASK_TEXTURE_ID;
+  }
+
+  return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+}
 export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,
   cheek: false,
@@ -280,7 +294,7 @@ export function buildValidationRecipeBatchPayload(
     const sample = recipe.textureSample;
     const layerIntensity =
       region === 'lip' ? recipe.intensity : sample.intensity;
-    const maskTextureId = DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+    const maskTextureId = resolveMaskTextureIdForRecipe(region, sample);
     const layerRecipeId = `${E7_RECIPE_PREFIX}-${region}-${
       sample.name
     }-${Math.round(sentAtMs)}`;
@@ -332,6 +346,10 @@ export function buildValidationRecipeBatchPayload(
     };
   });
   const focusSample = recipes[focusRegion].textureSample;
+  const focusMaskTextureId = resolveMaskTextureIdForRecipe(
+    focusRegion,
+    focusSample,
+  );
   const focusIntensity =
     focusRegion === 'lip'
       ? recipes[focusRegion].intensity
@@ -373,7 +391,7 @@ export function buildValidationRecipeBatchPayload(
         ? 'lip-style-atlas-validation'
         : 'unlit-alpha-validation',
     passCount: focusSample.name === 'gloss_lip' ? 2 : 1,
-    maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion],
+    maskTextureId: focusMaskTextureId,
     cameraBackdropAvailable: false,
     lightEstimateAvailable: false,
     layers,
@@ -800,6 +818,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         sentAtMs,
       );
       const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
+      const focusMaskTextureId = resolveMaskTextureIdForRecipe(
+        focusRegion,
+        recipes[focusRegion].textureSample,
+      );
+      const lipMaskTextureId = resolveMaskTextureIdForRecipe(
+        'lip',
+        recipes.lip.textureSample,
+      );
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
@@ -807,8 +833,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
-        `focusMaskTextureId=${DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion]}`,
-        `lipMaskTextureId=${DEFAULT_MASK_TEXTURE_ID_BY_REGION.lip}`,
+        `focusMaskTextureId=${focusMaskTextureId}`,
+        `lipMaskTextureId=${lipMaskTextureId}`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );

@@ -44,14 +44,21 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-soft-minus-hard-luma-std-ratio", type=float, default=0.30)
     parser.add_argument("--min-edge-band-mean", type=float, default=0.30)
     parser.add_argument("--max-edge-band-mean", type=float, default=0.85)
-    parser.add_argument("--min-wet-line-active-pixels", type=int, default=200)
-    parser.add_argument("--max-wet-line-active-pixels", type=int, default=5000)
-    parser.add_argument("--min-wet-line-mean-luma-boost", type=float, default=0.03)
-    parser.add_argument("--min-wet-line-aspect-ratio", type=float, default=8.0)
-    parser.add_argument("--max-wet-line-height-to-lip-height", type=float, default=0.12)
-    parser.add_argument("--min-wet-line-width-to-lip-width", type=float, default=0.28)
-    parser.add_argument("--max-wet-line-width-to-lip-width", type=float, default=0.70)
-    parser.add_argument("--max-wet-line-component-count", type=int, default=2)
+    parser.add_argument("--min-wet-line-active-pixels", type=int, default=300)
+    parser.add_argument("--max-wet-line-active-pixels", type=int, default=1500)
+    parser.add_argument("--min-wet-line-mean-luma-boost", type=float, default=0.07)
+    parser.add_argument("--min-wet-line-aspect-ratio", type=float, default=12.0)
+    parser.add_argument("--max-wet-line-height-to-lip-height", type=float, default=0.07)
+    parser.add_argument("--min-wet-line-width-to-lip-width", type=float, default=0.35)
+    parser.add_argument("--max-wet-line-width-to-lip-width", type=float, default=0.60)
+    parser.add_argument("--max-wet-line-component-count", type=int, default=1)
+    parser.add_argument("--min-gradient-transition-width-to-lip-width", type=float, default=0.40)
+    parser.add_argument("--min-gradient-inner-outer-strength-ratio", type=float, default=1.25)
+    parser.add_argument("--max-gradient-inner-outer-strength-ratio", type=float, default=5.50)
+    parser.add_argument("--max-gradient-edge-inner-strength-ratio", type=float, default=0.30)
+    parser.add_argument("--max-gradient-ramp-adjacent-delta-p95", type=float, default=0.025)
+    parser.add_argument("--max-gradient-center-boundary-jump", type=float, default=0.15)
+    parser.add_argument("--min-gloss-red-base-preservation-ratio", type=float, default=0.70)
     return parser.parse_args()
 
 
@@ -96,18 +103,24 @@ def verify_shader(shader_text: str) -> None:
             "SoftMaskAlpha",
             "CoreMaskAlpha",
             "LipCenterDensity",
+            "gradientDensitySeed",
+            "GradientDensityBlur",
+            "gradientDensityBlurred",
+            "gradientDensityRamp",
+            "singleGradientDensity",
+            "gradientDensityCurve",
+            "gradientStrengthScale",
+            "matteReferencePigmentColor",
+            "matteDerivedGradientStrength",
             "baseStain",
             "innerLayer",
             "edgeBand",
-            "outerSoftWash",
-            "innerGradientTint",
-            "softEdgeFeather",
             "maxPigmentStrength",
             "glossMask",
             "thinHorizontalLine",
             "highlightColor",
             "tintedWetColor",
-            "lerp(tintedWetColor, float3(1.0, 0.94, 0.92), 0.30)",
+            "lerp(tintedWetColor, float3(1.0, 0.94, 0.92), 0.24)",
             "Blend One One",
         ],
         "SmoothRegionMask.shader",
@@ -123,6 +136,25 @@ def verify_shader(shader_text: str) -> None:
     require(
         "mask.a" in shader_text,
         "Gloss path should sample the atlas A channel as the single horizontal-line mask.",
+    )
+    require(
+        "innerDensity = saturate(max(gradientMask, centerDensity) * fullCore)" not in shader_text
+        and "max(gradientMask, centerDensity) * fullCore" not in shader_text,
+        "Gradient path must not return to the old thresholded max(...)*fullCore density.",
+    )
+    require(
+        "outerSoftWash" not in shader_text
+        and "midGradientLayer" not in shader_text
+        and "innerGradientTint" not in shader_text
+        and "gradientOuterWash" not in shader_text
+        and "outerMlbbColor" not in shader_text
+        and "innerRedColor" not in shader_text,
+        "Gradient path must stay matte-derived, not additive outer/mid/inner color layers.",
+    )
+    require(
+        "smoothstep(0.018, 0.96, singleGradientDensity)" not in shader_text
+        and "smoothstep(0.04, 0.98" not in shader_text,
+        "Gradient path should avoid threshold-like S-curve breaks between inner and outer density.",
     )
 
 
@@ -167,6 +199,9 @@ def verify_overlay(overlay_text: str) -> None:
             "MaskFeatherFarRadiusPx",
             "ResolveShaderFeatherNearRadiusPx",
             "ResolveShaderFeatherFarRadiusPx",
+            "0.38f",
+            "Mathf.Max(0.28f, recipe.Feather)",
+            "Mathf.Lerp(0.72f, 0.92f, recipe.Intensity)",
             'recipe.TextureSample == "gloss_lip"',
             'material.SetFloat("_UseScreenSpaceMask", 0.0f)',
             "Threshold = lipStyleAtlas || visionLipBoundary ? 0.025f",
@@ -244,6 +279,8 @@ def verify_rn(rn_app_text: str, rn_test_text: str) -> None:
             "maskFeatherFarRadiusPx?: number",
             "focusMaskTextureId=",
             "lipMaskTextureId=",
+            "lip-drawn-gradient-density-atlas-v1",
+            "resolveMaskTextureIdForRecipe",
             "soft=",
             "featherPx=",
             "layers=",
@@ -271,6 +308,7 @@ def verify_rn(rn_app_text: str, rn_test_text: str) -> None:
             "featherPx=3.45/6.38",
             "focusMaskTextureId=lip-drawn-style-atlas-v1",
             "lipMaskTextureId=lip-drawn-style-atlas-v1",
+            "lip-drawn-gradient-density-atlas-v1",
             "lipMaskTextureId=lip-vision-boundary-v1",
         ],
         "App.test.tsx",
@@ -366,10 +404,17 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
     wet_line = metrics.get("wetLineActivePixels")
     wet_line_boost = metrics.get("wetLineMeanLumaBoost")
     wet_line_shape = metrics.get("wetLineShape")
+    gradient_ramp = metrics.get("gradientRamp")
+    gloss_red_base = metrics.get("glossRedBasePreservationRatio")
     require(isinstance(edge_band, (int, float)), "Preview metric edgeBandMean is missing.")
     require(isinstance(wet_line, int), "Preview metric wetLineActivePixels is missing.")
     require(isinstance(wet_line_boost, (int, float)), "Preview metric wetLineMeanLumaBoost is missing.")
     require(isinstance(wet_line_shape, dict), "Preview metric wetLineShape is missing.")
+    require(isinstance(gradient_ramp, dict), "Preview metric gradientRamp is missing.")
+    require(
+        isinstance(gloss_red_base, (int, float)),
+        "Preview metric glossRedBasePreservationRatio is missing.",
+    )
     wet_line_aspect = wet_line_shape.get("aspectRatio")
     wet_line_height_ratio = wet_line_shape.get("heightToLipHeight")
     wet_line_width_ratio = wet_line_shape.get("widthToLipWidth")
@@ -384,6 +429,31 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
         "Preview metric wetLineShape.widthToLipWidth is missing.",
     )
     require(isinstance(wet_line_components, int), "Preview metric wetLineShape.componentCount is missing.")
+    gradient_transition_width = gradient_ramp.get("gradientTransitionWidthToLipWidth")
+    gradient_inner_outer = gradient_ramp.get("gradientInnerOuterStrengthRatio")
+    gradient_edge_inner = gradient_ramp.get("gradientEdgeInnerStrengthRatio")
+    gradient_adjacent_delta = gradient_ramp.get("gradientRampMaxAdjacentDeltaP95")
+    gradient_center_jump = gradient_ramp.get("gradientCenterBoundaryJump")
+    require(
+        isinstance(gradient_transition_width, (int, float)),
+        "Preview metric gradientRamp.gradientTransitionWidthToLipWidth is missing.",
+    )
+    require(
+        isinstance(gradient_inner_outer, (int, float)),
+        "Preview metric gradientRamp.gradientInnerOuterStrengthRatio is missing.",
+    )
+    require(
+        isinstance(gradient_edge_inner, (int, float)),
+        "Preview metric gradientRamp.gradientEdgeInnerStrengthRatio is missing.",
+    )
+    require(
+        isinstance(gradient_adjacent_delta, (int, float)),
+        "Preview metric gradientRamp.gradientRampMaxAdjacentDeltaP95 is missing.",
+    )
+    require(
+        isinstance(gradient_center_jump, (int, float)),
+        "Preview metric gradientRamp.gradientCenterBoundaryJump is missing.",
+    )
     require(
         hard <= args.max_hard_alpha_luma_std_ratio,
         f"Hard alpha lumaStdRatio unexpectedly high: {hard}",
@@ -444,6 +514,33 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
         wet_line_components <= args.max_wet_line_component_count,
         f"Wet-line is fragmented into too many components: componentCount={wet_line_components}",
     )
+    require(
+        float(gradient_transition_width) >= args.min_gradient_transition_width_to_lip_width,
+        "Gradient transition band is too narrow: "
+        f"transitionWidthToLipWidth={gradient_transition_width}",
+    )
+    require(
+        args.min_gradient_inner_outer_strength_ratio
+        <= float(gradient_inner_outer)
+        <= args.max_gradient_inner_outer_strength_ratio,
+        f"Gradient inner/outer strength ratio is out of range: {gradient_inner_outer}",
+    )
+    require(
+        float(gradient_edge_inner) <= args.max_gradient_edge_inner_strength_ratio,
+        f"Gradient edge/inner strength ratio is too high for a soft fade: {gradient_edge_inner}",
+    )
+    require(
+        float(gradient_adjacent_delta) <= args.max_gradient_ramp_adjacent_delta_p95,
+        f"Gradient ramp adjacent p95 delta is too abrupt: {gradient_adjacent_delta}",
+    )
+    require(
+        float(gradient_center_jump) <= args.max_gradient_center_boundary_jump,
+        f"Gradient center-line boundary jump is too abrupt: {gradient_center_jump}",
+    )
+    require(
+        float(gloss_red_base) >= args.min_gloss_red_base_preservation_ratio,
+        f"Gloss red base preservation is too low: {gloss_red_base}",
+    )
     return {
         "feather": float(feather),
         "shaderApproxNearRadiusPx": float(near_radius),
@@ -461,6 +558,12 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
         "wetLineHeightToLipHeight": float(wet_line_height_ratio),
         "wetLineWidthToLipWidth": float(wet_line_width_ratio),
         "wetLineComponentCount": wet_line_components,
+        "gradientTransitionWidthToLipWidth": float(gradient_transition_width),
+        "gradientInnerOuterStrengthRatio": float(gradient_inner_outer),
+        "gradientEdgeInnerStrengthRatio": float(gradient_edge_inner),
+        "gradientRampMaxAdjacentDeltaP95": float(gradient_adjacent_delta),
+        "gradientCenterBoundaryJump": float(gradient_center_jump),
+        "glossRedBasePreservationRatio": float(gloss_red_base),
     }
 
 

@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mask", type=Path, default=DEFAULT_MASK)
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--color", default="#D94B74")
-    parser.add_argument("--secondary-color", default="#F29BAA")
+    parser.add_argument("--secondary-color", default="#EC8FA0")
     parser.add_argument("--threshold", type=float, default=0.025)
     parser.add_argument("--feather", type=float, default=0.22)
     parser.add_argument("--soft-radius", type=float, default=4.0)
@@ -165,6 +165,34 @@ def lip_density(mask: np.ndarray, box: dict[str, int], gradient_amount: float) -
     return mask * (1.0 - gradient_amount) + density * gradient_amount
 
 
+def continuous_gradient_ramp(
+    mask: np.ndarray,
+    box: dict[str, int],
+    gradient_amount: float,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    height, width = mask.shape
+    y = np.arange(height, dtype=np.float32)[:, None]
+    x = np.arange(width, dtype=np.float32)[None, :]
+    center_x = box["left"] + box["width"] * 0.5
+    center_y = box["top"] + box["height"] * 0.58
+    broad_x = max(1.0, box["width"] * 0.66)
+    broad_y = max(1.0, box["height"] * 0.64)
+    radial = np.exp(-(((x - center_x) / broad_x) ** 2 + ((y - center_y) / broad_y) ** 2))
+    inner_line = np.exp(-np.abs(y - center_y) / max(1.0, box["height"] * 0.38))
+    density_seed = np.clip(mask * (0.50 * radial + 0.50 * inner_line), 0.0, 1.0)
+    density_ramp = np.power(density_seed, 1.02 + (0.78 - 1.02) * gradient_amount)
+    density = np.clip(mask * density_ramp, 0.0, 1.0)
+    density_curve = np.power(density, 1.46 + (1.24 - 1.46) * gradient_amount)
+    matte_reference = mask * 0.55 + lip_density(mask, box, gradient_amount) * 0.18
+    strength_scale = 0.72 + (1.08 - 0.72) * density_curve
+    pigment_curve = np.clip(
+        matte_reference * strength_scale,
+        0.0,
+        1.0,
+    )
+    return density, pigment_curve, np.zeros_like(pigment_curve)
+
+
 def hard_alpha_sticker(frame: np.ndarray, hard_mask: np.ndarray, color: np.ndarray) -> np.ndarray:
     alpha = (hard_mask > 0.025).astype(np.float32) * 0.72
     return frame * (1.0 - alpha[..., None]) + color * alpha[..., None]
@@ -186,20 +214,24 @@ def soft_sdf_layers(
     full_core = smoothstep(threshold + 0.36, threshold + 0.58, hard_mask)
     edge_band = np.clip(full_soft - full_core, 0.0, 1.0)
     inner_density = lip_density(full_soft, box, gradient_amount)
+    gradient_density, mid_gradient_ramp, inner_gradient_density = continuous_gradient_ramp(
+        full_soft,
+        box,
+        gradient_amount,
+    )
 
     if style == "gradient":
-        base_layer = full_soft * 0.20
-        inner_layer = inner_density * 0.82
-        edge_layer = edge_band * 0.035
-        inner_mix = np.clip(inner_density * 1.25 + 0.08, 0.0, 1.0)
-        pixel_color = secondary_color * (1.0 - inner_mix[..., None]) + (color * 0.92) * inner_mix[..., None]
-        pigment_cap = 0.78
+        base_layer = mid_gradient_ramp
+        inner_layer = np.zeros_like(full_soft)
+        edge_layer = np.zeros_like(full_soft)
+        pixel_color = color * 0.9496
+        pigment_cap = 0.82
     elif style == "gloss":
-        base_layer = full_soft * 0.45
-        inner_layer = inner_density * 0.10
-        edge_layer = edge_band * 0.04
-        pixel_color = color * 0.965 + secondary_color * 0.035
-        pigment_cap = 0.62
+        base_layer = full_soft * 0.54
+        inner_layer = inner_density * 0.12
+        edge_layer = edge_band * 0.011
+        pixel_color = color * 0.985 + secondary_color * 0.015
+        pigment_cap = 0.72
     else:
         base_layer = full_soft * 0.55
         inner_layer = inner_density * 0.18
@@ -222,7 +254,7 @@ def soft_sdf_layers(
         center_width = np.exp(-(((x - center_x) / max(1.0, box["width"] * 0.18)) ** 4))
         wet_line = lower_line * center_width * full_core
         tinted_wet = color * 0.62 + secondary_color * 0.38
-        highlight_color = np.clip(tinted_wet * 0.70 + np.array([1.0, 0.94, 0.92], dtype=np.float32) * 0.30, 0.0, 1.0)
+        highlight_color = np.clip(tinted_wet * 0.76 + np.array([1.0, 0.94, 0.92], dtype=np.float32) * 0.24, 0.0, 1.0)
         rendered = np.clip(rendered + wet_line[..., None] * highlight_color * gloss_amount, 0.0, 1.0)
     else:
         wet_line = np.zeros_like(full_soft)
@@ -232,6 +264,9 @@ def soft_sdf_layers(
         "fullCore": full_core,
         "edgeBand": edge_band,
         "innerDensity": inner_density,
+        "gradientDensity": gradient_density,
+        "midGradientRamp": mid_gradient_ramp,
+        "innerGradientDensity": inner_gradient_density,
         "wetLine": wet_line,
         "pigmentStrength": pigment_strength,
     }
@@ -261,6 +296,58 @@ def metrics(original: np.ndarray, rendered: np.ndarray, soft_mask: np.ndarray, h
         "lumaCorrelation": correlation,
         "edgeAlphaMean": float(soft_mask[edge].mean()) if int(edge.sum()) > 0 else 0.0,
     }
+
+
+def gradient_ramp_metrics(layers: dict[str, np.ndarray], box: dict[str, int]) -> dict[str, float]:
+    density = layers["gradientDensity"]
+    pigment = layers["pigmentStrength"]
+    full_soft = layers["fullSoft"]
+    active = full_soft > 0.12
+    transition = active & (density > 0.18) & (density < 0.78)
+    transition_columns = np.unique(np.nonzero(transition)[1])
+    transition_width_ratio = float(len(transition_columns) / max(box["width"], 1))
+
+    inner = active & (density > 0.72)
+    outer = active & (density >= 0.30) & (density < 0.58)
+    edge = active & (density < 0.18)
+    inner_mean = float(pigment[inner].mean()) if int(inner.sum()) > 0 else 0.0
+    outer_mean = float(pigment[outer].mean()) if int(outer.sum()) > 0 else 0.0
+    edge_mean = float(pigment[edge].mean()) if int(edge.sum()) > 0 else 0.0
+    crop_density = density[box["top"] : box["bottom"] + 1, box["left"] : box["right"] + 1]
+    crop_active = full_soft[box["top"] : box["bottom"] + 1, box["left"] : box["right"] + 1] > 0.50
+    delta_y = np.abs(np.diff(crop_density, axis=0))
+    delta_x = np.abs(np.diff(crop_density, axis=1))
+    valid_y = crop_active[1:, :] & crop_active[:-1, :]
+    valid_x = crop_active[:, 1:] & crop_active[:, :-1]
+    adjacent_delta = np.concatenate([delta_y[valid_y], delta_x[valid_x]])
+    if len(adjacent_delta) == 0:
+        adjacent_delta = np.asarray([0.0], dtype=np.float32)
+    center_y = int(np.clip(round(box["top"] + box["height"] * 0.58), 0, density.shape[0] - 1))
+    center_line = density[center_y, box["left"] : box["right"] + 1]
+    center_active = full_soft[center_y, box["left"] : box["right"] + 1] > 0.70
+    center_deltas = np.abs(np.diff(center_line))
+    center_valid = center_active[1:] & center_active[:-1]
+    center_jump = float(center_deltas[center_valid].max()) if int(center_valid.sum()) > 0 else 0.0
+    return {
+        "gradientTransitionWidthToLipWidth": transition_width_ratio,
+        "gradientInnerOuterStrengthRatio": inner_mean / max(outer_mean, 1e-6),
+        "gradientEdgeInnerStrengthRatio": edge_mean / max(inner_mean, 1e-6),
+        "gradientRampMaxAdjacentDeltaP95": float(np.percentile(adjacent_delta, 95)),
+        "gradientCenterBoundaryJump": center_jump,
+    }
+
+
+def redness(values: np.ndarray) -> np.ndarray:
+    return values[..., 0] - (values[..., 1] + values[..., 2]) * 0.5
+
+
+def gloss_red_base_preservation(matte: np.ndarray, glow_base: np.ndarray, full_soft: np.ndarray, wet_line: np.ndarray) -> float:
+    non_wet_lip = (full_soft > 0.16) & (wet_line <= 0.02)
+    if int(non_wet_lip.sum()) < 2:
+        return 0.0
+    matte_red = float(redness(matte)[non_wet_lip].mean())
+    gloss_red = float(redness(glow_base)[non_wet_lip].mean())
+    return gloss_red / max(matte_red, 1e-6)
 
 
 def to_image(values: np.ndarray) -> Image.Image:
@@ -383,7 +470,7 @@ def main() -> None:
         secondary,
         args.threshold,
         gradient_amount=0.20,
-        gloss_amount=0.18,
+        gloss_amount=0.26,
         style="gloss",
     )
     wet_line_pixels = glow_layers["wetLine"] > 0.08
@@ -445,6 +532,7 @@ def main() -> None:
             "softMatte": metrics(frame, matte, matte_layers["fullSoft"], hard_mask),
             "softGradient": metrics(frame, gradient, gradient_layers["fullSoft"], hard_mask),
             "thinWetLine": metrics(frame, glow, glow_layers["fullSoft"], hard_mask),
+            "gradientRamp": gradient_ramp_metrics(gradient_layers, box),
             "edgeBandMean": float(matte_layers["edgeBand"][matte_layers["edgeBand"] > 0.01].mean()),
             "wetLineActivePixels": int((glow_layers["wetLine"] > 0.02).sum()),
             "wetLineShape": line_shape_metrics(glow_layers["wetLine"], 0.02, box),
@@ -454,6 +542,12 @@ def main() -> None:
             "wetLineMaxLumaBoost": float(wet_line_luma_boost[wet_line_pixels].max())
             if int(wet_line_pixels.sum()) > 0
             else 0.0,
+            "glossRedBasePreservationRatio": gloss_red_base_preservation(
+                matte,
+                glow_base,
+                glow_layers["fullSoft"],
+                glow_layers["wetLine"],
+            ),
         },
         "notes": [
             "This approximates the Unity shader intent for buildless review only.",

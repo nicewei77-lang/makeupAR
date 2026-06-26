@@ -518,7 +518,11 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(payload.activeRegions).toBe('lip');
     expect(payload.enabledLayerCount).toBe(1);
     expect(lipLayer.texture).toBe(textureSample.name);
-    expect(lipLayer.maskTextureId).toBe('lip-drawn-style-atlas-v1');
+    expect(lipLayer.maskTextureId).toBe(
+      textureSample.name === 'gradient_lip'
+        ? 'lip-drawn-gradient-density-atlas-v1'
+        : 'lip-drawn-style-atlas-v1',
+    );
     expect(lipLayer.enabled).toBe(true);
     expect(lipLayer.intensity).toBe(DEFAULT_REGION_RECIPES.lip.intensity);
     expect(lipLayer.textureAmount).toBe(DEFAULT_REGION_RECIPES.lip.intensity);
@@ -543,6 +547,9 @@ test('builds five lip style recipe payloads with preset material fields', () => 
       expect(lipLayer.passCount).toBe(1);
     }
     if (textureSample.name === 'gradient_lip') {
+      expect(lipLayer.maskTextureId).toBe(
+        'lip-drawn-gradient-density-atlas-v1',
+      );
       expect(lipLayer.coverage).toBeGreaterThan(0.9);
       expect(lipLayer.gradientAmount).toBe(1);
       expect(lipLayer.passCount).toBe(1);

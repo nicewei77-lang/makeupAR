@@ -2,23 +2,51 @@
 
 Date: 2026-06-26 KST
 
-Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / 그라데이션과 글로시는 미승인 / 다음 작업은 `gradient_lip`, `gloss_lip`만 대상으로 한다
+Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / `gradient_lip` user accepted + freeze / `gloss_lip` 다음 단계
 
 ## 1. 현재 결정
 
 이 문서는 다음 세션 또는 멀티에이전트 작업자가 바로 이어받기 위한 핸드오프다.
 
 - `matte_lip`: 완료/freeze. 사용자가 명시적으로 다시 열지 않는 한 더 건드리지 않는다.
-- `gradient_lip`: 미완료. 중앙 내부 tint와 바깥 lip wash의 경계가 아직 너무 선명하다.
-- `gloss_lip`: 미완료. 광택이 도는 느낌보다 색이 연해지는 느낌이 먼저 보인다.
+- `gradient_lip`: 완료/freeze. 사용자 실기기 HUD screenshot `IMG_5268.PNG`에서 RED 100% gradient 결과를 승인했다. 사용자가 명시적으로 다시 열지 않는 한 더 건드리지 않는다.
+- `gloss_lip`: no-build 수정 완료. red base 보존을 강화하고 localized tinted wet-line highlight만 올리도록 조정했다. 런타임 사진 승인 전까지는 미승인이다.
 - E7.3은 계속 Yellow다. 이 작업은 validation-only 렌더러 하드닝이며 제품급 립 메이크업 claim은 금지한다.
+
+이번 이어서 작업한 체크포인트:
+
+- 멀티에이전트 분석 결과:
+  - Gradient: shader-first로 continuous ramp를 구현하고, old `max(gradientMask, centerDensity) * fullCore` 패턴은 guard에서 금지한다.
+  - Gloss: A-channel mask만으로는 부족하고 red base가 먼저 유지되어야 한다. normal/view-direction highlight는 이번 E7.3 validation pass에서는 보류한다.
+- `matte_lip` RN preset, Unity material scale, shader matte branch는 수정하지 않았다.
+- `gradient_lip`는 같은 선택 색상 `_RegionColor`를 유지한 채 B-channel `singleGradientDensity` / pigment strength만 바꿔 약한 outer density, 넓은 mid transition, 강한 inner density를 만든다.
+- `gloss_lip`는 RN `coverage/specular/glossBoost`, Unity gloss-only material alpha scale, shader gloss branch base pigment, additive wet-line strength/color mix를 조정했다.
+- Previous gradient/gloss continuous-ramp checkpoint checks: `git diff --check`, atlas guard, soft-SDF verifier, RN Jest (`13` tests), TypeScript, RN lint, Python compile, preview regeneration, Unity batchmode import/compile all passed.
+- Previous Unity batchmode log: `evidence/logs/e7-gradient-gloss-continuous-ramp-unity-batchmode-20260626.log` records `CompileScripts: 3074.723ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
+- Previous preview metrics before the internal-boundary follow-up: `softGradientLumaStdRatio=1.3368`, `softGradientLumaCorrelation=0.9472`, `gradientTransitionWidthToLipWidth=0.9744`, `gradientInnerOuterStrengthRatio=3.2299`, `gradientRampMaxAdjacentDeltaP95=0.0110`, `gradientCenterBoundaryJump=0.1243`, `wetLineActivePixels=493`, `wetLineMeanLumaBoost=0.0767`, `wetLineComponentCount=1`, `glossRedBasePreservationRatio=1.0452`.
+- AR-runtime expected preview: `scripts/e7_reference_atlas/make_lip_runtime_ar_expected_preview.py` mirrors RN default lip recipe, Unity material scaling, ARFace UV/triangle culling, the shader pigment multiply pass, and the gloss additive pass. Generated sheet: `evidence/e7-reference-atlas/lip-style-atlas-v1/ar_runtime_expected_20260626/ar_runtime_expected_sheet.png`.
+- AR expected verdict: `expected_ar_preview_review`, not Green, because gloss footprint is still deferred. Mesh culling is tight enough (`279/2304` triangles accepted, cull ratio `0.8789`). The latest `gradient_lip` same-color density guard passes with `outsideSourceDilatedRatio=0.0248`, `edgeInnerPigmentRatio=0.0303`, `adjacentDensityDeltaP95=0.0351`, `centerLineMaxJump=0.0279`, and `pigmentColorRangeMax=0.0`. `gloss_lip` preserves red base (`glossRedBasePreservationRatio=1.0335`) and has localized wet highlight (`componentCount=2`, `meanAdditiveLuma=0.0518`), but full pigment changed-pixels still show ARFace triangle footprint expansion (`outsideSourceDilatedRatio=0.1557`). Treat this as buildless review evidence only.
+- Gradient density-field correction: `gradient_lip` now uses a dedicated `lip-drawn-gradient-density-atlas-v1` resource instead of sharing the default matte/gloss atlas. The new atlas copies R/G/A from `lip-drawn-style-atlas-v1` but replaces B with a distance-transform continuous density seed. RN sends this mask id only for `gradient_lip`; default matte/gloss continue using `lip-drawn-style-atlas-v1`.
+- Shader correction: the gradient branch no longer adds `outerSoftWash + midGradientLayer + innerGradientTint`. It uses one `singleGradientDensity` curve from the B channel, derives one pigment-strength curve from it, and keeps `outerMlbbColor` / `innerRedColor` equal to the same selected `_RegionColor`; the gradient effect is density/strength, not a second hue.
+- Follow-up gradient internal-boundary correction: user clarified the visible issue was between the inner red density and outer tint, not the outer lip edge. The B-channel seed is now wider (`seedPixels=327`, `densityMeanActive=0.2433`), and the shader now uses `GradientDensityBlur` plus gradient-only feather to soften the density field before pigment strength is applied.
+- Latest gradient AR expected metrics after same-color correction on RED 100%: `pigmentColorRangeMax=0.0`, `pigmentStrengthP95=0.5156`, `gradientTransitionWidthToLipWidth=0.7965`, `gradientInnerOuterStrengthRatio=2.2810`, `edgeInnerPigmentRatio=0.0303`, `gradientRampMaxAdjacentDeltaP95=0.0351`, and `gradientCenterBoundaryJump=0.0279`. The soft-SDF verifier also passes. Gradient-specific guards pass; overall preview remains `review` only because gloss footprint is intentionally deferred.
+- Bright lighting user reference is saved at `evidence/e7-reference-atlas/lip-style-atlas-v1/lighting_references/bright_lighting_reference_20260626.png`, but it is not AR expected-render evidence because that photo has no same-frame ARFace `screenVertices` / `uvs` / `indices`. A photo-only automatic lip-mask render was visually invalidated as misaligned and removed from the preview script/outputs.
+- 앞으로 예상 렌더를 공유할 때는 두 출력을 같이 보여준다: 1) ARFace capture-pair 기반 expected render는 AR 정렬/마스크 검증용, 2) bright lighting photo-aligned preview는 밝은 조명에서 색감/농도/그라데이션 확인용이다. `make_lip_runtime_ar_expected_preview.py` 기본 실행은 둘을 함께 생성하고 `gradient_two_reference_preview.png` 비교 시트를 만든다. 단, bright preview는 `notArfaceEvidence=true`로 유지한다.
+- Bright lighting photo-aligned preview는 사용자 스크린샷 피드백 후 더 보수적인 안쪽 mask로 바꿨다. 실제 표시 alpha는 polygon 그대로가 아니라 density가 낮은 upper/outer edge에서 줄어들도록 한다. 경계가 의심되면 이 preview를 색 검증 근거로 쓰지 말고, 같은 프레임 ARFace capture 또는 명시적 lip mask를 받아야 한다. 이 조정은 밝은 사진 preview 전용이며 ARFace capture-pair 렌더나 Unity/RN runtime mask에는 영향이 없다.
+- New evidence: `evidence/e7-reference-atlas/lip-style-atlas-v1/gradient_density_atlas_20260626/summary.json`, `lip_gradient_density_channels.png`, and regenerated `ar_runtime_expected_20260626/ar_runtime_expected_sheet.png`.
+- Buildless checks after the gradient internal-boundary correction: bundled Python compile, gradient atlas generation, AR runtime expected preview, soft-SDF preview regeneration, atlas guard, soft-SDF verifier, RN Jest (`13` tests), TypeScript, RN lint, and `git diff --check` pass. Unity batchmode import/compile was not rerun for this last follow-up; the prior density-field attempt in `evidence/logs/e7-gradient-density-atlas-unity-batchmode-20260626.log` stopped at Unity Licensing IPC timeout before compile. No UnityFramework/RN real-device build/install was run.
+- UnityFramework build/sync after Build Gate approval: `speed-up-unity-builds` audit confirmed stable Unity `Library/` and Xcode DerivedData reuse. A stale Unity Licensing Client was stopped, then `TIMESTAMP=e7-gradient-internal-boundary-20260626 BUILD_LOG_MODE=full ... bash scripts/build_m3_unityframework.sh` succeeded in `real 165.15s`. Evidence logs: `evidence/logs/m3-repro-unity-export-e7-gradient-internal-boundary-20260626.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-gradient-internal-boundary-20260626.log`, and `evidence/logs/m3-repro-artifact-verification-e7-gradient-internal-boundary-20260626.log`. Unity export records `CompileScripts: 4391.813ms` and `Exiting batchmode successfully now!`; Xcode records `** BUILD SUCCEEDED **`; RN/package-local `UnityFramework.framework` are arm64 Mach-O frameworks (`114M`, Unity `Data` `19M`).
+- 이 빌드는 gradient internal-boundary fix의 compile/link/package correctness 승인이다. RN real-device install, iPhone photo/log review, E7.3 runtime visual acceptance는 아직 실행/수집하지 않았다.
+- Final gradient acceptance: user-provided iPhone HUD screenshot `IMG_5268.PNG` is retained at `evidence/screenshots/e7-gradient-lip-accepted-2026-06-26/IMG_5268.PNG` (`1170x2532`). It shows `active=lip`, `focus=lip`, RED `#C21F3A`, intensity `100%`, `finish gradient_lip`, Tracking, mesh `v=1220/i=6912/uv=1220`, FPS `59.9`, frame `16.7ms`, and latency `21.0ms`. User decision: "이거야 그라데이션 픽스하자. 이제 수정 안할거야". Treat `gradient_lip` as frozen for validation only; this does not accept `gloss_lip`, cheek, eye, full E7.3 Green, or product-quality makeup.
 
 이번 판단에 사용된 사용자 실기기 스크린샷:
 
 - 매트 완료/freeze 기준: `/Users/yeoduchi/Downloads/IMG_5262.PNG`
 - 글로시 실패 기준: `/Users/yeoduchi/Downloads/IMG_5263.PNG`
 - 그라데이션 실패 기준: `/Users/yeoduchi/Downloads/IMG_5264.PNG`
+- 그라데이션 완료/freeze 기준: `evidence/screenshots/e7-gradient-lip-accepted-2026-06-26/IMG_5268.PNG`
 - 그라데이션 목표 레퍼런스: `/var/folders/bl/w00rm3lj0wsfm0l8t26rkd980000gn/T/TemporaryItems/NSIRD_screencaptureui_j4ni1T/스크린샷 2026-06-26 오후 2.50.30.png`
+- 밝은 조명 참고 사진: `evidence/e7-reference-atlas/lip-style-atlas-v1/lighting_references/bright_lighting_reference_20260626.png` (조명/색감 참고 전용, ARFace 정렬 evidence 아님)
 
 ## 2. 구현 기준점
 
@@ -44,7 +72,7 @@ RN preset
 - 기본 lip mask는 `lip-drawn-style-atlas-v1`이다.
 - Apple Vision은 debug/compare 전용이며 활성 lip renderer가 아니다.
 - 매트는 multiply pigment + soft mask + no gloss pass 구조라 validation baseline으로 적합하다.
-- 최신 UnityFramework build/sync는 `e7-matte-gradient-gloss-retune-20260626-1435`다. signed install은 provisioning 때문에 막혀 있지만, 사용자는 수동 경로로 최신 빌드 스크린샷을 제공했다.
+- 최신 gradient UnityFramework build/sync는 `e7-gradient-matte-derived-20260626-1805`다. signed install은 해당 시점에 device unavailable로 막혔지만, 사용자가 최신 gradient build 결과 스크린샷을 제공해 `gradient_lip` visual acceptance를 완료했다. `gloss_lip`는 아직 별도 runtime acceptance가 필요하다.
 
 ## 3. 멀티에이전트 분석 요약
 
@@ -147,27 +175,24 @@ RN preset
 
 ## 6. 다음 작업 우선순위
 
-1. Matte freeze guard 유지.
+1. Matte/Gradient freeze guard 유지.
    - `matte_lip`는 수정하지 않는다.
-   - matte `gloss=none`, `finish=matte_lip`, multiply path, ARFace atlas mask 관련 테스트를 유지한다.
+   - `gradient_lip`도 수정하지 않는다. accepted 기준은 `evidence/screenshots/e7-gradient-lip-accepted-2026-06-26/IMG_5268.PNG`이다.
+   - matte `gloss=none`, `finish=matte_lip`, gradient same-pigment density path, multiply path, ARFace atlas mask 관련 테스트를 유지한다.
 
-2. Gradient를 먼저 고친다.
-   - 새 시스템 없이 목표 레퍼런스에 가까워질 가능성이 가장 높다.
-   - 우선 `SmoothRegionMask.shader`에서 continuous density/ramp를 구현한다.
-   - RN `gradient_lip` preset은 shader ramp 이후 필요할 때만 최소 조정한다.
-   - matte branch는 변경하지 않는다.
+2. 남은 작업은 `gloss_lip`만 다룬다.
+   - primary path: current red-base `gloss_lip`.
+   - compare-only path: frozen `matte_lip` and frozen `gradient_lip`.
+   - out-of-scope: matte changes, gradient changes, Apple Vision active renderer, product-quality claim.
 
-3. Gradient preview/evidence를 갱신한다.
-   - offline preview를 재생성한다.
-   - hard center boundary가 없어졌는지 확인할 target-oriented guard 또는 문서 기준을 추가한다.
-   - 수치 metric만으로는 부족하므로 runtime screenshot acceptance가 필요하다.
+3. Build Gate 승인 후에만 UnityFramework/RN 경로를 실행한다.
+   - `bash scripts/build_m3_unityframework.sh`로 framework sync.
+   - 이후 RN install/signing path는 기존 provisioning blocker를 전제로 기록한다.
+   - 런타임 acceptance는 사용자 iPhone screenshot/log로 판단한다.
 
-4. Gloss는 base pigment와 highlight를 분리해서 고친다.
-   - red base를 보존한다.
-   - 그 다음 gloss mask를 다시 튜닝하거나 다시 그린다.
-   - static mask만으로 계속 flat하면 normal/view direction을 고려한다.
-
-5. no-build check와 Build Gate 승인 전에는 Unity/RN real-device build를 실행하지 않는다.
+4. 런타임에서 실패하면 다음 순서로만 연다.
+   - Gloss 실패: atlas A-channel을 약간 더 localized하게 다시 그린다.
+   - static wet-line이 계속 flat하면 그때 normal/view-direction additive pass를 별도 risk로 연다.
 
 ## 7. Evidence Bar
 
@@ -185,7 +210,7 @@ RN preset
 런타임 acceptance evidence:
 
 - Matte: freeze baseline이 유지된 HUD screenshot 1장.
-- Gradient: 중앙에서 바깥으로 부드럽게 퍼지고 center boundary가 보이지 않는 HUD screenshot 1장.
+- Gradient: accepted/frozen HUD screenshot은 `evidence/screenshots/e7-gradient-lip-accepted-2026-06-26/IMG_5268.PNG`.
 - Gloss: red pigment가 유지되고 작은 localized highlight가 보이는 HUD screenshot 1장.
 - Compact HUD는 `active=lip`, `focus=lip`, `maskTex=lip-drawn-style-atlas-v1`, 기대 finish를 보여야 한다.
 - E7.3 Green 또는 product readiness claim은 금지한다.
@@ -193,8 +218,16 @@ RN preset
 시각적 성공 기준:
 
 - Matte: `IMG_5262` 수준 유지 또는 개선.
-- Gradient: `IMG_5264`보다 바깥 edge가 훨씬 부드럽고, inner red가 perimeter보다 강하며, transition band가 blur처럼 보여야 한다.
+- Gradient: `IMG_5268` 기준으로 완료/freeze. 사용자가 명시적으로 다시 열기 전까지 더 조정하지 않는다.
 - Gloss: pigment가 씻겨 나가지 않고, lower-center 또는 wet-line 영역에 localized highlight가 보여야 한다.
+
+최근 no-build 보정:
+
+- `gradient_lip`는 추가 레이어를 쌓지 않고, shader에서 B-channel density를 `GradientDensityBlur`로 넓게 샘플링한 뒤 raw density와 섞는다.
+- gradient-only feather는 `0.38`까지 허용한다. `matte_lip` freeze path는 건드리지 않는다.
+- `outerMlbbColor`와 `innerRedColor`는 둘 다 같은 `_RegionColor`에서 나온다. 즉 다른 보조색 레이어가 아니라 같은 선택 색상의 density/strength gradient다.
+- RED 100% buildless expected preview 기준 pigment p95는 `0.3961 -> 0.5156`으로 올라갔고, center-line max jump는 `0.0495 -> 0.0279`로 내려갔다. 같은 색상 증거는 `pigmentColorRangeMax=0.0`.
+- 최신 preview: `evidence/e7-reference-atlas/lip-style-atlas-v1/ar_runtime_expected_20260626/ar_runtime_expected_sheet.png`.
 
 ## 8. 다음 세션 프롬프트
 
@@ -206,17 +239,10 @@ AGENTS.md와 TECH_VALIDATION_RESULT.md의 Current Session Snapshot을 먼저 읽
 
 E7.3 validation-only 립 피니시 작업을 계속한다.
 matte_lip은 완료/freeze 상태라 절대 건드리지 마.
+gradient_lip도 IMG_5268 기준으로 완료/freeze 상태라 절대 건드리지 마.
 
 작업:
-1. gradient_lip을 목표 레퍼런스처럼 자연스럽게 고쳐줘.
-   - 약한 outer base,
-   - 더 강한 inner/center tint,
-   - 넓고 부드러운 transition,
-   - center/perimeter 경계가 보이지 않는 형태.
-   우선 SmoothRegionMask.shader에서 continuous gradient density/ramp를 구현해.
-   RN gradient_lip preset은 필요할 때만 최소 조정해.
-
-2. gradient 이후 gloss_lip을 분석/수정해줘.
+1. gloss_lip을 분석/수정해줘.
    - red pigment를 보존하고,
    - localized wet highlight를 추가하고,
    - 전체가 하얗게 뜨는 broad whitening은 피한다.
@@ -225,6 +251,6 @@ matte_lip은 완료/freeze 상태라 절대 건드리지 마.
 
 Apple Vision은 debug/compare 전용으로 유지해.
 E7.3 validation 범위 안에서만 작업하고 product-quality claim은 하지 마.
-먼저 no-build check를 돌리고, Unity/RN real-device build는 Build Gate 보고와 승인 전에는 실행하지 마.
+현재 matte/gradient freeze evidence는 수집됐다.
+다음에는 Build Gate 보고를 먼저 하고, 승인 전에는 Unity/RN real-device build를 실행하지 마.
 ```
-

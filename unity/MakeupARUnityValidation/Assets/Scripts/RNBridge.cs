@@ -2075,6 +2075,7 @@ public sealed class RNBridge : MonoBehaviour
         if (value == expected
             || (region == "lip" && (value == "lip-vision-boundary-v1"
                 || value == "lip-drawn-style-atlas-v1"
+                || value == "lip-drawn-gradient-density-atlas-v1"
                 || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))

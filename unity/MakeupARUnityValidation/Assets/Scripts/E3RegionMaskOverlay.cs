@@ -190,6 +190,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string BoundaryRenderer = "smooth_alpha_mask";
     private const string VisionLipBoundaryMaskId = "lip-vision-boundary-v1";
     private const string LipDrawnStyleAtlasMaskId = "lip-drawn-style-atlas-v1";
+    private const string LipDrawnGradientDensityAtlasMaskId = "lip-drawn-gradient-density-atlas-v1";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -2064,6 +2065,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             && (IsLipStyleAtlasMask(recipe.MaskTextureId)
                 || IsVisionLipBoundaryMask(recipe.MaskTextureId)))
         {
+            if (recipe.TextureSample == "gradient_lip")
+            {
+                return Mathf.Clamp01(Mathf.Min(
+                    0.38f,
+                    Mathf.Max(0.28f, recipe.Feather)));
+            }
+
             return Mathf.Clamp01(Mathf.Min(
                 mask.FeatherUvNormalized,
                 Mathf.Max(0.22f, recipe.Feather)));
@@ -2522,16 +2530,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 brightnessScale = 0.9f;
                 break;
             case "gloss_lip":
-                sampleAlphaScale = Mathf.Lerp(0.58f, 0.76f, recipe.Intensity);
-                brightnessScale = 0.98f;
+                sampleAlphaScale = Mathf.Lerp(0.70f, 0.88f, recipe.Intensity);
+                brightnessScale = 0.94f;
                 break;
             case "full_lip":
                 sampleAlphaScale = Mathf.Lerp(0.5f, 0.72f, recipe.Intensity);
                 brightnessScale = 0.94f;
                 break;
             case "gradient_lip":
-                sampleAlphaScale = Mathf.Lerp(0.68f, 0.88f, recipe.Intensity);
-                brightnessScale = 0.96f;
+                sampleAlphaScale = Mathf.Lerp(0.72f, 0.92f, recipe.Intensity);
+                brightnessScale = 0.9f;
                 break;
             case "overline_lip":
                 sampleAlphaScale = Mathf.Lerp(0.28f, 0.42f, recipe.Intensity);
@@ -2815,6 +2823,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string expected = GetDefaultMaskTextureId(region);
         if (maskTextureId == expected
             || (region == "lip" && (maskTextureId == VisionLipBoundaryMaskId
+                || maskTextureId == LipDrawnGradientDensityAtlasMaskId
                 || maskTextureId == "lip-style-atlas-v1"
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
@@ -2835,6 +2844,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : maskTextureId.Trim();
 
         return maskTextureId == LipDrawnStyleAtlasMaskId
+            || maskTextureId == LipDrawnGradientDensityAtlasMaskId
             || maskTextureId == "lip-style-atlas-v1";
     }
 
