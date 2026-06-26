@@ -3,6 +3,7 @@ import {
   buildUnityMessageFromPackage,
   ExpressionAssistMode,
   LipAdjustment,
+  LipGenerateState,
   LipMaskProvider,
   INITIAL_LIP_GENERATE_STATE,
   lipGenerateReducer,
@@ -15,9 +16,12 @@ import {
   artifactUrl,
   buildGenerateRequest,
   defaultAdjustment,
+  fetchSavedPackages,
   fetchFixtures,
   fixtureLabel,
   generateLipMask,
+  saveGeneratedPackage,
+  SavedLipPackageRecord,
   ServerGenerateResult,
 } from './localServerClient';
 
@@ -64,6 +68,8 @@ const ADJUSTMENT_LABELS: Record<keyof LipAdjustment, string> = {
   verticalOffset: '세로 위치',
 };
 
+const ADJUSTMENT_STEP = 0.05;
+
 type StatusTone = 'neutral' | 'warn' | 'bad';
 
 function App() {
@@ -77,6 +83,8 @@ function App() {
   const [statusMessage, setStatusMessage] = useState('로컬 서버 연결 대기 중');
   const [statusTone, setStatusTone] = useState<StatusTone>('neutral');
   const [compareResults, setCompareResults] = useState<ServerGenerateResult[]>([]);
+  const [savedRecords, setSavedRecords] = useState<SavedLipPackageRecord[]>([]);
+  const [saveMessage, setSaveMessage] = useState('저장된 패키지 없음');
   const [isBusy, setIsBusy] = useState(false);
 
   const fixtures = inventory?.fixtures ?? [];
@@ -106,6 +114,7 @@ function App() {
 
   useEffect(() => {
     void refreshFixtures();
+    void refreshSavedPackages();
   }, []);
 
   async function refreshFixtures() {
@@ -118,6 +127,21 @@ function App() {
       fixtureId: nextInventory.defaultFixtureId,
     });
     setStatusMessage('로컬 fixture 준비 완료');
+  }
+
+  async function refreshSavedPackages() {
+    try {
+      const records = await fetchSavedPackages();
+      setSavedRecords(records);
+      setSaveMessage(
+        records.length
+          ? `${records.length}개 패키지 저장됨`
+          : '저장된 패키지 없음',
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSaveMessage(`저장 목록 확인 실패: ${message}`);
+    }
   }
 
   async function generateSelected() {
@@ -172,8 +196,36 @@ function App() {
     }
   }
 
+  async function saveCurrentResult() {
+    if (!lastResult || !isLastResultCurrent) {
+      setSaveMessage('현재 조정값으로 다시 생성한 뒤 저장할 수 있습니다.');
+      return;
+    }
+    setIsBusy(true);
+    setSaveMessage('선택 패키지 저장 중');
+    try {
+      const record = await saveGeneratedPackage(lastResult);
+      setSavedRecords(previous => [
+        record,
+        ...previous.filter(
+          item => item.generatedMaskId !== record.generatedMaskId,
+        ),
+      ]);
+      setSaveMessage('선택 패키지 저장 완료 · local-only');
+      setStatusMessage('조정 결과 저장 완료 · iPhone 적용 검증 전');
+      setStatusTone('warn');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setSaveMessage(`저장 실패: ${message}`);
+      setStatusTone('bad');
+    } finally {
+      setIsBusy(false);
+    }
+  }
+
   const lastResult = state.lastResult as ServerGenerateResult | undefined;
   const lastPackage = lastResult?.package;
+  const isLastResultCurrent = isGeneratedForCurrentControls(lastResult, state);
   const warnings = lastResult?.warnings ?? state.warnings;
   const payloadPreview = {
     request: currentRequest,
@@ -300,9 +352,30 @@ function App() {
         </aside>
 
         <section className="inspect-panel">
-          <ResultSummary result={lastResult} isBusy={isBusy} />
+          <ResultSummary
+            result={lastResult}
+            isBusy={isBusy}
+            isStale={Boolean(lastResult && !isLastResultCurrent)}
+          />
+          {lastResult && !isLastResultCurrent ? (
+            <section className="stale-callout">
+              <strong>조정값이 아직 이미지에 반영되지 않았습니다.</strong>
+              <span>
+                슬라이더 변경 후에는 `입술 마스크 생성` 또는 `4가지 후보 비교`를
+                다시 눌러야 mask / UV / round-trip이 갱신됩니다.
+              </span>
+            </section>
+          ) : null}
           <PreviewGrid fixture={selectedFixture} result={lastResult} />
           <CompareGrid results={compareResults} />
+          <SavePanel
+            result={lastResult}
+            isCurrent={isLastResultCurrent}
+            isBusy={isBusy}
+            message={saveMessage}
+            records={savedRecords}
+            onSave={() => void saveCurrentResult()}
+          />
           <PayloadPanel payload={payloadPreview} />
           <WarningsPanel warnings={warnings} />
         </section>
@@ -314,21 +387,33 @@ function App() {
 function ResultSummary({
   result,
   isBusy,
+  isStale,
 }: {
   result?: ServerGenerateResult;
   isBusy: boolean;
+  isStale: boolean;
 }) {
-  const title = isBusy ? '생성 중' : result ? buildStatusTitle(result) : '생성 대기';
+  const title = isBusy
+    ? '생성 중'
+    : isStale
+      ? '조정값 미적용'
+      : result
+        ? buildStatusTitle(result)
+        : '생성 대기';
   const details = result
     ? [
         `${PROVIDER_LABELS[result.provider]}`,
         `${EXPRESSION_LABELS[result.expressionMode]}`,
+        isStale ? '다시 생성 필요' : '현재 조정값 반영됨',
         result.runtimeApplyReady ? 'Unity 적용 완료' : 'iPhone 적용 검증 전',
       ]
     : ['로컬 fixture 준비', 'no upload', 'raw frame 장기 저장 없음'];
 
   return (
-    <section className="result-summary" data-status={result?.status ?? 'ready'}>
+    <section
+      className="result-summary"
+      data-status={isStale ? 'stale' : (result?.status ?? 'ready')}
+    >
       <div>
         <span className="eyebrow">Generate 상태</span>
         <h2>{title}</h2>
@@ -336,6 +421,62 @@ function ResultSummary({
       <div className="summary-chips">
         {details.map(detail => (
           <span key={detail}>{detail}</span>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function SavePanel({
+  result,
+  isCurrent,
+  isBusy,
+  message,
+  records,
+  onSave,
+}: {
+  result?: ServerGenerateResult;
+  isCurrent: boolean;
+  isBusy: boolean;
+  message: string;
+  records: SavedLipPackageRecord[];
+  onSave: () => void;
+}) {
+  const canSave = Boolean(result?.package && result.runDirectory && isCurrent);
+
+  return (
+    <section className="save-section">
+      <div className="section-heading">
+        <div className="step-heading">
+          <span>Step 5</span>
+          <h2>선택 저장</h2>
+        </div>
+        <button
+          type="button"
+          className="primary"
+          disabled={!canSave || isBusy}
+          onClick={onSave}
+        >
+          현재 패키지 저장
+        </button>
+      </div>
+      <p className="save-message">{message}</p>
+      {!canSave ? (
+        <p className="save-hint">
+          Provider, 표정 보정, 조정값을 바꾼 뒤에는 다시 Generate 해야 저장할 수
+          있습니다.
+        </p>
+      ) : null}
+      <div className="saved-list">
+        {records.map(record => (
+          <article className="saved-record" key={record.generatedMaskId}>
+            <strong>{recordLabel(record)}</strong>
+            <span>
+              {formatAdjustment(record.adjustment)} ·{' '}
+              {record.runtimeReady ? 'runtime ready' : 'iPhone 검증 전'}
+            </span>
+            <code>{record.packagePath}</code>
+          </article>
         ))}
       </div>
     </section>
@@ -423,6 +564,37 @@ function statusLabel(status: string): string {
   }
 }
 
+function adjustmentEquals(a?: LipAdjustment, b?: LipAdjustment): boolean {
+  if (!a || !b) {
+    return false;
+  }
+  return ADJUSTMENT_FIELDS.every(key => Math.abs(a[key] - b[key]) < 0.001);
+}
+
+function isGeneratedForCurrentControls(
+  result: ServerGenerateResult | undefined,
+  state: LipGenerateState,
+): boolean {
+  if (!result?.package) {
+    return false;
+  }
+  return (
+    result.provider === state.provider &&
+    result.expressionMode === state.expressionMode &&
+    adjustmentEquals(result.package.adjustment, state.adjustment)
+  );
+}
+
+function formatAdjustment(adjustment: LipAdjustment): string {
+  return ADJUSTMENT_FIELDS.map(key => `${ADJUSTMENT_LABELS[key]} ${adjustment[key].toFixed(2)}`).join(
+    ' / ',
+  );
+}
+
+function recordLabel(record: SavedLipPackageRecord): string {
+  return `${PROVIDER_LABELS[record.provider]} · ${EXPRESSION_LABELS[record.expressionMode]}`;
+}
+
 function AdjustmentPanel({
   adjustment,
   onChange,
@@ -448,18 +620,34 @@ function AdjustmentPanel({
           <div className="range-row" key={key}>
             <label htmlFor={`range-${key}`}>
               <span>{ADJUSTMENT_LABELS[key]}</span>
-              <input
-                id={`range-${key}`}
-                aria-label={ADJUSTMENT_LABELS[key]}
-                type="range"
-                min="-1"
-                max="1"
-                step="0.05"
-                value={adjustment[key]}
-                onChange={event =>
-                  onChange(key, Number(event.currentTarget.value))
-                }
-              />
+              <div className="range-control">
+                <button
+                  type="button"
+                  aria-label={`${ADJUSTMENT_LABELS[key]} 줄이기`}
+                  onClick={() => onChange(key, adjustment[key] - ADJUSTMENT_STEP)}
+                >
+                  -
+                </button>
+                <input
+                  id={`range-${key}`}
+                  aria-label={ADJUSTMENT_LABELS[key]}
+                  type="range"
+                  min="-1"
+                  max="1"
+                  step={ADJUSTMENT_STEP}
+                  value={adjustment[key]}
+                  onChange={event =>
+                    onChange(key, Number(event.currentTarget.value))
+                  }
+                />
+                <button
+                  type="button"
+                  aria-label={`${ADJUSTMENT_LABELS[key]} 늘리기`}
+                  onClick={() => onChange(key, adjustment[key] + ADJUSTMENT_STEP)}
+                >
+                  +
+                </button>
+              </div>
             </label>
             <output htmlFor={`range-${key}`}>
               {adjustment[key].toFixed(2)}

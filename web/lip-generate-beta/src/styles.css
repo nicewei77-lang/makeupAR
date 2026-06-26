@@ -194,6 +194,20 @@ input[type="range"] {
   margin-bottom: 4px;
 }
 
+.range-control {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 36px;
+  gap: 6px;
+  align-items: center;
+}
+
+.range-control button {
+  width: 36px;
+  min-height: 28px;
+  padding: 0;
+  font-weight: 700;
+}
+
 .range-row output {
   min-height: 28px;
   border: 1px solid var(--line);
@@ -229,6 +243,27 @@ input[type="range"] {
 .result-summary[data-status="blocked"] {
   background: #fff4f1;
   border-color: rgba(179, 38, 30, 0.35);
+}
+
+.result-summary[data-status="stale"],
+.stale-callout {
+  background: #fff8e8;
+  border-color: rgba(169, 105, 20, 0.42);
+}
+
+.stale-callout {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+  border: 1px solid rgba(169, 105, 20, 0.42);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--warn);
+  font-size: 13px;
+}
+
+.stale-callout span {
+  color: var(--muted);
 }
 
 .summary-chips {
@@ -337,10 +372,53 @@ figure img,
 }
 
 .compare-section,
+.save-section,
 .payload-section {
   margin-top: 12px;
   padding: 12px;
   box-shadow: none;
+}
+
+.save-section {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.save-message,
+.save-hint {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.save-hint {
+  color: var(--warn);
+}
+
+.saved-list {
+  display: grid;
+  gap: 8px;
+}
+
+.saved-record {
+  display: grid;
+  gap: 5px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 10px;
+  background: #fff;
+}
+
+.saved-record span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.saved-record code {
+  overflow-wrap: anywhere;
+  color: var(--accent-2);
+  font-size: 11px;
 }
 
 .debug-section summary {

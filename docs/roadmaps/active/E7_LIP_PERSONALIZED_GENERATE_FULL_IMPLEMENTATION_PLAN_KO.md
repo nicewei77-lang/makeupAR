@@ -272,6 +272,8 @@ validationGates.ts
 - Generate 버튼.
 - status: ready / partial / blocked.
 - warnings.
+- Vision은 단순 polygon 직선 fill이 아니라 `vision_curve_fill` 방식으로 Apple Vision 점을 부드러운 closed curve로 이어 채운다.
+- adjustment를 바꾸면 기존 preview를 그대로 valid로 두지 않고 "다시 생성 필요" 상태를 표시한다.
 
 #### Inspect
 
@@ -300,6 +302,13 @@ MediaPipe + Blendshape Assist
 - Unity ApplyGeneratedLipMask payload preview.
 - evidence metadata.
 - JSON export.
+
+#### Save
+
+- 조정이 반영된 최신 결과만 저장할 수 있다.
+- 저장 대상은 local-only `generated_lip_package.json`이다.
+- 저장 후 목록에는 provider, assist, adjustment, package path, runtimeReady 상태가 보여야 한다.
+- raw camera frame은 저장하지 않는다.
 
 ### 4.4 웹앱에서 마스크를 만드는 방법
 
@@ -351,6 +360,8 @@ POST /api/lip-mask/generate
 POST /api/lip-mask/project-uv
 POST /api/lip-mask/round-trip
 GET  /api/lip-mask/runs/:runId
+GET  /api/lip-mask/saved
+POST /api/lip-mask/save
 ```
 
 서버는 repo의 기존 script나 새 helper를 호출한다.
@@ -383,12 +394,67 @@ scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py
 - 두 provider 모두 UV texture 생성 성공.
 - 두 provider 모두 round-trip overlay가 입술 위치로 돌아옴.
 - adjustment 값이 preview와 payload에 반영됨.
+- adjustment 값이 실제 2D mask / UV / round-trip 생성에 반영됨.
+- 조정 후 재생성 전 stale 상태가 UI에 표시되고 저장이 막힘.
 - Blendshape Assist Off/On payload 차이가 명확함.
+- 조정 완료 후 local-only 패키지 저장 가능.
 - 얼굴 중앙을 가리는 debug UI가 기본 화면에 없음.
 - generatedMaskId, provider, expressionMode, privacy flags가 기록됨.
 ```
 
 ## 5. 실제 앱 구현 설계
+
+### 5.0 iPhone 앱 페이지 구조
+
+RN 앱은 웹 베타의 좌측 control panel / 우측 preview grid를 복사하지 않는다. 실제 앱은 AR 카메라가 주 화면이고, 조작은 하단 페이징 HUD로 잠깐 올라오는 구조여야 한다.
+
+원칙:
+
+```txt
+- UnityView는 full-bleed로 둔다.
+- 얼굴 중앙과 입술 주변에는 로그, 큰 카드, payload를 올리지 않는다.
+- 한 페이지에서는 한 가지 판단만 시킨다.
+- Debug는 별도 sheet/page로 격리한다.
+- 웹의 4-card 동시 비교는 모바일에서 쓰지 않고, 한 후보씩 live AR에 적용해 비교한다.
+```
+
+페이지:
+
+```txt
+Ready:
+  - 정면 준비 안내
+  - Provider segmented control: Vision / MediaPipe
+  - Assist segmented control: Off / On
+  - CTA: 입술 맞춤 생성
+
+Generating:
+  - 하단 4-step progress: 현재 얼굴 캡처 / 입술 경계 / UV 변환 / AR 적용
+  - 얼굴 위 로그 금지
+  - 실패 시 하단 한 줄 blockedReason
+
+Result:
+  - 한 후보만 AR 얼굴에 적용
+  - 하단 버튼: 비교 / 조정 / 저장 / 다시 생성
+  - 상단 tiny status: provider, assist, partial/blocked
+
+Compare:
+  - 하단 candidate strip: Vision Off / Vision On / MediaPipe Off / MediaPipe On
+  - 탭 또는 스와이프할 때 같은 얼굴 위에 한 후보씩 적용
+  - IoU와 payload는 Debug에서만 표시
+
+Adjust:
+  - 한 번에 한 조정 축만 보여준다: 입꼬리 / 윗입술 / 아랫입술 / 위치
+  - 기본 조작은 `- / +` stepper, slider는 보조
+  - 조정값 변경 후에는 mask 재생성이 필요한지, shader preview만 바뀐 것인지 명확히 표시
+
+Save:
+  - generatedMaskId, provider, expressionMode, adjustment, runtimeApplyPayload, qualityWarnings, privacyFlags 저장
+  - 저장 후 neutral / smile / open-close / pucker / yaw evidence 체크로 이동
+
+Debug:
+  - payload JSON, warnings, mesh counts, blendshape values, latency, FPS
+  - 최종 시각 판단 screenshot/recording 화면으로 쓰지 않는다
+```
 
 ### 5.1 Generate는 진짜 생성이다
 

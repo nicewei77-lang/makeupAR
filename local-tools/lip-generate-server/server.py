@@ -13,7 +13,6 @@ import base64
 import json
 import mimetypes
 import re
-import shutil
 import subprocess
 import sys
 import threading
@@ -32,6 +31,7 @@ from PIL import Image, ImageDraw, ImageFilter
 ROOT = Path(__file__).resolve().parents[2]
 INVENTORY_PATH = ROOT / "fixtures/lip-generate/fixture_inventory.json"
 RUN_ROOT = ROOT / "evidence/e7-lip-generate-server"
+SAVE_ROOT = RUN_ROOT / "saved"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8791
 ALLOWED_ORIGINS = {
@@ -200,6 +200,20 @@ def make_run_dir(request_id: str, provider: str, expression_mode: str) -> Path:
     return run_dir
 
 
+def ensure_run_artifact(path_value: str, expected_name: str) -> Path:
+    path = artifact_path(path_value)
+    resolved = path.resolve()
+    if not is_allowed_artifact(resolved):
+        raise ValueError(f"artifact_not_allowed:{path_value}")
+    if RUN_ROOT.resolve() not in [resolved, *resolved.parents]:
+        raise ValueError(f"artifact_not_in_generate_run_root:{path_value}")
+    if resolved.name != expected_name:
+        raise ValueError(f"unexpected_artifact_name:{resolved.name}")
+    if not resolved.exists() or not resolved.is_file():
+        raise FileNotFoundError(str(resolved))
+    return resolved
+
+
 def points_from_vision(contour: dict[str, Any]) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
     contours = contour.get("contours", {})
     outer = contours.get("outerLips", {}).get("imagePoints", [])
@@ -217,18 +231,127 @@ def points_from_mediapipe(points: dict[str, Any]) -> tuple[list[tuple[float, flo
     return outer_points, inner_points
 
 
-def make_polygon_mask(
+def normalized_adjustment(payload: dict[str, Any]) -> dict[str, float]:
+    adjustment = payload.get("adjustment") or {}
+    return {
+        key: max(-1.0, min(1.0, float(adjustment.get(key, 0.0))))
+        for key in (
+            "cornerReach",
+            "upperLipTightness",
+            "lowerLipTightness",
+            "verticalOffset",
+        )
+    }
+
+
+def bounds(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    return min(xs), min(ys), max(xs), max(ys)
+
+
+def apply_lip_adjustment(
+    points: list[tuple[float, float]],
+    adjustment: dict[str, float],
+    reference_bounds: tuple[float, float, float, float],
+    frame_size: tuple[int, int],
+    *,
+    inner: bool = False,
+) -> list[tuple[float, float]]:
+    if not points:
+        return []
+
+    min_x, min_y, max_x, max_y = reference_bounds
+    width = max(max_x - min_x, 1.0)
+    height = max(max_y - min_y, 1.0)
+    center_x = min_x + width * 0.5
+    center_y = min_y + height * 0.5
+    corner_scale = 0.45 if inner else 1.0
+    tightness_scale = 0.35 if inner else 1.0
+    adjusted: list[tuple[float, float]] = []
+
+    for x, y in points:
+        dx = x - center_x
+        dy = y - center_y
+        corner_weight = min(1.0, abs(dx) / (width * 0.5))
+        vertical_weight = min(1.0, abs(dy) / (height * 0.5))
+
+        x = center_x + dx * (
+            1.0 + adjustment["cornerReach"] * 0.22 * corner_weight * corner_scale
+        )
+        y += adjustment["verticalOffset"] * height * 0.38
+
+        if dy < 0:
+            y += adjustment["upperLipTightness"] * height * 0.24 * vertical_weight * tightness_scale
+        elif dy > 0:
+            y -= adjustment["lowerLipTightness"] * height * 0.24 * vertical_weight * tightness_scale
+
+        adjusted.append(
+            (
+                max(0.0, min(float(frame_size[0] - 1), x)),
+                max(0.0, min(float(frame_size[1] - 1), y)),
+            )
+        )
+
+    return adjusted
+
+
+def chaikin_closed(
+    points: list[tuple[float, float]], iterations: int
+) -> list[tuple[float, float]]:
+    if len(points) < 3:
+        return points
+    curve = points
+    for _ in range(iterations):
+        next_curve: list[tuple[float, float]] = []
+        for index, point in enumerate(curve):
+            next_point = curve[(index + 1) % len(curve)]
+            next_curve.append(
+                (
+                    point[0] * 0.75 + next_point[0] * 0.25,
+                    point[1] * 0.75 + next_point[1] * 0.25,
+                )
+            )
+            next_curve.append(
+                (
+                    point[0] * 0.25 + next_point[0] * 0.75,
+                    point[1] * 0.25 + next_point[1] * 0.75,
+                )
+            )
+        curve = next_curve
+    return curve
+
+
+def make_smooth_curve_mask(
     frame_size: tuple[int, int],
     outer_points: list[tuple[float, float]],
     inner_points: list[tuple[float, float]],
-) -> Image.Image:
-    mask = Image.new("L", frame_size, 0)
+    adjustment: dict[str, float],
+    *,
+    smooth_iterations: int,
+) -> tuple[Image.Image, list[tuple[float, float]], list[tuple[float, float]]]:
+    reference_bounds = bounds(outer_points)
+    adjusted_outer = apply_lip_adjustment(
+        outer_points, adjustment, reference_bounds, frame_size
+    )
+    adjusted_inner = apply_lip_adjustment(
+        inner_points, adjustment, reference_bounds, frame_size, inner=True
+    )
+    outer_curve = chaikin_closed(adjusted_outer, smooth_iterations)
+    inner_curve = chaikin_closed(adjusted_inner, max(1, smooth_iterations - 1))
+    scale = 4
+    scaled_size = (frame_size[0] * scale, frame_size[1] * scale)
+    mask = Image.new("L", scaled_size, 0)
     draw = ImageDraw.Draw(mask)
-    if outer_points:
-        draw.polygon(outer_points, fill=255)
-    if inner_points:
-        draw.polygon(inner_points, fill=0)
-    return mask
+    if outer_curve:
+        draw.polygon([(x * scale, y * scale) for x, y in outer_curve], fill=255)
+    if len(inner_curve) >= 3:
+        draw.polygon([(x * scale, y * scale) for x, y in inner_curve], fill=0)
+    return (
+        mask.resize(frame_size, Image.Resampling.LANCZOS),
+        outer_curve,
+        inner_curve,
+    )
 
 
 def save_alpha(mask_path: Path, alpha_path: Path) -> None:
@@ -250,7 +373,11 @@ def save_overlay(frame_path: Path, mask_path: Path, overlay_path: Path, label: s
     Image.fromarray(np.clip(frame_array, 0, 255).astype(np.uint8)).save(overlay_path)
 
 
-def generate_vision_mask(fixture: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], list[str]]:
+def generate_vision_mask(
+    fixture: dict[str, Any],
+    run_dir: Path,
+    adjustment: dict[str, float],
+) -> tuple[dict[str, Any], list[str]]:
     provider = fixture["providers"]["vision"]
     contour_path = repo_path(provider["contourPath"])
     frame_path = repo_path(fixture["framePath"])
@@ -264,14 +391,19 @@ def generate_vision_mask(fixture: dict[str, Any], run_dir: Path) -> tuple[dict[s
     alpha_path = run_dir / "vision_lip_alpha.png"
     overlay_path = run_dir / "vision_lip_overlay.png"
     boundary_path = run_dir / "vision_lip_boundary_2d.json"
-    make_polygon_mask(frame.size, outer_points, inner_points).save(mask_path)
+    mask, outer_curve, inner_curve = make_smooth_curve_mask(
+        frame.size, outer_points, inner_points, adjustment, smooth_iterations=4
+    )
+    mask.save(mask_path)
     save_alpha(mask_path, alpha_path)
     save_overlay(frame_path, mask_path, overlay_path, "vision")
     boundary = {
         "coordinateSpace": "frame_image_pixel_top_left",
-        "outerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in outer_points],
-        "innerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in inner_points],
+        "outerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in outer_curve],
+        "innerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in inner_curve],
         "source": "vision",
+        "generationMethod": "vision_curve_fill",
+        "adjustmentApplied": adjustment,
     }
     write_json(boundary_path, boundary)
     outputs = {
@@ -281,31 +413,42 @@ def generate_vision_mask(fixture: dict[str, Any], run_dir: Path) -> tuple[dict[s
         "boundary": rel(boundary_path),
         "contour": rel(contour_path),
     }
-    return outputs, provider.get("warnings", [])
+    warnings = list(provider.get("warnings", []))
+    warnings.append("vision_curve_fill_smooth_boundary_no_cv_skimage")
+    return outputs, warnings
 
 
-def generate_mediapipe_mask(fixture: dict[str, Any], run_dir: Path) -> tuple[dict[str, Any], list[str]]:
+def generate_mediapipe_mask(
+    fixture: dict[str, Any],
+    run_dir: Path,
+    adjustment: dict[str, float],
+) -> tuple[dict[str, Any], list[str]]:
     provider = fixture["providers"]["mediapipe"]
     frame_path = repo_path(fixture["framePath"])
-    source_mask_path = repo_path(provider["maskPath"])
     points_path = repo_path(provider["pointsPath"])
     points = read_json(points_path)
     outer_points, inner_points = points_from_mediapipe(points)
+    frame = Image.open(frame_path)
 
     mask_path = run_dir / "mediapipe_lip_mask.png"
     alpha_path = run_dir / "mediapipe_lip_alpha.png"
     overlay_path = run_dir / "mediapipe_lip_overlay.png"
     boundary_path = run_dir / "mediapipe_lip_boundary_2d.json"
-    shutil.copyfile(source_mask_path, mask_path)
+    mask, outer_curve, inner_curve = make_smooth_curve_mask(
+        frame.size, outer_points, inner_points, adjustment, smooth_iterations=2
+    )
+    mask.save(mask_path)
     save_alpha(mask_path, alpha_path)
     save_overlay(frame_path, mask_path, overlay_path, "mediapipe")
     write_json(
         boundary_path,
         {
             "coordinateSpace": "frame_image_pixel_top_left",
-            "outerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in outer_points],
-            "innerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in inner_points],
+            "outerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in outer_curve],
+            "innerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in inner_curve],
             "source": "mediapipe",
+            "generationMethod": "mediapipe_curve_fill",
+            "adjustmentApplied": adjustment,
         },
     )
     outputs = {
@@ -315,7 +458,9 @@ def generate_mediapipe_mask(fixture: dict[str, Any], run_dir: Path) -> tuple[dic
         "boundary": rel(boundary_path),
         "points": rel(points_path),
     }
-    return outputs, provider.get("warnings", [])
+    warnings = list(provider.get("warnings", []))
+    warnings.append("mediapipe_curve_fill_adjusted_from_landmarks")
+    return outputs, warnings
 
 
 def run_projection(
@@ -478,10 +623,13 @@ def generate(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     run_dir = make_run_dir(payload.get("requestId") or f"generate-{utc_stamp()}", provider, expression_mode)
     write_json(run_dir / "request.json", redact_request_for_storage(payload))
 
+    normalized = normalized_adjustment(payload)
     if provider == "vision":
-        mask_outputs, provider_warnings = generate_vision_mask(fixture, run_dir)
+        mask_outputs, provider_warnings = generate_vision_mask(fixture, run_dir, normalized)
     else:
-        mask_outputs, provider_warnings = generate_mediapipe_mask(fixture, run_dir)
+        mask_outputs, provider_warnings = generate_mediapipe_mask(
+            fixture, run_dir, normalized
+        )
 
     projection_summary, projection_warnings = run_projection(
         fixture, provider, mask_outputs["mask"], run_dir
@@ -528,6 +676,82 @@ def generate(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     }
     write_json(run_dir / "result.json", result)
     return 200, result
+
+
+def compact_saved_record(package: dict[str, Any], save_dir: Path) -> dict[str, Any]:
+    metadata_path = save_dir / "saved_record.json"
+    preview = package.get("roundTripPreview")
+    uv_texture = package.get("uvMaskTexture")
+    return {
+        "schemaVersion": "e7-lip-generate-saved-record-v0",
+        "savedAt": utc_now(),
+        "generatedMaskId": package.get("generatedMaskId"),
+        "provider": package.get("provider"),
+        "expressionMode": package.get("expressionMode"),
+        "adjustment": package.get("adjustment"),
+        "status": "saved_local_only",
+        "packagePath": rel(save_dir / "generated_lip_package.json"),
+        "metadataPath": rel(metadata_path),
+        "roundTripPreview": preview,
+        "uvMaskTexture": uv_texture,
+        "privacyFlags": DEFAULT_PRIVACY,
+        "runtimeReady": bool(
+            package.get("runtimeApplyPayload", {}).get("runtimeReady", False)
+        ),
+    }
+
+
+def save_generated_package(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
+    package_path_value = payload.get("packagePath")
+    if not isinstance(package_path_value, str):
+        return 400, {"status": "blocked", "blockers": ["missing_packagePath"]}
+
+    try:
+        package_path = ensure_run_artifact(package_path_value, "generated_lip_package.json")
+    except (FileNotFoundError, ValueError) as exc:
+        return 400, {"status": "blocked", "blockers": [str(exc)]}
+
+    package = read_json(package_path)
+    generated_mask_id = safe_id(str(package.get("generatedMaskId") or package_path.parent.name))
+    requested_id = payload.get("generatedMaskId")
+    if requested_id and requested_id != package.get("generatedMaskId"):
+        return 400, {"status": "blocked", "blockers": ["generatedMaskId_mismatch"]}
+    if package.get("privacyFlags") != DEFAULT_PRIVACY:
+        return 400, {"status": "blocked", "blockers": ["privacyFlags_not_local_only"]}
+
+    save_dir = SAVE_ROOT / generated_mask_id
+    save_dir.mkdir(parents=True, exist_ok=True)
+    target_package = save_dir / "generated_lip_package.json"
+    shutil_copy(package_path, target_package)
+
+    source_result_path = package_path.parent / "result.json"
+    if source_result_path.exists():
+        shutil_copy(source_result_path, save_dir / "result.json")
+
+    record = compact_saved_record(package, save_dir)
+    write_json(save_dir / "saved_record.json", record)
+    return 200, {"status": "saved", "record": record}
+
+
+def list_saved_packages() -> tuple[int, dict[str, Any]]:
+    records: list[dict[str, Any]] = []
+    if SAVE_ROOT.exists():
+        for record_path in sorted(SAVE_ROOT.glob("*/saved_record.json")):
+            try:
+                records.append(read_json(record_path))
+            except json.JSONDecodeError:
+                continue
+    records.sort(key=lambda item: str(item.get("savedAt", "")), reverse=True)
+    return 200, {
+        "schemaVersion": "e7-lip-generate-saved-list-v0",
+        "status": "ready",
+        "records": records,
+    }
+
+
+def shutil_copy(source: Path, target: Path) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(source.read_bytes())
 
 
 class LipGenerateHandler(BaseHTTPRequestHandler):
@@ -577,6 +801,10 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
             return
         if parsed.path == "/api/lip-mask/fixtures":
             self.send_json(200, load_inventory())
+            return
+        if parsed.path == "/api/lip-mask/saved":
+            status_code, result = list_saved_packages()
+            self.send_json(status_code, result)
             return
         if parsed.path.startswith("/api/lip-mask/runs/"):
             run_id = safe_id(parsed.path.rsplit("/", 1)[-1])
@@ -641,6 +869,10 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
                 return
             self.send_json(status_code, result)
             return
+        if parsed.path == "/api/lip-mask/save":
+            status_code, result = save_generated_package(payload)
+            self.send_json(status_code, result)
+            return
         self.send_json(404, {"status": "blocked", "reason": "not_found"})
 
 
@@ -656,36 +888,82 @@ def smoke(host: str) -> int:
         "baseUrl": base_url,
         "providers": {},
     }
+
+    def post_json(path: str, payload: dict[str, Any], timeout: int = 120) -> dict[str, Any]:
+        request = urllib.request.Request(
+            f"{base_url}{path}",
+            data=json.dumps(payload).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    def generate_smoke(provider: str, label: str, adjustment: dict[str, float]) -> dict[str, Any]:
+        payload = {
+            "requestId": f"smoke-{label}-{provider}-{utc_stamp()}",
+            "provider": provider,
+            "expressionMode": "uvOnly",
+            "adjustment": adjustment,
+            "frameSource": "fixture",
+            "fixtureId": "pair_face_20260622T143334Z_03",
+            "privacy": DEFAULT_PRIVACY,
+        }
+        return post_json("/api/lip-mask/generate", payload)
+
+    def mask_delta(a_path: str, b_path: str) -> int:
+        a = np.asarray(Image.open(repo_path(a_path)).convert("L"), dtype=np.int16)
+        b = np.asarray(Image.open(repo_path(b_path)).convert("L"), dtype=np.int16)
+        if a.shape != b.shape:
+            return -1
+        return int(np.count_nonzero(np.abs(a - b) > 8))
+
     try:
         for provider in ("vision", "mediapipe"):
-            payload = {
-                "requestId": f"smoke-{utc_stamp()}",
-                "provider": provider,
-                "expressionMode": "uvOnly",
-                "adjustment": {
+            baseline = generate_smoke(
+                provider,
+                "baseline",
+                {
                     "cornerReach": 0,
                     "upperLipTightness": 0,
                     "lowerLipTightness": 0,
                     "verticalOffset": 0,
                 },
-                "frameSource": "fixture",
-                "fixtureId": "pair_face_20260622T143334Z_03",
-                "privacy": DEFAULT_PRIVACY,
-            }
-            request = urllib.request.Request(
-                f"{base_url}/api/lip-mask/generate",
-                data=json.dumps(payload).encode("utf-8"),
-                headers={"Content-Type": "application/json"},
-                method="POST",
             )
-            with urllib.request.urlopen(request, timeout=120) as response:
-                data = json.loads(response.read().decode("utf-8"))
+            adjusted = generate_smoke(
+                provider,
+                "adjusted",
+                {
+                    "cornerReach": 0.35,
+                    "upperLipTightness": -0.25,
+                    "lowerLipTightness": 0.25,
+                    "verticalOffset": -0.2,
+                },
+            )
+            delta = mask_delta(
+                baseline.get("maskOutputs", {}).get("mask", ""),
+                adjusted.get("maskOutputs", {}).get("mask", ""),
+            )
+            save_result = post_json(
+                "/api/lip-mask/save",
+                {
+                    "generatedMaskId": adjusted.get("generatedMaskId"),
+                    "packagePath": f"{adjusted.get('runDirectory')}/generated_lip_package.json",
+                },
+            )
             summary["providers"][provider] = {
-                "status": data.get("status"),
-                "uvMaskReady": data.get("uvMaskReady"),
-                "roundTripReady": data.get("roundTripReady"),
-                "runDirectory": data.get("runDirectory"),
-                "warningCount": len(data.get("warnings", [])),
+                "status": adjusted.get("status"),
+                "uvMaskReady": adjusted.get("uvMaskReady"),
+                "roundTripReady": adjusted.get("roundTripReady"),
+                "runDirectory": adjusted.get("runDirectory"),
+                "baselineRunDirectory": baseline.get("runDirectory"),
+                "adjustedMaskDeltaPixels": delta,
+                "generationMethod": adjusted.get("package", {})
+                .get("lipBoundary2D", {})
+                .get("generationMethod"),
+                "saveStatus": save_result.get("status"),
+                "savedPackagePath": save_result.get("record", {}).get("packagePath"),
+                "warningCount": len(adjusted.get("warnings", [])),
             }
     finally:
         server.shutdown()
@@ -693,7 +971,13 @@ def smoke(host: str) -> int:
 
     summary["status"] = (
         "partial"
-        if all(item.get("uvMaskReady") and item.get("roundTripReady") for item in summary["providers"].values())
+        if all(
+            item.get("uvMaskReady")
+            and item.get("roundTripReady")
+            and item.get("adjustedMaskDeltaPixels", 0) > 0
+            and item.get("saveStatus") == "saved"
+            for item in summary["providers"].values()
+        )
         else "blocked"
     )
     output_dir = RUN_ROOT / f"smoke-{int(time.time())}"
