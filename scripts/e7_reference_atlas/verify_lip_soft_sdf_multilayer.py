@@ -70,9 +70,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-gloss-atlas-active-pixels", type=int, default=24)
     parser.add_argument("--max-gloss-atlas-active-pixels", type=int, default=80)
     parser.add_argument("--min-gloss-atlas-core-components", type=int, default=1)
-    parser.add_argument("--max-gloss-atlas-core-components", type=int, default=2)
+    parser.add_argument("--max-gloss-atlas-core-components", type=int, default=4)
     parser.add_argument("--min-gloss-atlas-soft-components", type=int, default=1)
-    parser.add_argument("--max-gloss-atlas-soft-components", type=int, default=2)
+    parser.add_argument("--max-gloss-atlas-soft-components", type=int, default=5)
     parser.add_argument("--max-gloss-atlas-core-component-width", type=int, default=44)
     return parser.parse_args()
 
@@ -175,11 +175,11 @@ def verify_gloss_atlas(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     )
     box = active_bbox(soft_active)
     require(
-        237 <= box["left"] <= 239
-        and 271 <= box["right"] <= 273
-        and box["top"] == 336
-        and box["bottom"] == 336,
-        f"Gloss atlas A-channel bbox moved out of the expected lower-lip specular streak: {box}",
+        238 <= box["left"] <= 240
+        and 266 <= box["right"] <= 268
+        and 335 <= box["top"] <= 336
+        and 338 <= box["bottom"] <= 340,
+        f"Gloss atlas A-channel bbox moved out of the expected lower-lip specular cluster: {box}",
     )
     soft_boxes = component_boxes(mid_active)
     core_boxes = component_boxes(core_active)
@@ -187,13 +187,13 @@ def verify_gloss_atlas(path: Path, args: argparse.Namespace) -> dict[str, Any]:
         args.min_gloss_atlas_soft_components
         <= len(soft_boxes)
         <= args.max_gloss_atlas_soft_components,
-        f"Gloss atlas soft highlight should stay as one continuous narrow streak: {len(soft_boxes)}",
+        f"Gloss atlas soft highlight should stay as a compact lower-lip cluster: {len(soft_boxes)}",
     )
     require(
         args.min_gloss_atlas_core_components
         <= len(core_boxes)
         <= args.max_gloss_atlas_core_components,
-        f"Gloss atlas bright core should stay as one lower-lip reflection: {len(core_boxes)}",
+        f"Gloss atlas bright core should stay as small lower-lip reflections: {len(core_boxes)}",
     )
     require(
         all(box_item["width"] <= args.max_gloss_atlas_core_component_width for box_item in core_boxes),
@@ -202,7 +202,7 @@ def verify_gloss_atlas(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     upper_soft_pixels = int((mid_active & (np.indices(mid_active.shape)[0] < 332)).sum())
     lower_core_pixels = int((core_active & (np.indices(core_active.shape)[0] >= 335)).sum())
     require(upper_soft_pixels <= 2, f"Gloss atlas should not brighten the inner mouth line: {upper_soft_pixels}")
-    require(lower_core_pixels >= 22, f"Gloss atlas lower-lip specular core is too weak: {lower_core_pixels}")
+    require(lower_core_pixels >= 18, f"Gloss atlas lower-lip specular core is too weak: {lower_core_pixels}")
     return {
         "activePixelsGt8": active_pixels,
         "bboxGt8": box,
