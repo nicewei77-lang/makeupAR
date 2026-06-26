@@ -2128,6 +2128,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 return "cheek-drawn-mask-v1";
             case "eye":
                 return "eye-drawn-mask-v1";
+            case "brow":
+                return "brow-drawn-mask-v1";
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -2719,6 +2721,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);
                 brightnessScale = Mathf.Lerp(1.0f, 1.1f, recipe.Intensity);
                 break;
+            case "natural_brow":
+                sampleAlphaScale = Mathf.Lerp(0.42f, 0.64f, recipe.Intensity);
+                brightnessScale = 0.72f;
+                break;
+            case "soft_brow":
+                sampleAlphaScale = Mathf.Lerp(0.32f, 0.5f, recipe.Intensity);
+                brightnessScale = 0.82f;
+                break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);
                 brightnessScale = 0.9f;
@@ -2968,7 +2978,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static string NormalizeRegion(string region)
     {
         region = string.IsNullOrWhiteSpace(region) ? string.Empty : region.Trim().ToLowerInvariant();
-        if (region == "lip" || region == "cheek" || region == "eye")
+        if (region == "lip" || region == "cheek" || region == "eye" || region == "brow")
         {
             return region;
         }
@@ -2989,7 +2999,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "gradient_lip"
                     || textureSample == "overline_lip"))
             || (region == "cheek" && textureSample == "soft_blush")
-            || (region == "eye" && textureSample == "shimmer_eye"))
+            || (region == "eye" && textureSample == "shimmer_eye")
+            || (region == "brow" && (textureSample == "natural_brow" || textureSample == "soft_brow")))
         {
             return textureSample;
         }
@@ -3057,7 +3068,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
             || (region == "cheek" && maskTextureId == "cheek-smooth-mask-v1")
-            || (region == "eye" && maskTextureId == "eye-smooth-mask-v1"))
+            || (region == "eye" && maskTextureId == "eye-smooth-mask-v1")
+            || (region == "brow" && maskTextureId == "brow-drawn-mask-v1"))
         {
             return maskTextureId;
         }
@@ -3243,7 +3255,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " regionDecision=smooth_mask_runtime"
             + " smoothing=soft_sdf_multilayer_mask"
-            + " regionsInScope=lip,cheek,eye");
+            + " regionsInScope=lip,cheek,eye,brow");
     }
 
     private static string BuildTopologyAuditStatus(ARFace face)

@@ -9,7 +9,7 @@ using UnityEngine.XR.ARFoundation;
 
 public sealed class RNBridge : MonoBehaviour
 {
-    private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye" };
+    private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye", "brow" };
 
     [Serializable]
     private sealed class RecipePayload
@@ -1986,7 +1986,7 @@ public sealed class RNBridge : MonoBehaviour
             ? string.Empty
             : value.Trim().ToLowerInvariant();
 
-        if (value == "lip" || value == "cheek" || value == "eye")
+        if (value == "lip" || value == "cheek" || value == "eye" || value == "brow")
         {
             return value;
         }
@@ -2128,7 +2128,8 @@ public sealed class RNBridge : MonoBehaviour
                     || value == "gradient_lip"
                     || value == "overline_lip"))
             || (region == "cheek" && value == "soft_blush")
-            || (region == "eye" && value == "shimmer_eye"))
+            || (region == "eye" && value == "shimmer_eye")
+            || (region == "brow" && (value == "natural_brow" || value == "soft_brow")))
         {
             return value;
         }
@@ -2238,7 +2239,8 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
             || (region == "cheek" && value == "cheek-smooth-mask-v1")
-            || (region == "eye" && value == "eye-smooth-mask-v1"))
+            || (region == "eye" && value == "eye-smooth-mask-v1")
+            || (region == "brow" && value == "brow-drawn-mask-v1"))
         {
             return value;
         }
@@ -2255,6 +2257,8 @@ public sealed class RNBridge : MonoBehaviour
                 return "cheek-drawn-mask-v1";
             case "eye":
                 return "eye-drawn-mask-v1";
+            case "brow":
+                return "brow-drawn-mask-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }
