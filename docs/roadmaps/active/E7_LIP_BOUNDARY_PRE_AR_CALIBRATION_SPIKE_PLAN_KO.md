@@ -1972,16 +1972,17 @@ Use this section when the user asks Codex to run unattended multi-agent work unt
 Deadline: 2026-06-26 12:00 KST
 Usage budget: no internal token cap; use the remaining Codex app usage until exhausted
 Concurrency: max 3 active sub-agents
-Stop early when: primary goal completes, usage/quota/rate limit is exhausted, build/device/user judgment is required, or the current goal is honestly partial/blocked
+Do not stop only because human review would normally be required. When human judgment is missing, continue with an explicitly labeled `auto_provisional` or `pending_review` artifact and keep readiness `partial`.
+Stop only when: all buildless work queues are exhausted, usage/quota/rate limit is exhausted, deadline arrives, UnityFramework/Xcode/iPhone build is required, new phone capture is required, or an input is truly blocked.
 ```
 
 The manager is the current Codex thread. Do not spawn agents until the user explicitly says to start.
 
 ### Priority Order
 
-1. Primary goal: complete Section 14B `Gold-Reference Mask Derivation Experiment`.
-2. Secondary goal, only if the primary goal completes cleanly and time/usage remains: complete M3A `Buildless Runtime Sweep Prep`.
-3. Do not start M3B, UnityFramework, Xcode, iPhone install, real-device runtime sweep, or Lip G/Y/R.
+1. Primary goal: advance every unfinished lip-plan task that can be done buildlessly without phone capture, UnityFramework, Xcode, iPhone install, or runtime evidence. This is not limited to Section 14B.
+2. Dependency order: Section 14B gold-mask derivation -> optional-signal rerun -> coordinate preview/audit -> auto-provisional policy selection -> M1 package regeneration -> provisional user-adjustment review -> M1 gate matrix/next queue -> missing-scenario capture manifest -> M3A draft prep.
+3. Do not start M3B, UnityFramework, Xcode, iPhone install, real-device runtime sweep, or Lip G/Y/R. When those are required, record the exact build gate or capture queue and keep readiness partial/blocked.
 
 ### Shared Agent Contract
 
@@ -2002,7 +2003,7 @@ Hard rules:
 - do not use the rejected manual polygon lineage
 - do not treat raw gold existence as M1 ready
 - do not claim runtime readiness, E7.3 Green, or Lip G/Y/R
-- if judgment is ambiguous, choose partial_needs_review or partial, not ready
+- if judgment is ambiguous, continue with `auto_provisional|pending_review|partial`, not ready
 - do not revert edits made by other agents
 
 Required final format:
@@ -2023,8 +2024,8 @@ Run agents in this order:
 3. When Dev produces artifacts, spawn Scoring Agent.
 4. When Scoring produces `selected_policy.json`, spawn Tester Agent.
 5. Manager integrates only after Tester returns.
-6. If Section 14B ends `ready_for_coordinate_pairing` or a useful `partial_needs_review`, and the run still has time/usage, spawn M3A Prep Agent.
-7. Stop on build/device requirement and record the exact build gate question instead of continuing.
+6. If Section 14B ends `partial_needs_review`, do not stop for missing human review. Spawn follow-up agents to create `auto_provisional` selection, coordinate preview/audit, M1 package regeneration, user-adjustment provisional review, gate matrix, missing-capture manifest, review pack, and M3A draft artifacts as long as the work remains buildless.
+7. Stop on build/device/new-capture requirement and record the exact build gate or capture queue instead of continuing.
 
 ### Evidence Agent Prompt
 
@@ -2161,6 +2162,22 @@ Next exact action:
 ```
 
 If app usage is exhausted before all agents finish, stop without spawning more agents and preserve the last known partial state.
+
+### No-Stop Human Review Override
+
+For unattended runs, missing human review is not a stop condition. Agents must:
+
+- keep the relevant readiness `partial`;
+- create an `auto_provisional` or `pending_review` artifact with exact objective tie-breaker rules;
+- never write `human_reviewed`, `user_confirmed`, `M1 ready`, `runtime ready`, `E7.3 Green`, or Lip G/Y/R unless that evidence really exists;
+- continue to the next buildless artifact that can reduce ambiguity or prepare the next phone/build session.
+
+Examples:
+
+- If two mask policies tie, select a provisional policy by coordinate compatibility, spill, hard rejects, and reproducibility, then continue.
+- If user adjustment is missing, create a provisional adjustment candidate/review pack but do not mark it `user_confirmed`.
+- If captures are missing, create a capture manifest/queue and mark those gates `blocked_by_missing_capture`.
+- If runtime evidence is needed, create M3A draft artifacts only and mark candidates `runtimeReady=false`.
 
 ## 25. Relationship to Other Docs
 
