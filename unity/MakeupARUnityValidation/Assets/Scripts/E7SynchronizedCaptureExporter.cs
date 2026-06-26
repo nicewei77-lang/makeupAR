@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
+using Unity.Collections;
 using UnityEngine;
+using UnityEngine.XR.ARKit;
 using UnityEngine.XR.ARFoundation;
 using UnityEngine.XR.ARSubsystems;
 
@@ -641,7 +643,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         AppendScreenVertices(builder, projectedVertices);
         AppendUvs(builder, face);
         AppendIndices(builder, face);
-        builder.Append(",\"blendShapes\":{\"available\":false,\"source\":\"not_exposed_in_current_capture_export\"}");
+        builder.Append(",\"blendShapes\":").Append(BuildBlendShapesJson(face));
         builder.Append(",\"privacy\":{\"rawFrameStored\":true,\"rawFrameScope\":\"single_selected_validation_frame\",\"offDeviceUpload\":false}");
         builder.Append("}");
         return builder.ToString();
@@ -791,6 +793,249 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         }
 
         builder.Append("]");
+    }
+
+    private string BuildBlendShapesJson(ARFace face)
+    {
+        if (faceManager == null)
+        {
+            return BuildBlendShapesUnavailableJson(
+                "ar_face_manager_missing",
+                "ARFaceManager.TryGetBlendShapes",
+                "not_called",
+                0);
+        }
+
+        if (face == null)
+        {
+            return BuildBlendShapesUnavailableJson(
+                "ar_face_missing",
+                "ARFaceManager.TryGetBlendShapes",
+                "not_called",
+                0);
+        }
+
+        Result<NativeArray<XRFaceBlendShape>> result;
+        try
+        {
+            result = faceManager.TryGetBlendShapes(face, Allocator.Temp);
+        }
+        catch (Exception exception)
+        {
+            return BuildBlendShapesUnavailableJson(
+                "try_get_blend_shapes_exception:" + exception.GetType().Name + ":" + exception.Message,
+                "ARFaceManager.TryGetBlendShapes",
+                "exception",
+                0);
+        }
+
+        if (!result.status.IsSuccess())
+        {
+            return BuildBlendShapesUnavailableJson(
+                "try_get_blend_shapes_failed",
+                "ARFaceManager.TryGetBlendShapes",
+                result.status.statusCode.ToString(),
+                result.status.nativeStatusCode);
+        }
+
+        NativeArray<XRFaceBlendShape> blendShapes = result.value;
+        try
+        {
+            int count = blendShapes.IsCreated ? blendShapes.Length : 0;
+            StringBuilder builder = new StringBuilder(8192);
+            builder.Append("{");
+            builder.Append("\"available\":").Append((count > 0).ToString().ToLowerInvariant());
+            AppendJsonField(builder, "source", "ARFaceManager.TryGetBlendShapes", false);
+            AppendJsonField(builder, "provider", "ARKit", false);
+            AppendJsonField(builder, "statusCode", result.status.statusCode.ToString(), false);
+            builder.Append(",\"nativeStatusCode\":").Append(result.status.nativeStatusCode.ToString(CultureInfo.InvariantCulture));
+            builder.Append(",\"count\":").Append(count.ToString(CultureInfo.InvariantCulture));
+            if (count == 0)
+            {
+                AppendJsonField(builder, "reason", "empty_blend_shapes", false);
+            }
+
+            float jawOpen = 0.0f;
+            float mouthClose = 0.0f;
+            float mouthFunnel = 0.0f;
+            float mouthPucker = 0.0f;
+            float mouthSmileLeft = 0.0f;
+            float mouthSmileRight = 0.0f;
+            float mouthStretchLeft = 0.0f;
+            float mouthStretchRight = 0.0f;
+            float mouthUpperUpLeft = 0.0f;
+            float mouthUpperUpRight = 0.0f;
+            float mouthLowerDownLeft = 0.0f;
+            float mouthLowerDownRight = 0.0f;
+
+            builder.Append(",\"items\":[");
+            for (int index = 0; index < count; index++)
+            {
+                if (index > 0)
+                {
+                    builder.Append(",");
+                }
+
+                XRFaceBlendShape blendShape = blendShapes[index];
+                ARKitBlendShapeLocation location = blendShape.AsARKitBlendShapeLocation();
+                float weight = blendShape.weight;
+                switch (location)
+                {
+                    case ARKitBlendShapeLocation.JawOpen:
+                        jawOpen = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthClose:
+                        mouthClose = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthFunnel:
+                        mouthFunnel = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthPucker:
+                        mouthPucker = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthSmileLeft:
+                        mouthSmileLeft = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthSmileRight:
+                        mouthSmileRight = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthStretchLeft:
+                        mouthStretchLeft = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthStretchRight:
+                        mouthStretchRight = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthUpperUpLeft:
+                        mouthUpperUpLeft = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthUpperUpRight:
+                        mouthUpperUpRight = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthLowerDownLeft:
+                        mouthLowerDownLeft = weight;
+                        break;
+                    case ARKitBlendShapeLocation.MouthLowerDownRight:
+                        mouthLowerDownRight = weight;
+                        break;
+                }
+
+                builder.Append("{\"blendShapeId\":")
+                    .Append(blendShape.blendShapeId.ToString(CultureInfo.InvariantCulture));
+                AppendJsonField(builder, "location", location.ToString(), false);
+                builder.Append(",\"weight\":")
+                    .Append(weight.ToString("0.######", CultureInfo.InvariantCulture))
+                    .Append("}");
+            }
+
+            builder.Append("]");
+            AppendBlendShapeKeySignals(
+                builder,
+                jawOpen,
+                mouthClose,
+                mouthFunnel,
+                mouthPucker,
+                mouthSmileLeft,
+                mouthSmileRight,
+                mouthStretchLeft,
+                mouthStretchRight,
+                mouthUpperUpLeft,
+                mouthUpperUpRight,
+                mouthLowerDownLeft,
+                mouthLowerDownRight);
+            builder.Append("}");
+            return builder.ToString();
+        }
+        catch (Exception exception)
+        {
+            return BuildBlendShapesUnavailableJson(
+                "serialize_blend_shapes_exception:" + exception.GetType().Name + ":" + exception.Message,
+                "ARFaceManager.TryGetBlendShapes",
+                "exception",
+                0);
+        }
+        finally
+        {
+            if (blendShapes.IsCreated)
+            {
+                blendShapes.Dispose();
+            }
+        }
+    }
+
+    private static string BuildBlendShapesUnavailableJson(
+        string reason,
+        string source,
+        string statusCode,
+        int nativeStatusCode)
+    {
+        StringBuilder builder = new StringBuilder(512);
+        builder.Append("{\"available\":false");
+        AppendJsonField(builder, "source", source, false);
+        AppendJsonField(builder, "provider", "ARKit", false);
+        AppendJsonField(builder, "statusCode", statusCode, false);
+        builder.Append(",\"nativeStatusCode\":").Append(nativeStatusCode.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"count\":0,\"items\":[]");
+        AppendJsonField(builder, "reason", reason, false);
+        AppendBlendShapeKeySignals(
+            builder,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f,
+            0.0f);
+        builder.Append("}");
+        return builder.ToString();
+    }
+
+    private static void AppendBlendShapeKeySignals(
+        StringBuilder builder,
+        float jawOpen,
+        float mouthClose,
+        float mouthFunnel,
+        float mouthPucker,
+        float mouthSmileLeft,
+        float mouthSmileRight,
+        float mouthStretchLeft,
+        float mouthStretchRight,
+        float mouthUpperUpLeft,
+        float mouthUpperUpRight,
+        float mouthLowerDownLeft,
+        float mouthLowerDownRight)
+    {
+        builder.Append(",\"keySignals\":{");
+        AppendNumericJsonField(builder, "jawOpen", jawOpen, true);
+        AppendNumericJsonField(builder, "mouthClose", mouthClose, false);
+        AppendNumericJsonField(builder, "mouthFunnel", mouthFunnel, false);
+        AppendNumericJsonField(builder, "mouthPucker", mouthPucker, false);
+        AppendNumericJsonField(builder, "mouthSmileLeft", mouthSmileLeft, false);
+        AppendNumericJsonField(builder, "mouthSmileRight", mouthSmileRight, false);
+        AppendNumericJsonField(builder, "mouthStretchLeft", mouthStretchLeft, false);
+        AppendNumericJsonField(builder, "mouthStretchRight", mouthStretchRight, false);
+        AppendNumericJsonField(builder, "mouthUpperUpLeft", mouthUpperUpLeft, false);
+        AppendNumericJsonField(builder, "mouthUpperUpRight", mouthUpperUpRight, false);
+        AppendNumericJsonField(builder, "mouthLowerDownLeft", mouthLowerDownLeft, false);
+        AppendNumericJsonField(builder, "mouthLowerDownRight", mouthLowerDownRight, false);
+        builder.Append("}");
+    }
+
+    private static void AppendNumericJsonField(StringBuilder builder, string key, float value, bool firstField)
+    {
+        if (!firstField)
+        {
+            builder.Append(",");
+        }
+
+        builder.Append("\"")
+            .Append(key)
+            .Append("\":")
+            .Append(value.ToString("0.######", CultureInfo.InvariantCulture));
     }
 
     private void RefreshSceneReferences()

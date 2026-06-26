@@ -1,6 +1,6 @@
 # Roadmaps Index
 
-현재 작업 지시서는 `active/`에 둔다. 과거 계획, research, strategy 문서는 현재 milestone boundary를 대체하지 않는다.
+현재 작업 지시서는 `active/`에 하나만 둔다. 과거 계획, research, strategy 문서는 현재 milestone boundary를 대체하지 않는다.
 
 Token-safe reading rule:
 
@@ -12,15 +12,7 @@ Token-safe reading rule:
 
 | File | Use |
 | --- | --- |
-| `active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` | M6-E6/E7 배경 지시서. 현재 boundary와 다음 세션 라우팅은 `../../TECH_VALIDATION_RESULT.md` snapshot을 우선한다. |
-| `active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 spike boundary, E7.3-E7.6 라우팅, cosmetic renderer 진입 조건. |
-| `active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.03/E7.3 region precision, Q3 overlay-ready 기준, Yellow boundary risk. |
-| `active/E7_LIP_BOUNDARY_PRE_AR_CALIBRATION_SPIKE_PLAN_KO.md` | E7.03 lip-first pre-AR boundary calibration 계약. AR 전에 무겁게 분석하고 AR 중에는 ARFace UV/vertex로 가볍게 추적하는 계획. |
-| `active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 FPS/frame-time, thermal, memory, latency evidence 계약. |
-| `active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 보는 E7.4/E7.5 cosmetic rendering 실험 범위와 진입 조건. |
-| `active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` | future agent용 reference-driven UV atlas 구현 계약. |
-| `active/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KR.md` | UV atlas 계획의 사용자/팀원용 한국어 companion. 에이전트는 `_KO.md`를 읽은 경우 기본적으로 열지 않는다. |
-| `active/E7_EXTERNAL_MASK_PRIOR_SUBSPIKE_PLAN_KO.md` | external mask prior 탐색 가드레일. 명시적으로 재개할 때만 사용한다. |
+| `active/E7_LIP_CANDIDATE_GENERATOR_FAST_SPIKE_PLAN_KO.md` | E7 lip candidate generator fast spike 계획. 현재 lip candidate 작업 계약. |
 
 ## Strategy
 
@@ -42,5 +34,15 @@ Token-safe reading rule:
 
 | File | Use |
 | --- | --- |
+| `archive/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` | M6-E6/E7 배경 지시서. 현재 boundary와 다음 세션 라우팅은 `../../TECH_VALIDATION_RESULT.md` snapshot을 우선한다. |
 | `archive/AR_ENGINE_RESEARCH_PLAN.md` | 영어 research plan 백업. 한국어 research plan/report를 우선한다. |
+| `archive/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 spike boundary, E7.3-E7.6 라우팅, cosmetic renderer 진입 조건. |
+| `archive/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.03/E7.3 region precision, Q3 overlay-ready 기준, Yellow boundary risk. |
+| `archive/E7_LIP_BOUNDARY_PRE_AR_CALIBRATION_SPIKE_PLAN_KO.md` | E7.03 lip-first pre-AR boundary calibration 계약. lip boundary lane을 다시 열 때만 사용한다. |
+| `archive/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KO.md` | reference-driven UV atlas 구현 계약. 다시 필요할 때만 연다. |
+| `archive/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KR.md` | UV atlas 계획의 사용자/팀원용 한국어 companion. `_KO.md`를 우선한다. |
+| `archive/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md` | lip sample v0 runtime review 컨텍스트. lip sample 튜닝을 재개할 때만 연다. |
+| `archive/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 FPS/frame-time, thermal, memory, latency evidence 계약. |
+| `archive/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 보는 E7.4/E7.5 cosmetic rendering 실험 범위와 진입 조건. |
+| `archive/E7_EXTERNAL_MASK_PRIOR_SUBSPIKE_PLAN_KO.md` | external mask prior 탐색 가드레일. 명시적으로 재개할 때만 사용한다. |
 | `archive/TECH_VALIDATION_HISTORY_2026-06-22.md` | 2026-06-22 snapshot 축소 전 `TECH_VALIDATION_RESULT.md` 전체 이력 백업. |

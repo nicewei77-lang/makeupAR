@@ -171,10 +171,10 @@ npm run ios -- --device "<TEAMMATE_IPHONE_NAME>" --no-packager --extra-params DE
 
 | Path | Reason |
 | --- | --- |
-| `docs/roadmaps/active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 boundary와 cosmetic rendering 진입 조건을 아직 설명함 |
-| `docs/roadmaps/active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.3 Yellow boundary risk와 cosmetic rendering 전제 조건을 설명함 |
-| `docs/roadmaps/active/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 이번 cosmetic rendering 실험 범위와 진입 조건을 바로 확인하는 계획서 |
-| `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 성능 비교 계약으로 재사용 가능 |
+| `docs/roadmaps/archive/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 boundary와 cosmetic rendering 진입 조건을 설명하는 보관 문서 |
+| `docs/roadmaps/archive/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.3 Yellow boundary risk와 cosmetic rendering 전제 조건을 설명하는 보관 문서 |
+| `docs/roadmaps/archive/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 cosmetic rendering 실험 범위와 진입 조건을 확인할 때 쓰는 보관 문서 |
+| `docs/roadmaps/archive/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 성능 비교 계약으로 재사용 가능한 보관 문서 |
 | `scripts/e7_reference_atlas/fast_uv_atlas_gate.py` | 작고 추적된 재현 도구. 현재 cosmetic modeling 기본 문맥에서는 읽지 않아도 되지만 과거 face-boundary 판단 재검토에 필요 |
 | `evidence/evolution/` | 처음 mesh 가능성, broad mask 한계, region precision Yellow, Ref UV sweep, smooth-mask accepted 흐름을 설명하는 대표 시각 근거 |
 | `evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/` | best current clean frame + ARFace export + projected mesh overlay. gold-mask drawing input과 face mesh 가능성 근거 |
