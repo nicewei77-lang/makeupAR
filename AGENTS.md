@@ -1,48 +1,44 @@
 # AGENTS.md
 
 ## Scope
-- This repo is for pre-product technical validation of React Native + Unity + AR Foundation on a real iPhone, then validation-only AR makeup engine feasibility.
-- Stay inside the current named milestone or explicitly named roadmap review/edit.
-- Derive the current milestone from `TECH_VALIDATION_RESULT.md` > `Next Milestone Boundary` unless the user explicitly names a different milestone.
-- Use `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` only after the M6/M7/M8 foundation path is in scope, or when the user explicitly asks about AR engine validation planning.
-- Do not start product implementation, AI/backend/admin/payment/community work, commercial SDK integration, Android work, or product-quality makeup rendering unless the milestone or user explicitly asks.
-- AI readiness in this repo means schema/evidence handoff only, such as `FaceFeatureSnapshot`; it does not mean AI model inference, recommendation, backend upload, or raw-frame storage.
+- This repo is for React Native + Unity + AR Foundation based AR makeup product development on a real iPhone; prior validation docs remain decision history.
+- Follow the user's current product task or explicitly named roadmap/review scope; validation milestones are historical context, not implementation gates.
+- Do not derive active scope from `TECH_VALIDATION_RESULT.md` unless the user asks for validation status/audit; use it as technical history and known-risk context.
+- Use `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` only when the user asks about AR engine validation planning or prior validation decisions.
+- AR product implementation and product-quality makeup rendering are allowed; get user approval before implementing non-AR product areas such as AI/backend/admin/payment/community, commercial SDK integration, or Android work.
+- AI/model inference, recommendation, backend upload, or raw-frame storage require explicit user approval and privacy review before implementation.
 
 ## Required Reading
-- Start each session with `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`; read `TECH_VALIDATION_TEST_PLAN.md` only when changing the validation contract or checking milestone/evidence rules.
-- Treat the result snapshot as latest status, active docs, evidence summary, stop rules, and next boundary.
-- For AR engine validation, read only the current milestone section of `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`; if it conflicts with the result snapshot, the snapshot wins.
-- For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
+- Start each session with `AGENTS.md`; consult `TECH_VALIDATION_RESULT.md` only when prior validation state, build/device status, or known limitations matter.
+- Treat validation snapshots as historical decision/evidence records, not active stop rules, milestone gates, or next boundaries unless the user explicitly asks for validation work.
+- Read `TECH_VALIDATION_TEST_PLAN.md` only when changing or auditing the old validation contract.
+- For validation/research tasks, lazy-load only the relevant roadmap or research file instead of whole folders.
 
 ## Build Loop
-- Before Unity/RN real-device builds, stop and report the build question, primary path, compare-only paths, validation contract, evidence matrix, and out-of-scope items; build only after user approval.
-- Before builds, exhaust buildless checks first: static tests, Unity batchmode import/compile, existing recording/capture-pair frame analysis, and ARFace export projection/contact-sheet previews.
-- Every approved Unity/RN validation session should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
+- Before Unity/RN real-device builds, stop and report the build question, primary path, target device/signing assumptions, expected risk, and out-of-scope items; build only after user approval.
+- Before builds, run relevant practical checks first: static tests, Unity batchmode import/compile, local previews, or asset checks when useful.
+- Every approved Unity/RN device build should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
 - The script exports Unity iOS, verifies ARKit links, builds `UnityFramework` with signing disabled, copies Unity `Data`, and syncs RN/package framework paths.
-- After sync, run from `rn/MakeupARValidation`: `npm run ios -- --udid 00008110-0001794E0CD9801E --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK` (`202268054(여서진)`).
+- After sync, run RN/Xcode with the user-approved target device and signing team for the current build; do not hard-code a specific UDID or `DEVELOPMENT_TEAM` as the repo default.
 - Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; stale Licensing Client IPC can block export (`Unsupported protocol version '1.18.1'`).
 - Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable; stale package frameworks previously caused missing Unity objects/events.
 
 ## Document Rules
 - Keep this file at 50 lines or fewer.
-- Keep root active docs limited to `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, and `TECH_VALIDATION_RESULT.md`.
-- Do not update `TECH_VALIDATION_TEST_PLAN.md` for progress/status unless correcting the validation contract itself.
-- Create `M*_..._PLAN.md` or `E*_..._PLAN.md` only as temporary session plans.
-- After a session completes, absorb the result into `TECH_VALIDATION_RESULT.md` and delete the temporary plan.
-- Put reusable procedures in `docs/runbooks/`; keep roadmap/research docs under `docs/roadmaps/`.
+- Keep root docs minimal; put product docs under `docs/product/`, architecture under `docs/architecture/`, runbooks under `docs/runbooks/`, and roadmap/research under `docs/roadmaps/`.
+- Keep `TECH_VALIDATION_TEST_PLAN.md` stable unless correcting the old validation contract.
+- Treat `TECH_VALIDATION_RESULT.md` as validation history; do not force product progress into it unless the user asks or the work directly updates validation history.
+- Put durable product decisions in product/architecture/roadmap docs, not temporary milestone notes.
 
-## Milestone Boundaries
-- M6 must prove Unity -> RN events before M7, AR alignment, region masks, texture work, or AI readiness.
-- M7 must prove re-entry stability or document a clear Yellow workaround before AR engine renderer work.
-- M8 must separate integration Green from visual makeup readiness; do not mark face-fitted rendering Green before E1/E3 evidence.
-- E1 must prove camera/feed/face mesh alignment before region/texture work; E3 validates only `lip`, `cheek`, and `eye`, with other regions future scope unless explicitly added.
-- E5 AI readiness is a no-inference feature snapshot handoff, not AI product work.
-- E7 is validation/hardening only: keep `lip`/`cheek`/`eye` decisions separate, require visual/performance evidence, and never promote M7 or product readiness without matching evidence.
+## Product Boundaries
+- Historical M/E validation milestones are not gates for product work.
+- Product work can proceed from the user's chosen scope; record known risks and mitigations instead of blocking on Green/Yellow validation status.
+- Keep `lip`, `cheek`, `eye`, camera modes, photo/video, and realtime AR decisions separate when that helps product planning or QA.
+- Do not claim App Store, commercial, privacy, license, or production readiness without matching review/check evidence.
 
-## Evidence and Cleanup
-- Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation; E7 also needs FPS/frame-time, thermal, memory, latency, region G/Y/R, and demo-look evidence.
-- A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
-- Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
+## Records and Cleanup
+- Keep concise records of important decisions, builds, known limitations, user acceptance, and release/QA checks in the appropriate docs or evidence folders.
+- Store supporting artifacts under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
 - Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; then keep metadata/contact sheets/representative frames and delete the raw recording when no longer needed.
 - For local video inspection, prefer Homebrew `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe` when available.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
