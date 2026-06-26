@@ -72,12 +72,22 @@ export function validateGenerateRequest(request: LipGenerateRequest): GateReport
   };
 }
 
+function isPositiveFiniteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0;
+}
+
 export function validateGeneratedPackage(
   generatedPackage: LipGeneratePackage,
 ): GateReport {
   const blockers: string[] = [];
   const warnings: string[] = [];
+  const runtimePayload = generatedPackage.runtimeApplyPayload;
   const record = generatedPackage as unknown as Record<string, unknown>;
+  const addPrivacyBlockers = (prefix: string, report: GateReport) => {
+    blockers.push(
+      ...report.blockers.map((blocker) => `${prefix}.${blocker}`),
+    );
+  };
 
   for (const field of REQUIRED_PACKAGE_FIELDS) {
     if (record[field] === undefined || record[field] === null) {
@@ -90,10 +100,29 @@ export function validateGeneratedPackage(
   if (!generatedPackage.roundTripPreview) {
     blockers.push('missing_round_trip_preview');
   }
-  if (!generatedPackage.runtimeApplyPayload?.localOnly) {
-    blockers.push('runtime_payload_not_local_only');
+  addPrivacyBlockers(
+    'runtime_payload',
+    validatePrivacyFlags(runtimePayload),
+  );
+  addPrivacyBlockers(
+    'package_privacy_flags',
+    validatePrivacyFlags(generatedPackage.privacyFlags),
+  );
+  if (runtimePayload?.maskTextureEncoding !== 'raw_rgba_base64') {
+    blockers.push(
+      'runtime_payload.maskTextureEncoding_must_be_raw_rgba_base64',
+    );
   }
-  if (generatedPackage.runtimeApplyPayload?.runtimeReady) {
+  if (!runtimePayload?.maskRawRgbaBase64) {
+    blockers.push('runtime_payload.missing_maskRawRgbaBase64');
+  }
+  if (!isPositiveFiniteNumber(runtimePayload?.maskTextureWidth)) {
+    blockers.push('runtime_payload.invalid_maskTextureWidth');
+  }
+  if (!isPositiveFiniteNumber(runtimePayload?.maskTextureHeight)) {
+    blockers.push('runtime_payload.invalid_maskTextureHeight');
+  }
+  if (runtimePayload?.runtimeReady) {
     warnings.push('runtime_ready_claim_requires_device_evidence');
   }
   if (

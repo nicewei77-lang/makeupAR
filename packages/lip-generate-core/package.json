@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "../../rn/MakeupARValidation/node_modules/.bin/tsc -p tsconfig.json --noEmit",
-    "test": "node scripts/check_fixture_inventory.mjs"
+    "test": "node scripts/check_fixture_inventory.mjs && node scripts/check_validation_gates.mjs"
   },
   "devDependencies": {}
 }
