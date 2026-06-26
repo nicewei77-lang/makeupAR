@@ -122,6 +122,10 @@ h2 {
   justify-content: flex-end;
 }
 
+.full-face-workspace {
+  grid-template-columns: 360px minmax(0, 1fr);
+}
+
 .workspace {
   max-width: 1580px;
   margin: 0 auto;
@@ -145,6 +149,37 @@ h2 {
   position: sticky;
   top: 12px;
   padding: 12px;
+}
+
+.region-tabs {
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.region-tab,
+.region-card {
+  text-align: left;
+}
+
+.region-tab {
+  display: grid;
+  gap: 4px;
+  min-height: 56px;
+  padding: 9px 10px;
+}
+
+.region-tab[data-active="true"],
+.region-card[data-active="true"] {
+  border-color: var(--accent-2);
+  background: var(--soft);
+}
+
+.region-tab span,
+.region-card span,
+.region-card small {
+  color: var(--muted);
+  font-size: 12px;
 }
 
 .panel-section + .panel-section {
@@ -329,6 +364,26 @@ input[type="range"] {
   gap: 10px;
 }
 
+.full-face-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 1.1fr) minmax(260px, 0.9fr);
+  gap: 10px;
+}
+
+.region-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.region-card {
+  display: grid;
+  min-height: 92px;
+  gap: 6px;
+  padding: 11px;
+}
+
 figure,
 .compare-card {
   margin: 0;
@@ -358,12 +413,18 @@ figcaption,
 
 figure img,
 .compare-card img,
+.full-face-image-card img,
 .image-empty {
   display: block;
   width: 100%;
   aspect-ratio: 9 / 14;
   object-fit: cover;
   background: #edf0eb;
+}
+
+.full-face-image-card img {
+  aspect-ratio: 16 / 10;
+  object-fit: contain;
 }
 
 .image-empty {
@@ -511,7 +572,9 @@ pre {
   }
 
   .preview-grid,
-  .compare-grid {
+  .compare-grid,
+  .full-face-grid,
+  .region-card-grid {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
   }
 }

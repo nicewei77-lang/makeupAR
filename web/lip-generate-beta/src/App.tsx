@@ -24,6 +24,7 @@ import {
   SavedLipPackageRecord,
   ServerGenerateResult,
 } from './localServerClient';
+import { FullFaceRegionShell } from './FullFaceRegionShell';
 
 const ADJUSTMENT_FIELDS: Array<keyof LipAdjustment> = [
   'cornerReach',
@@ -73,6 +74,7 @@ const ADJUSTMENT_STEP = 0.05;
 type StatusTone = 'neutral' | 'warn' | 'bad';
 
 function App() {
+  const [mode, setMode] = useState<'fullFace' | 'lipBeta'>('fullFace');
   const [state, dispatch] = useReducer(
     lipGenerateReducer,
     INITIAL_LIP_GENERATE_STATE,
@@ -113,9 +115,12 @@ function App() {
   );
 
   useEffect(() => {
+    if (mode !== 'lipBeta') {
+      return;
+    }
     void refreshFixtures();
     void refreshSavedPackages();
-  }, []);
+  }, [mode]);
 
   async function refreshFixtures() {
     setStatusMessage('로컬 fixture 확인 중');
@@ -235,6 +240,10 @@ function App() {
     ),
   };
 
+  if (mode === 'fullFace') {
+    return <FullFaceRegionShell onOpenLipBeta={() => setMode('lipBeta')} />;
+  }
+
   return (
     <main className="app-shell">
       <header className="toolbar">
@@ -245,6 +254,9 @@ function App() {
           </p>
         </div>
         <div className="toolbar-actions">
+          <button type="button" onClick={() => setMode('fullFace')}>
+            Full-face package
+          </button>
           <button type="button" onClick={() => void refreshFixtures()}>
             샘플 새로고침
           </button>

@@ -20,6 +20,7 @@ for (const file of required) {
 }
 
 const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
+const fullFace = fs.readFileSync(path.join(root, 'src/FullFaceRegionShell.tsx'), 'utf8');
 for (const token of [
   'Vision',
   'MediaPipe',
@@ -29,6 +30,20 @@ for (const token of [
 ]) {
   if (!app.includes(token)) {
     console.error(`[lip-generate-beta] App.tsx missing UI token: ${token}`);
+    failed = true;
+  }
+}
+
+for (const token of [
+  'E7 Full-Face Generate',
+  'lip',
+  'blush',
+  'brow',
+  'eyeliner',
+  'Runtime payload',
+]) {
+  if (!fullFace.includes(token)) {
+    console.error(`[lip-generate-beta] FullFaceRegionShell.tsx missing UI token: ${token}`);
     failed = true;
   }
 }
