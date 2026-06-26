@@ -1,4 +1,5 @@
 #if UNITY_EDITOR
+using System;
 using System.IO;
 using Unity.XR.CoreUtils;
 using UnityEditor;
@@ -80,10 +81,114 @@ public static class MakeupARValidationSetup
         PBXProject project = new PBXProject();
         project.ReadFromFile(projectPath);
         string targetGuid = project.GetUnityFrameworkTargetGuid();
-        project.AddFrameworkToProject(targetGuid, "Vision.framework", false);
+        EnsureArKitNativePluginLinks(pathToBuiltProject, project, targetGuid);
         project.WriteToFile(projectPath);
 
-        Debug.Log("[E7] Added Vision.framework for runtime Apple Vision lip landmark boundary.");
+        Debug.Log("[E7] Ensured iOS native ARKit/Vision framework links.");
+    }
+
+    private static void EnsureArKitNativePluginLinks(string pathToBuiltProject, PBXProject project, string targetGuid)
+    {
+        string arKitPackagePath = FindPackageCachePath("com.unity.xr.arkit@*");
+
+        string unityArKitSource = CopyPackageFileToExport(
+            FindRequiredPackageFile(arKitPackagePath, "UnityARKit.m", "Runtime/iOS/UnityARKit.m"),
+            pathToBuiltProject,
+            "Libraries/com.unity.xr.arkit/Runtime/iOS/UnityARKit.m");
+        string unityArKitLibrary = CopyPackageFileToExport(
+            FindRequiredPackageFile(arKitPackagePath, "libUnityARKit.a", "Runtime/iOS/"),
+            pathToBuiltProject,
+            "Libraries/com.unity.xr.arkit/Runtime/iOS/Xcode2600/libUnityARKit.a");
+        string faceTrackingLibrary = CopyPackageFileToExport(
+            FindRequiredPackageFile(arKitPackagePath, "libUnityARKitFaceTracking.a", "Runtime/FaceTracking/iOS/"),
+            pathToBuiltProject,
+            "Libraries/com.unity.xr.arkit/Runtime/FaceTracking/iOS/Xcode2600/libUnityARKitFaceTracking.a");
+
+        AddFileToUnityFrameworkBuildIfMissing(project, targetGuid, unityArKitSource);
+        AddFileToUnityFrameworkBuildIfMissing(project, targetGuid, unityArKitLibrary);
+        AddFileToUnityFrameworkBuildIfMissing(project, targetGuid, faceTrackingLibrary);
+
+        project.AddBuildProperty(targetGuid, "LIBRARY_SEARCH_PATHS", "$(PROJECT_DIR)/Libraries/com.unity.xr.arkit/Runtime/iOS/Xcode2600");
+        project.AddBuildProperty(targetGuid, "LIBRARY_SEARCH_PATHS", "$(PROJECT_DIR)/Libraries/com.unity.xr.arkit/Runtime/FaceTracking/iOS/Xcode2600");
+
+        EnsureSwiftCompatibilityLinks(project, targetGuid);
+
+        project.AddFrameworkToProject(targetGuid, "ARKit.framework", false);
+        project.AddFrameworkToProject(targetGuid, "CoreLocation.framework", false);
+        project.AddFrameworkToProject(targetGuid, "MetalPerformanceShaders.framework", false);
+        project.AddFrameworkToProject(targetGuid, "RoomPlan.framework", true);
+        project.AddFrameworkToProject(targetGuid, "Vision.framework", false);
+    }
+
+    private static void EnsureSwiftCompatibilityLinks(PBXProject project, string targetGuid)
+    {
+        project.AddBuildProperty(targetGuid, "LIBRARY_SEARCH_PATHS", "$(TOOLCHAIN_DIR)/usr/lib/swift/iphoneos");
+        project.AddBuildProperty(targetGuid, "OTHER_LDFLAGS", "-lswiftCompatibility51");
+        project.AddBuildProperty(targetGuid, "OTHER_LDFLAGS", "-lswiftCompatibility56");
+        project.AddBuildProperty(targetGuid, "OTHER_LDFLAGS", "-lswiftCompatibilityConcurrency");
+        project.AddBuildProperty(targetGuid, "OTHER_LDFLAGS", "-lswiftCompatibilityPacks");
+    }
+
+    private static string FindPackageCachePath(string searchPattern)
+    {
+        string unityProjectRoot = Directory.GetParent(Application.dataPath).FullName;
+        string packageCachePath = Path.Combine(unityProjectRoot, "Library", "PackageCache");
+        if (!Directory.Exists(packageCachePath))
+        {
+            throw new DirectoryNotFoundException("Unity PackageCache was not found: " + packageCachePath);
+        }
+
+        string[] candidates = Directory.GetDirectories(packageCachePath, searchPattern);
+        if (candidates.Length == 0)
+        {
+            throw new DirectoryNotFoundException("PackageCache entry was not found: " + searchPattern);
+        }
+
+        Array.Sort(candidates);
+        return candidates[candidates.Length - 1];
+    }
+
+    private static string FindRequiredPackageFile(string packageRoot, string fileName, string requiredPathFragment)
+    {
+        string normalizedFragment = requiredPathFragment.Replace('\\', '/');
+        foreach (string candidate in Directory.GetFiles(packageRoot, fileName, SearchOption.AllDirectories))
+        {
+            if (candidate.Replace('\\', '/').Contains(normalizedFragment))
+            {
+                return candidate;
+            }
+        }
+
+        throw new FileNotFoundException(
+            "Required package file was not found: " + fileName + " under " + requiredPathFragment,
+            Path.Combine(packageRoot, requiredPathFragment));
+    }
+
+    private static string CopyPackageFileToExport(string sourcePath, string pathToBuiltProject, string projectRelativePath)
+    {
+        string destinationPath = Path.Combine(
+            pathToBuiltProject,
+            projectRelativePath.Replace('/', Path.DirectorySeparatorChar));
+        string destinationDirectory = Path.GetDirectoryName(destinationPath);
+        if (!string.IsNullOrEmpty(destinationDirectory))
+        {
+            Directory.CreateDirectory(destinationDirectory);
+        }
+
+        File.Copy(sourcePath, destinationPath, true);
+        return projectRelativePath;
+    }
+
+    private static void AddFileToUnityFrameworkBuildIfMissing(PBXProject project, string targetGuid, string projectRelativePath)
+    {
+        string fileGuid = project.FindFileGuidByProjectPath(projectRelativePath);
+        if (!string.IsNullOrEmpty(fileGuid))
+        {
+            return;
+        }
+
+        fileGuid = project.AddFile(projectRelativePath, projectRelativePath, PBXSourceTree.Source);
+        project.AddFileToBuild(targetGuid, fileGuid);
     }
 
     private static void EnsureFolders()
@@ -201,7 +306,7 @@ public static class MakeupARValidationSetup
         }
         else
         {
-            Object.DestroyImmediate(prefabRoot);
+            UnityEngine.Object.DestroyImmediate(prefabRoot);
         }
 
         return prefab;

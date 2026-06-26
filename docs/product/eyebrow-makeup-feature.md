@@ -105,6 +105,10 @@ or bridge rewrite.
 - 2026-06-27: Added brow-specific mask threshold and feather policy under the
   route-backed renderer path: threshold `0.035`, default feather `0.42`, and
   recipe feather clamp `0.34..0.48`.
+- 2026-06-27: After user build approval, regenerated/synced
+  `UnityFramework.framework`, fixed the Unity ARKit Swift compatibility link
+  path, built the RN Debug app, installed it on `CloudsiPhone (26.5)`, and
+  launched `com.celeste.makeupar.validation`. Visual brow QA is still pending.
 
 ## Local Verification
 
@@ -119,17 +123,21 @@ or bridge rewrite.
   threshold/feather policy.
 - Region renderer route verifier passed:
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
+- UnityFramework build contract verifier passed:
+  `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py`.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
-  This compile was before the later brow-specific mask policy change; rerun is
-  pending because the local disk currently has less than `400Mi` free.
+- UnityFramework regeneration/sync passed with
+  `TIMESTAMP=eyebrow-20260627-ufw-r3`.
+- RN/Xcode Debug build, `devicectl` install, and `devicectl` launch passed on
+  `CloudsiPhone (26.5)`.
 
 ## QA Status
 
-The feature is ready for an approved real-device build/installation loop, but
-it is not accepted as visually product-quality until user iPhone QA confirms
-placement, attachment, color response, and tracking recovery.
+The feature is installed and launchable on the approved iPhone build, but it is
+not accepted as visually product-quality until user iPhone QA confirms placement,
+attachment, color response, and tracking recovery.
 
 ## Risks
 

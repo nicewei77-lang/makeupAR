@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: Not complete; implementation loop is waiting for cleanup/build approval
+Status: Build/install/launch complete; visual QA still pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -32,60 +32,73 @@ Fresh local checks recorded on 2026-06-27:
 | `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
+| `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
 | `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 23 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
+| Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-unity-batchmode-20260627.log` |
+| `scripts/build_m3_unityframework.sh` | Passed after Swift compatibility link fix, `TIMESTAMP=eyebrow-20260627-ufw-r3` |
+| RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log` |
+| `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-20260627.log` |
+| `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-20260627.log` |
 
-Unity batchmode import/compile passed earlier with Unity `6000.3.18f1`, but it
-has not been rerun after the later brow-specific C# mask policy change because
-the machine has less than `400Mi` free on `/System/Volumes/Data`.
+Build notes:
+
+- First UnityFramework export attempt failed from disk exhaustion; generated
+  caches were cleaned after user approval.
+- Second UnityFramework attempt failed at link with missing Swift compatibility
+  libraries from Unity ARKit static libs.
+- The Unity iOS postprocess now adds the Xcode iPhoneOS Swift library path and
+  Swift compatibility link flags. The build script now detects Unity export
+  failure strings even when Unity exits `0`.
+- The successful RN app bundle is signed with TeamIdentifier `X5C5U3T6B4`,
+  includes `UnityFramework.framework/Data`, contains `RNBridge`, embeds
+  `brow-drawn-mask-v1` in Unity resources, and contains the RN brow payload
+  strings `natural_brow`, `soft_brow`, `brow-drawn-mask-v1`, and `rendererId`.
 
 ## Requirement Audit
 
 | Requirement | Current Evidence | Status |
 | --- | --- | --- |
 | Implement only the eyebrow makeup module inside the existing app | Product docs keep camera/photo/video/backend/AI/Android/payment out of scope; code changes are limited to RN recipe/UI, Unity bridge/rendering, mask asset, verifiers, and docs | Satisfied for current loop |
-| Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, and rendered by `E3RegionMaskOverlay` through the existing ARFace smooth UV mask path | Locally implemented; device proof pending |
+| Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` | Build/install proven; visual QA pending |
 | React Native minimal UI, events, presets | RN focused tests cover brow as fourth region, brow HUD controls, and four-layer recipe dispatch | Locally verified |
 | Natural brow presets | `natural_brow`, `soft_brow`, `brow-drawn-mask-v1`, brow color/material cases, and brow-specific mask threshold/feather are covered by static verifiers | Locally verified |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | `brow-drawn-mask-v1.png` is generated procedurally by repo script; docs record no third-party asset or unclear license path | Locally verified |
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, and overlap thresholds | Locally verified |
 | Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest and static contract verifiers cover the payload and acceptance path | Locally verified; visual quality pending |
-| Face-attached motion under head turns | ARFace UV mesh attachment is implemented, but no current real-device visual evidence exists after brow integration | Not proven |
-| Natural appearance under lighting and expression change | Material policy is conservative, but no current real-device visual evidence exists | Not proven |
-| Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not proven |
+| Face-attached motion under head turns | ARFace UV mesh attachment is implemented and the app launches on device, but no user visual observation has been collected after selecting brow in AR | Not visually proven |
+| Natural appearance under lighting and expression change | Material policy is conservative, but no user visual observation has been collected | Not visually proven |
+| Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
 | Left/right asymmetry correction is possible | The current first loop supports symmetric procedural brow masks and shared tuning; explicit left/right asymmetry controls are not implemented | Incomplete |
-| Existing lip/cheek/eye behavior is not regressed | RN tests and static route checks pass; Unity compile passed before the latest C# policy change; no device smoke test yet | Partially proven |
+| Existing lip/cheek/eye behavior is not regressed | RN tests, static route checks, Unity compile, UnityFramework build, RN build, install, and launch passed; no manual region smoke observation yet | Partially proven |
 | Product/technical/development/QA docs updated | Product, architecture, development log, QA runbook, and this audit are present | Satisfied for current loop |
-| Meaningful checkpoint commits and push | Branch `feature/brow-0626` has pushed implementation and pre-build verification checkpoints; this audit is a separate checkpoint | Satisfied for current loop |
-| Real-device iPhone build and user quality feedback | Not approved or run yet | Missing approval/evidence |
+| Meaningful checkpoint commits and push | Branch `feature/brow-0626` has pushed implementation and pre-build verification checkpoints; the build-link fix and device result are pending checkpoint commit | In progress |
+| Real-device iPhone build and user quality feedback | Build, install, and launch passed on `CloudsiPhone (26.5)`; user visual quality feedback has not been collected | Build proven; visual feedback missing |
 
-## Blocking Approval Items
+## Remaining QA Items
 
-The next progress step requires explicit user approval because it touches
-generated cleanup and device build workflow:
+The build approval gate has been executed. Remaining work is visual/user QA, not
+more build plumbing:
 
-1. Clean enough generated/cache output to allow Unity/RN build work. Candidate:
-   `unity-builds` at about `3.1G`. Optional candidate:
-   `unity/MakeupARUnityValidation/Library` at about `793M`, with Unity reimport
-   cost.
-2. Rerun Unity batchmode import/compile after the brow C# mask-policy change.
-3. Run the approved real-device path:
-   `bash scripts/build_m3_unityframework.sh`, then RN/Xcode on the
-   user-approved iPhone and signing team.
-4. Collect user visual QA observations for frontal neutral, left/right head
-   turns, expression change, color/intensity update, tracking recovery, and
-   existing lip/cheek/eye smoke behavior using the observation template in
+1. On the iPhone, open the AR screen and select `brow`.
+2. Confirm the HUD eventually reports
+   `renderer=brow-smooth-region-mask-renderer` after Unity applies the recipe.
+3. Collect user visual observations for frontal neutral, left/right head turns,
+   expression change, color/intensity update, tracking recovery, and existing
+   lip/cheek/eye smoke behavior using the observation template in
    `docs/runbooks/eyebrow-makeup-qa-runbook.md`.
+4. Decide whether explicit left/right asymmetry correction is required before
+   calling the eyebrow module complete.
 
 ## Current Conclusion
 
-The current codebase has a locally verified first-loop eyebrow makeup module,
-but the full objective is not complete. Completion still needs at least:
+The current codebase has a locally verified and device-installed first-loop
+eyebrow makeup module, but the full objective is not complete. Completion still
+needs:
 
-- Unity compile after the latest brow C# policy change.
-- Real-device iPhone build/install.
-- User visual QA confirming product-quality placement and attachment.
+- User visual QA confirming product-quality placement and attachment on the
+  installed iPhone build.
 - A decision on whether explicit left/right asymmetry correction must be added
   before calling the eyebrow module complete.

@@ -112,18 +112,30 @@ else
     -logFile "$UNITY_EXPORT_LOG"
 fi
 
+if grep -q "Build Finished, Result: Failure" "$UNITY_EXPORT_LOG" \
+  || grep -q "Unity iOS export result: Failed" "$UNITY_EXPORT_LOG"; then
+  echo "Unity export failed. Full log: $UNITY_EXPORT_LOG" >&2
+  echo "Last 80 Unity export log lines:" >&2
+  tail -n 80 "$UNITY_EXPORT_LOG" >&2
+  exit 1
+fi
+
 require_file "$PROJECT_FILE"
 require_file "$EXPORT_PATH/Data/boot.config"
 
 echo
 echo "== Verify generated ARKit native links =="
+require_file "$EXPORT_PATH/Data/UnitySubsystems/UnityARKit/UnitySubsystemsManifest.json"
+require_file "$EXPORT_PATH/Data/RuntimeInitializeOnLoads.json"
+
 for required_entry in \
   "UnityARKit.m in Sources" \
   "libUnityARKit.a in Frameworks" \
   "libUnityARKitFaceTracking.a in Frameworks" \
   "ARKit.framework in Frameworks" \
-  "Vision.framework in Frameworks" \
-  "MetalPerformanceShaders.framework in Frameworks"; do
+  "CoreLocation.framework in Frameworks" \
+  "MetalPerformanceShaders.framework in Frameworks" \
+  "Vision.framework in Frameworks"; do
   if ! grep -q "$required_entry" "$PROJECT_FILE"; then
     echo "Generated Xcode project is missing required ARKit entry: $required_entry" >&2
     echo "Project file: $PROJECT_FILE" >&2
@@ -131,6 +143,29 @@ for required_entry in \
   fi
   echo "Found: $required_entry"
 done
+
+for required_entry in \
+  "Unity.XR.ARKit.cpp" \
+  "Unity.XR.ARKit_CodeGen.c" \
+  "Unity.XR.ARKit.FaceTracking.cpp" \
+  "Unity.XR.ARKit.FaceTracking_CodeGen.c"; do
+  if ! grep -q "$required_entry" "$PROJECT_FILE"; then
+    echo "Generated Xcode project is missing required Unity 6 ARKit entry: $required_entry" >&2
+    echo "Project file: $PROJECT_FILE" >&2
+    exit 1
+  fi
+  echo "Found Unity 6 ARKit entry: $required_entry"
+done
+
+if ! grep -q "\"assemblyName\":\"Unity.XR.ARKit\"" "$EXPORT_PATH/Data/RuntimeInitializeOnLoads.json"; then
+  echo "Generated Unity data is missing Unity.XR.ARKit runtime initialization." >&2
+  exit 1
+fi
+if ! grep -q "arkit" "$EXPORT_PATH/Info.plist"; then
+  echo "Generated Info.plist is missing required arkit device capability." >&2
+  exit 1
+fi
+echo "Found Unity 6 ARKit subsystem data and arkit device capability"
 
 echo
 echo "== Build UnityFramework target =="

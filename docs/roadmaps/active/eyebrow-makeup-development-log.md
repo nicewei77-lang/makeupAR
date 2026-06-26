@@ -203,21 +203,49 @@ Approval is still required before:
   capture scenario-specific user feedback without storing face screenshots by
   default.
 
-## Build Gate Packet
+## Device Build Result
 
-Real-device build has not been run in this loop.
+2026-06-27:
 
-Before building on iPhone, report and get user approval for:
+- User approved generated-cache cleanup and the real-device Unity/RN build path.
+- Generated cleanup removed reproducible build/cache output only:
+  `unity-builds`, Unity `Library`, and stale Xcode DeviceSupport cache.
+- UnityFramework attempt 1 failed because Unity export hit `No space left on
+  device`; the build script previously missed this because Unity exited `0`.
+- UnityFramework attempt 2 failed while linking Unity ARKit static libs because
+  Swift compatibility libraries were not linked.
+- Build contract fix:
+  - `MakeupARValidationSetup.cs` now adds
+    `$(TOOLCHAIN_DIR)/usr/lib/swift/iphoneos`.
+  - It links `-lswiftCompatibility51`, `-lswiftCompatibility56`,
+    `-lswiftCompatibilityConcurrency`, and `-lswiftCompatibilityPacks`.
+  - `scripts/build_m3_unityframework.sh` now fails fast when the Unity export
+    log contains `Build Finished, Result: Failure` or
+    `Unity iOS export result: Failed`.
+  - New verifier:
+    `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py`.
+- UnityFramework attempt 3 passed with `TIMESTAMP=eyebrow-20260627-ufw-r3`.
+  The artifact verification recorded arm64 `UnityFramework.framework` in both
+  RN and package-local paths, with Unity `Data` copied into the framework.
+- RN/Xcode Debug build for `CloudsiPhone (26.5)` passed:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log`.
+- `devicectl` installed `com.celeste.makeupar.validation`:
+  `evidence/logs/eyebrow-rn-devicectl-install-20260627.log`.
+- `devicectl` launched `com.celeste.makeupar.validation`:
+  `evidence/logs/eyebrow-rn-devicectl-launch-20260627.log`.
+- Local build product inspection confirmed:
+  - App bundle size about `195M`.
+  - Embedded `UnityFramework.framework` about `116M`.
+  - Embedded Unity `Data` about `20M`.
+  - `RNBridge` and `MakeupRegionRendererRoutes` are present.
+  - Unity resource `brow-drawn-mask-v1` is present.
+  - RN bundle contains `natural_brow`, `soft_brow`,
+    `brow-drawn-mask-v1`, `regionMaskTriangles`, and `rendererId`.
 
-- Primary path: regenerate/sync `UnityFramework.framework` with
-  `bash scripts/build_m3_unityframework.sh`, then run the RN/Xcode target with
-  the user-approved device and signing team.
-- Target assumptions: real iPhone with ARKit face tracking support; no hard-coded
-  UDID or `DEVELOPMENT_TEAM` should be added as repo defaults.
-- Expected risk: first-loop static UV brow placement may need arch/width/tail
-  tuning after visual QA.
-- Local machine risk: current disk free space is less than `400Mi`; cleanup should
-  happen before real-device export/build. Large generated candidates observed:
-  `unity-builds` about `3.1G` and Unity `Library` about `796M`.
-- Out of scope: Android, AI/model inference, backend upload, raw-frame storage,
-  payment, ads, commercial SDKs, and App Store readiness claims.
+Remaining:
+
+- User visual QA on the launched iPhone build: brow placement, attachment under
+  head turn, expression behavior, opacity/intensity/color response, tracking
+  recovery, and lip/cheek/eye smoke check.
+- Decide whether explicit left/right asymmetry controls are required before
+  calling the eyebrow module complete.

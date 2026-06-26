@@ -1,13 +1,12 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Ready for approved device build
+Status: Installed and launched; user visual QA pending
 Date: 2026-06-27
 
 ## Scope
 
-Use this runbook after the user approves a real-device Unity/RN build for the
-first eyebrow makeup loop. This checks only the local AR eyebrow feature inside
-the existing app.
+Use this runbook for the first eyebrow makeup device QA loop. This checks only
+the local AR eyebrow feature inside the existing app.
 
 Completion evidence is tracked separately in
 `docs/runbooks/eyebrow-makeup-completion-audit.md`.
@@ -38,9 +37,8 @@ Run the RN command from `rn/MakeupARValidation`.
 
 Unity local import/compile check:
 
-Confirm there is enough local disk space first. The latest local check showed
-less than `400Mi` free on `/System/Volumes/Data`, which is too tight for a
-Unity/RN device build.
+Confirm there is enough local disk space first. The 2026-06-27 build needed
+generated-cache cleanup before it could complete.
 
 Observed generated cleanup candidates, if the user approves cleanup:
 
@@ -65,6 +63,30 @@ Only after user approval:
 2. From repo root, run `bash scripts/build_m3_unityframework.sh`.
 3. Run the RN/Xcode target with the user-approved iPhone and signing team.
 4. Do not add a default UDID or `DEVELOPMENT_TEAM` to the repo.
+
+## 2026-06-27 Build Evidence
+
+- Device: `CloudsiPhone (26.5)`.
+- Bundle id: `com.celeste.makeupar.validation`.
+- Signing team: `X5C5U3T6B4`.
+- UnityFramework regenerated and synced:
+  `TIMESTAMP=eyebrow-20260627-ufw-r3`.
+- UnityFramework log:
+  `evidence/logs/m3-repro-xcodebuild-unityframework-eyebrow-20260627-ufw-r3.log`.
+- RN/Xcode device build:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log`, `** BUILD SUCCEEDED **`.
+- Install:
+  `evidence/logs/eyebrow-rn-devicectl-install-20260627.log`, installed app
+  `com.celeste.makeupar.validation`.
+- Launch:
+  `evidence/logs/eyebrow-rn-devicectl-launch-20260627.log`, launched
+  application with the bundle identifier.
+- App bundle check: local build product includes `UnityFramework.framework/Data`,
+  `RNBridge`, `MakeupRegionRendererRoutes`, Unity resource
+  `brow-drawn-mask-v1`, and RN bundle strings `natural_brow`, `soft_brow`,
+  `brow-drawn-mask-v1`, `rendererId`.
+
+No face screenshots, recordings, or raw frames were captured by default.
 
 ## Device QA
 
@@ -109,12 +131,14 @@ recordings unless the user explicitly approves storing them.
 
 Build context:
 
-- Branch/commit:
-- Device:
-- iOS version:
-- Signing team used:
-- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes/no
-- Unity batchmode compile after latest brow C# change: pass/fail/log path
+- Branch/commit: `feature/brow-0626`
+- Device: `CloudsiPhone`
+- iOS version: `26.5`
+- Signing team used: `X5C5U3T6B4`
+- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes,
+  `TIMESTAMP=eyebrow-20260627-ufw-r3`
+- Unity batchmode compile after latest brow C# change: pass,
+  `evidence/logs/eyebrow-unity-batchmode-20260627.log`
 
 Minimum observations:
 

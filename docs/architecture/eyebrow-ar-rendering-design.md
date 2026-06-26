@@ -1,6 +1,6 @@
 # Eyebrow AR Rendering Design
 
-Status: Local implementation complete; device QA pending
+Status: Build/install/launch complete; visual QA pending
 Date: 2026-06-27
 Related product doc: `docs/product/eyebrow-makeup-feature.md`
 
@@ -144,14 +144,17 @@ Local checks before any real-device build:
 - Static guard that Unity parser accepts `brow` and applies brow-specific mask
   threshold/feather policy: passed.
 - Offline mask inspection for active pixel coverage and bbox: passed.
-- Unity batchmode import/compile previously passed with Unity `6000.3.18f1`.
-  After the later brow-specific mask policy change, rerun is pending because the
-  machine currently has less than `400Mi` free on `/System/Volumes/Data`.
+- Unity batchmode import/compile passed with Unity `6000.3.18f1`.
+- UnityFramework build contract verifier passed and now guards Swift
+  compatibility link flags plus Unity export failure detection.
+- UnityFramework regeneration/sync passed with
+  `TIMESTAMP=eyebrow-20260627-ufw-r3`.
+- RN/Xcode Debug build, install, and launch passed on `CloudsiPhone (26.5)`.
 - TypeScript compile with `npx tsc --noEmit`: passed.
 - RN lint with `npm run lint`: passed.
 - Region renderer route verifier: passed.
 
-Real-device QA after build approval:
+Remaining real-device visual QA:
 
 - Frontal neutral brow placement.
 - Left and right head turn stability.
