@@ -177,6 +177,20 @@ Approval is still required before:
   - Unity batchmode compile was not rerun after this C# policy change because
     `/System/Volumes/Data` currently has less than `400Mi` free. No generated
     cache cleanup was performed without user approval.
+- 2026-06-27: Pre-build verification refresh before asking for device QA/build
+  approval.
+  - Brow Unity contract verifier: passed.
+  - Brow mask verifier: passed with `11205` active pixels, `0.042744`
+    coverage, bbox `left=99,top=80,right=412,bottom=142,width=314,height=63`,
+    and overlaps `eye-drawn=406/1200`, `eye-smooth=56/4200`,
+    `cheek-drawn=0/50`, `lip-drawn=0/0`.
+  - Region renderer route verifier: passed.
+  - RN focused Jest: passed, 23 tests.
+  - RN lint: passed.
+  - RN TypeScript compile: `npx tsc --noEmit` passed.
+  - Disk check: `/System/Volumes/Data` had `368Mi` free. Large generated
+    cleanup candidates observed: `unity-builds` `3.1G` and Unity `Library`
+    `793M`. No cleanup was performed without user approval.
 
 ## Build Gate Packet
 

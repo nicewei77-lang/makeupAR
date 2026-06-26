@@ -39,6 +39,12 @@ Confirm there is enough local disk space first. The latest local check showed
 less than `400Mi` free on `/System/Volumes/Data`, which is too tight for a
 Unity/RN device build.
 
+Observed generated cleanup candidates, if the user approves cleanup:
+
+- `unity-builds`: about `3.1G`
+- `unity/MakeupARUnityValidation/Library`: about `793M`; deleting it will force
+  Unity to reimport the project.
+
 ```bash
 "/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity" \
   -batchmode \
