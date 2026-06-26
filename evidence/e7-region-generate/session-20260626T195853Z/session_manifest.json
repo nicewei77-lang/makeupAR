@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "e7-region-generate-session-manifest-v0",
+  "sessionId": "session-20260626T195853Z",
+  "createdAtUtc": "2026-06-26T19:58:53Z",
+  "createdAtKst": "2026-06-27T04:58:53+09:00",
+  "baseCommit": "97991ce",
+  "objective": "Generate, adjust, save, and prepare lip/blush/brow/eyeliner region mask packages for RN/Unity AR runtime consumption up to the pre-Xcode build gate.",
+  "activePlan": "docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md",
+  "statusVocabulary": [
+    "pre-xcode-ready",
+    "partial",
+    "blocked"
+  ],
+  "regions": [
+    "lip",
+    "blush",
+    "brow",
+    "eyeliner"
+  ],
+  "hardBoundaries": {
+    "iphoneConnected": false,
+    "xcodeBuildAllowed": false,
+    "iphoneInstallLaunchAllowed": false,
+    "deviceCaptureAllowed": false,
+    "rawFrameLongTermStorageAllowed": false,
+    "uploadAllowed": false,
+    "liveFaceParsingCoreMlRuntimeAllowed": false,
+    "greenClaimAllowedWithoutIphoneEvidence": false
+  },
+  "requiredCompletion": [
+    "region candidates and selected_policy for lip/blush/brow/eyeliner",
+    "minimum usable eyeliner candidate",
+    "adjustment axes for each region",
+    "web Generate -> Review -> Adjust -> Save -> Payload verification",
+    "RN saved package -> AR screen handoff preparation",
+    "Unity generated mask apply path preparation",
+    "buildless checks with pass/fail evidence",
+    "pre-Xcode build gate package",
+    "deferred Xcode/iPhone build/run/test checklist",
+    "TECH_VALIDATION_RESULT.md decision/evidence/limitations/next boundary update",
+    "checkpoint commits"
+  ],
+  "agentRoles": {
+    "manager": "Boundary, commits, documentation, completion audit",
+    "debugger": "Local frontend/backend/tooling defects",
+    "designer": "Web/RN user flow and adjustment UX",
+    "dataAgent": "Input inventory, external prior, license/source notes",
+    "experimentReasoning": "Candidates, scorecards, selected policies",
+    "strictQa": "pre-xcode-ready/partial/blocked gate and claim control",
+    "wildcard": "Eyeliner/reference/fallback blockers",
+    "claudeExternalCritic": "External critique only; Codex remains implementer and evidence gate owner"
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false
+  }
+}

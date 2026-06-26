@@ -1,0 +1,124 @@
+{
+  "schemaVersion": "e7-region-generate-input-inventory-v0",
+  "sessionId": "session-20260626T195853Z",
+  "createdAtUtc": "2026-06-26T19:58:53Z",
+  "primaryCapturePair": {
+    "capturePairId": "pair_face_20260622T143334Z_03",
+    "root": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03",
+    "frame": "frame.png",
+    "arfaceExport": "arface_export.json",
+    "projectedMeshOverlay": "projected_mesh_overlay.png",
+    "frameWidth": 1179,
+    "frameHeight": 2556,
+    "meshVertexCount": 1220,
+    "meshIndexCount": 6912,
+    "meshUvCount": 1220,
+    "annotationFrameClean": true,
+    "coordinateSpaceValidationStatus": "pending_projected_mesh_overlay_review",
+    "role": "primary local clean frame and ARFace UV/screen projection source"
+  },
+  "userGoldReferences": {
+    "root": "evidence/references/e7-user-gold-raw-20260626",
+    "manifest": "manifest.json",
+    "acceptedAsGold": true,
+    "runtimeReady": false,
+    "roles": [
+      "offline lip reference",
+      "offline candidate scoring",
+      "full-face visual reference for region placement",
+      "not direct runtime evidence"
+    ],
+    "files": [
+      "contact-sheet.png",
+      "combined-soft-alpha-projection.png",
+      "user-gold-lip-mask-gray-20260625-163204.png",
+      "user-gold-lip-render-20260625-163240.png",
+      "A_1.png",
+      "A_0.png"
+    ]
+  },
+  "priorGeneratedLipArtifacts": {
+    "lipGenerateServerRoot": "evidence/e7-lip-generate-server",
+    "generatedLipPackageCount": 56,
+    "role": "existing lip generation/package examples for contract reuse; not proof for other regions"
+  },
+  "externalLocalDataset": {
+    "root": "complete_face_version/LiveBeauty_public",
+    "croppedFaceCount": 10001,
+    "metaFileCount": 2,
+    "role": "local reference/photo pool for silver prior and visual fallback research",
+    "usageLimits": [
+      "do not upload",
+      "do not treat as product asset",
+      "record source/license uncertainty before broad use"
+    ]
+  },
+  "knownHelperSignals": [
+    {
+      "name": "Apple Vision",
+      "role": "2D contour/landmark sanity signal",
+      "runtimePrimary": false
+    },
+    {
+      "name": "MediaPipe",
+      "role": "geometry prior and helper comparison signal",
+      "runtimePrimary": false,
+      "caveat": "Codex shell GL/Metal failures observed; do not make it a required automation gate"
+    },
+    {
+      "name": "Face parsing",
+      "role": "local/offline silver semantic layer and exclude/spill helper",
+      "runtimePrimary": false
+    },
+    {
+      "name": "Color/gradient confidence",
+      "role": "contrast and warning signal",
+      "runtimePrimary": false
+    },
+    {
+      "name": "ARFace UV",
+      "role": "runtime coordinate substrate and 2D->UV projection target",
+      "runtimePrimary": true
+    }
+  ],
+  "regionStartingAssumptions": {
+    "lip": {
+      "startingPoint": "best-supported from prior Vision/MediaPipe/user-adjustment work",
+      "mustStillProduce": [
+        "selected package",
+        "adjustment axes",
+        "saved composite payload entry"
+      ]
+    },
+    "blush": {
+      "startingPoint": "cosmetic soft cheek placement rather than semantic mask",
+      "mustStillProduce": [
+        "soft oval prior",
+        "exclude zones",
+        "adjustment axes"
+      ]
+    },
+    "brow": {
+      "startingPoint": "brow envelope from landmark/prior/symmetry model",
+      "mustStillProduce": [
+        "brow draft",
+        "symmetry notes",
+        "adjustment axes"
+      ]
+    },
+    "eyeliner": {
+      "startingPoint": "highest-risk parametric stroke region",
+      "mustStillProduce": [
+        "minimal-safe candidate",
+        "eye opening exclude zone",
+        "blink/yaw deferred warnings"
+      ],
+      "fallbacks": [
+        "reference-photo-informed lashline",
+        "parametric eyelid curve",
+        "soft lashline emphasis",
+        "conservative tail-only candidate"
+      ]
+    }
+  }
+}
