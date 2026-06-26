@@ -45,23 +45,26 @@ Implemented contract values:
 | RN presets | `natural_brow`, `soft_brow` |
 | Unity resource | `SmoothRegionMasks/brow-drawn-mask-v1` |
 | Unity material path | `E3RegionMaskOverlay.BuildMaterialColor` brow cases |
+| Route table | `MakeupRegionRendererRoutes` |
+| Brow renderer id | `brow-smooth-region-mask-renderer` |
 
 ## Renderer Routing Contract
 
 The stable contract should be the recipe region, not a specific renderer class.
 
-Conceptual route table:
+Implemented route table:
 
-| Region | Initial renderer | Future renderer option |
-| --- | --- | --- |
-| `lip` | `smooth-region-mask` | `LipMakeupRenderer` |
-| `cheek` | `smooth-region-mask` | `CheekMakeupRenderer` |
-| `eye` | `smooth-region-mask` | `EyeMakeupRenderer` |
-| `brow` | `smooth-region-mask` | `BrowMakeupRenderer` |
+| Region | Current renderer id | Backend | Future renderer option |
+| --- | --- | --- | --- |
+| `lip` | `lip-smooth-region-mask-renderer` | `E3RegionMaskOverlay` | `LipMakeupRenderer` |
+| `cheek` | `cheek-smooth-region-mask-renderer` | `E3RegionMaskOverlay` | `CheekMakeupRenderer` |
+| `eye` | `eye-smooth-region-mask-renderer` | `E3RegionMaskOverlay` | `EyeMakeupRenderer` |
+| `brow` | `brow-smooth-region-mask-renderer` | `E3RegionMaskOverlay` | `BrowMakeupRenderer` |
 
-In the first loop this may remain a documented routing decision plus small
-normalization helpers. A full class split should wait until the brow path is
-working on device or until an implementation change requires it.
+The first loop now has code-level routes and diagnostic `rendererId` output,
+while all rows still use the existing smooth-mask backend. A full class split
+should wait until the brow path is working on device or until an implementation
+change requires it.
 
 ## Why Not Split All Renderers Now
 
@@ -139,6 +142,7 @@ Local checks before any real-device build:
   Unity `6000.3.18f1`.
 - TypeScript compile with `npx tsc --noEmit`: passed.
 - RN lint with `npm run lint`: passed.
+- Region renderer route verifier: passed.
 
 Real-device QA after build approval:
 

@@ -112,6 +112,8 @@ or bridge rewrite.
   The verifier now guards brow separation from eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
+- Region renderer route verifier passed:
+  `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.

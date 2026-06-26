@@ -783,6 +783,7 @@ test('keeps thin wet-line diagnostics off matte lip recipe events', async () => 
     layer: 'lip',
     texture: 'matte_lip',
     sample: 'matte_lip',
+    rendererId: 'lip-smooth-region-mask-renderer',
     textureMode: 'sample',
     lipRenderLayerMode: 'soft_sdf_logical_multilayer',
     glossHighlightMode: 'none',
@@ -816,6 +817,7 @@ test('keeps thin wet-line diagnostics off matte lip recipe events', async () => 
   const text = collectText(renderer!);
 
   expect(text).toContain('texture=matte_lip');
+  expect(text).toContain('renderer=lip-smooth-region-mask-renderer');
   expect(text).toContain('layers=soft_sdf_logical_multilayer');
   expect(text).toContain('gloss=none');
   expect(text).toContain('finish=matte');

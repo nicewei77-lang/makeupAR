@@ -846,6 +846,7 @@ type UnityEventPayload = {
   blendMode?: string;
   runId?: string;
   rendererMode?: string;
+  rendererId?: string;
   maskSource?: string;
   stateAction?: string;
   maskStatus?: string;
@@ -3364,6 +3365,8 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.region ?? event.layer,
   )} texture=${texture} mode=${String(
     event.textureMode ?? 'n/a',
+  )} renderer=${String(
+    event.rendererId ?? 'n/a',
   )} layers=${String(
     event.lipRenderLayerMode ?? 'n/a',
   )} gloss=${String(

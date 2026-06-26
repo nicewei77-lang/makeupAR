@@ -9,7 +9,7 @@ using UnityEngine.XR.ARFoundation;
 
 public sealed class RNBridge : MonoBehaviour
 {
-    private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye", "brow" };
+    private static readonly string[] FeatureSnapshotRegions = MakeupRegionRendererRoutes.Regions;
 
     [Serializable]
     private sealed class RecipePayload
@@ -160,6 +160,7 @@ public sealed class RNBridge : MonoBehaviour
         public int PayloadBytes;
         public string TextureSample;
         public string TextureMode;
+        public string RegionRendererId;
         public float Intensity;
         public float Feather;
         public string BlendMode;
@@ -207,6 +208,7 @@ public sealed class RNBridge : MonoBehaviour
         public int EnabledLayerCount;
         public int PayloadBytes;
         public string RendererMode = "smooth-region-mask";
+        public string RegionRendererId = "none";
         public float Coverage;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
@@ -373,6 +375,7 @@ public sealed class RNBridge : MonoBehaviour
                     + " enabledLayerCount=" + layer.EnabledLayerCount.ToString(CultureInfo.InvariantCulture)
                     + " payloadBytes=" + layer.PayloadBytes.ToString(CultureInfo.InvariantCulture)
                     + " rendererMode=" + layer.RendererMode
+                    + " rendererId=" + layer.RegionRendererId
                     + " maskTextureId=" + layer.MaskTextureId
                     + " enabled=" + layer.Enabled.ToString().ToLowerInvariant());
 
@@ -1020,6 +1023,7 @@ public sealed class RNBridge : MonoBehaviour
             EnabledLayerCount = layer.EnabledLayerCount,
             PayloadBytes = layer.PayloadBytes,
             RendererMode = result.RendererMode,
+            RegionRendererId = result.RegionRendererId,
             Coverage = layer.Coverage,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
@@ -1095,6 +1099,7 @@ public sealed class RNBridge : MonoBehaviour
             state.Intensity = result.Intensity;
             state.Feather = result.Feather;
             state.RendererMode = result.RendererMode;
+            state.RegionRendererId = result.RegionRendererId;
             state.MaskSource = result.MaskSource;
             state.BoundaryRenderer = result.BoundaryRenderer;
             state.VisionBoundaryStatus = result.VisionBoundaryStatus;
@@ -1204,6 +1209,7 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"glossBoost\":" + state.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"gradientAmount\":" + state.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
+                + ",\"rendererId\":\"" + EscapeJsonString(state.RegionRendererId) + "\""
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
                 + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(state.MaskSoftSampleMode) + "\""
                 + ",\"maskFeatherNearRadiusPx\":" + state.MaskFeatherNearRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
@@ -1551,8 +1557,8 @@ public sealed class RNBridge : MonoBehaviour
         int appliedFrame)
     {
         string applied = result.Applied ? "true" : "false";
-        string phase = GetPhaseForRenderer(layer.RendererMode);
-        string runId = GetRunIdForRenderer(layer.RendererMode);
+        string phase = GetPhaseForRenderer(layer.Region, layer.RendererMode);
+        string runId = GetRunIdForRenderer(layer.Region, layer.RendererMode);
         string visualLatencyObservation = "pending_lip_makeup_visual_review";
         Debug.Log(
             "[E4] recipe_applied"
@@ -1578,6 +1584,7 @@ public sealed class RNBridge : MonoBehaviour
             + " applied=" + applied
             + " appliedRegion=" + result.Region
             + " rendererMode=" + result.RendererMode
+            + " rendererId=" + result.RegionRendererId
             + " materialId=" + layer.MaterialId
             + " shaderMode=" + layer.ShaderMode
             + " passCount=" + layer.PassCount.ToString(CultureInfo.InvariantCulture)
@@ -1640,6 +1647,7 @@ public sealed class RNBridge : MonoBehaviour
             + " phase=" + phase
             + " timestampMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
             + " rendererMode=" + result.RendererMode
+            + " rendererId=" + result.RegionRendererId
             + " lookId=" + layer.LookId
             + " recipeId=" + layer.RecipeId
             + " recipeBatchId=" + layer.RecipeBatchId
@@ -1700,10 +1708,12 @@ public sealed class RNBridge : MonoBehaviour
             + result.Applied.ToString().ToLowerInvariant()
             + ",\"rendererMode\":\""
             + EscapeJsonString(result.RendererMode)
+            + "\",\"rendererId\":\""
+            + EscapeJsonString(result.RegionRendererId)
             + "\",\"runId\":\""
-            + EscapeJsonString(GetRunIdForRenderer(layer.RendererMode))
+            + EscapeJsonString(GetRunIdForRenderer(layer.Region, layer.RendererMode))
             + "\",\"phase\":\""
-            + EscapeJsonString(GetPhaseForRenderer(layer.RendererMode))
+            + EscapeJsonString(GetPhaseForRenderer(layer.Region, layer.RendererMode))
             + "\",\"maskSource\":\""
             + EscapeJsonString(result.MaskSource)
             + "\",\"boundaryRenderer\":\""
@@ -1953,10 +1963,11 @@ public sealed class RNBridge : MonoBehaviour
             PayloadBytes = payloadBytes,
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(layer.textureMode),
+            RegionRendererId = MakeupRegionRendererRoutes.Resolve(region).RendererId,
             Intensity = NormalizeIntensity(layer.intensity),
             Feather = NormalizeFeather(layer.feather),
             BlendMode = NormalizeBlendMode(layer.blendMode, textureSample),
-            RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
+            RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode, region),
             Enabled = layer.enabled,
             Coverage = Mathf.Max(0.0f, layer.coverage),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
@@ -1986,12 +1997,7 @@ public sealed class RNBridge : MonoBehaviour
             ? string.Empty
             : value.Trim().ToLowerInvariant();
 
-        if (value == "lip" || value == "cheek" || value == "eye" || value == "brow")
-        {
-            return value;
-        }
-
-        throw new ArgumentException("Unsupported E4 region: " + value);
+        return MakeupRegionRendererRoutes.NormalizeRegion(value);
     }
 
     private static string NormalizeColor(string color)
@@ -2199,27 +2205,24 @@ public sealed class RNBridge : MonoBehaviour
         throw new ArgumentException("Unsupported E4 blend mode: " + value);
     }
 
-    private static string NormalizeRendererMode(string preferred, string secondary)
+    private static string NormalizeRendererMode(string preferred, string secondary, string region)
     {
-        string value = !string.IsNullOrWhiteSpace(preferred) ? preferred : secondary;
-        value = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim().ToLowerInvariant();
-        if (value == "smooth-region-mask")
-        {
-            return value;
-        }
-
-        throw new ArgumentException("Unsupported renderer mode: " + value);
+        return MakeupRegionRendererRoutes.NormalizeRendererMode(preferred, secondary, region);
     }
 
-    private static string GetPhaseForRenderer(string rendererMode)
+    private static string GetPhaseForRenderer(string region, string rendererMode)
     {
-        return "smooth_mask";
+        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region);
+        MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, route.Region);
+        return route.Phase;
     }
 
-    private static string GetRunIdForRenderer(string rendererMode)
+    private static string GetRunIdForRenderer(string region, string rendererMode)
     {
         string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return "lip-style-v1-" + date;
+        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region);
+        MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, route.Region);
+        return route.RunIdPrefix + "-" + date;
     }
 
     private static string NormalizeMaskTextureId(string preferred, string secondary, string region)

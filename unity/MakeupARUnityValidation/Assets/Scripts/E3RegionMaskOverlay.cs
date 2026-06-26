@@ -23,6 +23,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public int MeshIndexCount;
         public int MeshUvCount;
         public string RendererMode;
+        public string RegionRendererId;
         public string MaskTextureId;
         public string MaskSource;
         public string BoundaryRenderer;
@@ -186,7 +187,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     [SerializeField] private E7VisionLipBoundaryRuntime visionLipBoundaryRuntime;
     [SerializeField] private bool useMeshMasks = true;
 
-    private const string RendererMode = "smooth-region-mask";
+    private const string RendererMode = MakeupRegionRendererRoutes.SmoothRegionMaskMode;
     private const string MaskSource = "smooth_region_mask";
     private const string BoundaryRenderer = "smooth_alpha_mask";
     private const string VisionLipBoundaryMaskId = "lip-vision-boundary-v1";
@@ -329,6 +330,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool preserveDetail)
     {
         region = NormalizeRegion(region);
+        MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, region);
         opacity = Mathf.Clamp01(opacity);
         recipes[region] = new RegionRecipeState
         {
@@ -476,6 +478,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private static RegionApplyResult CreateResult(string region)
     {
+        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region);
         string maskTextureId = GetDefaultMaskTextureId(region);
         MaskDefinition mask = ResolveMask(region, maskTextureId);
         return new RegionApplyResult
@@ -492,7 +495,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             MeshVertexCount = 0,
             MeshIndexCount = 0,
             MeshUvCount = 0,
-            RendererMode = RendererMode,
+            RendererMode = route.RendererMode,
+            RegionRendererId = route.RendererId,
             MaskTextureId = maskTextureId,
             MaskSource = MaskSource,
             BoundaryRenderer = BoundaryRenderer,
@@ -2977,13 +2981,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private static string NormalizeRegion(string region)
     {
-        region = string.IsNullOrWhiteSpace(region) ? string.Empty : region.Trim().ToLowerInvariant();
-        if (region == "lip" || region == "cheek" || region == "eye" || region == "brow")
-        {
-            return region;
-        }
-
-        throw new ArgumentException("Unsupported smooth mask region: " + region);
+        return MakeupRegionRendererRoutes.NormalizeRegion(region);
     }
 
     private static string NormalizeTextureSample(string region, string textureSample)
@@ -3181,6 +3179,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] region_mask_state"
             + " rendererMode=" + RendererMode
+            + " rendererId=" + MakeupRegionRendererRoutes.Resolve(region).RendererId
             + " maskTextureId=" + recipe.MaskTextureId
             + " maskSource=" + (IsVisionLipBoundaryMask(recipe.MaskTextureId)
                 ? VisionLipBoundarySource
@@ -3203,6 +3202,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] region_mask_apply"
             + " rendererMode=" + result.RendererMode
+            + " rendererId=" + result.RegionRendererId
             + " maskTextureId=" + result.MaskTextureId
             + " maskSource=" + result.MaskSource
             + " boundaryRenderer=" + result.BoundaryRenderer

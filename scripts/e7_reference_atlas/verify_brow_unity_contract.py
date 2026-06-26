@@ -13,6 +13,9 @@ DEFAULT_RN_BRIDGE = Path("unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.
 DEFAULT_OVERLAY = Path(
     "unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs"
 )
+DEFAULT_ROUTES = Path(
+    "unity/MakeupARUnityValidation/Assets/Scripts/MakeupRegionRendererRoutes.cs"
+)
 DEFAULT_BROW_MASK = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/"
     "brow-drawn-mask-v1.png"
@@ -25,6 +28,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rn-app", type=Path, default=DEFAULT_RN_APP)
     parser.add_argument("--rn-bridge", type=Path, default=DEFAULT_RN_BRIDGE)
     parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
+    parser.add_argument("--routes", type=Path, default=DEFAULT_ROUTES)
     parser.add_argument("--mask", type=Path, default=DEFAULT_BROW_MASK)
     return parser.parse_args()
 
@@ -57,6 +61,7 @@ def main() -> None:
     rn_app = read_text(resolve(repo, args.rn_app))
     rn_bridge = read_text(resolve(repo, args.rn_bridge))
     overlay = read_text(resolve(repo, args.overlay))
+    routes = read_text(resolve(repo, args.routes))
     mask_path = resolve(repo, args.mask)
 
     require(mask_path.exists(), f"Missing brow mask asset: {mask_path}")
@@ -83,9 +88,14 @@ def main() -> None:
     )
 
     require_match(
+        routes,
+        r"Regions\s*=\s*\{\s*\"lip\",\s*\"cheek\",\s*\"eye\",\s*\"brow\"\s*\}",
+        "Renderer route table must include brow as the fourth layer.",
+    )
+    require_contains(
         rn_bridge,
-        r"FeatureSnapshotRegions\s*=\s*\{\s*\"lip\",\s*\"cheek\",\s*\"eye\",\s*\"brow\"\s*\}",
-        "RNBridge FeatureSnapshotRegions must include brow as the fourth layer.",
+        "FeatureSnapshotRegions = MakeupRegionRendererRoutes.Regions",
+        "RNBridge FeatureSnapshotRegions must use the renderer route table.",
     )
     require_match(
         rn_bridge,
@@ -105,8 +115,8 @@ def main() -> None:
 
     require_match(
         overlay,
-        r"region\s*==\s*\"lip\"\s*\|\|\s*region\s*==\s*\"cheek\"\s*\|\|\s*region\s*==\s*\"eye\"\s*\|\|\s*region\s*==\s*\"brow\"",
-        "E3RegionMaskOverlay NormalizeRegion must accept brow.",
+        r"NormalizeRegion\(string region\).*MakeupRegionRendererRoutes\.NormalizeRegion\(region\)",
+        "E3RegionMaskOverlay NormalizeRegion must use the renderer route table.",
     )
     require_match(
         overlay,

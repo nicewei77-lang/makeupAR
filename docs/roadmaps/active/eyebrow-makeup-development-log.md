@@ -148,6 +148,23 @@ Approval is still required before:
     after the adjustment.
   - Unity batchmode reported only `212Mi` available disk space on
     `/System/Volumes/Data`; device build likely needs cleanup before running.
+- 2026-06-27: Region renderer route table added to turn the renderer-split
+  decision into code-level routing.
+  - RED: `verify_region_renderer_routes.py` failed because
+    `MakeupRegionRendererRoutes.cs` did not exist.
+  - GREEN: route verifier passed after adding per-region renderer ids:
+    `lip-smooth-region-mask-renderer`, `cheek-smooth-region-mask-renderer`,
+    `eye-smooth-region-mask-renderer`, and `brow-smooth-region-mask-renderer`,
+    all currently backed by `E3RegionMaskOverlay`.
+  - RN HUD now displays Unity `rendererId` from `recipe_applied` events; focused
+    Jest first failed on missing `renderer=lip-smooth-region-mask-renderer`,
+    then passed after the formatter update.
+  - RN focused Jest, RN lint, RN TypeScript compile, brow mask verifier, brow
+    Unity contract verifier, region route verifier, and Unity `6000.3.18f1`
+    batchmode import/compile all passed.
+  - Unity compile emitted an existing obsolete API warning in
+    `Assets/Editor/MakeupARValidationSetup.cs`; no route-table compile errors
+    were reported.
 
 ## Build Gate Packet
 

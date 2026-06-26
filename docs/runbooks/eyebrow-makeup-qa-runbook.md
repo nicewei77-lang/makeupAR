@@ -22,6 +22,7 @@ Run from the repo root before requesting or starting the device build:
 ```bash
 python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py
 python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py
+python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py
 ```
 
 RN focused check:
@@ -62,6 +63,8 @@ Check:
 - `natural_brow` appears as the default brow sample.
 - `soft_brow` can be selected and updates immediately.
 - `brow-drawn-mask-v1` is selected for brow.
+- The latest recipe HUD shows `renderer=brow-smooth-region-mask-renderer` for
+  brow after Unity acknowledges the recipe.
 - Opacity and intensity changes update without restarting AR.
 - Brow color changes stay face-attached during small head motion.
 - Left and right head turns do not cause the brow to float or detach.
