@@ -60,6 +60,8 @@ rn/MakeupARValidation/ios/build/
 rn/MakeupARValidation/ios/*.xcworkspace/
 rn/MakeupARValidation/ios/.xcode.env.local
 rn/MakeupARValidation/vendor/
+web/*/node_modules/
+web/*/dist/
 
 # Python generated state
 __pycache__/

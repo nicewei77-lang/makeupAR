@@ -15,13 +15,15 @@ cd /Users/wiseungcheol/Desktop/makeupAR
 
 ```bash
 cd /Users/wiseungcheol/Desktop/makeupAR
-python3 -m http.server 8788 --bind 127.0.0.1
+cd web/lip-generate-beta
+npm install
+npm run dev
 ```
 
 브라우저:
 
 ```txt
-http://127.0.0.1:8788/web/lip-generate-beta/
+http://127.0.0.1:8789/
 ```
 
 ## 확인할 것
@@ -34,7 +36,7 @@ http://127.0.0.1:8788/web/lip-generate-beta/
 
 ## 제한
 
-- 현재는 local fixture 기반 web beta다.
+- 현재는 React/Vite + local fixture 기반 web beta다.
 - iPhone AR runtime proof가 아니다.
 - `runtimeReady=false`를 유지한다.
 - MediaPipe는 GUI Terminal 성공 fixture를 사용한다. Codex shell 자동 실행은 GL/Metal context 문제로 gate가 아니다.
