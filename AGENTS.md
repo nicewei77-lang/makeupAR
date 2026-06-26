@@ -21,6 +21,7 @@
 
 ## Build Loop
 - Before Unity/RN iPhone builds or new device capture, stop and report the build question, primary path, compare-only paths, quality gate, evidence matrix, and out-of-scope items; build only after user approval.
+- When stopping for user approval, visual judgment, device unlock, camera permission, or any other user-only action, also attempt a local Slack alert with `python3 scripts/notify_slack_user_required.py --message "<short Korean request>"` if `SLACK_WEBHOOK_URL` is configured. Never print or commit the webhook URL, and do not proceed past the gated action until the user replies.
 - Before builds, exhaust buildless checks first: static tests, Unity batchmode import/compile, existing capture-pair analysis, ARFace projection previews, contact sheets, and JSON/schema checks.
 - Every approved Unity/RN device pass should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
 - After sync, run from `rn/MakeupARValidation`: `npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK`.
