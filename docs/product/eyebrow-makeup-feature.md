@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Design review
+Status: Local implementation complete; iPhone QA pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -53,12 +53,13 @@ Important quality questions for device QA:
 
 ## Presets
 
-First-loop presets should be conservative:
+First-loop presets are conservative:
 
-- `natural_brow`: soft neutral brown, low gloss, powder-like density.
-- `soft_brow`: lighter brown, lower opacity, wider feather.
-- Optional dark preset only if the local mask preview and device QA do not make
-  the effect look stamped on.
+- `natural_brow`: soft neutral brown, multiply blend, opacity `0.62`,
+  intensity `0.58`, feather `0.42`, coverage `0.70`, roughness `0.96`,
+  specular `0.02`, gloss boost `0`.
+- `soft_brow`: lighter brown, lower intensity, wider feather, roughness `1`,
+  specular `0`, gloss boost `0`.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -98,6 +99,27 @@ or bridge rewrite.
 - 2026-06-27: User observed that existing regions should eventually be split by
   renderer too. The chosen plan is to prepare the renderer contract now, without
   doing a full lip/cheek/eye renderer refactor in the eyebrow loop.
+- 2026-06-27: Implemented first-loop eyebrow through the existing
+  `smooth-region-mask` renderer with `brow-drawn-mask-v1`, `natural_brow`, and
+  `soft_brow`. Dedicated renderer splitting remains a follow-up refactor.
+
+## Local Verification
+
+- RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
+  passed with 23 tests.
+- Brow mask verifier passed:
+  `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py`.
+- Unity contract verifier passed:
+  `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
+- Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
+  `Tundra build success` and imported
+  `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
+
+## QA Status
+
+The feature is ready for an approved real-device build/installation loop, but
+it is not accepted as visually product-quality until user iPhone QA confirms
+placement, attachment, color response, and tracking recovery.
 
 ## Risks
 

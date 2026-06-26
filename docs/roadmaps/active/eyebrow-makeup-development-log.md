@@ -103,3 +103,50 @@ Approval is still required before:
 - 2026-06-27: Goal created: "기존 AR 메이크업 앱 안의 눈썹 메이크업 기능을 상용 제품 퀄리티 목표로 구현".
 - 2026-06-27: Design docs created for product behavior, AR rendering design,
   and development log. Implementation not started.
+- 2026-06-27: Implementation plan created and pushed on `feature/brow-0626`.
+- 2026-06-27: RN recipe contract implemented in commit `323d0ce`.
+  - RED: focused Jest failed because `BROW_TEXTURE_STYLE_OPTIONS` and `brow`
+    controls were missing.
+  - GREEN: focused Jest passed, 23 tests.
+  - Added `brow` as fourth recipe region, `natural_brow`, `soft_brow`, and
+    `brow-drawn-mask-v1` to the RN payload/HUD contract.
+- 2026-06-27: Procedural brow mask asset implemented in commit `a40a582`.
+  - RED: `verify_brow_mask_texture.py` failed because
+    `brow-drawn-mask-v1.png` was missing.
+  - GREEN: verifier passed with `11275` active pixels, `0.043011` coverage,
+    bbox `left=99,top=132,right=412,bottom=196,width=314,height=65`, and two
+    brow components.
+  - Asset is generated in-house by
+    `scripts/e7_reference_atlas/generate_brow_mask_texture.py`.
+- 2026-06-27: Unity brow bridge/render contract implemented in commit
+  `a48dbb4`.
+  - RED: `verify_brow_unity_contract.py` failed on 3-region
+    `FeatureSnapshotRegions`.
+  - GREEN: Unity contract verifier passed.
+  - Unity `6000.3.18f1` batchmode import/compile exited `0`; log included
+    `Tundra build success` and imported
+    `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
+  - Batchmode log also printed a Unity shutdown-time `.NET SDK` warning after
+    successful compile/import; no C# compile failure was reported.
+- 2026-06-27: Final local verification sweep before device build gate:
+  - RN focused Jest: passed, 23 tests.
+  - RN lint: passed.
+  - RN TypeScript compile: `npx tsc --noEmit` passed.
+  - Brow mask verifier: passed.
+  - Unity brow contract verifier: passed.
+
+## Build Gate Packet
+
+Real-device build has not been run in this loop.
+
+Before building on iPhone, report and get user approval for:
+
+- Primary path: regenerate/sync `UnityFramework.framework` with
+  `bash scripts/build_m3_unityframework.sh`, then run the RN/Xcode target with
+  the user-approved device and signing team.
+- Target assumptions: real iPhone with ARKit face tracking support; no hard-coded
+  UDID or `DEVELOPMENT_TEAM` should be added as repo defaults.
+- Expected risk: first-loop static UV brow placement may need arch/width/tail
+  tuning after visual QA.
+- Out of scope: Android, AI/model inference, backend upload, raw-frame storage,
+  payment, ads, commercial SDKs, and App Store readiness claims.

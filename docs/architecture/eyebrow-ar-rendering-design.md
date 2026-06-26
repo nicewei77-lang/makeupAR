@@ -1,6 +1,6 @@
 # Eyebrow AR Rendering Design
 
-Status: Design review
+Status: Local implementation complete; device QA pending
 Date: 2026-06-27
 Related product doc: `docs/product/eyebrow-makeup-feature.md`
 
@@ -9,7 +9,7 @@ Related product doc: `docs/product/eyebrow-makeup-feature.md`
 The current app sends React Native recipe batches to Unity through `RNBridge`.
 Unity parses region layers and applies them through `E3RegionMaskOverlay`, which
 renders a smooth UV mask over the AR Foundation `ARFace` mesh. Existing runtime
-regions are `lip`, `cheek`, and `eye`.
+regions are now `lip`, `cheek`, `eye`, and `brow`.
 
 The renderer already supports:
 
@@ -21,9 +21,9 @@ The renderer already supports:
 - Visibility suppression for clean/capture/debug modes.
 - Tracking-state fade/hide behavior.
 
-## Recommended First Loop
+## Implemented First Loop
 
-Add eyebrow support by extending the existing region recipe pipeline:
+Eyebrow support was added by extending the existing region recipe pipeline:
 
 1. Extend region constants from `lip | cheek | eye` to include `brow`.
 2. Add brow texture sample presets such as `natural_brow` and `soft_brow`.
@@ -34,6 +34,17 @@ Add eyebrow support by extending the existing region recipe pipeline:
 6. Route `brow` to the current `smooth-region-mask` renderer for this loop.
 7. Record the renderer routing contract so future dedicated renderers can
    replace the implementation per region.
+
+Implemented contract values:
+
+| Field | Value |
+| --- | --- |
+| Region | `brow` |
+| Renderer mode | `smooth-region-mask` |
+| Mask texture id | `brow-drawn-mask-v1` |
+| RN presets | `natural_brow`, `soft_brow` |
+| Unity resource | `SmoothRegionMasks/brow-drawn-mask-v1` |
+| Unity material path | `E3RegionMaskOverlay.BuildMaterialColor` brow cases |
 
 ## Renderer Routing Contract
 
@@ -70,10 +81,19 @@ The safer path is:
 
 ## Brow Mask Strategy
 
-The first brow mask should be generated in-house and procedural. It should be a
+The first brow mask is generated in-house and procedural. It is a
 soft, symmetric eyebrow shape in ARFace UV space, stored as a readable,
-uncompressed Unity resource. It should favor conservative coverage so it does
-not paint the forehead or eyelids.
+uncompressed Unity resource. It favors conservative coverage so it does not
+paint the forehead or eyelids.
+
+Local verifier result for `brow-drawn-mask-v1.png`:
+
+- Size: `512x512`
+- Active red-channel pixels (`> 8`): `11275`
+- Coverage: `0.043011`
+- Bbox: `left=99, top=132, right=412, bottom=196, width=314, height=65`
+- Components: two large brow components, center gap empty at the verifier
+  threshold.
 
 The mask can start as a single-channel soft alpha shape. If the first device QA
 shows poor fit, later loops can add:
@@ -110,11 +130,13 @@ SDK, or Android work is part of this flow.
 
 Local checks before any real-device build:
 
-- Jest test for eyebrow recipe payload shape.
-- TypeScript compile for RN schema changes.
-- Static guard that Unity parser accepts `brow` and rejects unsupported regions.
-- Unity batchmode import/compile when Unity code or assets change.
-- Optional offline mask inspection for active pixel coverage and bbox.
+- Jest test for eyebrow recipe payload shape: passed.
+- Static guard that Unity parser accepts `brow`: passed.
+- Offline mask inspection for active pixel coverage and bbox: passed.
+- Unity batchmode import/compile when Unity code or assets change: passed with
+  Unity `6000.3.18f1`.
+- TypeScript compile with `npx tsc --noEmit`: passed.
+- RN lint with `npm run lint`: passed.
 
 Real-device QA after build approval:
 
