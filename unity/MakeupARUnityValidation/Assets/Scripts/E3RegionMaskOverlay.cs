@@ -633,8 +633,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "lip":
                 return "lip-smooth-mask-v1";
             case "cheek":
+            case "blush":
                 return "cheek-smooth-mask-v1";
             case "eye":
+            case "brow":
+            case "eyeliner":
                 return "eye-smooth-mask-v1";
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
@@ -1009,7 +1012,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static string NormalizeRegion(string region)
     {
         region = string.IsNullOrWhiteSpace(region) ? string.Empty : region.Trim().ToLowerInvariant();
-        if (region == "lip" || region == "cheek" || region == "eye")
+        if (region == "lip"
+            || region == "cheek"
+            || region == "eye"
+            || region == "blush"
+            || region == "brow"
+            || region == "eyeliner")
         {
             return region;
         }
@@ -1024,8 +1032,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : textureSample.Trim().ToLowerInvariant();
 
         if ((region == "lip" && textureSample == "matte_lip")
-            || (region == "cheek" && textureSample == "soft_blush")
-            || (region == "eye" && textureSample == "shimmer_eye"))
+            || ((region == "cheek" || region == "blush") && textureSample == "soft_blush")
+            || ((region == "eye" || region == "brow" || region == "eyeliner") && textureSample == "shimmer_eye"))
         {
             return textureSample;
         }
@@ -1103,6 +1111,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return maskTextureId;
         }
 
+        if (IsFullFaceRegionMaskTextureId(NormalizeRegion(region), maskTextureId))
+        {
+            return maskTextureId;
+        }
+
         throw new ArgumentException(
             "Unsupported smooth mask texture id for region " + region + ": " + maskTextureId);
     }
@@ -1124,6 +1137,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         if (value == GetDefaultMaskTextureId(region))
+        {
+            return value;
+        }
+
+        if (IsFullFaceRegionCandidateId(NormalizeRegion(region), value))
         {
             return value;
         }
@@ -1150,6 +1168,34 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         return !string.IsNullOrWhiteSpace(maskTextureId)
             && maskTextureId.Trim().StartsWith("e7-generated-lip-", StringComparison.Ordinal);
+    }
+
+    private static bool IsFullFaceRegionMaskTextureId(string region, string maskTextureId)
+    {
+        if (string.IsNullOrWhiteSpace(maskTextureId))
+        {
+            return false;
+        }
+
+        string value = maskTextureId.Trim();
+        return (region == "lip" && value.StartsWith("e7-lip-", StringComparison.Ordinal))
+            || (region == "blush" && value.StartsWith("e7-blush-", StringComparison.Ordinal))
+            || (region == "brow" && value.StartsWith("e7-brow-", StringComparison.Ordinal))
+            || (region == "eyeliner" && value.StartsWith("e7-eyeliner-", StringComparison.Ordinal));
+    }
+
+    private static bool IsFullFaceRegionCandidateId(string region, string candidateId)
+    {
+        if (string.IsNullOrWhiteSpace(candidateId))
+        {
+            return false;
+        }
+
+        string value = candidateId.Trim();
+        return (region == "lip" && value.StartsWith("lip-", StringComparison.Ordinal))
+            || (region == "blush" && value.StartsWith("blush-", StringComparison.Ordinal))
+            || (region == "brow" && value.StartsWith("brow-", StringComparison.Ordinal))
+            || (region == "eyeliner" && value.StartsWith("eyeliner-", StringComparison.Ordinal));
     }
 
     private static string NormalizeGeneratedLipMaskTextureId(string maskTextureId)
@@ -1294,7 +1340,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " regionDecision=smooth_mask_runtime"
             + " smoothing=smooth_alpha_mask"
-            + " regionsInScope=lip,cheek,eye");
+            + " regionsInScope=lip,cheek,eye,blush,brow,eyeliner");
     }
 
     private static string BuildTopologyAuditStatus(ARFace face)

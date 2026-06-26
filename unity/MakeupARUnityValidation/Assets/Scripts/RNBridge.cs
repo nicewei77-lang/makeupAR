@@ -9,7 +9,8 @@ using UnityEngine.XR.ARFoundation;
 
 public sealed class RNBridge : MonoBehaviour
 {
-    private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye" };
+    private static readonly string[] FeatureSnapshotRegions =
+        { "lip", "cheek", "eye", "blush", "brow", "eyeliner" };
 
     [Serializable]
     private sealed class RecipePayload
@@ -1754,13 +1755,11 @@ public sealed class RNBridge : MonoBehaviour
     {
         List<ParsedRecipeLayer> layers = new List<ParsedRecipeLayer>();
 
-        if (recipe.layers == null || recipe.layers.Length != FeatureSnapshotRegions.Length)
+        if (recipe.layers == null || recipe.layers.Length == 0)
         {
             int actualLayerCount = recipe.layers != null ? recipe.layers.Length : 0;
             throw new ArgumentException(
-                "Recipe batch must include exactly "
-                + FeatureSnapshotRegions.Length.ToString(CultureInfo.InvariantCulture)
-                + " layers; received "
+                "Recipe batch must include at least one layer; received "
                 + actualLayerCount.ToString(CultureInfo.InvariantCulture)
                 + ".");
         }
@@ -1883,7 +1882,12 @@ public sealed class RNBridge : MonoBehaviour
             ? string.Empty
             : value.Trim().ToLowerInvariant();
 
-        if (value == "lip" || value == "cheek" || value == "eye")
+        if (value == "lip"
+            || value == "cheek"
+            || value == "eye"
+            || value == "blush"
+            || value == "brow"
+            || value == "eyeliner")
         {
             return value;
         }
@@ -2004,8 +2008,8 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         if ((region == "lip" && value == "matte_lip")
-            || (region == "cheek" && value == "soft_blush")
-            || (region == "eye" && value == "shimmer_eye"))
+            || ((region == "cheek" || region == "blush") && value == "soft_blush")
+            || ((region == "eye" || region == "brow" || region == "eyeliner") && value == "shimmer_eye"))
         {
             return value;
         }
@@ -2122,6 +2126,11 @@ public sealed class RNBridge : MonoBehaviour
             return value;
         }
 
+        if (IsFullFaceRegionMaskTextureId(region, value))
+        {
+            return value;
+        }
+
         throw new ArgumentException(
             "Unsupported mask texture id for region " + region + ": " + value);
     }
@@ -2142,6 +2151,11 @@ public sealed class RNBridge : MonoBehaviour
 
         string expected = GetDefaultMaskTextureId(region);
         if (value == expected)
+        {
+            return value;
+        }
+
+        if (IsFullFaceRegionCandidateId(region, value))
         {
             return value;
         }
@@ -2177,12 +2191,43 @@ public sealed class RNBridge : MonoBehaviour
         switch (region)
         {
             case "cheek":
+            case "blush":
                 return "cheek-smooth-mask-v1";
             case "eye":
+            case "brow":
+            case "eyeliner":
                 return "eye-smooth-mask-v1";
             default:
                 return "lip-smooth-mask-v1";
         }
+    }
+
+    private static bool IsFullFaceRegionMaskTextureId(string region, string maskTextureId)
+    {
+        if (string.IsNullOrWhiteSpace(maskTextureId))
+        {
+            return false;
+        }
+
+        string value = maskTextureId.Trim();
+        return (region == "lip" && value.StartsWith("e7-lip-", StringComparison.Ordinal))
+            || (region == "blush" && value.StartsWith("e7-blush-", StringComparison.Ordinal))
+            || (region == "brow" && value.StartsWith("e7-brow-", StringComparison.Ordinal))
+            || (region == "eyeliner" && value.StartsWith("e7-eyeliner-", StringComparison.Ordinal));
+    }
+
+    private static bool IsFullFaceRegionCandidateId(string region, string candidateId)
+    {
+        if (string.IsNullOrWhiteSpace(candidateId))
+        {
+            return false;
+        }
+
+        string value = candidateId.Trim();
+        return (region == "lip" && value.StartsWith("lip-", StringComparison.Ordinal))
+            || (region == "blush" && value.StartsWith("blush-", StringComparison.Ordinal))
+            || (region == "brow" && value.StartsWith("brow-", StringComparison.Ordinal))
+            || (region == "eyeliner" && value.StartsWith("eyeliner-", StringComparison.Ordinal));
     }
 
     private static double CalculateLatencyMs(double startMs, double endMs)

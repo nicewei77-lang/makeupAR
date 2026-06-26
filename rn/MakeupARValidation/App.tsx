@@ -267,6 +267,68 @@ const LIP_GENERATE_EXPRESSION_OPTIONS: Array<{
 ];
 const GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64 =
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAA////////////////////////////////AAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
+const E7_FULL_FACE_REGION_RUNTIME_LAYERS = [
+  {
+    region: 'lip',
+    layer: 'lip',
+    candidateId: 'lip-balanced-gold-v0',
+    maskTextureId: 'e7-lip-balanced-uv-v0',
+    maskThreshold: 0.35,
+    maskFeatherUvNormalized: 0.07,
+    color: '#C76B74',
+    opacity: 0.62,
+    texture: 'matte_lip',
+    blendMode: 'multiply',
+    intensity: 0.72,
+    coverage: 1.0,
+    skinAdaptive: true,
+  },
+  {
+    region: 'blush',
+    layer: 'blush',
+    candidateId: 'blush-balanced-soft-oval-v0',
+    maskTextureId: 'e7-blush-balanced-uv-v0',
+    maskThreshold: 0.18,
+    maskFeatherUvNormalized: 0.07,
+    color: '#E67B5F',
+    opacity: 0.45,
+    texture: 'soft_blush',
+    blendMode: 'normal',
+    intensity: 0.45,
+    coverage: 0.68,
+    skinAdaptive: false,
+  },
+  {
+    region: 'brow',
+    layer: 'brow',
+    candidateId: 'brow-balanced-stroke-envelope-v0',
+    maskTextureId: 'e7-brow-balanced-uv-v0',
+    maskThreshold: 0.14,
+    maskFeatherUvNormalized: 0.07,
+    color: '#5F4A42',
+    opacity: 0.48,
+    texture: 'shimmer_eye',
+    blendMode: 'multiply',
+    intensity: 0.72,
+    coverage: 0.72,
+    skinAdaptive: false,
+  },
+  {
+    region: 'eyeliner',
+    layer: 'eyeliner',
+    candidateId: 'eyeliner-minimal-safe-lashline-v0',
+    maskTextureId: 'e7-eyeliner-minimal-safe-uv-v0',
+    maskThreshold: 0.12,
+    maskFeatherUvNormalized: 0.07,
+    color: '#2F2730',
+    opacity: 0.66,
+    texture: 'shimmer_eye',
+    blendMode: 'multiply',
+    intensity: 0.72,
+    coverage: 0.72,
+    skinAdaptive: false,
+  },
+] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 const LIP_ADJUSTMENT_STEP = 0.05;
@@ -1048,6 +1110,109 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     );
   }, [lipGenerateExpressionMode, lipGenerateProvider, lipUserAdjustment]);
 
+  const postFullFaceRegionPackage = useCallback(() => {
+    const sentAtMs = Date.now();
+    const recipeBatchId = `e7-full-face-region-batch-${Math.round(sentAtMs)}`;
+    const enabledLayerCount = E7_FULL_FACE_REGION_RUNTIME_LAYERS.length;
+    const layers = E7_FULL_FACE_REGION_RUNTIME_LAYERS.map(layer => ({
+      id: `${layer.region}-${layer.candidateId}`,
+      recipeId: `${recipeBatchId}-${layer.region}`,
+      recipeBatchId,
+      lookId: 'e7_full_face_region_generate_v0',
+      sentAtMs,
+      activeRegions: 'lip,blush,brow,eyeliner',
+      layerCount: E7_FULL_FACE_REGION_RUNTIME_LAYERS.length,
+      enabledLayerCount,
+      region: layer.region,
+      layer: layer.layer,
+      color: layer.color,
+      opacity: layer.opacity,
+      texture: layer.texture,
+      sample: layer.texture,
+      textureMode: 'sample',
+      intensity: layer.intensity,
+      feather: layer.maskFeatherUvNormalized,
+      blendMode: layer.blendMode,
+      rendererMode: selectedRendererMode,
+      enabled: true,
+      coverage: layer.coverage,
+      finish: 'validation-placeholder',
+      textureAmount: 0,
+      roughness: 0,
+      specular: 0,
+      specularPower: 0,
+      glossBoost: 0,
+      shimmer: 0,
+      shimmerColor: '#FFFFFF',
+      skinAdaptive: layer.skinAdaptive,
+      preserveDetail: true,
+      materialId: `e7-full-face-${layer.region}-material-v0`,
+      shaderMode: 'smooth-lip-finish-v0',
+      passCount: 1,
+      candidateId: layer.candidateId,
+      maskTextureId: layer.maskTextureId,
+      maskThreshold: layer.maskThreshold,
+      maskFeatherUvNormalized: layer.maskFeatherUvNormalized,
+      cornerReach: layer.region === 'lip' ? lipUserAdjustment.cornerReach : 0,
+      upperLipTightness:
+        layer.region === 'lip' ? lipUserAdjustment.upperLipTightness : 0,
+      lowerLipTightness:
+        layer.region === 'lip' ? lipUserAdjustment.lowerLipTightness : 0,
+      verticalOffset: layer.region === 'lip' ? lipUserAdjustment.verticalOffset : 0,
+      cameraBackdropAvailable: false,
+      lightEstimateAvailable: false,
+    }));
+    const recipeJson = JSON.stringify({
+      version: 2,
+      recipeBatchId,
+      recipeId: recipeBatchId,
+      lookId: 'e7_full_face_region_generate_v0',
+      sentAtMs,
+      rendererMode: selectedRendererMode,
+      region: 'lip',
+      activeRegions: 'lip,blush,brow,eyeliner',
+      layerCount: layers.length,
+      enabledLayerCount,
+      texture: 'matte_lip',
+      sample: 'matte_lip',
+      textureMode: 'sample',
+      coverage: 0.72,
+      finish: 'validation-placeholder',
+      textureAmount: 0,
+      roughness: 0,
+      specular: 0,
+      specularPower: 0,
+      glossBoost: 0,
+      shimmer: 0,
+      shimmerColor: '#FFFFFF',
+      skinAdaptive: true,
+      preserveDetail: true,
+      materialId: 'e7-full-face-region-batch-material-v0',
+      shaderMode: 'smooth-lip-finish-v0',
+      passCount: 1,
+      cameraBackdropAvailable: false,
+      lightEstimateAvailable: false,
+      layers,
+    });
+
+    console.log(
+      '[E7] rn_full_face_region_package_post',
+      `recipeBatchId=${recipeBatchId}`,
+      `layerCount=${layers.length}`,
+      `activeRegions=lip,blush,brow,eyeliner`,
+      `payloadBytes=${recipeJson.length}`,
+      'runtimeReady=false',
+      'source=e7_full_face_region_generate_pre_xcode',
+    );
+
+    setFocusedRegion('lip');
+    setActiveRegions({ lip: true, cheek: true, eye: true });
+    setLastGeneratedLipMaskSummary(
+      `full-face package payload=${recipeJson.length}B pre-Xcode`,
+    );
+    unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
+  }, [lipUserAdjustment, selectedRendererMode]);
+
   const postRecipeAck = useCallback(
     (payload: UnityEventPayload, receivedAtMs: number) => {
       const ackJson = JSON.stringify({
@@ -1762,6 +1927,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   onPress={postGeneratedLipMask}
                 >
                   <Text style={styles.generatedMaskButtonText}>Generate</Text>
+                </Pressable>
+                <Pressable
+                  accessibilityRole="button"
+                  testID="full-face-region-package-apply"
+                  style={({ pressed }) => [
+                    styles.generatedMaskButton,
+                    pressed && styles.colorButtonPressed,
+                  ]}
+                  onPress={postFullFaceRegionPackage}
+                >
+                  <Text style={styles.generatedMaskButtonText}>Full-face</Text>
                 </Pressable>
               </View>
 
