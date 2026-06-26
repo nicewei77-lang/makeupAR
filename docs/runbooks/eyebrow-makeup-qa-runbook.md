@@ -102,6 +102,48 @@ If placement is off, record whether the problem is:
 - Tail angle wrong.
 - Both brows equally wrong or asymmetric.
 
+## User Observation Template
+
+Use this template after an approved device build. Do not store screenshots or
+recordings unless the user explicitly approves storing them.
+
+Build context:
+
+- Branch/commit:
+- Device:
+- iOS version:
+- Signing team used:
+- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes/no
+- Unity batchmode compile after latest brow C# change: pass/fail/log path
+
+Minimum observations:
+
+| Scenario | Question | User observation | Pass / Needs tuning |
+| --- | --- | --- | --- |
+| Frontal neutral | Are both brows close to the natural brow line, without forehead or eyelid bleed? |  |  |
+| Left head turn | Does the near/far brow stay attached, or does either side float? |  |  |
+| Right head turn | Does the near/far brow stay attached, or does either side float? |  |  |
+| Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? |  |  |
+| `natural_brow` preset | Does it read as soft makeup rather than a sticker? |  |  |
+| `soft_brow` preset | Is the lighter preset still visible but natural? |  |  |
+| Opacity/intensity change | Do changes apply immediately without AR restart? |  |  |
+| Temporary tracking loss | Does the brow hide/fade and recover without stale placement? |  |  |
+| Existing regions smoke test | Do lip, cheek, and eye still toggle/render? |  |  |
+
+Asymmetry decision:
+
+- Are both brows wrong in the same direction, suggesting mask tuning?
+- Is only one brow wrong, suggesting left/right asymmetry controls?
+- Should explicit left/right offset/scale/angle correction be implemented before
+  calling the eyebrow module complete?
+
+Screenshot policy:
+
+- No screenshots requested:
+- User approved storing screenshots:
+- Screenshot paths under `evidence/screenshots/`:
+- Notes if screenshots were viewed but not stored:
+
 Do not store raw face frames by default. If screenshots or recordings are needed
 as evidence, get explicit user approval first and store only curated artifacts
 under `evidence/`.

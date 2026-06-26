@@ -198,6 +198,10 @@ Approval is still required before:
     latest C# policy change, real-device iPhone QA confirms placement/natural
     appearance/tracking recovery, and the left/right asymmetry-control gap is
     either implemented or explicitly deferred by user decision.
+- 2026-06-27: Device QA observation template added to
+  `docs/runbooks/eyebrow-makeup-qa-runbook.md` so the first real-device pass can
+  capture scenario-specific user feedback without storing face screenshots by
+  default.
 
 ## Build Gate Packet
 

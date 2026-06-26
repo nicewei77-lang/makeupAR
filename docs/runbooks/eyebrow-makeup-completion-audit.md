@@ -76,7 +76,8 @@ generated cleanup and device build workflow:
    user-approved iPhone and signing team.
 4. Collect user visual QA observations for frontal neutral, left/right head
    turns, expression change, color/intensity update, tracking recovery, and
-   existing lip/cheek/eye smoke behavior.
+   existing lip/cheek/eye smoke behavior using the observation template in
+   `docs/runbooks/eyebrow-makeup-qa-runbook.md`.
 
 ## Current Conclusion
 
