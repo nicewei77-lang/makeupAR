@@ -89,11 +89,13 @@ paint the forehead or eyelids.
 Local verifier result for `brow-drawn-mask-v1.png`:
 
 - Size: `512x512`
-- Active red-channel pixels (`> 8`): `11275`
-- Coverage: `0.043011`
-- Bbox: `left=99, top=132, right=412, bottom=196, width=314, height=65`
+- Active red-channel pixels (`> 8`): `11205`
+- Coverage: `0.042744`
+- Bbox: `left=99, top=80, right=412, bottom=142, width=314, height=63`
 - Components: two large brow components, center gap empty at the verifier
   threshold.
+- Region separation guard: `eye-drawn=406/1200`, `eye-smooth=56/4200`,
+  `cheek-drawn=0/50`, `lip-drawn=0/0`.
 
 The mask can start as a single-channel soft alpha shape. If the first device QA
 shows poor fit, later loops can add:

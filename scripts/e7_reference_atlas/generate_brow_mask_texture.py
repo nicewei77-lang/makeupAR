@@ -95,17 +95,17 @@ def build_mask(resolution: int, scale: int) -> Image.Image:
     mask = Image.new("L", (high_resolution, high_resolution), 0)
 
     left_curve = cubic_bezier(
-        (118, 178),
-        (144, 148),
-        (195, 141),
-        (224, 166),
+        (118, 124),
+        (144, 96),
+        (195, 89),
+        (224, 114),
         samples=52,
     )
     right_curve = cubic_bezier(
-        (288, 166),
-        (317, 141),
-        (368, 148),
-        (394, 178),
+        (288, 114),
+        (317, 89),
+        (368, 96),
+        (394, 124),
         samples=52,
     )
 

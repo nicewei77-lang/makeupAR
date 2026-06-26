@@ -16,12 +16,22 @@ DEFAULT_BROW_MASK = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/"
     "brow-drawn-mask-v1.png"
 )
+DEFAULT_MASK_DIR = Path(
+    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
+)
+REGION_SEPARATION_MASKS = {
+    "eye-drawn": ("eye-drawn-mask-v1.png", 1200),
+    "eye-smooth": ("eye-smooth-mask-v1.png", 4200),
+    "cheek-drawn": ("cheek-drawn-mask-v1.png", 50),
+    "lip-drawn": ("lip-drawn-mask-v1.png", 0),
+}
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify brow-drawn-mask-v1.png.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--mask", type=Path, default=DEFAULT_BROW_MASK)
+    parser.add_argument("--mask-dir", type=Path, default=DEFAULT_MASK_DIR)
     parser.add_argument("--resolution", type=int, default=512)
     parser.add_argument("--threshold", type=int, default=8)
     parser.add_argument("--component-threshold", type=int, default=32)
@@ -106,10 +116,16 @@ def connected_components(mask: np.ndarray, min_pixels: int) -> list[dict[str, An
     return sorted(components, key=lambda component: component["centerX"])
 
 
+def load_red_mask(path: Path, threshold: int) -> np.ndarray:
+    rgba = np.asarray(Image.open(path).convert("RGBA"))
+    return rgba[:, :, 0] > threshold
+
+
 def main() -> None:
     args = parse_args()
     repo = args.repo_root.resolve()
     mask_path = resolve(repo, args.mask)
+    mask_dir = resolve(repo, args.mask_dir)
 
     require(mask_path.exists(), f"Missing brow mask texture: {mask_path}")
 
@@ -131,10 +147,10 @@ def main() -> None:
     require(0.008 <= coverage <= 0.05, f"Unexpected active coverage: {coverage:.6f}.")
     require(95 <= bounds["left"] <= 170, f"Brow bbox left is off: {bounds}.")
     require(340 <= bounds["right"] <= 430, f"Brow bbox right is off: {bounds}.")
-    require(105 <= bounds["top"] <= 180, f"Brow bbox top is off: {bounds}.")
-    require(160 <= bounds["bottom"] <= 245, f"Brow bbox bottom is off: {bounds}.")
+    require(70 <= bounds["top"] <= 135, f"Brow bbox top is off: {bounds}.")
+    require(120 <= bounds["bottom"] <= 175, f"Brow bbox bottom is off: {bounds}.")
     require(220 <= bounds["width"] <= 340, f"Brow bbox width is off: {bounds}.")
-    require(35 <= bounds["height"] <= 110, f"Brow bbox height is off: {bounds}.")
+    require(35 <= bounds["height"] <= 95, f"Brow bbox height is off: {bounds}.")
 
     components = connected_components(
         red > args.component_threshold,
@@ -151,11 +167,23 @@ def main() -> None:
     center_gap_pixels = int((red[:, 245:267] > args.component_threshold).sum())
     require(center_gap_pixels <= 30, f"Center gap is too filled: {center_gap_pixels}.")
 
+    overlap_summaries: list[str] = []
+    for label, (filename, max_overlap_pixels) in REGION_SEPARATION_MASKS.items():
+        region_path = mask_dir / filename
+        require(region_path.exists(), f"Missing region separation mask: {region_path}")
+        region_mask = load_red_mask(region_path, args.threshold)
+        overlap_pixels = int((active & region_mask).sum())
+        overlap_summaries.append(f"{label}={overlap_pixels}/{max_overlap_pixels}")
+        require(
+            overlap_pixels <= max_overlap_pixels,
+            f"Brow mask overlaps {label}: {overlap_pixels} > {max_overlap_pixels}.",
+        )
+
     print(
         "brow_mask_texture_ok "
         f"path={mask_path.relative_to(repo).as_posix()} "
         f"activePixels={active_count} coverage={coverage:.6f} bbox={bounds} "
-        f"components={components}"
+        f"components={components} overlaps={','.join(overlap_summaries)}"
     )
 
 

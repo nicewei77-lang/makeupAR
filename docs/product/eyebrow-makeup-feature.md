@@ -109,6 +109,7 @@ or bridge rewrite.
   passed with 23 tests.
 - Brow mask verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py`.
+  The verifier now guards brow separation from eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed

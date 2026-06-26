@@ -134,6 +134,20 @@ Approval is still required before:
   - RN TypeScript compile: `npx tsc --noEmit` passed.
   - Brow mask verifier: passed.
   - Unity brow contract verifier: passed.
+- 2026-06-27: Brow mask region-separation guard added after local inspection
+  showed excessive overlap with the existing eye masks.
+  - RED: `verify_brow_mask_texture.py` failed with
+    `Brow mask overlaps eye-drawn: 4702 > 1200`.
+  - GREEN: generator moved the brow curves upward. Verifier passed with
+    `11205` active pixels, `0.042744` coverage, bbox
+    `left=99,top=80,right=412,bottom=142,width=314,height=63`, and overlaps
+    `eye-drawn=406/1200`, `eye-smooth=56/4200`, `cheek-drawn=0/50`,
+    `lip-drawn=0/0`.
+  - RN focused Jest, RN lint, RN TypeScript compile, brow Unity contract
+    verifier, and Unity `6000.3.18f1` batchmode import/compile all passed
+    after the adjustment.
+  - Unity batchmode reported only `212Mi` available disk space on
+    `/System/Volumes/Data`; device build likely needs cleanup before running.
 
 ## Build Gate Packet
 
@@ -148,5 +162,8 @@ Before building on iPhone, report and get user approval for:
   UDID or `DEVELOPMENT_TEAM` should be added as repo defaults.
 - Expected risk: first-loop static UV brow placement may need arch/width/tail
   tuning after visual QA.
+- Local machine risk: current disk free space is about `212Mi`; cleanup should
+  happen before real-device export/build. Large generated candidates observed:
+  `unity-builds` about `3.1G` and Unity `Library` about `796M`.
 - Out of scope: Android, AI/model inference, backend upload, raw-frame storage,
   payment, ads, commercial SDKs, and App Store readiness claims.
