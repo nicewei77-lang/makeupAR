@@ -118,6 +118,11 @@ or bridge rewrite.
 - 2026-06-27: Tuned `brow-drawn-mask-v1` before the next device build by
   flattening the center arch, reducing mask thickness, removing the hard upper
   highlight stroke, and lowering default brow opacity/intensity/coverage.
+- 2026-06-27: User chose not to apply that intermediate tuning to the iPhone
+  build and asked to move directly into the next local loop. The next loop adds
+  subtle procedural hair/powder density variation inside the same
+  `brow-drawn-mask-v1` resource so the brow is less like a single smooth
+  sticker strip before the eventual rebuild.
 
 ## Local Verification
 
@@ -148,7 +153,9 @@ The feature is installed and launchable on the approved iPhone build. First QA
 confirmed attachment and control response, but visual product quality is not
 accepted yet because the installed build's brow mask was too arched and too
 thick. The flatter/thinner tuning requires a fresh UnityFramework/RN device
-build before the next iPhone QA pass.
+build before the next iPhone QA pass. The current local branch intentionally
+continues beyond that intermediate device build and now includes additional
+procedural density texture that has not been installed on-device.
 
 ## Risks
 

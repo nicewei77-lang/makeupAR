@@ -165,6 +165,42 @@ def component_arch_metrics(
     }
 
 
+def component_texture_metrics(
+    red: np.ndarray,
+    component: dict[str, Any],
+    threshold: int,
+) -> dict[str, float]:
+    bbox = component["bbox"]
+    column_peaks: list[float] = []
+    for x in range(bbox["left"], bbox["right"] + 1):
+        values = red[:, x]
+        if float(values.max()) <= threshold:
+            continue
+
+        column_peaks.append(float(values.max()))
+
+    require(
+        len(column_peaks) >= 15,
+        f"Brow component is too sparse for texture checks: {component}.",
+    )
+
+    count = len(column_peaks)
+    center_start = count // 5
+    center_end = max(center_start + 1, (count * 4) // 5)
+    center_peaks = column_peaks[center_start:center_end]
+    differences = [
+        abs(center_peaks[index] - center_peaks[index - 1])
+        for index in range(1, len(center_peaks))
+    ]
+
+    peak_range = max(center_peaks) - min(center_peaks)
+    mean_step = sum(differences) / float(len(differences))
+    return {
+        "centerPeakRange": peak_range,
+        "centerPeakMeanStep": mean_step,
+    }
+
+
 def load_red_mask(path: Path, threshold: int) -> np.ndarray:
     rgba = np.asarray(Image.open(path).convert("RGBA"))
     return rgba[:, :, 0] > threshold
@@ -218,6 +254,7 @@ def main() -> None:
     require(right["bbox"]["left"] > 267, f"Right brow crosses center gap: {right}.")
 
     arch_summaries: list[str] = []
+    texture_summaries: list[str] = []
     for label, component in (("left", left), ("right", right)):
         arch_metrics = component_arch_metrics(red, component, args.component_threshold)
         arch_summaries.append(
@@ -231,6 +268,24 @@ def main() -> None:
         require(
             arch_metrics["centerTopRisePx"] <= 9.0,
             f"{label} brow top edge makes a ^ shape: {arch_metrics}.",
+        )
+
+        texture_metrics = component_texture_metrics(
+            red,
+            component,
+            args.component_threshold,
+        )
+        texture_summaries.append(
+            f"{label}=centerPeakRange:{texture_metrics['centerPeakRange']:.2f}"
+            f"/centerPeakMeanStep:{texture_metrics['centerPeakMeanStep']:.2f}"
+        )
+        require(
+            12.0 <= texture_metrics["centerPeakRange"] <= 52.0,
+            f"{label} brow center is too smooth or too patchy: {texture_metrics}.",
+        )
+        require(
+            0.8 <= texture_metrics["centerPeakMeanStep"] <= 8.0,
+            f"{label} brow lacks fine powder/hair density variation: {texture_metrics}.",
         )
 
     center_gap_pixels = int((red[:, 245:267] > args.component_threshold).sum())
@@ -253,6 +308,7 @@ def main() -> None:
         f"path={mask_path.relative_to(repo).as_posix()} "
         f"activePixels={active_count} coverage={coverage:.6f} bbox={bounds} "
         f"components={components} arch={','.join(arch_summaries)} "
+        f"texture={','.join(texture_summaries)} "
         f"overlaps={','.join(overlap_summaries)}"
     )
 

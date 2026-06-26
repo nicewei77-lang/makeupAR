@@ -96,19 +96,27 @@ looked like `^ ^`: each brow's center was too high, the mask was far too thick,
 and the effect read as sticker-like. The tuned mask keeps the same resource id
 and renderer contract, but flattens the arch and reduces the stroke footprint.
 
+The user chose to skip rebuilding the intermediate flatter mask and continue
+into the next local loop. The current mask now adds deterministic procedural
+hair/powder density variation inside the same thin footprint so the effect is
+less like one smooth sticker strip.
+
 Current local verifier result for `brow-drawn-mask-v1.png`:
 
 - Size: `512x512`
-- Active red-channel pixels (`> 8`): `5845`
-- Coverage: `0.022297`
-- Bbox: `left=112, top=100, right=399, bottom=130, width=288, height=31`
-- Components: two thinner brow components with bbox height `27`.
-- Center arch guard: left `4.41px` center rise, right `4.43px` center rise.
+- Active red-channel pixels (`> 8`): `5123`
+- Coverage: `0.019543`
+- Bbox: `left=113, top=101, right=398, bottom=129, width=286, height=29`
+- Components: two thinner brow components with bbox height `25`.
+- Center arch guard: left `4.29px` center rise, right `4.34px` center rise.
+- Density texture guard: center peak range `51px` left and `43px` right, with
+  mean peak step `2.09` left and `1.66` right.
 - Region separation guard: `eye-drawn=0/1200`, `eye-smooth=0/4200`,
   `cheek-drawn=0/50`, `lip-drawn=0/0`.
 
-The mask can start as a single-channel soft alpha shape. If the first device QA
-shows poor fit, later loops can add:
+The mask remains a single-channel soft alpha texture, but no longer uses a
+fully uniform central ridge. If later device QA still shows poor fit, later
+loops can add:
 
 - Separate left/right channels.
 - Asymmetry parameters.

@@ -50,6 +50,11 @@ Post-QA tuning notes:
   center too high, the stroke far too thick, and the effect sticker-like.
 - The local mask has since been tuned to `5845` active pixels,
   `0.022297` coverage, bbox height `31`, and center rise about `4.4px`.
+- User chose to skip applying that intermediate tuning build and proceed into
+  the next local loop.
+- The current local mask now adds procedural hair/powder density variation with
+  `5123` active pixels, `0.019543` coverage, bbox height `29`, center rise
+  about `4.3px`, and texture peak range `51/43`.
 - The tuned local mask and softer RN defaults have not yet been regenerated into
   UnityFramework or reinstalled on the iPhone.
 
@@ -80,7 +85,7 @@ Build notes:
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds | Locally verified; device rebuild pending |
 | Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest and static contract verifiers cover the payload and acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
-| Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning is ready but not device-verified | Needs re-QA after rebuild |
+| Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning now includes flatter shape plus subtle density variation, but it is not device-verified | Needs re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
 | Left/right asymmetry correction is possible | The current first loop supports symmetric procedural brow masks and shared tuning; explicit left/right asymmetry controls are not implemented | Incomplete |
 | Existing lip/cheek/eye behavior is not regressed | RN tests, static route checks, Unity compile, UnityFramework build, RN build, install, and launch passed; no manual region smoke observation yet | Partially proven |
@@ -97,7 +102,8 @@ QA after applying the local tuning to a fresh device build:
 2. Confirm the HUD eventually reports
    `renderer=brow-smooth-region-mask-renderer` after Unity applies the recipe.
 3. Confirm the tuned brow no longer appears as `^ ^`, no longer has the center
-   as the obvious highest point, and no longer reads as a thick sticker.
+   as the obvious highest point, no longer reads as a thick sticker, and does
+   not appear as one uniform grey strip.
 4. Collect user visual observations for frontal neutral, left/right head turns,
    expression change, color/intensity update, tracking recovery, and existing
    lip/cheek/eye smoke behavior using the observation template in
@@ -112,8 +118,8 @@ eyebrow makeup module, and the first iPhone QA confirmed attachment/control
 behavior. The full objective is not complete because visual quality failed on
 shape and thickness. Completion still needs:
 
-- UnityFramework/RN device rebuild with the tuned flatter/thinner mask and
-  softer default brow presets.
+- UnityFramework/RN device rebuild with the tuned flatter/thinner/density
+  textured mask and softer default brow presets.
 - User visual QA confirming product-quality shape and thickness on the rebuilt
   iPhone build.
 - A decision on whether explicit left/right asymmetry correction must be added

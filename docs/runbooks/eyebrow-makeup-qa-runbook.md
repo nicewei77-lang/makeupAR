@@ -102,6 +102,10 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   thick and sticker-like.
 - Local tuning has been made, but a new UnityFramework/RN device build is
   required before the following checks can accept the visual result.
+- User then chose to skip applying the intermediate tuning build and continue
+  into the next local loop. The current local mask also includes subtle
+  procedural hair/powder density variation; it is not installed on the iPhone
+  yet.
 
 Check:
 
@@ -121,6 +125,8 @@ Check:
 - The tuned shape does not read as `^ ^`.
 - The center of each brow is not the obvious highest point.
 - The brow stroke is thin enough to read as makeup, not a sticker.
+- The brow fill has subtle density variation and does not read as one uniform
+  grey strip.
 
 ## Acceptance Notes
 

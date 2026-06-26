@@ -273,3 +273,19 @@ Remaining:
     default opacity/intensity/coverage to `0.48/0.48/0.54`.
   - The tuned mask has not yet been rebuilt into `UnityFramework.framework` or
     reinstalled on the iPhone.
+- 2026-06-27: User chose not to apply the intermediate flatter/thinner mask to
+  the real device and asked to proceed directly into the next loop.
+- 2026-06-27: Local texture loop added subtle procedural brow density.
+  - Goal: reduce remaining sticker feel from a single smooth grey strip before
+    the eventual device rebuild.
+  - RED: `verify_brow_mask_texture.py` failed the smooth intermediate mask with
+    `left brow center is too smooth or too patchy:
+    {'centerPeakRange': 2.0, 'centerPeakMeanStep': 0.2}`.
+  - Generator update changed the brow mask to a lower-alpha powder base plus
+    deterministic short fine strokes and longitudinal density variation.
+  - GREEN: mask verifier passed with `5123` active pixels, `0.019543`
+    coverage, bbox `left=113,top=101,right=398,bottom=129,width=286,height=29`,
+    center rise about `4.3px`, texture peak range `51/43`, and zero overlap
+    with eye/cheek/lip masks.
+  - This texture loop is local only; no UnityFramework/RN device build was
+    started.
