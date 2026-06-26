@@ -1,0 +1,16 @@
+{
+  "schemaVersion": "e7-region-adjustment-axes-v0",
+  "region": "blush",
+  "axes": {
+    "centerX": 0.0,
+    "centerY": 0.0,
+    "size": 1.0,
+    "angle": 18.0,
+    "noseGuard": 0.18,
+    "underEyeGuard": 0.16,
+    "mouthCornerGuard": 0.15,
+    "feather": 0.75,
+    "intensity": 0.68
+  },
+  "controlStyle": "slider_plus_quick_buttons"
+}

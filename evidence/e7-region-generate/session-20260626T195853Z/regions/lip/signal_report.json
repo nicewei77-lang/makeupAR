@@ -1,0 +1,18 @@
+{
+  "schemaVersion": "e7-region-signal-report-v0",
+  "region": "lip",
+  "signalsUsed": [
+    "userAdjustment",
+    "hybrid",
+    "arfaceUv"
+  ],
+  "signalsMissingOrDeferred": [
+    "real iPhone runtime evidence",
+    "held-out frame projection",
+    "human visual acceptance for selected candidate",
+    "full external dataset license review"
+  ],
+  "qualityWarnings": [
+    "selected from accepted offline lip gold; still pre-Xcode only"
+  ]
+}

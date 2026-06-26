@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "e7-region-signal-report-v0",
+  "region": "brow",
+  "signalsUsed": [
+    "externalMaskPrior",
+    "mediapipe",
+    "colorConfidence",
+    "arfaceUv",
+    "hybrid"
+  ],
+  "signalsMissingOrDeferred": [
+    "real iPhone runtime evidence",
+    "held-out frame projection",
+    "human visual acceptance for selected candidate",
+    "full external dataset license review"
+  ],
+  "qualityWarnings": [
+    "eye-prior anchored brow envelope; no person-specific hair segmentation"
+  ]
+}

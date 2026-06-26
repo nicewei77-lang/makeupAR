@@ -1,0 +1,14 @@
+{
+  "schemaVersion": "e7-region-adjustment-axes-v0",
+  "region": "lip",
+  "axes": {
+    "cornerReach": 0.0,
+    "upperLipTightness": 0.0,
+    "lowerLipTightness": 0.0,
+    "verticalOffset": 0.0,
+    "innerMouthGuard": 0.12,
+    "edgeFeather": 0.07,
+    "coverage": 1.0
+  },
+  "controlStyle": "slider_plus_quick_buttons"
+}

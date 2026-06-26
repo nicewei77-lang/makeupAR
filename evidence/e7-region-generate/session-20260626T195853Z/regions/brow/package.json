@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "e7-region-mask-package-v0",
+  "packageId": "e7-brow-balanced-package-v0",
+  "region": "brow",
+  "status": "preXcodeReady",
+  "selectedPolicy": "balanced",
+  "sourceLineage": {
+    "sources": [
+      "externalMaskPrior",
+      "mediapipe",
+      "colorConfidence",
+      "arfaceUv",
+      "hybrid"
+    ],
+    "candidateIds": [
+      "brow-balanced-stroke-envelope-v0"
+    ],
+    "externalPrior": {
+      "sourceName": "local_reference_and_parametric_prior",
+      "role": "silver_draft_only",
+      "licenseNote": "No external upload; broad dataset/source review still required before product use."
+    }
+  },
+  "sourceFrameMetadata": {
+    "capturePairId": "pair_face_20260622T143334Z_03",
+    "frameWidth": 1179,
+    "frameHeight": 2556,
+    "orientation": "Portrait",
+    "isMirrored": false
+  },
+  "mask2d": {
+    "hardMaskPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-balanced-stroke-envelope-v0.mask.png",
+    "softAlphaPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-balanced-stroke-envelope-v0.alpha.png",
+    "includeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/maps/include.png",
+    "excludeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/maps/exclude.png",
+    "unknownMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/maps/unknown.png"
+  },
+  "uvMask": {
+    "texturePath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-balanced-stroke-envelope-v0.uv_probability.png",
+    "resolution": 512,
+    "roundTripOverlayPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-balanced-stroke-envelope-v0.round_trip_overlay.png",
+    "roundTripStatus": "ready",
+    "roundTripScore": {
+      "iou": 0.576625,
+      "precision": 0.576625,
+      "recall": 1.0,
+      "candidatePositivePixels": 12372,
+      "referencePositivePixels": 7134
+    }
+  },
+  "adjustment": {
+    "headPosition": 0.0,
+    "archHeight": 21.0,
+    "tailLength": 1.0,
+    "tailAngle": 0.0,
+    "thickness": 14.0,
+    "verticalOffset": -58.0,
+    "leftRightBalance": 0.0,
+    "softness": 0.55
+  },
+  "qualityWarnings": [
+    "eye-prior anchored brow envelope; no person-specific hair segmentation"
+  ],
+  "runtimeApplyPayload": {
+    "region": "brow",
+    "maskTextureId": "e7-brow-balanced-uv-v0",
+    "threshold": 0.14,
+    "feather": 0.07,
+    "opacity": 0.72,
+    "runtimeReady": false
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false
+  }
+}

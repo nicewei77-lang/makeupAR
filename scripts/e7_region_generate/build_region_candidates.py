@@ -29,6 +29,12 @@ DEFAULT_ARFACE_EXPORT = Path(
 DEFAULT_LIP_GOLD = Path(
     "evidence/references/e7-user-gold-raw-20260626/user-gold-lip-mask-gray-20260625-163204.png"
 )
+DEFAULT_CHEEK_UV_PRIOR = Path(
+    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/cheek-smooth-mask-v1.png"
+)
+DEFAULT_EYE_UV_PRIOR = Path(
+    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/eye-smooth-mask-v1.png"
+)
 
 REGIONS = ("lip", "blush", "brow", "eyeliner")
 UV_RESOLUTION = 512
@@ -52,6 +58,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--frame", type=Path, default=DEFAULT_FRAME)
     parser.add_argument("--arface-export", type=Path, default=DEFAULT_ARFACE_EXPORT)
     parser.add_argument("--lip-gold", type=Path, default=DEFAULT_LIP_GOLD)
+    parser.add_argument("--cheek-uv-prior", type=Path, default=DEFAULT_CHEEK_UV_PRIOR)
+    parser.add_argument("--eye-uv-prior", type=Path, default=DEFAULT_EYE_UV_PRIOR)
     parser.add_argument("--uv-resolution", type=int, default=UV_RESOLUTION)
     parser.add_argument("--uv-sample-stride", type=int, default=6)
     return parser.parse_args()
@@ -191,6 +199,130 @@ def face_anchor(export: dict[str, Any], size: tuple[int, int]) -> dict[str, floa
     }
 
 
+def load_uv_prior(path: Path, resolution: int) -> np.ndarray:
+    if not path.exists():
+        return np.zeros((resolution, resolution), dtype=np.float32)
+    img = Image.open(path).convert("L")
+    if img.size != (resolution, resolution):
+        img = img.resize((resolution, resolution), Image.Resampling.BILINEAR)
+    return np.asarray(img, dtype=np.float32) / 255.0
+
+
+def split_lr_components(mask: np.ndarray) -> list[tuple[str, np.ndarray]]:
+    ys, xs = np.where(mask)
+    if len(xs) == 0:
+        return []
+    split_x = int(round(float(np.median(xs))))
+    left = mask.copy()
+    right = mask.copy()
+    xx = np.arange(mask.shape[1])[None, :]
+    left &= xx <= split_x
+    right &= xx > split_x
+    return [("left", left), ("right", right)]
+
+
+def bbox_for(mask: np.ndarray) -> dict[str, int] | None:
+    ys, xs = np.where(mask)
+    if len(xs) == 0:
+        return None
+    return {
+        "minX": int(xs.min()),
+        "minY": int(ys.min()),
+        "maxX": int(xs.max()),
+        "maxY": int(ys.max()),
+        "width": int(xs.max() - xs.min() + 1),
+        "height": int(ys.max() - ys.min() + 1),
+    }
+
+
+def moving_average(values: list[float], radius: int) -> list[float]:
+    if not values:
+        return values
+    out: list[float] = []
+    for idx in range(len(values)):
+        start = max(0, idx - radius)
+        end = min(len(values), idx + radius + 1)
+        out.append(float(np.mean(values[start:end])))
+    return out
+
+
+def upper_lashline_points(
+    frame: Image.Image,
+    eye_component: np.ndarray,
+    side: str,
+    offset_px: float,
+    point_count: int = 9,
+) -> list[tuple[float, float]]:
+    bbox = bbox_for(eye_component)
+    if bbox is None:
+        return []
+
+    gray = np.asarray(frame.convert("L"), dtype=np.float32)
+    values = gray[eye_component]
+    dark_threshold = min(122.0, float(np.percentile(values, 38))) if values.size else 95.0
+    dark = eye_component & (gray <= dark_threshold)
+    x_min = bbox["minX"] + max(2, int(bbox["width"] * 0.08))
+    x_max = bbox["maxX"] - max(2, int(bbox["width"] * 0.08))
+    if x_max <= x_min:
+        return []
+
+    samples_x = np.linspace(x_min, x_max, point_count)
+    points: list[tuple[float, float]] = []
+    for sx in samples_x:
+        col = int(round(sx))
+        nearby = dark[:, max(0, col - 3) : min(dark.shape[1], col + 4)]
+        ys, xs = np.where(nearby)
+        if len(ys) == 0:
+            continue
+        # Top dark pixels inside the broad eye prior approximate the upper lashline.
+        y = float(np.percentile(ys, 12)) + offset_px
+        x = float(max(0, col - 3) + np.median(xs))
+        y = min(max(y, bbox["minY"] + bbox["height"] * 0.28), bbox["maxY"] - bbox["height"] * 0.12)
+        points.append((x, y))
+
+    if len(points) < 4:
+        fallback_y = bbox["minY"] + bbox["height"] * 0.47 + offset_px
+        fallback_arch = bbox["height"] * 0.11
+        points = [
+            (x_min, fallback_y),
+            ((x_min + x_max) * 0.5, fallback_y - fallback_arch),
+            (x_max, fallback_y),
+        ]
+
+    points = sorted(points, key=lambda point: point[0])
+    smoothed_y = moving_average([point[1] for point in points], 1)
+    points = [(point[0], smoothed_y[idx]) for idx, point in enumerate(points)]
+    if side == "left":
+        return points
+    return points
+
+
+def add_eye_tail(
+    mask: np.ndarray,
+    size: tuple[int, int],
+    points: list[tuple[float, float]],
+    side: str,
+    thickness: int,
+    tail_ratio: float,
+) -> np.ndarray:
+    if not points:
+        return mask
+    bbox = {
+        "minX": min(point[0] for point in points),
+        "maxX": max(point[0] for point in points),
+        "minY": min(point[1] for point in points),
+        "maxY": max(point[1] for point in points),
+    }
+    width = max(1.0, bbox["maxX"] - bbox["minX"])
+    if side == "left":
+        outer = points[0]
+        wing = (outer[0] - width * tail_ratio, outer[1] - thickness * 2.1)
+    else:
+        outer = points[-1]
+        wing = (outer[0] + width * tail_ratio, outer[1] - thickness * 2.1)
+    return mask | stroke_polyline_mask(size, points, thickness, (outer, wing))
+
+
 def build_lip_candidates(size: tuple[int, int], lip_reference: np.ndarray) -> list[CandidateSpec]:
     tight = erode(lip_reference, 2)
     balanced = lip_reference
@@ -253,22 +385,42 @@ def build_lip_candidates(size: tuple[int, int], lip_reference: np.ndarray) -> li
     ]
 
 
-def build_blush_candidates(size: tuple[int, int], anchor: dict[str, float]) -> list[CandidateSpec]:
+def build_blush_candidates(
+    size: tuple[int, int],
+    anchor: dict[str, float],
+    cheek_prior: np.ndarray | None,
+) -> list[CandidateSpec]:
     w, h = size
     cx, cy, fw, fh = anchor["cx"], anchor["cy"], anchor["width"], anchor["height"]
-    left = (cx - fw * 0.24, cy + fh * 0.08)
-    right = (cx + fw * 0.24, cy + fh * 0.08)
-
+    cheek_components = split_lr_components(cheek_prior) if cheek_prior is not None and cheek_prior.any() else []
     specs = []
     for policy, scale, yoff, opacity, warning in [
         ("tight", 0.78, -0.01, 0.55, "conservative cheek placement; visibility may be subtle"),
         ("balanced", 1.0, 0.0, 0.68, "soft cosmetic placement; no dataset gold available"),
         ("safe", 1.18, 0.02, 0.72, "wide blush candidate; watch nose/under-eye spill"),
     ]:
-        mask = (
-            ellipse_mask(size, (left[0], left[1] + fh * yoff), (fw * 0.13 * scale, fh * 0.075 * scale), -18)
-            | ellipse_mask(size, (right[0], right[1] + fh * yoff), (fw * 0.13 * scale, fh * 0.075 * scale), 18)
-        )
+        mask = np.zeros((h, w), dtype=bool)
+        if cheek_components:
+            for side, component in cheek_components:
+                bbox = bbox_for(component)
+                if bbox is None:
+                    continue
+                comp_w = float(bbox["width"])
+                comp_h = float(bbox["height"])
+                center = (
+                    bbox["minX"] + comp_w * 0.52,
+                    bbox["minY"] + comp_h * (0.55 + yoff),
+                )
+                radius = (comp_w * 0.30 * scale, comp_h * 0.28 * scale)
+                angle = -10 if side == "left" else 10
+                mask |= ellipse_mask(size, center, radius, angle) & dilate(component, 4)
+        else:
+            left = (cx - fw * 0.24, cy + fh * 0.08)
+            right = (cx + fw * 0.24, cy + fh * 0.08)
+            mask = (
+                ellipse_mask(size, (left[0], left[1] + fh * yoff), (fw * 0.13 * scale, fh * 0.075 * scale), -18)
+                | ellipse_mask(size, (right[0], right[1] + fh * yoff), (fw * 0.13 * scale, fh * 0.075 * scale), 18)
+            )
         specs.append(
             CandidateSpec(
                 f"blush-{policy}-soft-oval-v0",
@@ -288,29 +440,56 @@ def build_blush_candidates(size: tuple[int, int], anchor: dict[str, float]) -> l
                 },
                 ["externalMaskPrior", "faceParsing", "colorConfidence", "arfaceUv", "hybrid"],
                 [warning],
-                {"model": "bilateral_soft_cheek_oval", "faceAnchor": anchor},
+                {
+                    "model": "uv_prior_clipped_soft_cheek_oval",
+                    "faceAnchor": anchor,
+                    "cheekPrior": "rendered_smooth_region_mask" if cheek_components else "fallback_face_anchor",
+                },
             )
         )
     return specs
 
 
-def build_brow_candidates(size: tuple[int, int], anchor: dict[str, float]) -> list[CandidateSpec]:
+def build_brow_candidates(
+    size: tuple[int, int],
+    anchor: dict[str, float],
+    eye_prior: np.ndarray | None,
+) -> list[CandidateSpec]:
     cx, cy, fw, fh = anchor["cx"], anchor["cy"], anchor["width"], anchor["height"]
+    eye_components = split_lr_components(eye_prior) if eye_prior is not None and eye_prior.any() else []
     specs = []
-    for policy, width_mul, arch, thickness, tail, warning in [
-        ("tight", 0.9, 0.08, 12, 0.92, "conservative brow envelope; may under-cover tail"),
-        ("balanced", 1.0, 0.1, 16, 1.0, "landmark-style brow envelope; no person-specific hair segmentation"),
-        ("safe", 1.08, 0.12, 20, 1.12, "wider brow envelope; watch forehead/hair confusion"),
+    for policy, width_mul, arch_px, thickness, y_offset, warning in [
+        ("tight", 0.92, 15.0, 11, 48.0, "conservative brow envelope; may under-cover tail"),
+        ("balanced", 1.0, 21.0, 14, 58.0, "eye-prior anchored brow envelope; no person-specific hair segmentation"),
+        ("safe", 1.08, 27.0, 18, 66.0, "wider brow envelope; watch forehead/hair confusion"),
     ]:
         mask = np.zeros((size[1], size[0]), dtype=bool)
-        for side in (-1, 1):
-            x0 = cx + side * fw * 0.09
-            x1 = cx + side * fw * 0.33 * width_mul
-            inner = (x0, cy - fh * 0.26)
-            arch_pt = (cx + side * fw * 0.22, cy - fh * (0.29 + arch))
-            outer = (x1 * tail + x0 * (1 - tail), cy - fh * 0.27)
-            pts = [inner, arch_pt, outer]
-            mask |= stroke_polyline_mask(size, pts, thickness)
+        if eye_components:
+            for side, component in eye_components:
+                bbox = bbox_for(component)
+                if bbox is None:
+                    continue
+                comp_w = float(bbox["width"])
+                y_base = bbox["minY"] - y_offset
+                if side == "left":
+                    inner = (bbox["maxX"] - comp_w * 0.08, y_base + 5)
+                    arch_pt = (bbox["minX"] + comp_w * (0.42 - (width_mul - 1.0) * 0.04), y_base - arch_px)
+                    outer = (bbox["minX"] + comp_w * (0.03 - (width_mul - 1.0) * 0.02), y_base + 9)
+                    pts = [outer, arch_pt, inner]
+                else:
+                    inner = (bbox["minX"] + comp_w * 0.08, y_base + 5)
+                    arch_pt = (bbox["minX"] + comp_w * (0.58 + (width_mul - 1.0) * 0.04), y_base - arch_px)
+                    outer = (bbox["maxX"] - comp_w * (0.03 - (width_mul - 1.0) * 0.02), y_base + 9)
+                    pts = [inner, arch_pt, outer]
+                mask |= stroke_polyline_mask(size, pts, thickness)
+        else:
+            for side in (-1, 1):
+                x0 = cx + side * fw * 0.09
+                x1 = cx + side * fw * 0.33 * width_mul
+                inner = (x0, cy - fh * 0.26)
+                arch_pt = (cx + side * fw * 0.22, cy - fh * 0.37)
+                outer = (x1, cy - fh * 0.27)
+                mask |= stroke_polyline_mask(size, [inner, arch_pt, outer], thickness)
         specs.append(
             CandidateSpec(
                 f"brow-{policy}-stroke-envelope-v0",
@@ -319,17 +498,21 @@ def build_brow_candidates(size: tuple[int, int], anchor: dict[str, float]) -> li
                 soft_alpha(mask, thickness * 0.65),
                 {
                     "headPosition": 0.0,
-                    "archHeight": arch,
-                    "tailLength": tail,
+                    "archHeight": arch_px,
+                    "tailLength": width_mul,
                     "tailAngle": 0.0,
                     "thickness": float(thickness),
-                    "verticalOffset": 0.0,
+                    "verticalOffset": -y_offset,
                     "leftRightBalance": 0.0,
                     "softness": 0.55,
                 },
                 ["externalMaskPrior", "mediapipe", "colorConfidence", "arfaceUv", "hybrid"],
                 [warning],
-                {"model": "parametric_brow_stroke_envelope", "faceAnchor": anchor},
+                {
+                    "model": "eye_prior_anchored_brow_arc",
+                    "faceAnchor": anchor,
+                    "eyePrior": "rendered_smooth_region_mask" if eye_components else "fallback_face_anchor",
+                },
             )
         )
     return specs
@@ -344,21 +527,33 @@ def eyelid_curve(cx: float, cy: float, fw: float, fh: float, side: int, y_shift:
     return [(inner_x, y), (mid_x, arch_y), (outer_x, y + fh * 0.01)]
 
 
-def build_eyeliner_candidates(size: tuple[int, int], anchor: dict[str, float]) -> list[CandidateSpec]:
+def build_eyeliner_candidates(
+    size: tuple[int, int],
+    anchor: dict[str, float],
+    eye_prior: np.ndarray | None,
+    frame: Image.Image,
+) -> list[CandidateSpec]:
     cx, cy, fw, fh = anchor["cx"], anchor["cy"], anchor["width"], anchor["height"]
+    eye_components = split_lr_components(eye_prior) if eye_prior is not None and eye_prior.any() else []
     specs = []
     configs = [
-        ("tight", 5, 0.08, -4.0, "minimal-safe upper lashline; selected if broader line is unstable"),
-        ("balanced", 7, 0.13, 0.0, "parametric upper lashline with small wing; no blink runtime proof"),
-        ("safe", 9, 0.18, 3.0, "visible eyeliner line; watch eye opening/eyeball spill"),
+        ("tight", 4, 0.05, -3.0, "minimal-safe upper lashline; selected if broader line is unstable"),
+        ("balanced", 6, 0.08, -2.0, "eye-prior upper lashline with small wing; no blink runtime proof"),
+        ("safe", 8, 0.12, 0.0, "visible eyeliner line; watch eye opening/eyeball spill"),
     ]
     for policy, thickness, tail_len, y_shift, warning in configs:
         mask = np.zeros((size[1], size[0]), dtype=bool)
-        for side in (-1, 1):
-            pts = eyelid_curve(cx, cy, fw, fh, side, y_shift)
-            outer = pts[-1]
-            wing = (outer[0] + side * fw * tail_len, outer[1] - fh * 0.035)
-            mask |= stroke_polyline_mask(size, pts, thickness, (outer, wing))
+        if eye_components:
+            for side, component in eye_components:
+                pts = upper_lashline_points(frame, component, side, y_shift)
+                mask = add_eye_tail(mask, size, pts, side, thickness, tail_len)
+            mask &= dilate(eye_prior, 16)
+        else:
+            for side in (-1, 1):
+                pts = eyelid_curve(cx, cy, fw, fh, side, y_shift)
+                outer = pts[-1]
+                wing = (outer[0] + side * fw * tail_len, outer[1] - fh * 0.035)
+                mask |= stroke_polyline_mask(size, pts, thickness, (outer, wing))
         if policy == "tight":
             selected_policy = "minimal-safe"
             candidate_id = "eyeliner-minimal-safe-lashline-v0"
@@ -383,7 +578,11 @@ def build_eyeliner_candidates(size: tuple[int, int], anchor: dict[str, float]) -
                 },
                 ["mediapipe", "appleVision", "colorConfidence", "externalMaskPrior", "arfaceUv", "hybrid"],
                 [warning, "deferred blink/yaw iPhone test required"],
-                {"model": "parametric_upper_lashline_with_tail", "faceAnchor": anchor},
+                {
+                    "model": "eye_prior_dark_pixel_upper_lashline",
+                    "faceAnchor": anchor,
+                    "eyePrior": "rendered_smooth_region_mask" if eye_components else "fallback_face_anchor",
+                },
             )
         )
     return specs
@@ -465,13 +664,27 @@ def back_project_mask(mask: np.ndarray, export: dict[str, Any], resolution: int,
         np.add.at(atlas_sum, (rows, cols), sample)
         np.add.at(atlas_count, (rows, cols), 1.0)
     probability = np.divide(atlas_sum, atlas_count, out=np.zeros_like(atlas_sum), where=atlas_count > 0)
-    return np.asarray(Image.fromarray(np.rint(probability * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(radius=1)), dtype=np.float32) / 255.0
+    positive_votes = atlas_sum > 0
+    if np.any(positive_votes):
+        vote_scale = max(1.0, float(np.percentile(atlas_sum[positive_votes], 75)))
+        vote_probability = np.clip(atlas_sum / vote_scale, 0.0, 1.0)
+        probability = np.maximum(probability, vote_probability)
+    blur_radius = 1.4 if int(np.count_nonzero(mask)) < 10000 else 1.0
+    blurred = Image.fromarray(np.rint(np.clip(probability, 0, 1) * 255).astype(np.uint8)).filter(
+        ImageFilter.GaussianBlur(radius=blur_radius)
+    )
+    return np.asarray(blurred, dtype=np.float32) / 255.0
 
 
 def render_atlas_to_screen(probability: np.ndarray, export: dict[str, Any], size: tuple[int, int], threshold: float, stride: int) -> np.ndarray:
+    alpha = render_atlas_to_screen_alpha(probability, export, size, stride)
+    return alpha >= threshold
+
+
+def render_atlas_to_screen_alpha(probability: np.ndarray, export: dict[str, Any], size: tuple[int, int], stride: int) -> np.ndarray:
     screen_vertices, uvs, indices = export_arrays(export)
     w, h = size
-    predicted = np.zeros((h, w), dtype=bool)
+    predicted = np.zeros((h, w), dtype=np.float32)
     if screen_vertices.ndim != 2 or uvs.ndim != 2 or len(screen_vertices) != len(uvs):
         return predicted
     for tri in iter_triangles(indices):
@@ -489,10 +702,10 @@ def render_atlas_to_screen(probability: np.ndarray, export: dict[str, Any], size
         tri_w = tri_screen[:, 3] if tri_screen.shape[1] >= 4 else np.ones(3)
         uv = interpolate_uv(uvs[tri], tri_w, w0, w1, w2)
         rows, cols = uv_to_rc(uv, probability.shape[0])
-        sample = probability[rows, cols] >= threshold
+        sample = probability[rows, cols]
         xi = np.clip(np.rint(x).astype(np.int32), 0, w - 1)
         yi = np.clip(np.rint(y).astype(np.int32), 0, h - 1)
-        predicted[yi[sample], xi[sample]] = True
+        np.maximum.at(predicted, (yi, xi), sample.astype(np.float32))
     return predicted
 
 
@@ -640,7 +853,7 @@ def package_for(
         "runtimeApplyPayload": {
             "region": region,
             "maskTextureId": f"e7-{region}-{selected.policy}-uv-v0",
-            "threshold": 0.5,
+            "threshold": uv_status.get("recommendedThreshold", 0.35),
             "feather": 0.07,
             "opacity": 0.72 if region != "blush" else 0.45,
             "runtimeReady": False,
@@ -675,13 +888,37 @@ This is pre-Xcode evidence only. It is not iPhone runtime proof and must not be 
 """
 
 
-def build_candidates(size: tuple[int, int], export: dict[str, Any], lip_reference: np.ndarray) -> dict[str, list[CandidateSpec]]:
+def round_trip_threshold(region: str) -> float:
+    return {
+        "lip": 0.35,
+        "blush": 0.18,
+        "brow": 0.14,
+        "eyeliner": 0.12,
+    }.get(region, 0.25)
+
+
+def back_projection_stride(region: str, default_stride: int) -> int:
+    if region == "eyeliner":
+        return 1
+    if region == "brow":
+        return min(default_stride, 2)
+    return default_stride
+
+
+def build_candidates(
+    size: tuple[int, int],
+    export: dict[str, Any],
+    lip_reference: np.ndarray,
+    frame: Image.Image,
+    cheek_prior: np.ndarray | None,
+    eye_prior: np.ndarray | None,
+) -> dict[str, list[CandidateSpec]]:
     anchor = face_anchor(export, size)
     return {
         "lip": build_lip_candidates(size, lip_reference),
-        "blush": build_blush_candidates(size, anchor),
-        "brow": build_brow_candidates(size, anchor),
-        "eyeliner": build_eyeliner_candidates(size, anchor),
+        "blush": build_blush_candidates(size, anchor, cheek_prior),
+        "brow": build_brow_candidates(size, anchor, eye_prior),
+        "eyeliner": build_eyeliner_candidates(size, anchor, eye_prior, frame),
     }
 
 
@@ -691,7 +928,11 @@ def main() -> int:
     size = frame.size
     export = load_json(args.arface_export)
     lip_reference = load_lip_reference(args.lip_gold, size)
-    all_candidates = build_candidates(size, export, lip_reference)
+    cheek_uv_prior = load_uv_prior(args.cheek_uv_prior, args.uv_resolution)
+    eye_uv_prior = load_uv_prior(args.eye_uv_prior, args.uv_resolution)
+    cheek_prior = render_atlas_to_screen_alpha(cheek_uv_prior, export, size, 1) >= 0.08
+    eye_prior = render_atlas_to_screen_alpha(eye_uv_prior, export, size, 1) >= 0.08
+    all_candidates = build_candidates(size, export, lip_reference, frame, cheek_prior, eye_prior)
 
     source_frame = {
         "capturePairId": export.get("capturePairId"),
@@ -730,8 +971,10 @@ def main() -> int:
             alpha_to_image(candidate.soft_alpha).save(alpha_path)
             overlay_image(frame, candidate.mask, (240, 60, 120) if region in ("lip", "blush") else (45, 110, 230)).save(overlay_path)
 
-            probability = back_project_mask(candidate.mask, export, args.uv_resolution, args.uv_sample_stride)
-            predicted = render_atlas_to_screen(probability, export, size, 0.5, args.uv_sample_stride)
+            projection_stride = back_projection_stride(region, args.uv_sample_stride)
+            probability = back_project_mask(candidate.mask, export, args.uv_resolution, projection_stride)
+            threshold = round_trip_threshold(region)
+            predicted = render_atlas_to_screen(probability, export, size, threshold, 1)
             uv_probability_path = region_dir / "uv_projection" / f"{candidate.candidate_id}.uv_probability.png"
             round_trip_path = region_dir / "uv_projection" / f"{candidate.candidate_id}.round_trip_overlay.png"
             alpha_to_image(probability).save(uv_probability_path)
@@ -739,7 +982,9 @@ def main() -> int:
             uv_status = {
                 "available": True,
                 "uvResolution": args.uv_resolution,
-                "sampleStride": args.uv_sample_stride,
+                "sampleStride": projection_stride,
+                "renderStride": 1,
+                "recommendedThreshold": threshold,
                 "roundTrip": comparison_metrics(predicted, candidate.mask),
             }
             if candidate.candidate_id == selected.candidate_id:
@@ -817,6 +1062,8 @@ def main() -> int:
             "sourceFrame": str(args.frame),
             "arfaceExport": str(args.arface_export),
             "lipGoldReference": str(args.lip_gold) if region == "lip" else None,
+            "cheekUvPrior": str(args.cheek_uv_prior) if region == "blush" else None,
+            "eyeUvPrior": str(args.eye_uv_prior) if region in ("brow", "eyeliner") else None,
             "localOnly": True,
             "offDeviceUpload": False,
             "longTermRawFrameStored": False,

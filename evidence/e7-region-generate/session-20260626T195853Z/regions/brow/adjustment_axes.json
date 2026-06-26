@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "e7-region-adjustment-axes-v0",
+  "region": "brow",
+  "axes": {
+    "headPosition": 0.0,
+    "archHeight": 21.0,
+    "tailLength": 1.0,
+    "tailAngle": 0.0,
+    "thickness": 14.0,
+    "verticalOffset": -58.0,
+    "leftRightBalance": 0.0,
+    "softness": 0.55
+  },
+  "controlStyle": "slider_plus_quick_buttons"
+}

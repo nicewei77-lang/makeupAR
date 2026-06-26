@@ -1,0 +1,78 @@
+{
+  "schemaVersion": "e7-region-mask-package-v0",
+  "packageId": "e7-blush-balanced-package-v0",
+  "region": "blush",
+  "status": "preXcodeReady",
+  "selectedPolicy": "balanced",
+  "sourceLineage": {
+    "sources": [
+      "externalMaskPrior",
+      "faceParsing",
+      "colorConfidence",
+      "arfaceUv",
+      "hybrid"
+    ],
+    "candidateIds": [
+      "blush-balanced-soft-oval-v0"
+    ],
+    "externalPrior": {
+      "sourceName": "local_reference_and_parametric_prior",
+      "role": "silver_draft_only",
+      "licenseNote": "No external upload; broad dataset/source review still required before product use."
+    }
+  },
+  "sourceFrameMetadata": {
+    "capturePairId": "pair_face_20260622T143334Z_03",
+    "frameWidth": 1179,
+    "frameHeight": 2556,
+    "orientation": "Portrait",
+    "isMirrored": false
+  },
+  "mask2d": {
+    "hardMaskPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-balanced-soft-oval-v0.mask.png",
+    "softAlphaPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-balanced-soft-oval-v0.alpha.png",
+    "includeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/maps/include.png",
+    "excludeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/maps/exclude.png",
+    "unknownMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/maps/unknown.png"
+  },
+  "uvMask": {
+    "texturePath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-balanced-soft-oval-v0.uv_probability.png",
+    "resolution": 512,
+    "roundTripOverlayPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-balanced-soft-oval-v0.round_trip_overlay.png",
+    "roundTripStatus": "ready",
+    "roundTripScore": {
+      "iou": 0.412044,
+      "precision": 0.992639,
+      "recall": 0.413307,
+      "candidatePositivePixels": 7879,
+      "referencePositivePixels": 18923
+    }
+  },
+  "adjustment": {
+    "centerX": 0.0,
+    "centerY": 0.0,
+    "size": 1.0,
+    "angle": 18.0,
+    "noseGuard": 0.18,
+    "underEyeGuard": 0.16,
+    "mouthCornerGuard": 0.15,
+    "feather": 0.75,
+    "intensity": 0.68
+  },
+  "qualityWarnings": [
+    "soft cosmetic placement; no dataset gold available"
+  ],
+  "runtimeApplyPayload": {
+    "region": "blush",
+    "maskTextureId": "e7-blush-balanced-uv-v0",
+    "threshold": 0.18,
+    "feather": 0.07,
+    "opacity": 0.45,
+    "runtimeReady": false
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false
+  }
+}

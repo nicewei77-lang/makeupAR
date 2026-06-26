@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "e7-region-selected-policy-v0",
+  "region": "lip",
+  "decision": "pre-xcode-ready",
+  "selectedPolicy": "balanced",
+  "selectedCandidateId": "lip-balanced-gold-v0",
+  "reason": "Best current local-only candidate for pre-Xcode package handoff.",
+  "requiresHumanReview": true,
+  "iphoneEvidenceRequiredForGreen": true
+}

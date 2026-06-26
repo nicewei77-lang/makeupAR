@@ -1,0 +1,202 @@
+{
+  "schemaVersion": "e7-region-scorecard-v0",
+  "region": "lip",
+  "decision": "pre-xcode-ready",
+  "selectedCandidateId": "lip-balanced-gold-v0",
+  "selectedPolicy": "balanced",
+  "candidateCount": 3,
+  "candidateReports": [
+    {
+      "candidateId": "lip-tight-gold-v0",
+      "policy": "tight",
+      "adjustment": {
+        "cornerReach": -0.05,
+        "upperLipTightness": 0.08,
+        "lowerLipTightness": 0.08,
+        "verticalOffset": 0.0,
+        "innerMouthGuard": 0.15,
+        "edgeFeather": 0.06,
+        "coverage": 0.92
+      },
+      "sources": [
+        "userAdjustment",
+        "hybrid",
+        "arfaceUv"
+      ],
+      "warnings": [
+        "accepted lip gold is offline reference only; no iPhone runtime proof"
+      ],
+      "shape": {
+        "positivePixels": 16074,
+        "areaRatio": 0.00533395,
+        "centroid": {
+          "x": 565.773,
+          "y": 1235.095
+        },
+        "bbox": {
+          "minX": 456,
+          "minY": 1186,
+          "maxX": 684,
+          "maxY": 1289
+        },
+        "leftRightAbsDiffRatio": 0.27784
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.35,
+        "roundTrip": {
+          "iou": 0.127995,
+          "precision": 0.982841,
+          "recall": 0.128282,
+          "candidatePositivePixels": 2098,
+          "referencePositivePixels": 16074
+        }
+      },
+      "trace": {
+        "source": "user_gold_lip_mask_gray",
+        "morphology": "erode_2px"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-tight-gold-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-tight-gold-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-tight-gold-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-tight-gold-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-tight-gold-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "lip-balanced-gold-v0",
+      "policy": "balanced",
+      "adjustment": {
+        "cornerReach": 0.0,
+        "upperLipTightness": 0.0,
+        "lowerLipTightness": 0.0,
+        "verticalOffset": 0.0,
+        "innerMouthGuard": 0.12,
+        "edgeFeather": 0.07,
+        "coverage": 1.0
+      },
+      "sources": [
+        "userAdjustment",
+        "hybrid",
+        "arfaceUv"
+      ],
+      "warnings": [
+        "selected from accepted offline lip gold; still pre-Xcode only"
+      ],
+      "shape": {
+        "positivePixels": 17457,
+        "areaRatio": 0.00579289,
+        "centroid": {
+          "x": 565.999,
+          "y": 1234.988
+        },
+        "bbox": {
+          "minX": 453,
+          "minY": 1184,
+          "maxX": 687,
+          "maxY": 1291
+        },
+        "leftRightAbsDiffRatio": 0.265739
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.35,
+        "roundTrip": {
+          "iou": 0.129439,
+          "precision": 0.998674,
+          "recall": 0.129461,
+          "candidatePositivePixels": 2263,
+          "referencePositivePixels": 17457
+        }
+      },
+      "trace": {
+        "source": "user_gold_lip_mask_gray",
+        "morphology": "exact_threshold_luminance_lt_250"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-balanced-gold-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-balanced-gold-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-balanced-gold-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-balanced-gold-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-balanced-gold-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "lip-safe-gold-v0",
+      "policy": "safe",
+      "adjustment": {
+        "cornerReach": 0.08,
+        "upperLipTightness": -0.04,
+        "lowerLipTightness": -0.04,
+        "verticalOffset": 0.0,
+        "innerMouthGuard": 0.1,
+        "edgeFeather": 0.08,
+        "coverage": 1.06
+      },
+      "sources": [
+        "userAdjustment",
+        "hybrid",
+        "arfaceUv"
+      ],
+      "warnings": [
+        "safe variant may spill on skin; must be visually reviewed"
+      ],
+      "shape": {
+        "positivePixels": 19586,
+        "areaRatio": 0.00649937,
+        "centroid": {
+          "x": 566.28,
+          "y": 1234.875
+        },
+        "bbox": {
+          "minX": 450,
+          "minY": 1181,
+          "maxX": 690,
+          "maxY": 1294
+        },
+        "leftRightAbsDiffRatio": 0.250179
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.35,
+        "roundTrip": {
+          "iou": 0.123609,
+          "precision": 1.0,
+          "recall": 0.123609,
+          "candidatePositivePixels": 2421,
+          "referencePositivePixels": 19586
+        }
+      },
+      "trace": {
+        "source": "user_gold_lip_mask_gray",
+        "morphology": "dilate_3px"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-safe-gold-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-safe-gold-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-safe-gold-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-safe-gold-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-safe-gold-v0.round_trip_overlay.png"
+      }
+    }
+  ],
+  "rejectRulesChecked": [
+    "empty mask",
+    "full-face mask",
+    "negative spill severe",
+    "wrong coordinate/mirrored",
+    "missing source lineage",
+    "privacy flags missing"
+  ],
+  "preXcodeOnly": true
+}

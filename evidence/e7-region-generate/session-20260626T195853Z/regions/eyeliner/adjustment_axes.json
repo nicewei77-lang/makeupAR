@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "e7-region-adjustment-axes-v0",
+  "region": "eyeliner",
+  "axes": {
+    "upperLineOffset": -3.0,
+    "lineThickness": 4.0,
+    "tailLength": 0.05,
+    "tailAngle": -12.0,
+    "outerCornerReach": 0.05,
+    "innerCornerStart": 0.08,
+    "softness": 0.5,
+    "blinkFade": 0.25
+  },
+  "controlStyle": "slider_plus_quick_buttons"
+}

@@ -1,0 +1,244 @@
+{
+  "schemaVersion": "e7-region-scorecard-v0",
+  "region": "blush",
+  "decision": "pre-xcode-ready",
+  "selectedCandidateId": "blush-balanced-soft-oval-v0",
+  "selectedPolicy": "balanced",
+  "candidateCount": 3,
+  "candidateReports": [
+    {
+      "candidateId": "blush-tight-soft-oval-v0",
+      "policy": "tight",
+      "adjustment": {
+        "centerX": 0.0,
+        "centerY": -0.01,
+        "size": 0.78,
+        "angle": 18.0,
+        "noseGuard": 0.18,
+        "underEyeGuard": 0.16,
+        "mouthCornerGuard": 0.15,
+        "feather": 0.75,
+        "intensity": 0.55
+      },
+      "sources": [
+        "externalMaskPrior",
+        "faceParsing",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "conservative cheek placement; visibility may be subtle"
+      ],
+      "shape": {
+        "positivePixels": 10968,
+        "areaRatio": 0.00363959,
+        "centroid": {
+          "x": 509.981,
+          "y": 1000.951
+        },
+        "bbox": {
+          "minX": 286,
+          "minY": 950,
+          "maxX": 794,
+          "maxY": 1051
+        },
+        "leftRightAbsDiffRatio": 0.148067
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.18,
+        "roundTrip": {
+          "iou": 0.398257,
+          "precision": 0.988734,
+          "recall": 0.400073,
+          "candidatePositivePixels": 4438,
+          "referencePositivePixels": 10968
+        }
+      },
+      "trace": {
+        "model": "uv_prior_clipped_soft_cheek_oval",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "cheekPrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-tight-soft-oval-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-tight-soft-oval-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-tight-soft-oval-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-tight-soft-oval-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-tight-soft-oval-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "blush-balanced-soft-oval-v0",
+      "policy": "balanced",
+      "adjustment": {
+        "centerX": 0.0,
+        "centerY": 0.0,
+        "size": 1.0,
+        "angle": 18.0,
+        "noseGuard": 0.18,
+        "underEyeGuard": 0.16,
+        "mouthCornerGuard": 0.15,
+        "feather": 0.75,
+        "intensity": 0.68
+      },
+      "sources": [
+        "externalMaskPrior",
+        "faceParsing",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "soft cosmetic placement; no dataset gold available"
+      ],
+      "shape": {
+        "positivePixels": 18923,
+        "areaRatio": 0.00627936,
+        "centroid": {
+          "x": 527.751,
+          "y": 1004.124
+        },
+        "bbox": {
+          "minX": 273,
+          "minY": 940,
+          "maxX": 826,
+          "maxY": 1066
+        },
+        "leftRightAbsDiffRatio": 0.093273
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.18,
+        "roundTrip": {
+          "iou": 0.412044,
+          "precision": 0.992639,
+          "recall": 0.413307,
+          "candidatePositivePixels": 7879,
+          "referencePositivePixels": 18923
+        }
+      },
+      "trace": {
+        "model": "uv_prior_clipped_soft_cheek_oval",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "cheekPrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-balanced-soft-oval-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-balanced-soft-oval-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-balanced-soft-oval-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-balanced-soft-oval-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-balanced-soft-oval-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "blush-safe-soft-oval-v0",
+      "policy": "safe",
+      "adjustment": {
+        "centerX": 0.0,
+        "centerY": 0.02,
+        "size": 1.18,
+        "angle": 18.0,
+        "noseGuard": 0.18,
+        "underEyeGuard": 0.16,
+        "mouthCornerGuard": 0.15,
+        "feather": 0.75,
+        "intensity": 0.72
+      },
+      "sources": [
+        "externalMaskPrior",
+        "faceParsing",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "wide blush candidate; watch nose/under-eye spill"
+      ],
+      "shape": {
+        "positivePixels": 26930,
+        "areaRatio": 0.00893638,
+        "centroid": {
+          "x": 538.402,
+          "y": 1008.773
+        },
+        "bbox": {
+          "minX": 262,
+          "minY": 934,
+          "maxX": 852,
+          "maxY": 1081
+        },
+        "leftRightAbsDiffRatio": 0.069662
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 6,
+        "renderStride": 1,
+        "recommendedThreshold": 0.18,
+        "roundTrip": {
+          "iou": 0.42346,
+          "precision": 0.994001,
+          "recall": 0.424545,
+          "candidatePositivePixels": 11502,
+          "referencePositivePixels": 26930
+        }
+      },
+      "trace": {
+        "model": "uv_prior_clipped_soft_cheek_oval",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "cheekPrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-safe-soft-oval-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-safe-soft-oval-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/candidates/blush-safe-soft-oval-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-safe-soft-oval-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/blush/uv_projection/blush-safe-soft-oval-v0.round_trip_overlay.png"
+      }
+    }
+  ],
+  "rejectRulesChecked": [
+    "empty mask",
+    "full-face mask",
+    "negative spill severe",
+    "wrong coordinate/mirrored",
+    "missing source lineage",
+    "privacy flags missing"
+  ],
+  "preXcodeOnly": true
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "e7-region-selected-policy-v0",
+  "region": "eyeliner",
+  "decision": "pre-xcode-ready",
+  "selectedPolicy": "minimal-safe",
+  "selectedCandidateId": "eyeliner-minimal-safe-lashline-v0",
+  "reason": "Best current local-only candidate for pre-Xcode package handoff.",
+  "requiresHumanReview": true,
+  "iphoneEvidenceRequiredForGreen": true
+}

@@ -1,0 +1,247 @@
+{
+  "schemaVersion": "e7-region-scorecard-v0",
+  "region": "eyeliner",
+  "decision": "pre-xcode-ready",
+  "selectedCandidateId": "eyeliner-minimal-safe-lashline-v0",
+  "selectedPolicy": "minimal-safe",
+  "candidateCount": 3,
+  "candidateReports": [
+    {
+      "candidateId": "eyeliner-minimal-safe-lashline-v0",
+      "policy": "minimal-safe",
+      "adjustment": {
+        "upperLineOffset": -3.0,
+        "lineThickness": 4.0,
+        "tailLength": 0.05,
+        "tailAngle": -12.0,
+        "outerCornerReach": 0.05,
+        "innerCornerStart": 0.08,
+        "softness": 0.5,
+        "blinkFade": 0.25
+      },
+      "sources": [
+        "mediapipe",
+        "appleVision",
+        "colorConfidence",
+        "externalMaskPrior",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "minimal-safe upper lashline; selected if broader line is unstable",
+        "deferred blink/yaw iPhone test required"
+      ],
+      "shape": {
+        "positivePixels": 984,
+        "areaRatio": 0.00032653,
+        "centroid": {
+          "x": 592.794,
+          "y": 828.389
+        },
+        "bbox": {
+          "minX": 308,
+          "minY": 812,
+          "maxX": 840,
+          "maxY": 863
+        },
+        "leftRightAbsDiffRatio": 0.101626
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 1,
+        "renderStride": 1,
+        "recommendedThreshold": 0.12,
+        "roundTrip": {
+          "iou": 0.278643,
+          "precision": 0.380989,
+          "recall": 0.509146,
+          "candidatePositivePixels": 1315,
+          "referencePositivePixels": 984
+        }
+      },
+      "trace": {
+        "model": "eye_prior_dark_pixel_upper_lashline",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-minimal-safe-lashline-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-minimal-safe-lashline-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-minimal-safe-lashline-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-minimal-safe-lashline-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-minimal-safe-lashline-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "eyeliner-balanced-lashline-v0",
+      "policy": "balanced",
+      "adjustment": {
+        "upperLineOffset": -2.0,
+        "lineThickness": 6.0,
+        "tailLength": 0.08,
+        "tailAngle": -12.0,
+        "outerCornerReach": 0.08,
+        "innerCornerStart": 0.08,
+        "softness": 0.5,
+        "blinkFade": 0.25
+      },
+      "sources": [
+        "mediapipe",
+        "appleVision",
+        "colorConfidence",
+        "externalMaskPrior",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "eye-prior upper lashline with small wing; no blink runtime proof",
+        "deferred blink/yaw iPhone test required"
+      ],
+      "shape": {
+        "positivePixels": 1574,
+        "areaRatio": 0.00052231,
+        "centroid": {
+          "x": 583.222,
+          "y": 828.102
+        },
+        "bbox": {
+          "minX": 304,
+          "minY": 807,
+          "maxX": 845,
+          "maxY": 864
+        },
+        "leftRightAbsDiffRatio": 0.047014
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 1,
+        "renderStride": 1,
+        "recommendedThreshold": 0.12,
+        "roundTrip": {
+          "iou": 0.340227,
+          "precision": 0.484691,
+          "recall": 0.533037,
+          "candidatePositivePixels": 1731,
+          "referencePositivePixels": 1574
+        }
+      },
+      "trace": {
+        "model": "eye_prior_dark_pixel_upper_lashline",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-balanced-lashline-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-balanced-lashline-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-balanced-lashline-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-balanced-lashline-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-balanced-lashline-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "eyeliner-safe-lashline-v0",
+      "policy": "safe",
+      "adjustment": {
+        "upperLineOffset": 0.0,
+        "lineThickness": 8.0,
+        "tailLength": 0.12,
+        "tailAngle": -12.0,
+        "outerCornerReach": 0.12,
+        "innerCornerStart": 0.08,
+        "softness": 0.5,
+        "blinkFade": 0.25
+      },
+      "sources": [
+        "mediapipe",
+        "appleVision",
+        "colorConfidence",
+        "externalMaskPrior",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "visible eyeliner line; watch eye opening/eyeball spill",
+        "deferred blink/yaw iPhone test required"
+      ],
+      "shape": {
+        "positivePixels": 2258,
+        "areaRatio": 0.00074929,
+        "centroid": {
+          "x": 581.712,
+          "y": 828.508
+        },
+        "bbox": {
+          "minX": 298,
+          "minY": 803,
+          "maxX": 850,
+          "maxY": 867
+        },
+        "leftRightAbsDiffRatio": 0.038087
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 1,
+        "renderStride": 1,
+        "recommendedThreshold": 0.12,
+        "roundTrip": {
+          "iou": 0.391277,
+          "precision": 0.568841,
+          "recall": 0.556244,
+          "candidatePositivePixels": 2208,
+          "referencePositivePixels": 2258
+        }
+      },
+      "trace": {
+        "model": "eye_prior_dark_pixel_upper_lashline",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-safe-lashline-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-safe-lashline-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/candidates/eyeliner-safe-lashline-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-safe-lashline-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/eyeliner/uv_projection/eyeliner-safe-lashline-v0.round_trip_overlay.png"
+      }
+    }
+  ],
+  "rejectRulesChecked": [
+    "empty mask",
+    "full-face mask",
+    "negative spill severe",
+    "wrong coordinate/mirrored",
+    "missing source lineage",
+    "privacy flags missing"
+  ],
+  "preXcodeOnly": true
+}

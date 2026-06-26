@@ -1,0 +1,74 @@
+{
+  "schemaVersion": "e7-region-mask-package-v0",
+  "packageId": "e7-lip-balanced-package-v0",
+  "region": "lip",
+  "status": "preXcodeReady",
+  "selectedPolicy": "balanced",
+  "sourceLineage": {
+    "sources": [
+      "userAdjustment",
+      "hybrid",
+      "arfaceUv"
+    ],
+    "candidateIds": [
+      "lip-balanced-gold-v0"
+    ],
+    "externalPrior": {
+      "sourceName": "local_reference_and_parametric_prior",
+      "role": "silver_draft_only",
+      "licenseNote": "No external upload; broad dataset/source review still required before product use."
+    }
+  },
+  "sourceFrameMetadata": {
+    "capturePairId": "pair_face_20260622T143334Z_03",
+    "frameWidth": 1179,
+    "frameHeight": 2556,
+    "orientation": "Portrait",
+    "isMirrored": false
+  },
+  "mask2d": {
+    "hardMaskPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-balanced-gold-v0.mask.png",
+    "softAlphaPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/candidates/lip-balanced-gold-v0.alpha.png",
+    "includeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/maps/include.png",
+    "excludeMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/maps/exclude.png",
+    "unknownMapPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/maps/unknown.png"
+  },
+  "uvMask": {
+    "texturePath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-balanced-gold-v0.uv_probability.png",
+    "resolution": 512,
+    "roundTripOverlayPath": "evidence/e7-region-generate/session-20260626T195853Z/regions/lip/uv_projection/lip-balanced-gold-v0.round_trip_overlay.png",
+    "roundTripStatus": "ready",
+    "roundTripScore": {
+      "iou": 0.129439,
+      "precision": 0.998674,
+      "recall": 0.129461,
+      "candidatePositivePixels": 2263,
+      "referencePositivePixels": 17457
+    }
+  },
+  "adjustment": {
+    "cornerReach": 0.0,
+    "upperLipTightness": 0.0,
+    "lowerLipTightness": 0.0,
+    "verticalOffset": 0.0,
+    "innerMouthGuard": 0.12,
+    "edgeFeather": 0.07,
+    "coverage": 1.0
+  },
+  "qualityWarnings": [
+    "selected from accepted offline lip gold; still pre-Xcode only"
+  ],
+  "runtimeApplyPayload": {
+    "region": "lip",
+    "maskTextureId": "e7-lip-balanced-uv-v0",
+    "threshold": 0.35,
+    "feather": 0.07,
+    "opacity": 0.72,
+    "runtimeReady": false
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false
+  }
+}

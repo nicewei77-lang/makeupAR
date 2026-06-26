@@ -24,3 +24,21 @@ Session: `session-20260626T195853Z`
 2. Generate four-region candidates with include/exclude/unknown maps.
 3. Create contact sheets, scorecards, selected policies, and adjustment axes.
 4. Commit Phase 0 boot artifacts before candidate implementation.
+
+## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
+
+- Generated local-only candidates for lip / blush / brow / eyeliner.
+- Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
+- Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.
+
+## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
+
+- Generated local-only candidates for lip / blush / brow / eyeliner.
+- Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
+- Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.
+
+## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
+
+- Generated local-only candidates for lip / blush / brow / eyeliner.
+- Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
+- Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.

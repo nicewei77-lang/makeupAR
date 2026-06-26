@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "e7-region-signal-report-v0",
+  "region": "eyeliner",
+  "signalsUsed": [
+    "mediapipe",
+    "appleVision",
+    "colorConfidence",
+    "externalMaskPrior",
+    "arfaceUv",
+    "hybrid"
+  ],
+  "signalsMissingOrDeferred": [
+    "real iPhone runtime evidence",
+    "held-out frame projection",
+    "human visual acceptance for selected candidate",
+    "full external dataset license review"
+  ],
+  "qualityWarnings": [
+    "minimal-safe upper lashline; selected if broader line is unstable",
+    "deferred blink/yaw iPhone test required"
+  ]
+}

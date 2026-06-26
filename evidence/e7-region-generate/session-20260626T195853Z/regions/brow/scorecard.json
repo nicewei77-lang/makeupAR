@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "e7-region-scorecard-v0",
+  "region": "brow",
+  "decision": "pre-xcode-ready",
+  "selectedCandidateId": "brow-balanced-stroke-envelope-v0",
+  "selectedPolicy": "balanced",
+  "candidateCount": 3,
+  "candidateReports": [
+    {
+      "candidateId": "brow-tight-stroke-envelope-v0",
+      "policy": "tight",
+      "adjustment": {
+        "headPosition": 0.0,
+        "archHeight": 15.0,
+        "tailLength": 0.92,
+        "tailAngle": 0.0,
+        "thickness": 11.0,
+        "verticalOffset": -48.0,
+        "leftRightBalance": 0.0,
+        "softness": 0.55
+      },
+      "sources": [
+        "externalMaskPrior",
+        "mediapipe",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "conservative brow envelope; may under-cover tail"
+      ],
+      "shape": {
+        "positivePixels": 5477,
+        "areaRatio": 0.00181747,
+        "centroid": {
+          "x": 574.329,
+          "y": 731.876
+        },
+        "bbox": {
+          "minX": 296,
+          "minY": 714,
+          "maxX": 862,
+          "maxY": 754
+        },
+        "leftRightAbsDiffRatio": 0.106445
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 2,
+        "renderStride": 1,
+        "recommendedThreshold": 0.14,
+        "roundTrip": {
+          "iou": 0.528413,
+          "precision": 0.528413,
+          "recall": 1.0,
+          "candidatePositivePixels": 10365,
+          "referencePositivePixels": 5477
+        }
+      },
+      "trace": {
+        "model": "eye_prior_anchored_brow_arc",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-tight-stroke-envelope-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-tight-stroke-envelope-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-tight-stroke-envelope-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-tight-stroke-envelope-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-tight-stroke-envelope-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "brow-balanced-stroke-envelope-v0",
+      "policy": "balanced",
+      "adjustment": {
+        "headPosition": 0.0,
+        "archHeight": 21.0,
+        "tailLength": 1.0,
+        "tailAngle": 0.0,
+        "thickness": 14.0,
+        "verticalOffset": -58.0,
+        "leftRightBalance": 0.0,
+        "softness": 0.55
+      },
+      "sources": [
+        "externalMaskPrior",
+        "mediapipe",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "eye-prior anchored brow envelope; no person-specific hair segmentation"
+      ],
+      "shape": {
+        "positivePixels": 7134,
+        "areaRatio": 0.00236733,
+        "centroid": {
+          "x": 574.234,
+          "y": 719.272
+        },
+        "bbox": {
+          "minX": 296,
+          "minY": 697,
+          "maxX": 863,
+          "maxY": 745
+        },
+        "leftRightAbsDiffRatio": 0.104289
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 2,
+        "renderStride": 1,
+        "recommendedThreshold": 0.14,
+        "roundTrip": {
+          "iou": 0.576625,
+          "precision": 0.576625,
+          "recall": 1.0,
+          "candidatePositivePixels": 12372,
+          "referencePositivePixels": 7134
+        }
+      },
+      "trace": {
+        "model": "eye_prior_anchored_brow_arc",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-balanced-stroke-envelope-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-balanced-stroke-envelope-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-balanced-stroke-envelope-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-balanced-stroke-envelope-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-balanced-stroke-envelope-v0.round_trip_overlay.png"
+      }
+    },
+    {
+      "candidateId": "brow-safe-stroke-envelope-v0",
+      "policy": "safe",
+      "adjustment": {
+        "headPosition": 0.0,
+        "archHeight": 27.0,
+        "tailLength": 1.08,
+        "tailAngle": 0.0,
+        "thickness": 18.0,
+        "verticalOffset": -66.0,
+        "leftRightBalance": 0.0,
+        "softness": 0.55
+      },
+      "sources": [
+        "externalMaskPrior",
+        "mediapipe",
+        "colorConfidence",
+        "arfaceUv",
+        "hybrid"
+      ],
+      "warnings": [
+        "wider brow envelope; watch forehead/hair confusion"
+      ],
+      "shape": {
+        "positivePixels": 9395,
+        "areaRatio": 0.00311761,
+        "centroid": {
+          "x": 572.546,
+          "y": 708.245
+        },
+        "bbox": {
+          "minX": 294,
+          "minY": 681,
+          "maxX": 864,
+          "maxY": 739
+        },
+        "leftRightAbsDiffRatio": 0.112294
+      },
+      "uvProjection": {
+        "available": true,
+        "uvResolution": 512,
+        "sampleStride": 2,
+        "renderStride": 1,
+        "recommendedThreshold": 0.14,
+        "roundTrip": {
+          "iou": 0.62235,
+          "precision": 0.62235,
+          "recall": 1.0,
+          "candidatePositivePixels": 15096,
+          "referencePositivePixels": 9395
+        }
+      },
+      "trace": {
+        "model": "eye_prior_anchored_brow_arc",
+        "faceAnchor": {
+          "cx": 561.9355,
+          "cy": 1057.8335,
+          "minX": 261.18949999999995,
+          "maxX": 876.75625,
+          "minY": 655.85815,
+          "maxY": 1329.15595,
+          "width": 615.5667500000001,
+          "height": 673.2978
+        },
+        "eyePrior": "rendered_smooth_region_mask"
+      },
+      "paths": {
+        "mask": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-safe-stroke-envelope-v0.mask.png",
+        "alpha": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-safe-stroke-envelope-v0.alpha.png",
+        "overlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/candidates/brow-safe-stroke-envelope-v0.overlay.png",
+        "uvProbability": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-safe-stroke-envelope-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-region-generate/session-20260626T195853Z/regions/brow/uv_projection/brow-safe-stroke-envelope-v0.round_trip_overlay.png"
+      }
+    }
+  ],
+  "rejectRulesChecked": [
+    "empty mask",
+    "full-face mask",
+    "negative spill severe",
+    "wrong coordinate/mirrored",
+    "missing source lineage",
+    "privacy flags missing"
+  ],
+  "preXcodeOnly": true
+}

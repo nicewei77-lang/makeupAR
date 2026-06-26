@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "e7-region-signal-report-v0",
+  "region": "blush",
+  "signalsUsed": [
+    "externalMaskPrior",
+    "faceParsing",
+    "colorConfidence",
+    "arfaceUv",
+    "hybrid"
+  ],
+  "signalsMissingOrDeferred": [
+    "real iPhone runtime evidence",
+    "held-out frame projection",
+    "human visual acceptance for selected candidate",
+    "full external dataset license review"
+  ],
+  "qualityWarnings": [
+    "soft cosmetic placement; no dataset gold available"
+  ]
+}
