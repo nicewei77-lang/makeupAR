@@ -61,6 +61,10 @@ rn/MakeupARValidation/ios/*.xcworkspace/
 rn/MakeupARValidation/ios/.xcode.env.local
 rn/MakeupARValidation/vendor/
 
+# Python generated state
+__pycache__/
+*.pyc
+
 # Android is out of this iPhone-only validation scope.
 rn/MakeupARValidation/android/
 

@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "e7-lip-generate-fixture-v0",
+  "fixtureId": "pair_face_20260622T143334Z_03",
+  "purpose": "Buildless web beta Vision/MediaPipe mask generation and 2D-to-UV round-trip validation",
+  "capturePairId": "pair_face_20260622T143334Z_03",
+  "inputs": {
+    "framePath": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/frame.png",
+    "arFaceExportPath": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json",
+    "fusionSummaryPath": "evidence/e7-lip-m1-packages/m1-lip-auto-selected-20260625T215327Z/fusionSummary.json",
+    "visionContourPath": "evidence/e7-lip-m1-packages/m1-lip-auto-selected-20260625T215327Z/apple_vision_lip_contour.json",
+    "mediapipeMaskPath": "evidence/e7-lip-candidate-generator/mediapipe-gui-terminal-20260626T154247Z/mediapipe_lip_curve_mask.png",
+    "mediapipePointsPath": "evidence/e7-lip-candidate-generator/mediapipe-gui-terminal-20260626T154247Z/mediapipe_lip_curve_points.json"
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false
+  },
+  "limits": {
+    "doesNotClaimRuntimeReady": true,
+    "doesNotClaimE73Green": true,
+    "sameFrameRoundTripOnly": true,
+    "rawFrameCopiedIntoFixture": false
+  }
+}

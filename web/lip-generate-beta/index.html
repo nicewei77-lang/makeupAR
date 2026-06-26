@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>E7 Lip Generate Beta</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="toolbar">
+        <div>
+          <h1>E7 Lip Generate Beta</h1>
+          <p id="statusLine" class="status-line">로컬 서버 연결 대기 중</p>
+        </div>
+        <div class="toolbar-actions">
+          <button id="refreshFixturesButton" type="button">Fixtures</button>
+          <button id="generateButton" type="button" class="primary">Generate</button>
+          <button id="compareButton" type="button">4-Way</button>
+        </div>
+      </header>
+
+      <section class="workspace">
+        <aside class="control-panel">
+          <section class="panel-section">
+            <h2>Generate</h2>
+            <label>
+              Fixture
+              <select id="fixtureSelect"></select>
+            </label>
+            <label>
+              Provider
+              <select id="providerSelect">
+                <option value="vision">Vision</option>
+                <option value="mediapipe">MediaPipe</option>
+              </select>
+            </label>
+            <label>
+              Assist
+              <select id="assistSelect">
+                <option value="uvOnly">UV Only</option>
+                <option value="blendshapeAssist">Blendshape Assist</option>
+              </select>
+            </label>
+          </section>
+
+          <section class="panel-section">
+            <h2>Adjustment</h2>
+            <div id="adjustmentControls" class="range-stack"></div>
+          </section>
+
+          <section class="panel-section">
+            <h2>Gate</h2>
+            <dl class="gate-list">
+              <dt>Status</dt>
+              <dd id="gateStatus">-</dd>
+              <dt>UV</dt>
+              <dd id="gateUv">-</dd>
+              <dt>Round-trip</dt>
+              <dd id="gateRoundTrip">-</dd>
+              <dt>Runtime</dt>
+              <dd id="gateRuntime">false</dd>
+            </dl>
+          </section>
+        </aside>
+
+        <section class="inspect-panel">
+          <section class="preview-grid">
+            <figure>
+              <figcaption>Frame</figcaption>
+              <img id="frameImage" alt="Fixture frame" />
+            </figure>
+            <figure>
+              <figcaption>2D Mask</figcaption>
+              <img id="maskImage" alt="Generated lip mask" />
+            </figure>
+            <figure>
+              <figcaption>UV Texture</figcaption>
+              <img id="uvImage" alt="Generated UV mask" />
+            </figure>
+            <figure>
+              <figcaption>Round-trip</figcaption>
+              <img id="roundTripImage" alt="Round trip overlay" />
+            </figure>
+          </section>
+
+          <section class="compare-section">
+            <div class="section-heading">
+              <h2>Compare</h2>
+              <span>Vision/MediaPipe x UV/Assist</span>
+            </div>
+            <div id="compareGrid" class="compare-grid"></div>
+          </section>
+
+          <section class="payload-section">
+            <div class="section-heading">
+              <h2>Payload</h2>
+              <span>RN/Unity handoff preview</span>
+            </div>
+            <pre id="payloadPreview">{}</pre>
+          </section>
+
+          <section class="payload-section">
+            <div class="section-heading">
+              <h2>Warnings</h2>
+              <span>ready / partial / blocked evidence</span>
+            </div>
+            <ul id="warningList" class="warning-list"></ul>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="./app.js?v=e7-lip-generate-beta-0"></script>
+  </body>
+</html>

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": "e7-lip-generate-fixture-inventory-v0",
+  "defaultFixtureId": "pair_face_20260622T143334Z_03",
+  "fixtures": [
+    {
+      "fixtureId": "pair_face_20260622T143334Z_03",
+      "label": "Clean same-moment ARFace neutral reference",
+      "capturePairId": "pair_face_20260622T143334Z_03",
+      "framePath": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/frame.png",
+      "arFaceExportPath": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json",
+      "fusionSummaryPath": "evidence/e7-lip-m1-packages/m1-lip-auto-selected-20260625T215327Z/fusionSummary.json",
+      "referenceMaskPath": "evidence/e7-lip-m1-packages/m1-lip-auto-selected-20260625T215327Z/lip_reference_mask.png",
+      "providers": {
+        "vision": {
+          "status": "available",
+          "contourPath": "evidence/e7-lip-m1-packages/m1-lip-auto-selected-20260625T215327Z/apple_vision_lip_contour.json",
+          "warnings": [
+            "vision_contour_is_2d_boundary_only",
+            "same_frame_round_trip_is_projection_sanity_only"
+          ]
+        },
+        "mediapipe": {
+          "status": "partial",
+          "maskPath": "evidence/e7-lip-candidate-generator/mediapipe-gui-terminal-20260626T154247Z/mediapipe_lip_curve_mask.png",
+          "pointsPath": "evidence/e7-lip-candidate-generator/mediapipe-gui-terminal-20260626T154247Z/mediapipe_lip_curve_points.json",
+          "warnings": [
+            "mediapipe_succeeded_in_gui_terminal_not_codex_shell",
+            "mediapipe_fixture_is_development_compare_path_only"
+          ]
+        }
+      },
+      "privacy": {
+        "localOnly": true,
+        "offDeviceUpload": false,
+        "longTermRawFrameStored": false
+      },
+      "expectedWarnings": [
+        "coordinate_space_validation_pending",
+        "triangle_visibility_unavailable_front_most_rule_contract_only",
+        "runtime_ready_requires_device_evidence"
+      ]
+    }
+  ]
+}

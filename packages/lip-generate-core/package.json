@@ -1,0 +1,11 @@
+{
+  "name": "@makeupar/lip-generate-core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "../../rn/MakeupARValidation/node_modules/.bin/tsc -p tsconfig.json --noEmit",
+    "test": "node scripts/check_fixture_inventory.mjs"
+  },
+  "devDependencies": {}
+}
