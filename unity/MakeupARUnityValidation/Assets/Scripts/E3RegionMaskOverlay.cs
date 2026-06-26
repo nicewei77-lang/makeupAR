@@ -212,6 +212,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const float FeatherNearRadiusMaxPx = 5.5f;
     private const float FeatherRadiusScale = 2.35f;
     private const float FeatherFarRadiusScale = 1.85f;
+    private const float BrowMaskThreshold = 0.035f;
+    private const float BrowMaskFeatherUvNormalized = 0.42f;
+    private const float BrowMaskRecipeFeatherMin = 0.34f;
+    private const float BrowMaskRecipeFeatherMax = 0.48f;
     private const float VisionFaceMotionMediumThreshold = 0.18f;
     private const float VisionFaceMotionLargeThreshold = 0.32f;
 
@@ -2068,13 +2072,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string maskTextureId = NormalizeMaskTextureId(region, requestedMaskTextureId);
         bool lipStyleAtlas = region == "lip" && IsLipStyleAtlasMask(maskTextureId);
         bool visionLipBoundary = region == "lip" && IsVisionLipBoundaryMask(maskTextureId);
+        bool browMask = region == "brow";
         return new MaskDefinition
         {
             Region = region,
             MaskTextureId = maskTextureId,
             ResourcePath = "SmoothRegionMasks/" + maskTextureId,
-            Threshold = lipStyleAtlas || visionLipBoundary ? 0.025f : 0.04f,
-            FeatherUvNormalized = lipStyleAtlas
+            Threshold = browMask ? BrowMaskThreshold : lipStyleAtlas || visionLipBoundary ? 0.025f : 0.04f,
+            FeatherUvNormalized = browMask
+                ? BrowMaskFeatherUvNormalized
+                : lipStyleAtlas
                 ? 0.32f
                 : visionLipBoundary
                 ? 0.34f
@@ -2104,6 +2111,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return Mathf.Clamp01(Mathf.Min(
                 mask.FeatherUvNormalized,
                 Mathf.Max(0.22f, recipe.Feather)));
+        }
+
+        if (recipe != null && recipe.Region == "brow")
+        {
+            return Mathf.Clamp01(Mathf.Min(
+                BrowMaskRecipeFeatherMax,
+                Mathf.Max(
+                    BrowMaskRecipeFeatherMin,
+                    recipe.Feather > 0.0f ? recipe.Feather : mask.FeatherUvNormalized)));
         }
 
         return mask.FeatherUvNormalized;

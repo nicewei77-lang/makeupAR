@@ -148,6 +148,39 @@ def main() -> None:
         "regionsInScope=lip,cheek,eye,brow",
         "E3RegionMaskOverlay diagnostics must report brow in regionsInScope.",
     )
+    require_contains(
+        overlay,
+        "private const float BrowMaskThreshold = 0.035f;",
+        "E3RegionMaskOverlay must define a brow-specific mask threshold.",
+    )
+    require_contains(
+        overlay,
+        "private const float BrowMaskFeatherUvNormalized = 0.42f;",
+        "E3RegionMaskOverlay must define a brow-specific mask feather.",
+    )
+    require_contains(
+        overlay,
+        "private const float BrowMaskRecipeFeatherMin = 0.34f;",
+        "E3RegionMaskOverlay must define a brow recipe feather minimum.",
+    )
+    require_contains(
+        overlay,
+        "private const float BrowMaskRecipeFeatherMax = 0.48f;",
+        "E3RegionMaskOverlay must define a brow recipe feather maximum.",
+    )
+    require_match(
+        overlay,
+        r"bool\s+browMask\s*=\s*region\s*==\s*\"brow\".*"
+        r"Threshold\s*=\s*browMask\s*\?\s*BrowMaskThreshold.*"
+        r"FeatherUvNormalized\s*=\s*browMask\s*\?\s*BrowMaskFeatherUvNormalized",
+        "E3RegionMaskOverlay ResolveMask must route brow to its own threshold/feather.",
+    )
+    require_match(
+        overlay,
+        r"recipe\.Region\s*==\s*\"brow\".*"
+        r"BrowMaskRecipeFeatherMax.*BrowMaskRecipeFeatherMin.*recipe\.Feather",
+        "E3RegionMaskOverlay ResolveEffectiveFeather must clamp brow recipe feather.",
+    )
 
     print("brow_unity_contract_ok")
 

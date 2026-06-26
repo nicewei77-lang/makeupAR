@@ -47,6 +47,8 @@ Implemented contract values:
 | Unity material path | `E3RegionMaskOverlay.BuildMaterialColor` brow cases |
 | Route table | `MakeupRegionRendererRoutes` |
 | Brow renderer id | `brow-smooth-region-mask-renderer` |
+| Brow mask threshold | `0.035` |
+| Brow mask feather | `0.42`, clamped from recipe to `0.34..0.48` |
 
 ## Renderer Routing Contract
 
@@ -114,7 +116,10 @@ shows poor fit, later loops can add:
 
 First-loop brow should avoid glossy or glitter behavior. Use low specular,
 moderate feather, and multiply or normal alpha behavior depending on which looks
-more natural on device.
+more natural on device. Brow now has its own mask policy inside the shared
+smooth-mask backend: threshold `0.035`, default feather `0.42`, and recipe
+feather clamped to `0.34..0.48`. This keeps the brow edge softer than a sticker
+without inheriting the wider generic cheek/eye feather.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in
@@ -136,10 +141,12 @@ SDK, or Android work is part of this flow.
 Local checks before any real-device build:
 
 - Jest test for eyebrow recipe payload shape: passed.
-- Static guard that Unity parser accepts `brow`: passed.
+- Static guard that Unity parser accepts `brow` and applies brow-specific mask
+  threshold/feather policy: passed.
 - Offline mask inspection for active pixel coverage and bbox: passed.
-- Unity batchmode import/compile when Unity code or assets change: passed with
-  Unity `6000.3.18f1`.
+- Unity batchmode import/compile previously passed with Unity `6000.3.18f1`.
+  After the later brow-specific mask policy change, rerun is pending because the
+  machine currently has only about `252Mi` free on `/System/Volumes/Data`.
 - TypeScript compile with `npx tsc --noEmit`: passed.
 - RN lint with `npm run lint`: passed.
 - Region renderer route verifier: passed.

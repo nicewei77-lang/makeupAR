@@ -35,6 +35,10 @@ Run the RN command from `rn/MakeupARValidation`.
 
 Unity local import/compile check:
 
+Confirm there is enough local disk space first. The latest local check showed
+only about `252Mi` free on `/System/Volumes/Data`, which is too tight for a
+Unity/RN device build.
+
 ```bash
 "/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity" \
   -batchmode \

@@ -102,6 +102,9 @@ or bridge rewrite.
 - 2026-06-27: Implemented first-loop eyebrow through the existing
   `smooth-region-mask` renderer with `brow-drawn-mask-v1`, `natural_brow`, and
   `soft_brow`. Dedicated renderer splitting remains a follow-up refactor.
+- 2026-06-27: Added brow-specific mask threshold and feather policy under the
+  route-backed renderer path: threshold `0.035`, default feather `0.42`, and
+  recipe feather clamp `0.34..0.48`.
 
 ## Local Verification
 
@@ -112,11 +115,15 @@ or bridge rewrite.
   The verifier now guards brow separation from eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
+  The verifier now guards brow renderer routing plus brow-specific
+  threshold/feather policy.
 - Region renderer route verifier passed:
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
+  This compile was before the later brow-specific mask policy change; rerun is
+  pending because the local disk currently has only about `252Mi` free.
 
 ## QA Status
 

@@ -165,6 +165,18 @@ Approval is still required before:
   - Unity compile emitted an existing obsolete API warning in
     `Assets/Editor/MakeupARValidationSetup.cs`; no route-table compile errors
     were reported.
+- 2026-06-27: Brow-specific mask threshold/feather policy added under the
+  route-backed renderer path.
+  - RED: `verify_brow_unity_contract.py` failed with
+    `E3RegionMaskOverlay must define a brow-specific mask threshold`.
+  - GREEN: `E3RegionMaskOverlay` now defines `BrowMaskThreshold = 0.035f`,
+    `BrowMaskFeatherUvNormalized = 0.42f`, and recipe feather clamp
+    `0.34f..0.48f` for `region == "brow"`.
+  - Brow Unity contract verifier, brow mask verifier, and region renderer route
+    verifier passed.
+  - Unity batchmode compile was not rerun after this C# policy change because
+    `/System/Volumes/Data` currently has only about `252Mi` free. No generated
+    cache cleanup was performed without user approval.
 
 ## Build Gate Packet
 
@@ -179,7 +191,7 @@ Before building on iPhone, report and get user approval for:
   UDID or `DEVELOPMENT_TEAM` should be added as repo defaults.
 - Expected risk: first-loop static UV brow placement may need arch/width/tail
   tuning after visual QA.
-- Local machine risk: current disk free space is about `212Mi`; cleanup should
+- Local machine risk: current disk free space is about `252Mi`; cleanup should
   happen before real-device export/build. Large generated candidates observed:
   `unity-builds` about `3.1G` and Unity `Library` about `796M`.
 - Out of scope: Android, AI/model inference, backend upload, raw-frame storage,
