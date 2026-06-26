@@ -35,7 +35,7 @@ export const RECIPE_COLOR_OPTIONS = [
   { name: 'red', color: '#C21F3A' },
 ] as const;
 
-const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
+const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye', 'brow'] as const;
 export type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 export type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 export type RecipeTextureSampleName =
@@ -45,7 +45,9 @@ export type RecipeTextureSampleName =
   | 'gradient_lip'
   | 'overline_lip'
   | 'soft_blush'
-  | 'shimmer_eye';
+  | 'shimmer_eye'
+  | 'natural_brow'
+  | 'soft_brow';
 export type RecipeTextureSample = {
   name: RecipeTextureSampleName;
   label: string;
@@ -212,6 +214,42 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     gradientAmount: 0,
     preserveDetail: true,
   },
+  {
+    name: 'natural_brow',
+    label: 'natural brow',
+    region: 'brow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#8A5A44',
+    intensity: 0.58,
+    feather: 0.42,
+    coverage: 0.7,
+    finish: 'powder-brow',
+    roughness: 0.96,
+    specular: 0.02,
+    specularPower: 8,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'soft_brow',
+    label: 'soft brow',
+    region: 'brow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#A7795D',
+    intensity: 0.42,
+    feather: 0.5,
+    coverage: 0.58,
+    finish: 'soft-powder-brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
 ];
 const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'clean', label: 'Clean' },
@@ -339,6 +377,10 @@ export const LIP_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
   LIP_AREA_STYLE_OPTIONS.map(option =>
     getRecipeTextureSampleByName(option.textureSampleName),
   );
+export const BROW_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
+  RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureSample => textureSample.region === 'brow',
+  );
 export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
   | 'lip-vision-boundary-v1'
@@ -350,7 +392,8 @@ type MaskTextureId =
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
   | 'cheek-smooth-mask-v1'
-  | 'eye-smooth-mask-v1';
+  | 'eye-smooth-mask-v1'
+  | 'brow-drawn-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type MaskDebugViewMode =
   (typeof MASK_DEBUG_VIEW_MODE_OPTIONS)[number]['id'];
@@ -396,11 +439,13 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   lip: composeLipTextureSample(DEFAULT_LIP_FINISH_TYPE, DEFAULT_LIP_AREA_STYLE),
   cheek: getRecipeTextureSampleByName('soft_blush'),
   eye: getRecipeTextureSampleByName('shimmer_eye'),
+  brow: getRecipeTextureSampleByName('natural_brow'),
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-drawn-mask-v1',
   eye: 'eye-drawn-mask-v1',
+  brow: 'brow-drawn-mask-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -423,6 +468,12 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
+  brow: {
+    color: RECIPE_COLOR_OPTIONS[2],
+    opacity: 0.62,
+    intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow.intensity,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
+  },
 };
 export const DEFAULT_REGION_TUNING: Record<
   RecipeRegion,
@@ -439,6 +490,10 @@ export const DEFAULT_REGION_TUNING: Record<
   eye: buildDefaultRegionTuningForSample(
     'eye',
     DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
+  ),
+  brow: buildDefaultRegionTuningForSample(
+    'brow',
+    DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
   ),
 };
 export const DEFAULT_DEBUG_DISPLAY_OPTIONS: DebugDisplayOptions = {
@@ -465,6 +520,7 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
     { id: 'eye-drawn-mask-v1', label: 'Drawn' },
     { id: 'eye-smooth-mask-v1', label: 'Smooth' },
   ],
+  brow: [{ id: 'brow-drawn-mask-v1', label: 'brow-drawn-mask-v1' }],
 };
 
 function resolveMaskTextureIdForRecipe(
@@ -563,6 +619,7 @@ export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,
   cheek: false,
   eye: false,
+  brow: false,
 };
 const INTENSITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
@@ -1896,6 +1953,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           return 'Blush';
         case 'shimmer_eye':
           return 'Shimmer';
+        case 'natural_brow':
+          return 'natural_brow';
+        case 'soft_brow':
+          return 'soft_brow';
         default:
           return 'Normal';
       }

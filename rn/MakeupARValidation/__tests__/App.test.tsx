@@ -5,6 +5,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App, {
+  BROW_TEXTURE_STYLE_OPTIONS,
   buildValidationRecipeBatchPayload,
   DEFAULT_ACTIVE_REGIONS,
   DEFAULT_DEBUG_DISPLAY_OPTIONS,
@@ -461,6 +462,7 @@ test('posts independent tuning parameters for each region', () => {
       lip: true,
       cheek: true,
       eye: true,
+      brow: false,
     },
     'cheek',
     DEFAULT_RENDERER_MODE,
@@ -522,6 +524,66 @@ test('posts independent tuning parameters for each region', () => {
   expect(eyeLayer.coverage).toBe(0.73);
   expect(eyeLayer.specular).toBe(0.43);
   expect(eyeLayer.glossBoost).toBe(0.16);
+});
+
+test('posts eyebrow as a fourth independent region layer', () => {
+  const browSample = BROW_TEXTURE_STYLE_OPTIONS.find(
+    textureSample => textureSample.name === 'natural_brow',
+  );
+
+  expect(browSample).toBeTruthy();
+
+  const payload = buildValidationRecipeBatchPayload(
+    {
+      ...DEFAULT_REGION_RECIPES,
+      brow: {
+        color: RECIPE_COLOR_OPTIONS[2],
+        opacity: 0.62,
+        intensity: 0.58,
+        textureSample: browSample!,
+      },
+    },
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24680,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        feather: 0.42,
+        coverage: 0.7,
+        roughness: 0.96,
+        specular: 0.02,
+        glossBoost: 0,
+        gradientAmount: 0,
+        maskTextureId: 'brow-drawn-mask-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(payload.region).toBe('brow');
+  expect(payload.layerCount).toBe(4);
+  expect(payload.enabledLayerCount).toBe(2);
+  expect(payload.activeRegions).toBe('lip,brow');
+  expect(browLayer).toBeTruthy();
+  expect(browLayer.enabled).toBe(true);
+  expect(browLayer.texture).toBe('natural_brow');
+  expect(browLayer.sample).toBe('natural_brow');
+  expect(browLayer.maskTextureId).toBe('brow-drawn-mask-v1');
+  expect(browLayer.opacity).toBe(0.62);
+  expect(browLayer.intensity).toBe(0.58);
+  expect(browLayer.feather).toBe(0.42);
+  expect(browLayer.coverage).toBe(0.7);
+  expect(browLayer.specular).toBe(0.02);
+  expect(browLayer.materialId).toBe('natural_brow-validation-material');
+  expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
 
 test('combines lip finish type and area style independently in payload', () => {
@@ -818,8 +880,9 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     const lipLayer = payload.layers.find(layer => layer.region === 'lip')!;
     const cheekLayer = payload.layers.find(layer => layer.region === 'cheek')!;
     const eyeLayer = payload.layers.find(layer => layer.region === 'eye')!;
+    const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
-    expect(payload.layers).toHaveLength(3);
+    expect(payload.layers).toHaveLength(4);
     expect(payload.rendererMode).toBe('smooth-region-mask');
     expect(payload.lookId).toBe('lip_makeup_validation_v1');
     expect(payload.activeRegions).toBe('lip');
@@ -868,6 +931,9 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(eyeLayer.texture).toBe('shimmer_eye');
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
     expect(eyeLayer.enabled).toBe(false);
+    expect(browLayer.texture).toBe('natural_brow');
+    expect(browLayer.maskTextureId).toBe('brow-drawn-mask-v1');
+    expect(browLayer.enabled).toBe(false);
   });
 });
 
@@ -973,7 +1039,24 @@ test('keeps Unity face debug surface disabled across view modes', async () => {
   expect(latestVisibilityPostCall).toContain('validationViewMode=clean');
 });
 
-test('allows cheek and eye toggles for placement validation while preserving 3-layer batch', async () => {
+test('shows eyebrow region and brow texture controls in HUD mode', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  const text = collectText(renderer!);
+
+  expect(text).toContain('focus brow');
+  expect(text).toContain('natural_brow');
+  expect(text).toContain('soft_brow');
+  expect(text).toContain('brow-drawn-mask-v1');
+});
+
+test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -1021,13 +1104,14 @@ test('allows cheek and eye toggles for placement validation while preserving 3-l
       lip: true,
       cheek: true,
       eye: true,
+      brow: false,
     },
     'lip',
     DEFAULT_RENDERER_MODE,
     12345,
   );
 
-  expect(payload.layers).toHaveLength(3);
+  expect(payload.layers).toHaveLength(4);
   expect(payload.layers.find(layer => layer.region === 'lip')!.enabled).toBe(
     true,
   );
@@ -1036,6 +1120,9 @@ test('allows cheek and eye toggles for placement validation while preserving 3-l
   );
   expect(payload.layers.find(layer => layer.region === 'eye')!.enabled).toBe(
     true,
+  );
+  expect(payload.layers.find(layer => layer.region === 'brow')!.enabled).toBe(
+    false,
   );
 });
 
