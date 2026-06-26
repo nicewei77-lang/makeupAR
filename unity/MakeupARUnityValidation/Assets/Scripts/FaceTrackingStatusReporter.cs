@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Reflection;
 using System.Text;
@@ -19,6 +20,8 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     [SerializeField] private Camera arCamera;
     [SerializeField] private float logIntervalSeconds = 2.0f;
     [SerializeField] private bool drawDebugOverlay;
+    [SerializeField] private bool drawGuideOverlay = true;
+    [SerializeField] private bool drawMeshOverlay;
     [SerializeField] private bool logE1Diagnostics = true;
     [SerializeField] private bool logE2LifecycleDiagnostics = true;
     [SerializeField] private bool logE7MetricSamples = true;
@@ -52,6 +55,16 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     private GUIStyle debugBoxStyle;
     private GUIStyle debugTitleStyle;
     private GUIStyle debugLabelStyle;
+    private GUIStyle guideLabelStyle;
+    private Texture2D guideLineTexture;
+
+    private sealed class ProjectedFaceMesh
+    {
+        public Vector2[] ScreenVertices = Array.Empty<Vector2>();
+        public float[] CameraDepths = Array.Empty<float>();
+        public int[] Triangles = Array.Empty<int>();
+        public Rect Bounds;
+    }
 
     public bool DebugOverlayVisible
     {
@@ -61,6 +74,16 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
     public void SetDebugOverlayVisible(bool visible)
     {
         drawDebugOverlay = visible;
+    }
+
+    public void SetGuideOverlayVisible(bool visible)
+    {
+        drawGuideOverlay = visible;
+    }
+
+    public void SetMeshOverlayVisible(bool visible)
+    {
+        drawMeshOverlay = visible;
     }
 
     private sealed class FaceLifecycleSnapshot
@@ -393,7 +416,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
     private void OnGUI()
     {
-        if (!drawDebugOverlay)
+        if (!drawDebugOverlay && !drawGuideOverlay && !drawMeshOverlay)
         {
             return;
         }
@@ -402,6 +425,21 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         bool faceDetected = faceCount > 0;
 
         EnsureDebugStyles();
+
+        if (drawMeshOverlay)
+        {
+            DrawFaceMeshWireOverlay(faceDetected);
+        }
+
+        if (drawGuideOverlay)
+        {
+            DrawFaceGuideOverlay(faceDetected);
+        }
+
+        if (!drawDebugOverlay)
+        {
+            return;
+        }
 
         GUI.color = Color.white;
         GUILayout.BeginArea(new Rect(24, 24, 1060, 560), debugBoxStyle);
@@ -414,6 +452,536 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
         GUILayout.Label("Face detected: " + faceDetected.ToString().ToLowerInvariant(), debugLabelStyle);
         GUILayout.Label("Pose: " + BuildCompactTransformDiagnostics(), debugLabelStyle);
         GUILayout.EndArea();
+    }
+
+    private void DrawFaceGuideOverlay(bool faceDetected)
+    {
+        Color guideColor = new Color(0.1f, 1.0f, 0.35f, 0.92f);
+        if (!faceDetected || !TryBuildPrimaryProjectedFaceMesh(out ProjectedFaceMesh projectedFace))
+        {
+            DrawGuideBadge("Guide waiting for face", new Rect(24, 96, 230, 28), guideColor);
+            return;
+        }
+
+        float line = Mathf.Max(2.0f, Screen.height * 0.0025f);
+        DrawMeshDerivedFaceContour(projectedFace, line, guideColor);
+        DrawMeshLandmarkCandidates(projectedFace, line, guideColor);
+    }
+
+    private void DrawFaceMeshWireOverlay(bool faceDetected)
+    {
+        Color meshColor = new Color(1.0f, 0.85f, 0.05f, 0.86f);
+        if (!faceDetected || !TryBuildPrimaryProjectedFaceMesh(out ProjectedFaceMesh projectedFace))
+        {
+            DrawGuideBadge("Mesh waiting for face", new Rect(24, 130, 220, 28), meshColor);
+            return;
+        }
+
+        int[] triangles = projectedFace.Triangles;
+        int triangleCount = triangles.Length / 3;
+        int triangleStride = Mathf.Max(1, Mathf.CeilToInt(triangleCount / 1100.0f));
+        float line = Mathf.Max(1.0f, Screen.height * 0.0011f);
+
+        for (int triangleIndex = 0; triangleIndex < triangleCount; triangleIndex += triangleStride)
+        {
+            int baseIndex = triangleIndex * 3;
+            int a = triangles[baseIndex];
+            int b = triangles[baseIndex + 1];
+            int c = triangles[baseIndex + 2];
+
+            if (!TryGetProjectedVertex(projectedFace, a, out Vector2 pointA)
+                || !TryGetProjectedVertex(projectedFace, b, out Vector2 pointB)
+                || !TryGetProjectedVertex(projectedFace, c, out Vector2 pointC))
+            {
+                continue;
+            }
+
+            DrawLine(pointA, pointB, line, meshColor);
+            DrawLine(pointB, pointC, line, meshColor);
+            DrawLine(pointC, pointA, line, meshColor);
+        }
+    }
+
+    private bool TryBuildPrimaryProjectedFaceMesh(out ProjectedFaceMesh projectedFace)
+    {
+        projectedFace = null;
+        if (faceManager == null)
+        {
+            RefreshSceneReferences();
+        }
+
+        Camera camera = arCamera != null ? arCamera : Camera.main;
+        if (faceManager == null || camera == null)
+        {
+            return false;
+        }
+
+        bool hasPoint = false;
+        float minX = float.MaxValue;
+        float maxX = float.MinValue;
+        float minY = float.MaxValue;
+        float maxY = float.MinValue;
+        Vector2[] selectedScreenVertices = null;
+        float[] selectedCameraDepths = null;
+        int[] selectedTriangles = null;
+
+        foreach (ARFace face in faceManager.trackables)
+        {
+            if (face == null || face.trackingState != TrackingState.Tracking)
+            {
+                continue;
+            }
+
+            MeshFilter meshFilter = face.GetComponent<MeshFilter>();
+            Mesh mesh = meshFilter != null ? meshFilter.sharedMesh : null;
+            if (mesh == null || mesh.vertexCount <= 0)
+            {
+                continue;
+            }
+
+            Vector3[] vertices = mesh.vertices;
+            int[] triangles = mesh.triangles;
+            if (vertices == null || vertices.Length <= 0 || triangles == null || triangles.Length < 3)
+            {
+                continue;
+            }
+
+            Vector2[] screenVertices = new Vector2[vertices.Length];
+            float[] cameraDepths = new float[vertices.Length];
+            Transform faceTransform = face.transform;
+            for (int index = 0; index < vertices.Length; index++)
+            {
+                Vector3 worldPoint = faceTransform.TransformPoint(vertices[index]);
+                Vector3 screenPoint = camera.WorldToScreenPoint(worldPoint);
+                if (screenPoint.z <= 0.0f)
+                {
+                    screenVertices[index] = new Vector2(float.NaN, float.NaN);
+                    cameraDepths[index] = -1.0f;
+                    continue;
+                }
+
+                float guiX = Mathf.Clamp(screenPoint.x, 0.0f, Screen.width);
+                float guiY = Mathf.Clamp(Screen.height - screenPoint.y, 0.0f, Screen.height);
+                screenVertices[index] = new Vector2(guiX, guiY);
+                cameraDepths[index] = screenPoint.z;
+                minX = Mathf.Min(minX, guiX);
+                maxX = Mathf.Max(maxX, guiX);
+                minY = Mathf.Min(minY, guiY);
+                maxY = Mathf.Max(maxY, guiY);
+                hasPoint = true;
+            }
+
+            selectedScreenVertices = screenVertices;
+            selectedCameraDepths = cameraDepths;
+            selectedTriangles = triangles;
+            break;
+        }
+
+        if (!hasPoint
+            || selectedScreenVertices == null
+            || selectedCameraDepths == null
+            || selectedTriangles == null
+            || maxX - minX < 24.0f
+            || maxY - minY < 24.0f)
+        {
+            return false;
+        }
+
+        projectedFace = new ProjectedFaceMesh
+        {
+            ScreenVertices = selectedScreenVertices,
+            CameraDepths = selectedCameraDepths,
+            Triangles = selectedTriangles,
+            Bounds = Rect.MinMaxRect(minX, minY, maxX, maxY)
+        };
+        return true;
+    }
+
+    private void DrawMeshDerivedFaceContour(ProjectedFaceMesh projectedFace, float thickness, Color color)
+    {
+        const int bandCount = 30;
+        Vector2[] leftContour = new Vector2[bandCount];
+        Vector2[] rightContour = new Vector2[bandCount];
+        bool[] hasLeft = new bool[bandCount];
+        bool[] hasRight = new bool[bandCount];
+        Rect bounds = projectedFace.Bounds;
+
+        for (int index = 0; index < projectedFace.ScreenVertices.Length; index++)
+        {
+            if (!TryGetProjectedVertex(projectedFace, index, out Vector2 point))
+            {
+                continue;
+            }
+
+            int band = Mathf.Clamp(
+                Mathf.FloorToInt(((point.y - bounds.yMin) / Mathf.Max(1.0f, bounds.height)) * bandCount),
+                0,
+                bandCount - 1);
+
+            if (!hasLeft[band] || point.x < leftContour[band].x)
+            {
+                leftContour[band] = point;
+                hasLeft[band] = true;
+            }
+
+            if (!hasRight[band] || point.x > rightContour[band].x)
+            {
+                rightContour[band] = point;
+                hasRight[band] = true;
+            }
+        }
+
+        DrawContourPolyline(leftContour, hasLeft, thickness, color, false);
+        DrawContourPolyline(rightContour, hasRight, thickness, color, false);
+
+        int firstBand = FindFirstAvailableBand(hasLeft, hasRight);
+        int lastBand = FindLastAvailableBand(hasLeft, hasRight);
+        if (firstBand >= 0 && hasLeft[firstBand] && hasRight[firstBand])
+        {
+            DrawLine(leftContour[firstBand], rightContour[firstBand], thickness, color);
+        }
+
+        if (lastBand >= 0 && hasLeft[lastBand] && hasRight[lastBand])
+        {
+            DrawLine(leftContour[lastBand], rightContour[lastBand], thickness, color);
+        }
+    }
+
+    private void DrawMeshLandmarkCandidates(ProjectedFaceMesh projectedFace, float thickness, Color color)
+    {
+        bool hasLeftEye = TryFindNearestProjectedVertex(projectedFace, 0.36f, 0.38f, out Vector2 leftEye);
+        bool hasRightEye = TryFindNearestProjectedVertex(projectedFace, 0.64f, 0.38f, out Vector2 rightEye);
+        bool hasNose = TryFindClosestDepthVertex(projectedFace, 0.42f, 0.58f, 0.43f, 0.66f, out Vector2 nose);
+        if (!hasNose)
+        {
+            hasNose = TryFindNearestProjectedVertex(projectedFace, 0.50f, 0.55f, out nose);
+        }
+
+        bool hasMouthLeft = TryFindNearestProjectedVertex(projectedFace, 0.42f, 0.72f, out Vector2 mouthLeft);
+        bool hasMouthRight = TryFindNearestProjectedVertex(projectedFace, 0.58f, 0.72f, out Vector2 mouthRight);
+        bool hasChin = TryFindLowestProjectedVertex(projectedFace, 0.34f, 0.66f, out Vector2 chin);
+
+        if (hasLeftEye && hasRightEye)
+        {
+            DrawLine(leftEye, rightEye, thickness, color);
+        }
+
+        if (hasMouthLeft && hasMouthRight)
+        {
+            DrawLine(mouthLeft, mouthRight, thickness, color);
+        }
+
+        DrawLandmarkCandidate("L eye", hasLeftEye, leftEye, thickness, color, new Vector2(-64.0f, -28.0f));
+        DrawLandmarkCandidate("R eye", hasRightEye, rightEye, thickness, color, new Vector2(10.0f, -28.0f));
+        DrawLandmarkCandidate("nose", hasNose, nose, thickness, color, new Vector2(10.0f, -12.0f));
+        DrawLandmarkCandidate("mouth", hasMouthLeft && hasMouthRight, (mouthLeft + mouthRight) * 0.5f, thickness, color, new Vector2(10.0f, 10.0f));
+        DrawLandmarkCandidate("chin", hasChin, chin, thickness, color, new Vector2(10.0f, 4.0f));
+    }
+
+    private void DrawLandmarkCandidate(
+        string label,
+        bool available,
+        Vector2 point,
+        float thickness,
+        Color color,
+        Vector2 labelOffset)
+    {
+        if (!available)
+        {
+            return;
+        }
+
+        float markerSize = Mathf.Max(9.0f, Screen.height * 0.0085f);
+        DrawCross(point, markerSize, thickness, color);
+        DrawGuideBadge(label, ClampRectToScreen(new Rect(point.x + labelOffset.x, point.y + labelOffset.y, 74, 22)), color);
+    }
+
+    private bool TryFindNearestProjectedVertex(ProjectedFaceMesh projectedFace, float relativeX, float relativeY, out Vector2 point)
+    {
+        point = Vector2.zero;
+        Vector2 target = RelativePoint(projectedFace.Bounds, relativeX, relativeY);
+        float bestDistance = float.MaxValue;
+        bool found = false;
+
+        for (int index = 0; index < projectedFace.ScreenVertices.Length; index++)
+        {
+            if (!TryGetProjectedVertex(projectedFace, index, out Vector2 candidate))
+            {
+                continue;
+            }
+
+            float distance = (candidate - target).sqrMagnitude;
+            if (distance >= bestDistance)
+            {
+                continue;
+            }
+
+            bestDistance = distance;
+            point = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool TryFindClosestDepthVertex(
+        ProjectedFaceMesh projectedFace,
+        float minRelativeX,
+        float maxRelativeX,
+        float minRelativeY,
+        float maxRelativeY,
+        out Vector2 point)
+    {
+        point = Vector2.zero;
+        Rect bounds = projectedFace.Bounds;
+        float minX = bounds.xMin + bounds.width * minRelativeX;
+        float maxX = bounds.xMin + bounds.width * maxRelativeX;
+        float minY = bounds.yMin + bounds.height * minRelativeY;
+        float maxY = bounds.yMin + bounds.height * maxRelativeY;
+        float bestDepth = float.MaxValue;
+        bool found = false;
+
+        for (int index = 0; index < projectedFace.ScreenVertices.Length; index++)
+        {
+            if (!TryGetProjectedVertex(projectedFace, index, out Vector2 candidate)
+                || candidate.x < minX
+                || candidate.x > maxX
+                || candidate.y < minY
+                || candidate.y > maxY)
+            {
+                continue;
+            }
+
+            float depth = projectedFace.CameraDepths[index];
+            if (depth >= bestDepth)
+            {
+                continue;
+            }
+
+            bestDepth = depth;
+            point = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private bool TryFindLowestProjectedVertex(
+        ProjectedFaceMesh projectedFace,
+        float minRelativeX,
+        float maxRelativeX,
+        out Vector2 point)
+    {
+        point = Vector2.zero;
+        Rect bounds = projectedFace.Bounds;
+        float minX = bounds.xMin + bounds.width * minRelativeX;
+        float maxX = bounds.xMin + bounds.width * maxRelativeX;
+        float bestY = float.MinValue;
+        bool found = false;
+
+        for (int index = 0; index < projectedFace.ScreenVertices.Length; index++)
+        {
+            if (!TryGetProjectedVertex(projectedFace, index, out Vector2 candidate)
+                || candidate.x < minX
+                || candidate.x > maxX)
+            {
+                continue;
+            }
+
+            if (candidate.y <= bestY)
+            {
+                continue;
+            }
+
+            bestY = candidate.y;
+            point = candidate;
+            found = true;
+        }
+
+        return found;
+    }
+
+    private static bool TryGetProjectedVertex(ProjectedFaceMesh projectedFace, int index, out Vector2 point)
+    {
+        point = Vector2.zero;
+        if (projectedFace == null
+            || projectedFace.ScreenVertices == null
+            || index < 0
+            || index >= projectedFace.ScreenVertices.Length
+            || projectedFace.CameraDepths == null
+            || index >= projectedFace.CameraDepths.Length
+            || projectedFace.CameraDepths[index] <= 0.0f)
+        {
+            return false;
+        }
+
+        Vector2 candidate = projectedFace.ScreenVertices[index];
+        if (float.IsNaN(candidate.x)
+            || float.IsNaN(candidate.y)
+            || float.IsInfinity(candidate.x)
+            || float.IsInfinity(candidate.y))
+        {
+            return false;
+        }
+
+        point = candidate;
+        return true;
+    }
+
+    private void DrawContourPolyline(
+        Vector2[] points,
+        bool[] available,
+        float thickness,
+        Color color,
+        bool reverse)
+    {
+        bool hasPrevious = false;
+        Vector2 previous = Vector2.zero;
+        int start = reverse ? points.Length - 1 : 0;
+        int end = reverse ? -1 : points.Length;
+        int step = reverse ? -1 : 1;
+
+        for (int index = start; index != end; index += step)
+        {
+            if (!available[index])
+            {
+                continue;
+            }
+
+            if (hasPrevious)
+            {
+                DrawLine(previous, points[index], thickness, color);
+            }
+
+            previous = points[index];
+            hasPrevious = true;
+        }
+    }
+
+    private static int FindFirstAvailableBand(bool[] leftAvailable, bool[] rightAvailable)
+    {
+        int count = Mathf.Min(leftAvailable.Length, rightAvailable.Length);
+        for (int index = 0; index < count; index++)
+        {
+            if (leftAvailable[index] && rightAvailable[index])
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindLastAvailableBand(bool[] leftAvailable, bool[] rightAvailable)
+    {
+        int count = Mathf.Min(leftAvailable.Length, rightAvailable.Length);
+        for (int index = count - 1; index >= 0; index--)
+        {
+            if (leftAvailable[index] && rightAvailable[index])
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static Vector2 RelativePoint(Rect bounds, float relativeX, float relativeY)
+    {
+        return new Vector2(
+            bounds.xMin + bounds.width * relativeX,
+            bounds.yMin + bounds.height * relativeY);
+    }
+
+    private void DrawCross(Vector2 center, float size, float thickness, Color color)
+    {
+        float half = size * 0.5f;
+        DrawLine(
+            new Vector2(center.x - half, center.y),
+            new Vector2(center.x + half, center.y),
+            thickness,
+            color);
+        DrawLine(
+            new Vector2(center.x, center.y - half),
+            new Vector2(center.x, center.y + half),
+            thickness,
+            color);
+    }
+
+    private void DrawLine(Vector2 start, Vector2 end, float thickness, Color color)
+    {
+        Vector2 delta = end - start;
+        float length = delta.magnitude;
+        if (length < 0.5f)
+        {
+            return;
+        }
+
+        Matrix4x4 previousMatrix = GUI.matrix;
+        Color previousColor = GUI.color;
+        GUI.color = color;
+        GUIUtility.RotateAroundPivot(Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg, start);
+        GUI.DrawTexture(
+            new Rect(start.x, start.y - thickness * 0.5f, length, thickness),
+            GetGuideLineTexture());
+        GUI.matrix = previousMatrix;
+        GUI.color = previousColor;
+    }
+
+    private static Rect ClampRectToScreen(Rect rect)
+    {
+        return new Rect(
+            Mathf.Clamp(rect.x, 0.0f, Mathf.Max(0.0f, Screen.width - rect.width)),
+            Mathf.Clamp(rect.y, 0.0f, Mathf.Max(0.0f, Screen.height - rect.height)),
+            rect.width,
+            rect.height);
+    }
+
+    private void DrawRectOutline(Rect rect, float thickness, Color color)
+    {
+        DrawGuiRect(new Rect(rect.xMin, rect.yMin, rect.width, thickness), color);
+        DrawGuiRect(new Rect(rect.xMin, rect.yMax - thickness, rect.width, thickness), color);
+        DrawGuiRect(new Rect(rect.xMin, rect.yMin, thickness, rect.height), color);
+        DrawGuiRect(new Rect(rect.xMax - thickness, rect.yMin, thickness, rect.height), color);
+    }
+
+    private void DrawHorizontalGuide(float xMin, float xMax, float y, float thickness, Color color)
+    {
+        DrawGuiRect(new Rect(xMin, y - thickness * 0.5f, xMax - xMin, thickness), color);
+    }
+
+    private void DrawVerticalGuide(float x, float yMin, float yMax, float thickness, Color color)
+    {
+        DrawGuiRect(new Rect(x - thickness * 0.5f, yMin, thickness, yMax - yMin), color);
+    }
+
+    private void DrawGuideBadge(string label, Rect rect, Color color)
+    {
+        Color background = new Color(0.0f, 0.0f, 0.0f, 0.58f);
+        DrawGuiRect(rect, background);
+        GUI.color = color;
+        GUI.Label(rect, label, guideLabelStyle);
+        GUI.color = Color.white;
+    }
+
+    private void DrawGuiRect(Rect rect, Color color)
+    {
+        GUI.color = color;
+        GUI.DrawTexture(rect, GetGuideLineTexture());
+        GUI.color = Color.white;
+    }
+
+    private Texture2D GetGuideLineTexture()
+    {
+        if (guideLineTexture != null)
+        {
+            return guideLineTexture;
+        }
+
+        guideLineTexture = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        guideLineTexture.SetPixel(0, 0, Color.white);
+        guideLineTexture.Apply(false, true);
+        return guideLineTexture;
     }
 
     private void EnsureDebugStyles()
@@ -441,6 +1009,15 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             fontSize = 28,
             wordWrap = true,
             normal = { textColor = Color.white }
+        };
+
+        guideLabelStyle = new GUIStyle(GUI.skin.label)
+        {
+            fontSize = 16,
+            fontStyle = FontStyle.Bold,
+            alignment = TextAnchor.MiddleCenter,
+            wordWrap = false,
+            normal = { textColor = new Color(0.1f, 1.0f, 0.35f, 1.0f) }
         };
     }
 

@@ -129,6 +129,12 @@ public sealed class RNBridge : MonoBehaviour
     private sealed class RegionOverlayVisibilityPayload
     {
         public bool visible = true;
+        public bool maskOverlayVisible = true;
+        public bool guideOverlayVisible = true;
+        public bool meshOverlayVisible = false;
+        public bool diagnosticsHudVisible = true;
+        public string guideOverlayMode = "mesh_landmarks";
+        public string meshRenderMode = "wireframe";
         public string validationViewMode;
         public string reason;
     }
@@ -255,6 +261,7 @@ public sealed class RNBridge : MonoBehaviour
     [SerializeField] private FaceTrackingStatusReporter statusReporter;
 
     private E3RegionMaskOverlay regionMaskOverlay;
+    private Material faceMeshOverlayMaterial;
     private readonly Dictionary<Renderer, bool> suppressedFaceRendererStates =
         new Dictionary<Renderer, bool>();
     private readonly Dictionary<ARFaceMeshVisualizer, bool> suppressedFaceVisualizerStates =
@@ -262,6 +269,7 @@ public sealed class RNBridge : MonoBehaviour
     private readonly Dictionary<string, RegionFeatureState> latestRegionFeatureStates =
         new Dictionary<string, RegionFeatureState>();
     private bool faceRenderersSuppressed = true;
+    private bool faceMeshOverlayVisible;
     private int lastSuppressedFaceTrackableCount = -1;
 
 #if UNITY_IOS && !UNITY_EDITOR
@@ -286,6 +294,16 @@ public sealed class RNBridge : MonoBehaviour
 
     private void LateUpdate()
     {
+        if (faceMeshOverlayVisible)
+        {
+            if (ShouldRefreshFaceRendererSuppression())
+            {
+                ApplyFaceMeshOverlay();
+            }
+
+            return;
+        }
+
         if (faceRenderersSuppressed && ShouldRefreshFaceRendererSuppression())
         {
             ApplyFaceRendererSuppression();
@@ -437,8 +455,23 @@ public sealed class RNBridge : MonoBehaviour
             RegionOverlayVisibilityPayload payload =
                 JsonUtility.FromJson<RegionOverlayVisibilityPayload>(json);
             bool visible = payload == null || payload.visible;
+            bool hasMaskOverlayField = json.IndexOf("\"maskOverlayVisible\"", StringComparison.Ordinal) >= 0;
+            bool hasGuideOverlayField = json.IndexOf("\"guideOverlayVisible\"", StringComparison.Ordinal) >= 0;
+            bool hasMeshOverlayField = json.IndexOf("\"meshOverlayVisible\"", StringComparison.Ordinal) >= 0;
+            bool hasDiagnosticsHudField = json.IndexOf("\"diagnosticsHudVisible\"", StringComparison.Ordinal) >= 0;
+            bool maskOverlayVisible = payload == null || !hasMaskOverlayField || payload.maskOverlayVisible;
+            bool guideOverlayVisible = payload == null || !hasGuideOverlayField || payload.guideOverlayVisible;
+            bool meshOverlayVisible = payload != null && hasMeshOverlayField && payload.meshOverlayVisible;
+            bool diagnosticsHudVisible = payload == null || !hasDiagnosticsHudField || payload.diagnosticsHudVisible;
             string validationViewMode = payload != null ? NormalizeOptional(payload.validationViewMode) : "unknown";
-            bool unityDebugVisible = visible && validationViewMode == "full";
+            bool regionOverlayVisible = visible && maskOverlayVisible;
+            bool faceGuideVisible = visible && guideOverlayVisible;
+            bool faceMeshVisible = visible && meshOverlayVisible;
+            bool unityDebugVisible = visible && diagnosticsHudVisible && validationViewMode == "full";
+            string guideOverlayMode = NormalizeOptional(payload != null ? payload.guideOverlayMode : string.Empty);
+            string meshRenderMode = NormalizeOptional(payload != null ? payload.meshRenderMode : string.Empty);
+            guideOverlayMode = guideOverlayMode == "none" ? "mesh_landmarks" : guideOverlayMode;
+            meshRenderMode = meshRenderMode == "none" ? "wireframe" : meshRenderMode;
 
             EnsureRegionMaskOverlay();
             if (regionMaskOverlay == null)
@@ -446,17 +479,27 @@ public sealed class RNBridge : MonoBehaviour
                 throw new InvalidOperationException("E3 region mask overlay is unavailable.");
             }
 
-            regionMaskOverlay.SetOverlayRenderingSuppressed(!visible);
-            SetFaceRenderersSuppressed(true);
+            regionMaskOverlay.SetOverlayRenderingSuppressed(!regionOverlayVisible);
+            SetFaceMeshOverlayVisible(false);
 
             if (statusReporter != null)
             {
                 statusReporter.SetDebugOverlayVisible(unityDebugVisible);
+                statusReporter.SetGuideOverlayVisible(faceGuideVisible);
+                statusReporter.SetMeshOverlayVisible(faceMeshVisible);
             }
 
             Debug.Log(
                 "[E7] region_overlay_visibility"
-                + " visible=" + visible.ToString().ToLowerInvariant()
+                + " visible=" + regionOverlayVisible.ToString().ToLowerInvariant()
+                + " maskOverlayVisible=" + maskOverlayVisible.ToString().ToLowerInvariant()
+                + " guideOverlayVisible=" + guideOverlayVisible.ToString().ToLowerInvariant()
+                + " meshOverlayVisible=" + meshOverlayVisible.ToString().ToLowerInvariant()
+                + " diagnosticsHudVisible=" + diagnosticsHudVisible.ToString().ToLowerInvariant()
+                + " guideColor=green"
+                + " meshColor=yellow"
+                + " meshRenderMode=" + meshRenderMode
+                + " guideOverlayMode=" + guideOverlayMode
                 + " faceDebugSurfaceSuppressed=true"
                 + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
                 + " validationViewMode=" + validationViewMode
@@ -639,6 +682,11 @@ public sealed class RNBridge : MonoBehaviour
     private void SetFaceRenderersSuppressed(bool suppressed)
     {
         RefreshSceneReferences();
+        if (suppressed)
+        {
+            faceMeshOverlayVisible = false;
+        }
+
         faceRenderersSuppressed = suppressed;
 
         if (suppressed)
@@ -667,6 +715,13 @@ public sealed class RNBridge : MonoBehaviour
         suppressedFaceRendererStates.Clear();
         suppressedFaceVisualizerStates.Clear();
         lastSuppressedFaceTrackableCount = -1;
+    }
+
+    private void SetFaceMeshOverlayVisible(bool visible)
+    {
+        RefreshSceneReferences();
+        faceMeshOverlayVisible = false;
+        SetFaceRenderersSuppressed(true);
     }
 
     private bool ShouldRefreshFaceRendererSuppression()
@@ -738,6 +793,107 @@ public sealed class RNBridge : MonoBehaviour
 
                 renderer.enabled = false;
             }
+        }
+    }
+
+    private void ApplyFaceMeshOverlay()
+    {
+        if (faceManager == null)
+        {
+            return;
+        }
+
+        lastSuppressedFaceTrackableCount = CountFaceTrackables();
+        Material meshMaterial = GetOrCreateFaceMeshOverlayMaterial();
+
+        foreach (ARFace face in faceManager.trackables)
+        {
+            if (face == null)
+            {
+                continue;
+            }
+
+            ARFaceMeshVisualizer[] visualizers = face.GetComponentsInChildren<ARFaceMeshVisualizer>(true);
+            foreach (ARFaceMeshVisualizer visualizer in visualizers)
+            {
+                if (visualizer == null)
+                {
+                    continue;
+                }
+
+                if (!suppressedFaceVisualizerStates.ContainsKey(visualizer))
+                {
+                    suppressedFaceVisualizerStates[visualizer] = visualizer.enabled;
+                }
+
+                visualizer.enabled = true;
+            }
+
+            Renderer[] renderers = face.GetComponentsInChildren<Renderer>(true);
+            foreach (Renderer renderer in renderers)
+            {
+                if (renderer == null || IsRegionOverlayRenderer(renderer))
+                {
+                    continue;
+                }
+
+                if (!suppressedFaceRendererStates.ContainsKey(renderer))
+                {
+                    suppressedFaceRendererStates[renderer] = renderer.enabled;
+                }
+
+                renderer.enabled = true;
+                renderer.sharedMaterial = meshMaterial;
+            }
+        }
+    }
+
+    private Material GetOrCreateFaceMeshOverlayMaterial()
+    {
+        if (faceMeshOverlayMaterial != null)
+        {
+            return faceMeshOverlayMaterial;
+        }
+
+        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
+        if (shader == null)
+        {
+            shader = Shader.Find("Unlit/Color");
+        }
+
+        if (shader == null)
+        {
+            shader = Shader.Find("Sprites/Default");
+        }
+
+        faceMeshOverlayMaterial = new Material(shader)
+        {
+            name = "E7 Yellow Face Mesh Overlay"
+        };
+
+        ApplyFaceMeshOverlayMaterialColor(faceMeshOverlayMaterial, new Color(1.0f, 0.85f, 0.05f, 0.32f));
+        faceMeshOverlayMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        faceMeshOverlayMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        faceMeshOverlayMaterial.SetInt("_ZWrite", 0);
+        faceMeshOverlayMaterial.DisableKeyword("_ALPHATEST_ON");
+        faceMeshOverlayMaterial.EnableKeyword("_ALPHABLEND_ON");
+        faceMeshOverlayMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        faceMeshOverlayMaterial.renderQueue = (int)RenderQueue.Transparent;
+
+        return faceMeshOverlayMaterial;
+    }
+
+    private static void ApplyFaceMeshOverlayMaterialColor(Material material, Color color)
+    {
+        material.color = color;
+        if (material.HasProperty("_BaseColor"))
+        {
+            material.SetColor("_BaseColor", color);
+        }
+
+        if (material.HasProperty("_Color"))
+        {
+            material.SetColor("_Color", color);
         }
     }
 
@@ -1806,7 +1962,7 @@ public sealed class RNBridge : MonoBehaviour
             Shimmer = Mathf.Max(0.0f, layer.shimmer),
             ShimmerColor = NormalizeOptional(layer.shimmerColor, recipe.shimmerColor, "#FFFFFF"),
             SkinAdaptive = layer.skinAdaptive || recipe.skinAdaptive,
-            PreserveDetail = layer.preserveDetail || recipe.preserveDetail,
+            PreserveDetail = layer.preserveDetail,
             MaterialId = NormalizeOptional(layer.materialId, recipe.materialId, textureSample + "-validation-material"),
             ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
             PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
@@ -1989,11 +2145,6 @@ public sealed class RNBridge : MonoBehaviour
 
     private static float NormalizeIntensity(float intensity)
     {
-        if (intensity <= 0.0f)
-        {
-            return 1.0f;
-        }
-
         return Mathf.Clamp01(intensity);
     }
 

@@ -370,7 +370,7 @@ Shader "MakeupAR/SmoothRegionMask"
 
             fixed4 frag(v2f input) : SV_Target
             {
-                if (_LipStyleMode < 0.5 || _LipStyleMode >= 1.5)
+                if (_LipStyleMode < -0.5 || _GlossBoost <= 0.001 || _Specular <= 0.001)
                 {
                     return fixed4(0.0, 0.0, 0.0, 0.0);
                 }
@@ -386,20 +386,36 @@ Shader "MakeupAR/SmoothRegionMask"
                 float4 softMask = SampleMaskSoft(maskUv);
                 float fullSoft = SoftMaskAlpha(softMask.r, _Threshold, _Feather);
                 float fullCore = CoreMaskAlpha(mask.r, _Threshold, _Feather);
+                float overlineSoft = SoftMaskAlpha(softMask.g, _Threshold, _Feather);
+                float gradientSoft = SoftMaskAlpha(max(softMask.b, mask.b), _Threshold, _Feather);
                 float coverage = saturate(max(_Coverage, 0.001));
+                float styleGlossSeed = saturate(mask.a);
+
+                if (_LipStyleMode >= 1.5 && _LipStyleMode < 2.5)
+                {
+                    styleGlossSeed = max(styleGlossSeed, saturate(max(mask.r, softMask.r) * 0.74));
+                }
+                else if (_LipStyleMode >= 2.5 && _LipStyleMode < 3.5)
+                {
+                    styleGlossSeed = max(styleGlossSeed, saturate(max(mask.b, softMask.b) * 0.88));
+                }
+                else if (_LipStyleMode >= 3.5)
+                {
+                    styleGlossSeed = max(styleGlossSeed, saturate(max(mask.g, softMask.g) * 0.82));
+                }
 
                 float glossSharpMask = SoftMaskAlpha(
-                    saturate(mask.a),
+                    styleGlossSeed,
                     max(_Threshold * 0.96, 0.022),
                     max(lerp(0.044, 0.032, saturate(_GlossSharpness)), 0.032))
-                    * fullSoft
-                    * fullCore;
+                    * max(fullSoft, max(gradientSoft, overlineSoft))
+                    * max(fullCore, styleGlossSeed * 0.58);
                 float glossHaloMask = SoftMaskAlpha(
-                    saturate(max(softMask.a, mask.a * 0.52)),
+                    saturate(max(max(softMask.a, styleGlossSeed), mask.a * 0.52)),
                     max(_Threshold * 0.70, 0.018),
                     max(_Feather * 0.26, 0.050))
-                    * fullSoft
-                    * fullCore;
+                    * max(fullSoft, max(gradientSoft, overlineSoft))
+                    * max(fullCore, styleGlossSeed * 0.42);
                 float glossHalo = saturate(glossHaloMask - glossSharpMask * 0.56);
                 float glossEnergy = coverage
                     * coverage

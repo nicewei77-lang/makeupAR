@@ -547,7 +547,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
             : "none";
-        result.GlossHighlightMode = lipLogicalMultilayer && recipe.TextureSample == "gloss_lip"
+        result.GlossHighlightMode = lipLogicalMultilayer && IsGlowFinish(recipe)
             ? "matte_base_wet_sheen"
             : "none";
         result.MaskSource = visionLipBoundary
@@ -2471,7 +2471,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_GlossSharpness",
-                recipe.TextureSample == "gloss_lip"
+                IsGlowFinish(recipe)
                     ? Mathf.Lerp(0.60f, 0.86f, recipe.GlossBoost)
                     : 0.0f);
         }
@@ -2480,7 +2480,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_GlossHaloIntensity",
-                recipe.TextureSample == "gloss_lip"
+                IsGlowFinish(recipe)
                     ? Mathf.Lerp(0.045f, 0.10f, recipe.GlossBoost)
                     : 0.0f);
         }
@@ -2587,6 +2587,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Mathf.Clamp01(recipe.Color.g * brightnessScale),
             Mathf.Clamp01(recipe.Color.b * brightnessScale),
             Mathf.Clamp01(recipe.Opacity * sampleAlphaScale));
+    }
+
+    private static bool IsGlowFinish(RegionRecipeState recipe)
+    {
+        return recipe != null
+            && (string.Equals(recipe.Finish, "gloss", StringComparison.OrdinalIgnoreCase)
+                || recipe.GlossBoost >= 0.3f
+                || recipe.Specular >= 0.5f);
     }
 
     private static float ResolveLipStyleMode(string textureSample)
