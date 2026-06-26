@@ -1,0 +1,64 @@
+{
+  "schemaVersion": "e7-full-face-region-pre-xcode-gate-v0",
+  "sessionId": "session-20260626T195853Z",
+  "createdAtKst": "2026-06-27T05:45:00+09:00",
+  "status": "pre-xcode-ready",
+  "greenClaim": false,
+  "phoneDisconnected": true,
+  "xcodeBuildRun": false,
+  "regions": {
+    "lip": {
+      "status": "pre-xcode-ready",
+      "candidateId": "lip-balanced-gold-v0",
+      "maskTextureId": "e7-lip-balanced-uv-v0"
+    },
+    "blush": {
+      "status": "pre-xcode-ready",
+      "candidateId": "blush-balanced-soft-oval-v0",
+      "maskTextureId": "e7-blush-balanced-uv-v0"
+    },
+    "brow": {
+      "status": "pre-xcode-ready",
+      "candidateId": "brow-balanced-stroke-envelope-v0",
+      "maskTextureId": "e7-brow-balanced-uv-v0"
+    },
+    "eyeliner": {
+      "status": "pre-xcode-ready",
+      "candidateId": "eyeliner-minimal-safe-lashline-v0",
+      "maskTextureId": "e7-eyeliner-minimal-safe-uv-v0"
+    }
+  },
+  "commits": [
+    "f0c37e3 docs: record e7 region generate session boot",
+    "2ac0b3d feat: add e7 region candidate generator",
+    "aa351e1 feat: generate e7 full-face region candidates",
+    "8132591 feat: add e7 full-face region web review shell",
+    "7574cf1 feat: wire e7 full-face region package handoff"
+  ],
+  "verification": {
+    "pythonCompileGenerator": "passed",
+    "pythonCompileInstaller": "passed",
+    "assetInstall": "passed",
+    "runtimeAssetRegistryJson": "passed",
+    "rnTypecheck": "passed",
+    "webLint": "passed",
+    "webTypecheck": "passed",
+    "webBuild": "passed",
+    "gitDiffCheck": "passed",
+    "unityBatchmodeSmoke": "blocked_existing_unity_project_instance"
+  },
+  "deferredRequiredEvidence": [
+    "xcode_build_install_launch",
+    "real_device_face_attachment",
+    "neutral_smile_open_close_yaw_blink_visuals",
+    "eyeliner_blink_yaw_stability",
+    "fps_frame_time_latency_memory_thermal",
+    "human_visual_boundary_acceptance"
+  ],
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false,
+    "liveFaceParsingCoreMlRuntime": false
+  }
+}

@@ -18,27 +18,34 @@ Session: `session-20260626T195853Z`
   - Maximum current-session region status is `pre-xcode-ready`.
   - No iPhone evidence means no Green/product-quality-ready claim.
 
-## Next
-
-1. Build input inventory and region experiment scaffold.
-2. Generate four-region candidates with include/exclude/unknown maps.
-3. Create contact sheets, scorecards, selected policies, and adjustment axes.
-4. Commit Phase 0 boot artifacts before candidate implementation.
-
 ## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
 
 - Generated local-only candidates for lip / blush / brow / eyeliner.
 - Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
 - Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.
 
-## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
+## 2026-06-27 05:16 KST - Phase 2 Web Review Shell
 
-- Generated local-only candidates for lip / blush / brow / eyeliner.
-- Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
-- Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.
+- Added the full-face Generate review shell in `web/lip-generate-beta`.
+- Region cards, selected policy metrics, contact-sheet preview, adjustment sliders/buttons, and saved package draft payload are available for buildless UI/logic review.
+- Verification passed: web lint, typecheck, and production build.
+- Browser screenshot inspection was not used as an extra gate after the user clarified not to extend checks beyond the required flow.
 
-## 2026-06-27 05:00 KST - Phase 1 Candidate Generation
+## 2026-06-27 05:40 KST - Phase 3 RN/Unity Handoff
 
-- Generated local-only candidates for lip / blush / brow / eyeliner.
-- Created include/exclude/unknown maps, UV probability textures, round-trip overlays, scorecards, selected policies, adjustment axes, region packages, and composite payload.
-- Eyeliner minimal-safe candidate created; deferred blink/yaw iPhone evidence remains required before Green.
+- Installed selected UV probability masks into Unity Resources as stable runtime texture IDs:
+  - `e7-lip-balanced-uv-v0`
+  - `e7-blush-balanced-uv-v0`
+  - `e7-brow-balanced-uv-v0`
+  - `e7-eyeliner-minimal-safe-uv-v0`
+- Added RN full-face package posting button and v2 four-layer payload.
+- Extended Unity RNBridge / smooth-mask overlay validation to accept `blush`, `brow`, and `eyeliner` region IDs, candidate IDs, and mask texture IDs.
+- Added an Editor smoke entry point for 4-layer full-face package parsing.
+- Verification passed: Python compile, registry JSON validation, RN TypeScript, and git diff whitespace checks.
+- Unity batchmode smoke was blocked because an existing Unity AssetImportWorker was already attached to the project; no user Unity process was killed.
+
+## 2026-06-27 05:45 KST - Phase 4 Pre-Xcode Gate
+
+- Created `pre_xcode_gate.md` and `pre_xcode_gate.json`.
+- Current result: all four regions are `pre-xcode-ready`, not Green.
+- Xcode/iPhone build, install, launch, visual runtime evidence, FPS/frame-time, latency, memory, thermal, motion/expression/blink/yaw checks, and human subjective boundary acceptance remain deferred to the next phone-connected gate.
