@@ -783,6 +783,37 @@ def write_contact_sheet(entries: list[tuple[str, Image.Image]], path: Path, thum
     sheet.save(path)
 
 
+def wrap_text(text: str, max_chars: int) -> list[str]:
+    words = text.split()
+    lines: list[str] = []
+    current = ""
+    for word in words:
+        next_line = word if not current else f"{current} {word}"
+        if len(next_line) > max_chars and current:
+            lines.append(current)
+            current = word
+        else:
+            current = next_line
+    if current:
+        lines.append(current)
+    return lines or [""]
+
+
+def make_text_panel(size: tuple[int, int], title: str, lines: list[str]) -> Image.Image:
+    image = Image.new("RGB", size, (248, 248, 248))
+    draw = ImageDraw.Draw(image)
+    margin = max(24, min(size) // 18)
+    y = margin
+    draw.text((margin, y), title, fill=(20, 20, 20))
+    y += 44
+    for line in lines:
+        for chunk in wrap_text(line, max(28, size[0] // 26)):
+            draw.text((margin, y), chunk, fill=(45, 45, 45))
+            y += 30
+        y += 12
+    return image
+
+
 def write_candidate_artifacts(
     dirs: dict[str, Path],
     frame: Image.Image,
@@ -845,7 +876,323 @@ def write_candidate_artifacts(
     return metrics_by_candidate, contact_entries
 
 
-def write_review_docs(output_dir: Path, dirs: dict[str, Path], metrics: dict[str, Any], contact_entries: list[tuple[str, Image.Image]]) -> None:
+def mediapipe_point(landmarks: list[Any], index: int, size: tuple[int, int]) -> tuple[float, float]:
+    width, height = size
+    landmark = landmarks[index]
+    return (float(landmark.x) * width, float(landmark.y) * height)
+
+
+def write_mediapipe_failure_report(output_dir: Path, reason: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+    report = {
+        "schemaVersion": "e7-mediapipe-lip-comparison-v0",
+        "createdAtUtc": utc_now(),
+        "available": False,
+        "reason": reason,
+        "role": "additional_comparison_signal_not_replacement",
+        "outputs": {},
+        "limitations": [
+            "MediaPipe is an additional comparison signal, not a replacement for Vision, parsing, color, or ARFace.",
+            "No MediaPipe mask should be promoted without visual review on the clean sample and real camera check.",
+        ],
+    }
+    if extra:
+        report.update(extra)
+    write_json(output_dir / "mediapipe_lip_report.json", report)
+    return report
+
+
+def classify_mediapipe_failure(stderr: str, exit_code: int) -> dict[str, Any]:
+    lower = stderr.lower()
+    if "graph_service.h:139" in stderr and "drishtimetalhelper" in lower:
+        return {
+            "mostLikelyRootCause": "FaceLandmarker native graph failed while opening the macOS GL/Metal helper service.",
+            "evidence": [
+                "MediaPipe import succeeded before the child process ran.",
+                "Face Landmarker model file exists.",
+                "Input frame path and dimensions were valid.",
+                "stderr contains gl_context_nsgl pixel format failure.",
+                "stderr contains graph_service.h:139 service unavailable.",
+                "stderr stack includes DrishtiMetalHelper.",
+                f"process exit code was {exit_code}.",
+            ],
+            "smallestSafeUnblock": "Treat MediaPipe as a documented failed comparison signal for this buildless run and continue reviewing the 5 core candidates.",
+            "coreCandidatesCanContinue": True,
+        }
+    if "no module named" in lower or "import" in lower:
+        return {
+            "mostLikelyRootCause": "MediaPipe package import failed in the selected Python environment.",
+            "evidence": [f"process exit code was {exit_code}.", "stderr mentions import/module failure."],
+            "smallestSafeUnblock": "Record MediaPipe unavailable and continue with the 5 core candidates.",
+            "coreCandidatesCanContinue": True,
+        }
+    return {
+        "mostLikelyRootCause": "MediaPipe child process failed before producing a usable lip landmark report.",
+        "evidence": [f"process exit code was {exit_code}.", "See mediapipe_process_stderr.txt for the raw failure."],
+        "smallestSafeUnblock": "Record the failure and continue with the 5 core candidates.",
+        "coreCandidatesCanContinue": True,
+    }
+
+
+def run_mediapipe_child(args: argparse.Namespace) -> int:
+    if args.mediapipe_output_dir is None:
+        return 2
+    output_dir = args.mediapipe_output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        import mediapipe as mp  # type: ignore[import-not-found]
+        from mediapipe.tasks import python as mp_python  # type: ignore[import-not-found]
+        from mediapipe.tasks.python import vision as mp_vision  # type: ignore[import-not-found]
+    except Exception as exception:
+        write_mediapipe_failure_report(
+            output_dir,
+            "mediapipe_import_failed",
+            {"exception": exception.__class__.__name__, "message": str(exception)},
+        )
+        return 3
+
+    if not args.mediapipe_model.exists():
+        write_mediapipe_failure_report(
+            output_dir,
+            "face_landmarker_model_missing",
+            {"modelPath": str(args.mediapipe_model)},
+        )
+        return 4
+
+    frame = Image.open(args.frame).convert("RGB")
+    size = frame.size
+    base_options = mp_python.BaseOptions(
+        model_asset_path=str(args.mediapipe_model),
+        delegate=mp_python.BaseOptions.Delegate.CPU,
+    )
+    options = mp_vision.FaceLandmarkerOptions(
+        base_options=base_options,
+        running_mode=mp_vision.RunningMode.IMAGE,
+        num_faces=1,
+        output_face_blendshapes=False,
+        min_face_detection_confidence=0.3,
+        min_face_presence_confidence=0.3,
+        min_tracking_confidence=0.3,
+    )
+
+    landmarker = mp_vision.FaceLandmarker.create_from_options(options)
+    try:
+        result = landmarker.detect(mp.Image.create_from_file(str(args.frame)))
+    finally:
+        landmarker.close()
+
+    face_count = len(result.face_landmarks)
+    if face_count == 0:
+        write_mediapipe_failure_report(output_dir, "no_face_detected", {"faceCount": 0})
+        return 5
+
+    landmarks = result.face_landmarks[0]
+    required_index = max(max(MEDIAPIPE_OUTER_LIP), max(MEDIAPIPE_INNER_LIP))
+    if len(landmarks) <= required_index:
+        write_mediapipe_failure_report(
+            output_dir,
+            "landmark_count_too_small",
+            {"landmarkCount": len(landmarks), "requiredIndex": required_index},
+        )
+        return 6
+
+    outer_points = [mediapipe_point(landmarks, index, size) for index in MEDIAPIPE_OUTER_LIP]
+    inner_points = [mediapipe_point(landmarks, index, size) for index in MEDIAPIPE_INNER_LIP]
+    outer_curve = chaikin(outer_points, 4)
+    inner_curve = chaikin(inner_points, 3)
+    mask = keep_largest_component(close_mask(fill_polygon(outer_curve, size, [inner_curve]), 1))
+    alpha = make_soft_alpha(mask, 2.1)
+
+    mask_path = output_dir / "mediapipe_lip_curve_mask.png"
+    alpha_path = output_dir / "mediapipe_lip_curve_alpha.png"
+    overlay_path = output_dir / "mediapipe_lip_curve_overlay.png"
+    landmark_overlay_path = output_dir / "mediapipe_landmark_overlay.png"
+    curve_points_path = output_dir / "mediapipe_lip_curve_points.json"
+
+    save_mask(mask_path, mask)
+    save_alpha(alpha_path, alpha)
+    write_curve_overlay(frame, mask, outer_curve, overlay_path, "mediapipe_lip_curve")
+
+    landmark_image = frame.convert("RGB")
+    draw = ImageDraw.Draw(landmark_image, "RGBA")
+    for left, right in zip(outer_points, outer_points[1:] + outer_points[:1]):
+        draw.line([left, right], fill=(80, 255, 120, 230), width=3)
+    for left, right in zip(inner_points, inner_points[1:] + inner_points[:1]):
+        draw.line([left, right], fill=(255, 230, 80, 230), width=2)
+    for index, point in zip(MEDIAPIPE_OUTER_LIP, outer_points):
+        x, y = point
+        draw.ellipse((x - 3, y - 3, x + 3, y + 3), fill=(80, 255, 120, 240))
+        draw.text((x + 4, y - 4), str(index), fill=(255, 255, 255, 220))
+    for index, point in zip(MEDIAPIPE_INNER_LIP, inner_points):
+        x, y = point
+        draw.ellipse((x - 2, y - 2, x + 2, y + 2), fill=(255, 230, 80, 220))
+    landmark_image.save(landmark_overlay_path)
+
+    write_json(
+        curve_points_path,
+        {
+            "outerIndices": list(MEDIAPIPE_OUTER_LIP),
+            "innerIndices": list(MEDIAPIPE_INNER_LIP),
+            "outerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in outer_points],
+            "innerPoints": [{"x": round(x, 3), "y": round(y, 3)} for x, y in inner_points],
+            "outerCurvePointCount": len(outer_curve),
+            "innerCurvePointCount": len(inner_curve),
+        },
+    )
+
+    report = {
+        "schemaVersion": "e7-mediapipe-lip-comparison-v0",
+        "createdAtUtc": utc_now(),
+        "available": True,
+        "role": "additional_comparison_signal_not_replacement",
+        "api": "mediapipe.tasks.python.vision.FaceLandmarker",
+        "modelPath": str(args.mediapipe_model),
+        "framePath": str(args.frame),
+        "faceCount": face_count,
+        "landmarkCount": len(landmarks),
+        "outerPointCount": len(outer_points),
+        "innerPointCount": len(inner_points),
+        "positivePixels": int(np.count_nonzero(mask)),
+        "bbox": bbox(mask),
+        "outputs": {
+            "landmarkOverlay": str(landmark_overlay_path),
+            "mask": str(mask_path),
+            "alpha": str(alpha_path),
+            "curveOverlay": str(overlay_path),
+            "curvePoints": str(curve_points_path),
+        },
+        "observationsToReview": [
+            "입꼬리가 Apple Vision보다 더 잘 잡히는지",
+            "윗입술 산 모양이 더 자연스러운지",
+            "가장자리가 face parsing보다 매끈한지",
+            "입술 실제 색 경계와 어긋나는 곳이 있는지",
+        ],
+        "limitations": [
+            "MediaPipe landmarks describe face geometry, not makeup color boundary.",
+            "This is one clean female sample only.",
+            "This result still needs visual review and real camera comparison.",
+        ],
+    }
+    write_json(output_dir / "mediapipe_lip_report.json", report)
+    return 0
+
+
+def run_mediapipe_test(
+    args: argparse.Namespace,
+    dirs: dict[str, Path],
+    frame: Image.Image,
+    arface_export: dict[str, Any] | None,
+    gold_reference: np.ndarray | None,
+) -> tuple[dict[str, Any], tuple[str, Image.Image] | None]:
+    output_dir = dirs["mediapipe"]
+    if args.skip_mediapipe:
+        report = write_mediapipe_failure_report(output_dir, "skipped_by_flag")
+        return report, None
+
+    package_available = importlib.util.find_spec("mediapipe") is not None
+    if not package_available:
+        report = write_mediapipe_failure_report(
+            output_dir,
+            "mediapipe_package_missing_in_current_python",
+            {
+                "pythonExecutable": sys.executable,
+                "modelPath": str(args.mediapipe_model),
+                "modelExists": args.mediapipe_model.exists(),
+            },
+        )
+        return report, None
+
+    if not args.mediapipe_model.exists():
+        report = write_mediapipe_failure_report(
+            output_dir,
+            "face_landmarker_model_missing",
+            {
+                "pythonExecutable": sys.executable,
+                "modelPath": str(args.mediapipe_model),
+                "modelExists": False,
+            },
+        )
+        return report, None
+
+    env = os.environ.copy()
+    env.setdefault("MPLCONFIGDIR", str(Path(".cache/matplotlib").resolve()))
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--mediapipe-child",
+        "--frame",
+        str(args.frame.resolve()),
+        "--mediapipe-model",
+        str(args.mediapipe_model.resolve()),
+        "--mediapipe-output-dir",
+        str(output_dir.resolve()),
+    ]
+    try:
+        completed = subprocess.run(command, capture_output=True, text=True, timeout=45, env=env, check=False)
+    except subprocess.TimeoutExpired as exception:
+        report = write_mediapipe_failure_report(
+            output_dir,
+            "mediapipe_child_timeout",
+            {
+                "pythonExecutable": sys.executable,
+                "modelPath": str(args.mediapipe_model),
+                "stdout": (exception.stdout or "")[-8000:],
+                "stderr": (exception.stderr or "")[-8000:],
+            },
+        )
+        return report, None
+
+    (output_dir / "mediapipe_process_stdout.txt").write_text(completed.stdout or "", encoding="utf-8")
+    (output_dir / "mediapipe_process_stderr.txt").write_text(completed.stderr or "", encoding="utf-8")
+    report_path = output_dir / "mediapipe_lip_report.json"
+    if completed.returncode != 0 or not report_path.exists():
+        stderr_tail = (completed.stderr or "")[-12000:]
+        report = write_mediapipe_failure_report(
+            output_dir,
+            "mediapipe_child_failed",
+            {
+                "pythonExecutable": sys.executable,
+                "modelPath": str(args.mediapipe_model),
+                "modelExists": args.mediapipe_model.exists(),
+                "exitCode": completed.returncode,
+                "stdoutTail": (completed.stdout or "")[-8000:],
+                "stderrTail": stderr_tail,
+                "failureDiagnosis": classify_mediapipe_failure(stderr_tail, completed.returncode),
+            },
+        )
+        return report, None
+
+    report = load_json(report_path)
+    if not report.get("available"):
+        return report, None
+
+    mask_path = Path(report["outputs"]["mask"])
+    overlay_path = Path(report["outputs"]["curveOverlay"])
+    mask = load_mask(mask_path, frame.size)
+    report["goldComparison"] = comparison_metrics(mask, gold_reference)
+    uv_status: dict[str, Any] = {"available": False}
+    if arface_export:
+        predicted = forward_project_uv(back_project_mask(mask, arface_export), arface_export, frame.size)
+        round_trip_path = output_dir / "mediapipe_uv_round_trip_overlay.png"
+        round_trip_overlay(frame, mask, predicted).save(round_trip_path)
+        uv_status = {
+            "available": True,
+            "roundTrip": comparison_metrics(predicted, mask),
+            "roundTripOverlayPath": str(round_trip_path),
+            "note": "UV preview only; not real camera evidence.",
+        }
+    report["uvProjection"] = uv_status
+    write_json(report_path, report)
+    return report, ("mediapipe_lip_curve", Image.open(overlay_path).copy())
+
+
+def write_review_docs(
+    output_dir: Path,
+    dirs: dict[str, Path],
+    metrics: dict[str, Any],
+    contact_entries: list[tuple[str, Image.Image]],
+    mediapipe_report: dict[str, Any] | None = None,
+) -> None:
     write_contact_sheet(contact_entries, dirs["review"] / "full_size_contact_sheet.png", 560, 820)
     write_contact_sheet(contact_entries, dirs["review"] / "compact_contact_sheet.png", 260, 380)
     rows = [
@@ -876,6 +1223,34 @@ def write_review_docs(output_dir: Path, dirs: dict[str, Path], metrics: dict[str
                 interpretation[candidate_id],
             )
         )
+    if mediapipe_report is not None:
+        rows.extend(["", "## MediaPipe 비교", ""])
+        if mediapipe_report.get("available"):
+            gold = mediapipe_report.get("goldComparison", {})
+            uv = mediapipe_report.get("uvProjection", {}).get("roundTrip", {})
+            rows.extend(
+                [
+                    "| 항목 | 값 |",
+                    "| --- | --- |",
+                    f"| 상태 | 사용 가능 |",
+                    f"| landmark 수 | {mediapipe_report.get('landmarkCount')} |",
+                    f"| lip mask 픽셀 수 | {mediapipe_report.get('positivePixels')} |",
+                    f"| gold IoU | {gold.get('iou', 'n/a') if gold.get('available') else 'n/a'} |",
+                    f"| UV round-trip IoU | {uv.get('iou', 'n/a') if uv.get('available') else 'n/a'} |",
+                    f"| overlay | `{mediapipe_report.get('outputs', {}).get('curveOverlay')}` |",
+                ]
+            )
+        else:
+            rows.extend(
+                [
+                    "| 항목 | 값 |",
+                    "| --- | --- |",
+                    "| 상태 | 실패 또는 사용 불가 |",
+                    f"| 이유 | `{mediapipe_report.get('reason')}` |",
+                    f"| exitCode | `{mediapipe_report.get('exitCode', 'n/a')}` |",
+                    f"| report | `{dirs['mediapipe'] / 'mediapipe_lip_report.json'}` |",
+                ]
+            )
     (dirs["review"] / "candidate_comparison_table.md").write_text("\n".join(rows) + "\n", encoding="utf-8")
     notes = [
         "# E7 입술 후보 리뷰 노트",
@@ -898,11 +1273,103 @@ def write_review_docs(output_dir: Path, dirs: dict[str, Path], metrics: dict[str
                 "",
             ]
         )
+    notes.extend(
+        [
+            "## MediaPipe 비교",
+            "",
+            "- 입꼬리:",
+            "- 윗입술 산:",
+            "- 가장자리:",
+            "- Apple Vision 대비 나은 점:",
+            "- face parsing 대비 나은 점:",
+            "- 한계:",
+            "",
+        ]
+    )
     (dirs["review"] / "review_notes_template.md").write_text("\n".join(notes), encoding="utf-8")
+    checklist = [
+        "# 다음 실제 카메라 확인 체크리스트",
+        "",
+        "- 후보 5개를 같은 조명/같은 표정에서 차례로 확인한다.",
+        "- 입꼬리가 비는지, 피부까지 번지는지, 윗입술 산이 무너지는지 후보별로 기록한다.",
+        "- `cornerReach`, `upperLipTightness`, `lowerLipTightness`, `verticalOffset` 조정 전/후를 분리해서 본다.",
+        "- 실제 카메라에서는 숫자 점수보다 얼굴에 붙어 보이는지, 표정 변화에서 선이 흔들리는지를 우선 본다.",
+        "- MediaPipe가 이번 로컬 실행에서 실패했으면, 기기/다른 Python 환경에서 다시 실행 가능할 때만 보조 비교로 다시 본다.",
+        "- 이 확인 전에는 M1 ready, runtime ready, E7.3 Green으로 부르지 않는다.",
+        "",
+        "## 후보별 확인",
+        "",
+    ]
+    for candidate_id in CANDIDATES:
+        checklist.extend(
+            [
+                f"### {candidate_id}",
+                "",
+                "- 입꼬리:",
+                "- 윗입술:",
+                "- 아랫입술:",
+                "- 피부 번짐:",
+                "- 입 안쪽/치아:",
+                "- 표정 변화:",
+                "",
+            ]
+        )
+    (dirs["review"] / "next_camera_checklist.md").write_text("\n".join(checklist), encoding="utf-8")
+    loop_notes = [
+        "# 구현 루프 노트",
+        "",
+        "## 1차 구현",
+        "",
+        "- 기존 clean female sample, Apple Vision, face parsing, color/gradient, ARFace export를 읽어 core 후보 5개를 생성했다.",
+        "- 후보별 hard mask, soft alpha, overlay, curve points, edge band, UV 미리보기를 저장했다.",
+        "",
+        "## 리뷰",
+        "",
+        "- compact/full contact sheet에서 5개 후보가 모두 표시되는지 확인한다.",
+        "- 후보 간 차이는 주로 면적, 입꼬리 보존, 윗입술/아랫입술 coverage에서 난다.",
+        "- UV 미리보기 수치는 낮으므로 제품 품질 판단이 아니라 좌표 확인용으로만 본다.",
+        "",
+        "## 개선",
+        "",
+        "- MediaPipe를 core 후보 생성 뒤 별도 child process로 실행하게 했다.",
+        "- MediaPipe 실패가 core 5개 생성을 막지 않도록 실패 이유, exit code, stderr를 report와 summary에 남겼다.",
+        "- MediaPipe 실패도 contact sheet에서 보이도록 실패 패널을 추가했다.",
+        "- 다음 실제 카메라 확인 checklist를 추가했다.",
+        "",
+        "## 남은 실패",
+        "",
+    ]
+    if mediapipe_report is not None and not mediapipe_report.get("available"):
+        diagnosis = mediapipe_report.get("failureDiagnosis", {})
+        loop_notes.extend(
+            [
+                f"- MediaPipe: `{mediapipe_report.get('reason')}`.",
+                f"- exitCode: `{mediapipe_report.get('exitCode', 'n/a')}`.",
+                f"- 추정 원인: {diagnosis.get('mostLikelyRootCause', 'raw log 확인 필요')}",
+                f"- 최소 해소 경로: {diagnosis.get('smallestSafeUnblock', '실패를 문서화하고 core 후보 리뷰 계속')}",
+                "- 원문 로그는 `mediapipe/mediapipe_process_stderr.txt`와 `mediapipe/mediapipe_lip_report.json`에 있다.",
+            ]
+        )
+    else:
+        loop_notes.append("- MediaPipe: 사용 가능. overlay/mask/report를 리뷰한다.")
+    loop_notes.extend(
+        [
+            "",
+            "## 다음 루프 필요 여부",
+            "",
+            "- core 5개 후보와 필수 리뷰 산출물은 존재한다.",
+            "- MediaPipe는 보조 비교 신호이므로 현재 실패가 core 후보 생성 전체를 막지는 않는다.",
+            "- 다음 루프는 실제 카메라 후보 선택/사용자 조정 화면으로 연결할 때 필요하다.",
+        ]
+    )
+    (dirs["review"] / "loop_notes.md").write_text("\n".join(loop_notes), encoding="utf-8")
 
 
 def main() -> int:
     args = parse_args()
+    if args.mediapipe_child:
+        return run_mediapipe_child(args)
+
     run_id = args.run_id or f"experiment-{utc_stamp()}"
     output_dir = args.output_root / run_id
     dirs = ensure_dirs(output_dir)
@@ -923,7 +1390,26 @@ def main() -> int:
     write_input_overlays(dirs, frame, vision, parsing_lip, upper, lower, skin, color_band, arface_export)
     gold_reference = load_gold_reference(size)
     metrics, contact_entries = write_candidate_artifacts(dirs, frame, candidates, arface_export, gold_reference, args)
-    write_review_docs(output_dir, dirs, metrics, contact_entries)
+    mediapipe_report, mediapipe_contact_entry = run_mediapipe_test(args, dirs, frame, arface_export, gold_reference)
+    if mediapipe_contact_entry is not None:
+        contact_entries.append(mediapipe_contact_entry)
+    elif mediapipe_report is not None:
+        contact_entries.append(
+            (
+                "mediapipe_failed",
+                make_text_panel(
+                    frame.size,
+                    "MediaPipe failed",
+                    [
+                        f"reason: {mediapipe_report.get('reason', 'unknown')}",
+                        f"exitCode: {mediapipe_report.get('exitCode', 'n/a')}",
+                        "model exists: " + str(mediapipe_report.get("modelExists", "n/a")),
+                        "details: mediapipe/mediapipe_lip_report.json",
+                    ],
+                ),
+            )
+        )
+    write_review_docs(output_dir, dirs, metrics, contact_entries, mediapipe_report)
 
     input_report = {
         "schemaVersion": SCHEMA_VERSION,
@@ -957,6 +1443,13 @@ def main() -> int:
                 "lowContrastWarning": (color_confidence or {}).get("lowContrastWarning"),
             },
             "availablePackages": package_status(),
+            "mediapipe": {
+                "modelPath": str(args.mediapipe_model),
+                "modelExists": args.mediapipe_model.exists(),
+                "reportPath": str(dirs["mediapipe"] / "mediapipe_lip_report.json"),
+                "available": bool(mediapipe_report.get("available")),
+                "reason": mediapipe_report.get("reason"),
+            },
         },
         "warnings": warnings,
         "privacy": {
@@ -987,6 +1480,14 @@ def main() -> int:
             }
             for candidate_id in CANDIDATES
         },
+        "comparisonSignals": {
+            "mediapipe": {
+                "available": bool(mediapipe_report.get("available")),
+                "reportPath": str(dirs["mediapipe"] / "mediapipe_lip_report.json"),
+                "overlayPath": mediapipe_report.get("outputs", {}).get("curveOverlay"),
+                "note": "additional comparison signal; not a replacement candidate",
+            }
+        },
     }
     write_json(output_dir / "candidate_registry_draft.json", registry)
 
@@ -998,16 +1499,20 @@ def main() -> int:
         "outputDir": str(output_dir),
         "candidateCount": len(CANDIDATES),
         "candidates": metrics,
+        "mediapipeComparison": mediapipe_report,
         "reviewArtifacts": {
             "fullSizeContactSheet": str(dirs["review"] / "full_size_contact_sheet.png"),
             "compactContactSheet": str(dirs["review"] / "compact_contact_sheet.png"),
             "comparisonTable": str(dirs["review"] / "candidate_comparison_table.md"),
             "reviewNotesTemplate": str(dirs["review"] / "review_notes_template.md"),
+            "nextCameraChecklist": str(dirs["review"] / "next_camera_checklist.md"),
+            "loopNotes": str(dirs["review"] / "loop_notes.md"),
         },
         "knownLimits": [
             "single clean neutral frame only",
             "blendshape values are only consumed if already present in arface_export",
             "inner mouth is empty in the current closed-mouth face parsing signal",
+            "MediaPipe is only an additional comparison signal and may fail on this headless macOS session",
             "not a runtime or E7.3 Green decision",
         ],
     }
@@ -1034,6 +1539,28 @@ def main() -> int:
                 uv.get("iou", "n/a") if uv.get("available") else "n/a",
             )
         )
+    lines.extend(["", "## MediaPipe 비교", ""])
+    if mediapipe_report.get("available"):
+        lines.extend(
+            [
+                "- 상태: 사용 가능",
+                f"- landmark 수: `{mediapipe_report.get('landmarkCount')}`",
+                f"- overlay: `{mediapipe_report.get('outputs', {}).get('curveOverlay')}`",
+                f"- report: `{dirs['mediapipe'] / 'mediapipe_lip_report.json'}`",
+            ]
+        )
+    else:
+        diagnosis = mediapipe_report.get("failureDiagnosis", {})
+        lines.extend(
+            [
+                "- 상태: 실패 또는 사용 불가",
+                f"- 이유: `{mediapipe_report.get('reason')}`",
+                f"- exitCode: `{mediapipe_report.get('exitCode', 'n/a')}`",
+                f"- 추정 원인: {diagnosis.get('mostLikelyRootCause', 'raw log 확인 필요')}",
+                f"- 최소 해소 경로: {diagnosis.get('smallestSafeUnblock', '실패를 문서화하고 core 후보 리뷰 계속')}",
+                f"- report: `{dirs['mediapipe'] / 'mediapipe_lip_report.json'}`",
+            ]
+        )
     lines.extend(
         [
             "",
@@ -1042,6 +1569,8 @@ def main() -> int:
             f"- Full-size contact sheet: `{dirs['review'] / 'full_size_contact_sheet.png'}`",
             f"- Compact contact sheet: `{dirs['review'] / 'compact_contact_sheet.png'}`",
             f"- Comparison table: `{dirs['review'] / 'candidate_comparison_table.md'}`",
+            f"- Next camera checklist: `{dirs['review'] / 'next_camera_checklist.md'}`",
+            f"- Loop notes: `{dirs['review'] / 'loop_notes.md'}`",
             f"- Candidate registry draft: `{output_dir / 'candidate_registry_draft.json'}`",
             "",
             "## 제한",

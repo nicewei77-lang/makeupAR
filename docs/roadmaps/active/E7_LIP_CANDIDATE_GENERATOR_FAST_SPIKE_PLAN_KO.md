@@ -53,6 +53,7 @@ Apple Vision 점
 | Apple Vision | `evidence/e7-lip-m1-packages/m1-lip-apple-vision-20260625T132216Z/apple_vision_lip_contour.json` | outer/inner lip 점 |
 | face parsing | `evidence/e7-lip-m1-packages/m1-lip-face-parsing-20260625T2255Z/` | lip/upper/lower/skin/inner-mouth mask |
 | color/gradient | `evidence/e7-lip-m1-packages/m1-lip-color-gradient-20260625T000000Z/color_gradient_confidence.json` | edge 신뢰도와 보정 정보 |
+| MediaPipe Face Landmarker | `.cache/mediapipe/face_landmarker.task` | 추가 비교 신호. dense landmark가 입꼬리/윗입술/곡선 품질을 더 잘 잡는지 확인 |
 | gold reference | `evidence/references/e7-user-gold-raw-20260626/` | 비교용. 후보 생성의 절대 정답으로 쓰지 않음 |
 
 ## 3. 산출물
@@ -98,6 +99,16 @@ review/
   compact_contact_sheet.png
   candidate_comparison_table.md
   review_notes_template.md
+  loop_notes.md
+  next_camera_checklist.md
+
+mediapipe/
+  mediapipe_lip_report.json
+  mediapipe_process_stdout.txt
+  mediapipe_process_stderr.txt
+  mediapipe_landmark_overlay.png            # 성공 시
+  mediapipe_lip_curve_overlay.png           # 성공 시
+  mediapipe_lip_curve_mask.png              # 성공 시
 
 candidate_generation_summary.json
 candidate_generation_summary.md
@@ -241,7 +252,7 @@ scripts/e7_lip_candidate_generator/
 
 - OpenCV / scipy / scikit-image가 있으면 사용 가능 여부를 기록하고 사용한다.
 - 없으면 PIL + numpy로 직접 구현한다.
-- MediaPipe는 설치되어 있으면 비교 후보로 바로 시도한다. 없으면 설치 필요로 기록한다.
+- MediaPipe는 설치되어 있으면 core 5 후보 생성 이후 별도 비교 신호로 시도한다. 성공하면 landmark overlay / lip curve overlay / mask / report를 저장하고, 실패하면 정확한 실패 이유와 stderr를 저장한다.
 
 공통 함수:
 
@@ -337,10 +348,11 @@ review/review_notes_template.md
 6. `hybrid_curve_safe`와 `hybrid_curve_balanced`를 만든다.
 7. 후보별 hard/alpha/overlay/trace를 저장한다.
 8. 후보별 UV round-trip preview를 만든다.
-9. full-size contact sheet와 비교 문서를 만든다.
-10. blendshape export를 Unity exporter에 추가 시도한다.
-11. buildless compile/static check를 돌린다.
-12. build가 필요해지는 순간 사용자에게 묻고, 승인되면 한 번의 build로 후보 전부를 실제 카메라에서 확인한다.
+9. MediaPipe Face Landmarker를 같은 clean sample에서 별도 child process로 시도한다.
+10. full-size contact sheet와 비교 문서를 만든다.
+11. blendshape export를 Unity exporter에 추가 시도한다.
+12. buildless compile/static check를 돌린다.
+13. build가 필요해지는 순간 사용자에게 묻고, 승인되면 한 번의 build로 후보 전부를 실제 카메라에서 확인한다.
 
 ## 10. 완료 조건
 
@@ -352,6 +364,8 @@ review/review_notes_template.md
 - 후보 5개 UV round-trip overlay.
 - 각 단계 이미지와 trace JSON.
 - 후보 비교표.
+- MediaPipe 비교 결과. 성공 시 landmark/mask/overlay, 실패 시 정확한 실패 이유.
+- 구현 루프 노트.
 - 앱에 넘길 candidate registry draft.
 - blendshape export 시도 결과.
 - 다음 실제 카메라 확인 checklist.
@@ -375,4 +389,3 @@ review/review_notes_template.md
 - 긴 구현은 Goal 모드가 적합하다.
 - 새 Codex 세션은 필수는 아니다. 단, 병렬 실험을 시키고 싶으면 별도 세션/하위 에이전트를 쓸 수 있다.
 - Plan 모드는 사용자가 세부 승인 단계를 원할 때만 쓴다. 이번 목표는 빠른 시도이므로 Goal 모드가 더 맞다.
-
