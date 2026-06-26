@@ -41,6 +41,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public string CandidateId;
+        public float CornerReach;
+        public float UpperLipTightness;
+        public float LowerLipTightness;
+        public float VerticalOffset;
     }
 
     private sealed class RegionRecipeState
@@ -63,6 +68,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Specular = 0.0f;
         public float SpecularPower = 0.0f;
         public float GlossBoost = 0.0f;
+        public string CandidateId = "lip-smooth-mask-v1";
+        public float MaskThreshold = -1.0f;
+        public float MaskFeatherUvNormalized = -1.0f;
+        public float CornerReach;
+        public float UpperLipTightness;
+        public float LowerLipTightness;
+        public float VerticalOffset;
     }
 
     private sealed class FaceOverlayState
@@ -176,6 +188,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string blendMode,
         string rendererMode,
         string maskTextureId,
+        string candidateId,
+        float maskThreshold,
+        float maskFeatherUvNormalized,
+        float cornerReach,
+        float upperLipTightness,
+        float lowerLipTightness,
+        float verticalOffset,
         float coverage,
         string finish,
         float textureAmount,
@@ -199,6 +218,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Feather = Mathf.Clamp01(feather),
             BlendMode = NormalizeBlendMode(blendMode),
             MaskTextureId = NormalizeMaskTextureId(region, maskTextureId),
+            CandidateId = NormalizeCandidateId(region, candidateId, maskTextureId),
+            MaskThreshold = NormalizeMaskThreshold(maskThreshold),
+            MaskFeatherUvNormalized = NormalizeMaskFeather(maskFeatherUvNormalized),
+            CornerReach = NormalizeLipAdjustment(region, cornerReach),
+            UpperLipTightness = NormalizeLipAdjustment(region, upperLipTightness),
+            LowerLipTightness = NormalizeLipAdjustment(region, lowerLipTightness),
+            VerticalOffset = NormalizeLipAdjustment(region, verticalOffset),
             Coverage = Mathf.Clamp01(coverage),
             Finish = NormalizeFinish(finish),
             TextureAmount = Mathf.Clamp01(textureAmount),
@@ -339,12 +365,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Specular = 0.0f,
             SpecularPower = 0.0f,
             GlossBoost = 0.0f,
+            CandidateId = mask.MaskTextureId,
+            CornerReach = 0.0f,
+            UpperLipTightness = 0.0f,
+            LowerLipTightness = 0.0f,
+            VerticalOffset = 0.0f,
         };
     }
 
     private static void ApplyRecipeToResult(RegionRecipeState recipe, ref RegionApplyResult result)
     {
-        MaskDefinition mask = ResolveMask(recipe.Region);
+        MaskDefinition mask = ResolveMask(recipe);
         result.TextureSample = recipe.TextureSample;
         result.TextureMode = recipe.TextureMode;
         result.Intensity = recipe.Intensity;
@@ -360,6 +391,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.Specular = recipe.Specular;
         result.SpecularPower = recipe.SpecularPower;
         result.GlossBoost = recipe.GlossBoost;
+        result.CandidateId = recipe.CandidateId;
+        result.CornerReach = recipe.CornerReach;
+        result.UpperLipTightness = recipe.UpperLipTightness;
+        result.LowerLipTightness = recipe.LowerLipTightness;
+        result.VerticalOffset = recipe.VerticalOffset;
     }
 
     private void RefreshSceneReferences()
@@ -440,7 +476,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return false;
         }
 
-        MaskDefinition mask = ResolveMask(recipe.Region);
+        MaskDefinition mask = ResolveMask(recipe);
         Texture2D maskTexture = GetMaskTexture(mask);
         if (maskTexture == null)
         {
@@ -518,6 +554,24 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         };
     }
 
+    private static MaskDefinition ResolveMask(RegionRecipeState recipe)
+    {
+        MaskDefinition mask = ResolveMask(recipe.Region);
+        mask.MaskTextureId = NormalizeMaskTextureId(recipe.Region, recipe.MaskTextureId);
+        mask.ResourcePath = "SmoothRegionMasks/" + mask.MaskTextureId;
+        if (recipe.MaskThreshold >= 0.0f)
+        {
+            mask.Threshold = recipe.MaskThreshold;
+        }
+
+        if (recipe.MaskFeatherUvNormalized >= 0.0f)
+        {
+            mask.FeatherUvNormalized = recipe.MaskFeatherUvNormalized;
+        }
+
+        return mask;
+    }
+
     private static string GetDefaultMaskTextureId(string region)
     {
         switch (NormalizeRegion(region))
@@ -569,7 +623,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         Material material = GetOrCreateMaskMaterial(view, recipe.Region);
-        MaskDefinition mask = ResolveMask(recipe.Region);
+        MaskDefinition mask = ResolveMask(recipe);
         Texture2D maskTexture = GetMaskTexture(mask);
         Color materialColor = BuildMaterialColor(recipe);
 
@@ -641,6 +695,26 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (material.HasProperty("_GlossBoost"))
         {
             material.SetFloat("_GlossBoost", recipe.GlossBoost);
+        }
+
+        if (material.HasProperty("_CornerReach"))
+        {
+            material.SetFloat("_CornerReach", recipe.CornerReach);
+        }
+
+        if (material.HasProperty("_UpperLipTightness"))
+        {
+            material.SetFloat("_UpperLipTightness", recipe.UpperLipTightness);
+        }
+
+        if (material.HasProperty("_LowerLipTightness"))
+        {
+            material.SetFloat("_LowerLipTightness", recipe.LowerLipTightness);
+        }
+
+        if (material.HasProperty("_VerticalOffset"))
+        {
+            material.SetFloat("_VerticalOffset", recipe.VerticalOffset);
         }
     }
 
@@ -949,8 +1023,51 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return maskTextureId;
         }
 
+        if (NormalizeRegion(region) == "lip"
+            && maskTextureId.StartsWith("e7-lip-validation-", StringComparison.Ordinal))
+        {
+            return maskTextureId;
+        }
+
         throw new ArgumentException(
             "Unsupported smooth mask texture id for region " + region + ": " + maskTextureId);
+    }
+
+    private static string NormalizeCandidateId(string region, string candidateId, string maskTextureId)
+    {
+        string value = string.IsNullOrWhiteSpace(candidateId)
+            ? maskTextureId
+            : candidateId.Trim();
+        if (NormalizeRegion(region) == "lip"
+            && (value == "lip-smooth-mask-v1"
+                || value == "lip-tight-auto-v0"
+                || value == "lip-tight-user-v0"
+                || value == "lip-safe-v0"))
+        {
+            return value;
+        }
+
+        if (value == GetDefaultMaskTextureId(region))
+        {
+            return value;
+        }
+
+        throw new ArgumentException("Unsupported smooth mask candidate id for region " + region + ": " + value);
+    }
+
+    private static float NormalizeMaskThreshold(float threshold)
+    {
+        return threshold >= 0.0f ? Mathf.Clamp01(threshold) : -1.0f;
+    }
+
+    private static float NormalizeMaskFeather(float feather)
+    {
+        return feather >= 0.0f ? Mathf.Clamp01(feather) : -1.0f;
+    }
+
+    private static float NormalizeLipAdjustment(string region, float value)
+    {
+        return NormalizeRegion(region) == "lip" ? Mathf.Clamp(value, -1.0f, 1.0f) : 0.0f;
     }
 
     private static bool HasUsableUv(ARFace face)
@@ -1018,7 +1135,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] region_mask_state"
             + " rendererMode=" + RendererMode
+            + " candidateId=" + recipe.CandidateId
             + " maskTextureId=" + recipe.MaskTextureId
+            + " cornerReach=" + recipe.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+            + " upperLipTightness=" + recipe.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " lowerLipTightness=" + recipe.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " verticalOffset=" + recipe.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
             + " maskSource=" + MaskSource
             + " region=" + region
             + " trackingState=" + face.trackingState
@@ -1036,7 +1158,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] region_mask_apply"
             + " rendererMode=" + result.RendererMode
+            + " candidateId=" + result.CandidateId
             + " maskTextureId=" + result.MaskTextureId
+            + " cornerReach=" + result.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+            + " upperLipTightness=" + result.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " lowerLipTightness=" + result.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " verticalOffset=" + result.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
             + " maskSource=" + result.MaskSource
             + " boundaryRenderer=" + result.BoundaryRenderer
             + " region=" + result.Region

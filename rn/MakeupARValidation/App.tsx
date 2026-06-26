@@ -150,6 +150,50 @@ const LIP_TUNING_FIELD_OPTIONS = [
   { name: 'textureAmount', label: 'tex' },
   { name: 'glossBoost', label: 'gloss' },
 ] as const;
+const LIP_ADJUSTMENT_FIELD_OPTIONS = [
+  { name: 'cornerReach', label: 'corner' },
+  { name: 'upperLipTightness', label: 'upper' },
+  { name: 'lowerLipTightness', label: 'lower' },
+  { name: 'verticalOffset', label: 'y' },
+] as const;
+const LIP_RUNTIME_CANDIDATE_OPTIONS = [
+  {
+    candidateId: 'lip-smooth-mask-v1',
+    label: 'base',
+    maskTextureId: 'lip-smooth-mask-v1',
+    maskThreshold: 0.04,
+    coverage: 0.72,
+    feather: 0.1,
+    status: 'baseline',
+  },
+  {
+    candidateId: 'lip-tight-auto-v0',
+    label: 'auto',
+    maskTextureId: 'e7-lip-validation-tight-auto-v0',
+    maskThreshold: 0.5,
+    coverage: 0.72,
+    feather: 0.08,
+    status: 'validation-only',
+  },
+  {
+    candidateId: 'lip-tight-user-v0',
+    label: 'user',
+    maskTextureId: 'e7-lip-validation-tight-user-v0',
+    maskThreshold: 0.5,
+    coverage: 0.72,
+    feather: 0.08,
+    status: 'pending-confirm',
+  },
+  {
+    candidateId: 'lip-safe-v0',
+    label: 'safe',
+    maskTextureId: 'e7-lip-validation-safe-v0',
+    maskThreshold: 0.65,
+    coverage: 0.64,
+    feather: 0.06,
+    status: 'spill-check',
+  },
+] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'clean', label: 'Clean' },
   { name: 'compact', label: 'HUD' },
@@ -157,6 +201,7 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'smooth-mask-validation';
+const LIP_ADJUSTMENT_STEP = 0.05;
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
@@ -165,6 +210,12 @@ type LipColor = (typeof LIP_COLOR_OPTIONS)[number];
 type LipSampleName = (typeof LIP_SAMPLE_OPTIONS)[number]['name'];
 type LipFinish = (typeof LIP_FINISH_OPTIONS)[number]['name'];
 type LipTuningField = (typeof LIP_TUNING_FIELD_OPTIONS)[number]['name'];
+type LipAdjustmentField =
+  (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number]['name'];
+type LipRuntimeCandidate =
+  (typeof LIP_RUNTIME_CANDIDATE_OPTIONS)[number];
+type LipRuntimeCandidateId = LipRuntimeCandidate['candidateId'];
+type LipUserAdjustment = Record<LipAdjustmentField, number>;
 type LipSample = {
   name: LipSampleName;
   label: string;
@@ -184,6 +235,9 @@ type LipSample = {
 type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
   | 'lip-smooth-mask-v1'
+  | 'e7-lip-validation-tight-auto-v0'
+  | 'e7-lip-validation-tight-user-v0'
+  | 'e7-lip-validation-safe-v0'
   | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
@@ -197,6 +251,13 @@ type ActiveRegionMap = Record<RecipeRegion, boolean>;
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
 const DEFAULT_LIP_SAMPLE = LIP_SAMPLE_OPTIONS[0];
+const DEFAULT_LIP_RUNTIME_CANDIDATE = LIP_RUNTIME_CANDIDATE_OPTIONS[0];
+const DEFAULT_LIP_USER_ADJUSTMENT: LipUserAdjustment = {
+  cornerReach: 0,
+  upperLipTightness: 0,
+  lowerLipTightness: 0,
+  verticalOffset: 0,
+};
 const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
   RecipeTextureSample
@@ -352,7 +413,14 @@ type UnityEventPayload = {
   materialId?: string;
   shaderMode?: string;
   passCount?: number;
+  candidateId?: string;
   maskTextureId?: string;
+  maskThreshold?: number;
+  maskFeatherUvNormalized?: number;
+  cornerReach?: number;
+  upperLipTightness?: number;
+  lowerLipTightness?: number;
+  verticalOffset?: number;
   cameraBackdropAvailable?: boolean;
   lightEstimateAvailable?: boolean;
   sampleWindowMs?: number;
@@ -551,11 +619,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
   const [selectedLipSampleName, setSelectedLipSampleName] =
     useState<LipSampleName>(DEFAULT_LIP_SAMPLE.name);
+  const [selectedLipRuntimeCandidateId, setSelectedLipRuntimeCandidateId] =
+    useState<LipRuntimeCandidateId>(
+      DEFAULT_LIP_RUNTIME_CANDIDATE.candidateId,
+    );
   const [lipSampleSettings, setLipSampleSettings] = useState<
     Record<LipSampleName, LipSample>
   >(createDefaultLipSampleSettings);
+  const [lipUserAdjustment, setLipUserAdjustment] =
+    useState<LipUserAdjustment>(DEFAULT_LIP_USER_ADJUSTMENT);
   const [activeLipTuningField, setActiveLipTuningField] =
     useState<LipTuningField>('opacity');
+  const [activeLipAdjustmentField, setActiveLipAdjustmentField] =
+    useState<LipAdjustmentField>('cornerReach');
   const [sliderWidth, setSliderWidth] = useState(1);
   const [lastUnityEvent, setLastUnityEvent] = useState<UnityEventRecord | null>(
     null,
@@ -570,6 +646,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [pendingCapturePairId, setPendingCapturePairId] = useState<
     string | null
   >(null);
+  const selectedLipSample =
+    lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
+  const selectedLipRuntimeCandidate =
+    LIP_RUNTIME_CANDIDATE_OPTIONS.find(
+      candidate => candidate.candidateId === selectedLipRuntimeCandidateId,
+    ) ?? DEFAULT_LIP_RUNTIME_CANDIDATE;
   useEffect(() => {
     console.log(
       '[E7] unity_screen_mounted',
@@ -595,6 +677,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       rendererMode: RendererMode,
       sentAtMs: number,
       lipSample: LipSample,
+      lipRuntimeCandidate: LipRuntimeCandidate,
+      userAdjustment: LipUserAdjustment,
     ) => {
       const lookId = lipSample.name;
       const recipePrefix = 'lip-sample-pack-v0';
@@ -603,8 +687,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const enabledLayerCount = countActiveRegions(enabledRegions);
       const layers = RECIPE_REGION_OPTIONS.map(region => {
         const recipe = recipes[region];
-        const maskTextureId = DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
         const isLipSampleLayer = region === 'lip';
+        const maskTextureId = isLipSampleLayer
+          ? lipRuntimeCandidate.maskTextureId
+          : DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+        const maskThreshold = isLipSampleLayer
+          ? lipRuntimeCandidate.maskThreshold
+          : 0.04;
         const textureSample = isLipSampleLayer
           ? DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip
           : recipe.textureSample;
@@ -612,7 +701,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         const opacity = isLipSampleLayer ? lipSample.opacity : recipe.opacity;
         const coverage = isLipSampleLayer ? lipSample.coverage : 0;
         const feather = isLipSampleLayer
-          ? lipSample.feather
+          ? lipRuntimeCandidate.feather
           : recipe.textureSample.feather;
         const blendMode = isLipSampleLayer
           ? lipSample.blendMode
@@ -634,6 +723,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
         return {
           id: `${region}-${textureSample.name}`,
+          candidateId: isLipSampleLayer
+            ? lipRuntimeCandidate.candidateId
+            : DEFAULT_MASK_TEXTURE_ID_BY_REGION[region],
           recipeId: layerRecipeId,
           recipeBatchId,
           lookId,
@@ -668,6 +760,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           shaderMode: 'smooth-lip-finish-v0',
           passCount: 1,
           maskTextureId,
+          maskThreshold,
+          maskFeatherUvNormalized: feather,
+          cornerReach: isLipSampleLayer ? userAdjustment.cornerReach : 0,
+          upperLipTightness: isLipSampleLayer
+            ? userAdjustment.upperLipTightness
+            : 0,
+          lowerLipTightness: isLipSampleLayer
+            ? userAdjustment.lowerLipTightness
+            : 0,
+          verticalOffset: isLipSampleLayer ? userAdjustment.verticalOffset : 0,
           cameraBackdropAvailable: false,
           lightEstimateAvailable: false,
         };
@@ -678,6 +780,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         recipeBatchId,
         recipeId: recipeBatchId,
         lookId,
+        candidateId: lipRuntimeCandidate.candidateId,
         sentAtMs,
         rendererMode,
         region: focusRegion,
@@ -701,7 +804,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         materialId: `${DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip.name}-${lipSample.finish}-sample-material`,
         shaderMode: 'smooth-lip-finish-v0',
         passCount: 1,
-        maskTextureId: DEFAULT_MASK_TEXTURE_ID_BY_REGION.lip,
+        maskTextureId: lipRuntimeCandidate.maskTextureId,
+        maskThreshold: lipRuntimeCandidate.maskThreshold,
+        maskFeatherUvNormalized: lipRuntimeCandidate.feather,
+        cornerReach: userAdjustment.cornerReach,
+        upperLipTightness: userAdjustment.upperLipTightness,
+        lowerLipTightness: userAdjustment.lowerLipTightness,
+        verticalOffset: userAdjustment.verticalOffset,
         cameraBackdropAvailable: false,
         lightEstimateAvailable: false,
         layers,
@@ -717,6 +826,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       focusRegion = focusedRegion,
       rendererMode = selectedRendererMode,
       lipSample = lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE,
+      lipRuntimeCandidate = selectedLipRuntimeCandidate,
+      userAdjustment = lipUserAdjustment,
     ) => {
       const sentAtMs = Date.now();
       const recipeJson = buildRecipeBatchJson(
@@ -726,12 +837,21 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         rendererMode,
         sentAtMs,
         lipSample,
+        lipRuntimeCandidate,
+        userAdjustment,
       );
       const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
         `lookId=${lipSample.name}`,
+        `candidateId=${lipRuntimeCandidate.candidateId}`,
+        `maskTextureId=${lipRuntimeCandidate.maskTextureId}`,
+        `maskThreshold=${lipRuntimeCandidate.maskThreshold.toFixed(2)}`,
+        `cornerReach=${userAdjustment.cornerReach.toFixed(2)}`,
+        `upperLipTightness=${userAdjustment.upperLipTightness.toFixed(2)}`,
+        `lowerLipTightness=${userAdjustment.lowerLipTightness.toFixed(2)}`,
+        `verticalOffset=${userAdjustment.verticalOffset.toFixed(2)}`,
         `finish=${lipSample.finish}`,
         `textureAmount=${lipSample.textureAmount.toFixed(2)}`,
         `glossBoost=${lipSample.glossBoost.toFixed(2)}`,
@@ -753,6 +873,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       regionRecipes,
       selectedLipSampleName,
       selectedRendererMode,
+      selectedLipRuntimeCandidate,
+      lipUserAdjustment,
     ],
   );
 
@@ -987,12 +1109,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     return () => clearTimeout(initialPostTimer);
   }, [postRecipeBatch]);
 
-  const selectedLipSample =
-    lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
   const activeLipTuning =
     LIP_TUNING_FIELD_OPTIONS.find(
       fieldOption => fieldOption.name === activeLipTuningField,
     ) ?? LIP_TUNING_FIELD_OPTIONS[0];
+  const activeLipAdjustment =
+    LIP_ADJUSTMENT_FIELD_OPTIONS.find(
+      fieldOption => fieldOption.name === activeLipAdjustmentField,
+    ) ?? LIP_ADJUSTMENT_FIELD_OPTIONS[0];
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
@@ -1024,6 +1148,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         focusedRegion,
         activeRegions,
         selectedLipSample,
+        selectedLipRuntimeCandidate,
+        lipUserAdjustment,
         latestMetric,
         latestLifecycle,
         latestRecipe,
@@ -1043,6 +1169,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       activeRegions,
       validationViewMode,
       selectedLipSample,
+      selectedLipRuntimeCandidate,
+      lipUserAdjustment,
     ],
   );
   const showFullDebug = validationViewMode === 'full';
@@ -1076,9 +1204,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'lip',
         selectedRendererMode,
         nextLipSample,
+        selectedLipRuntimeCandidate,
+        lipUserAdjustment,
       );
     },
-    [lipSampleSettings, postRecipeBatch, regionRecipes, selectedRendererMode],
+    [
+      lipSampleSettings,
+      postRecipeBatch,
+      regionRecipes,
+      selectedRendererMode,
+      selectedLipRuntimeCandidate,
+      lipUserAdjustment,
+    ],
   );
 
   const updateSelectedLipSample = useCallback(
@@ -1106,6 +1243,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'lip',
         selectedRendererMode,
         nextLipSample,
+        selectedLipRuntimeCandidate,
+        lipUserAdjustment,
       );
     },
     [
@@ -1113,6 +1252,68 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       postRecipeBatch,
       regionRecipes,
       selectedLipSampleName,
+      selectedRendererMode,
+      selectedLipRuntimeCandidate,
+      lipUserAdjustment,
+    ],
+  );
+
+  const selectLipRuntimeCandidate = useCallback(
+    (candidate: LipRuntimeCandidate) => {
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+
+      setSelectedLipRuntimeCandidateId(candidate.candidateId);
+      setFocusedRegion('lip');
+      setActiveRegions(nextActiveRegions);
+      postRecipeBatch(
+        regionRecipes,
+        nextActiveRegions,
+        'lip',
+        selectedRendererMode,
+        selectedLipSample,
+        candidate,
+        lipUserAdjustment,
+      );
+    },
+    [
+      lipUserAdjustment,
+      postRecipeBatch,
+      regionRecipes,
+      selectedLipSample,
+      selectedRendererMode,
+    ],
+  );
+
+  const updateLipUserAdjustment = useCallback(
+    (field: LipAdjustmentField, nextValue: number) => {
+      const roundedValue = Number(
+        Math.max(-1, Math.min(1, nextValue)).toFixed(2),
+      );
+      const nextAdjustment = {
+        ...lipUserAdjustment,
+        [field]: roundedValue,
+      };
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+
+      setLipUserAdjustment(nextAdjustment);
+      setFocusedRegion('lip');
+      setActiveRegions(nextActiveRegions);
+      postRecipeBatch(
+        regionRecipes,
+        nextActiveRegions,
+        'lip',
+        selectedRendererMode,
+        selectedLipSample,
+        selectedLipRuntimeCandidate,
+        nextAdjustment,
+      );
+    },
+    [
+      lipUserAdjustment,
+      postRecipeBatch,
+      regionRecipes,
+      selectedLipSample,
+      selectedLipRuntimeCandidate,
       selectedRendererMode,
     ],
   );
@@ -1390,6 +1591,50 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   })}
                 </View>
 
+                <View style={styles.lipRuntimeCandidateRow}>
+                  {LIP_RUNTIME_CANDIDATE_OPTIONS.map(candidate => {
+                    const isSelected =
+                      candidate.candidateId ===
+                      selectedLipRuntimeCandidate.candidateId;
+
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={candidate.candidateId}
+                        testID={`lip-runtime-candidate-${candidate.candidateId}`}
+                        style={({ pressed }) => [
+                          styles.lipRuntimeCandidateButton,
+                          isSelected &&
+                            styles.lipRuntimeCandidateButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => selectLipRuntimeCandidate(candidate)}
+                      >
+                        <Text
+                          style={[
+                            styles.lipRuntimeCandidateText,
+                            isSelected &&
+                              styles.lipRuntimeCandidateTextSelected,
+                          ]}
+                        >
+                          {candidate.label}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.lipRuntimeCandidateMetaText,
+                            isSelected &&
+                              styles.lipRuntimeCandidateTextSelected,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {candidate.status}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
                 <View style={styles.colorButtonRow}>
                   {LIP_COLOR_OPTIONS.map(colorOption => {
                     const isSelected =
@@ -1488,14 +1733,61 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   }
                 />
 
-                <Text style={styles.recipeValueText} numberOfLines={3}>
+                <View style={styles.adjustmentFieldButtonRow}>
+                  {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
+                    const isSelected =
+                      fieldOption.name === activeLipAdjustmentField;
+
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={fieldOption.name}
+                        testID={`lip-adjust-field-${fieldOption.name}`}
+                        style={({ pressed }) => [
+                          styles.adjustmentFieldButton,
+                          isSelected && styles.adjustmentFieldButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() =>
+                          setActiveLipAdjustmentField(fieldOption.name)
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.adjustmentFieldButtonText,
+                            isSelected &&
+                              styles.adjustmentFieldButtonTextSelected,
+                          ]}
+                        >
+                          {fieldOption.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                <AdjustmentStepper
+                  label={activeLipAdjustment.label}
+                  value={lipUserAdjustment[activeLipAdjustment.name]}
+                  onChange={value =>
+                    updateLipUserAdjustment(activeLipAdjustment.name, value)
+                  }
+                />
+
+                <Text style={styles.recipeValueText} numberOfLines={4}>
                   look {selectedLipSample.name} / color{' '}
                   {selectedLipSample.color} / finish {selectedLipSample.finish}{' '}
                   / opacity{' '}
                   {Math.round(selectedLipSample.opacity * 100)}% / coverage{' '}
                   {selectedLipSample.coverage.toFixed(2)} / textureAmount{' '}
                   {selectedLipSample.textureAmount.toFixed(2)} / gloss{' '}
-                  {selectedLipSample.glossBoost.toFixed(2)}
+                  {selectedLipSample.glossBoost.toFixed(2)} / candidate{' '}
+                  {selectedLipRuntimeCandidate.candidateId} / shape{' '}
+                  {lipUserAdjustment.cornerReach.toFixed(2)},{' '}
+                  {lipUserAdjustment.upperLipTightness.toFixed(2)},{' '}
+                  {lipUserAdjustment.lowerLipTightness.toFixed(2)},{' '}
+                  {lipUserAdjustment.verticalOffset.toFixed(2)}
                 </Text>
               </>
             )}
@@ -1808,6 +2100,8 @@ type EvidenceMetadataInput = {
   focusedRegion: RecipeRegion;
   activeRegions: ActiveRegionMap;
   selectedLipSample: LipSample;
+  selectedLipRuntimeCandidate: LipRuntimeCandidate;
+  lipUserAdjustment: LipUserAdjustment;
   latestMetric?: UnityEventPayload;
   latestLifecycle?: UnityEventPayload;
   latestRecipe?: UnityEventPayload;
@@ -1823,6 +2117,8 @@ function buildEvidenceMetadataLines({
   focusedRegion,
   activeRegions,
   selectedLipSample,
+  selectedLipRuntimeCandidate,
+  lipUserAdjustment,
   latestMetric,
   latestLifecycle,
   latestRecipe,
@@ -1840,6 +2136,8 @@ function buildEvidenceMetadataLines({
     `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
     `rendererMode=${selectedRendererMode} look=${selectedLipSample.name} finish=${selectedLipSample.finish}`,
+    `candidateId=${selectedLipRuntimeCandidate.candidateId} maskTextureId=${selectedLipRuntimeCandidate.maskTextureId} maskThreshold=${selectedLipRuntimeCandidate.maskThreshold.toFixed(2)}`,
+    `adjustment cornerReach=${lipUserAdjustment.cornerReach.toFixed(2)} upperLipTightness=${lipUserAdjustment.upperLipTightness.toFixed(2)} lowerLipTightness=${lipUserAdjustment.lowerLipTightness.toFixed(2)} verticalOffset=${lipUserAdjustment.verticalOffset.toFixed(2)}`,
     `activeRegions=${activeRegionSummary} focusRegion=${focusedRegion}`,
     `metricRegion=${formatLifecycleValue(
       latestMetric?.region,
@@ -2401,6 +2699,69 @@ function TuningSlider({
   );
 }
 
+type AdjustmentStepperProps = {
+  label: string;
+  value: number;
+  onChange: (value: number) => void;
+};
+
+function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
+  const stepValue = useCallback(
+    (direction: -1 | 1) => {
+      const nextValue =
+        Math.round((value + direction * LIP_ADJUSTMENT_STEP) / LIP_ADJUSTMENT_STEP) *
+        LIP_ADJUSTMENT_STEP;
+
+      onChange(Number(Math.max(-1, Math.min(1, nextValue)).toFixed(2)));
+    },
+    [onChange, value],
+  );
+
+  return (
+    <View style={styles.adjustmentStepper}>
+      <View style={styles.opacityHeader}>
+        <Text style={styles.opacityLabel}>{label}</Text>
+        <Text style={styles.opacityValue}>{value.toFixed(2)}</Text>
+      </View>
+      <View style={styles.adjustmentStepperRow}>
+        <Pressable
+          accessibilityRole="button"
+          testID={`lip-adjustment-step-${label}-down`}
+          style={({ pressed }) => [
+            styles.adjustmentStepButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => stepValue(-1)}
+        >
+          <Text style={styles.adjustmentStepButtonText}>-</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID={`lip-adjustment-step-${label}-reset`}
+          style={({ pressed }) => [
+            styles.adjustmentResetButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => onChange(0)}
+        >
+          <Text style={styles.adjustmentStepButtonText}>0</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID={`lip-adjustment-step-${label}-up`}
+          style={({ pressed }) => [
+            styles.adjustmentStepButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => stepValue(1)}
+        >
+          <Text style={styles.adjustmentStepButtonText}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   home: {
     flex: 1,
@@ -2946,6 +3307,110 @@ const styles = StyleSheet.create({
   },
   lipSampleButtonTextSelected: {
     color: '#831843',
+  },
+  lipRuntimeCandidateRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  lipRuntimeCandidateButton: {
+    flex: 1,
+    minHeight: 42,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(20, 83, 45, 0.24)',
+    paddingHorizontal: 4,
+  },
+  lipRuntimeCandidateButtonSelected: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  lipRuntimeCandidateText: {
+    color: '#F9FAFB',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  lipRuntimeCandidateMetaText: {
+    color: '#BBF7D0',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  lipRuntimeCandidateTextSelected: {
+    color: '#064E3B',
+  },
+  adjustmentFieldButtonRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
+  adjustmentFieldButton: {
+    flex: 1,
+    minHeight: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    backgroundColor: 'rgba(59, 130, 246, 0.18)',
+    paddingHorizontal: 3,
+  },
+  adjustmentFieldButtonSelected: {
+    backgroundColor: '#DBEAFE',
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  adjustmentFieldButtonText: {
+    color: '#EFF6FF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    textTransform: 'uppercase',
+  },
+  adjustmentFieldButtonTextSelected: {
+    color: '#1E3A8A',
+  },
+  adjustmentStepper: {
+    gap: 6,
+  },
+  adjustmentStepperRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  adjustmentStepButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+  },
+  adjustmentResetButton: {
+    flex: 1,
+    minHeight: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    backgroundColor: 'rgba(15, 23, 42, 0.22)',
+  },
+  adjustmentStepButtonText: {
+    color: '#F9FAFB',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
   },
   textureButtonRow: {
     flexDirection: 'row',

@@ -43,8 +43,8 @@
 - Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation; E7 also needs FPS/frame-time, thermal, memory, latency, region G/Y/R, and demo-look evidence.
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
 - Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
-- Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; then keep metadata/contact sheets/representative frames and delete the raw recording when no longer needed.
-- For local video inspection, prefer Homebrew `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe` if installed.
+- Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; keep metadata/contact sheets/representative frames, delete raw recordings when no longer needed, and prefer Homebrew `ffmpeg`/`ffprobe` for inspection.
+- In user-facing Korean, avoid impressive-sounding internal jargon unless it is an exact repo/API term needed for the decision; explain with plain app-flow words first.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Do not commit generated/cache state: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode derived data, raw evidence, or `.DS_Store`; curated evidence follows `evidence/README.md`.

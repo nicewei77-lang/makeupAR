@@ -15,6 +15,10 @@ Shader "MakeupAR/SmoothRegionMask"
         _Specular ("Specular", Range(0, 1)) = 0
         _SpecularPower ("Specular Power", Range(0, 128)) = 16
         _GlossBoost ("Gloss Boost", Range(0, 1)) = 0
+        _CornerReach ("Corner Reach", Range(-1, 1)) = 0
+        _UpperLipTightness ("Upper Lip Tightness", Range(-1, 1)) = 0
+        _LowerLipTightness ("Lower Lip Tightness", Range(-1, 1)) = 0
+        _VerticalOffset ("Vertical Offset", Range(-1, 1)) = 0
     }
 
     SubShader
@@ -55,6 +59,10 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
+            float _CornerReach;
+            float _UpperLipTightness;
+            float _LowerLipTightness;
+            float _VerticalOffset;
 
             struct appdata
             {
@@ -78,9 +86,18 @@ Shader "MakeupAR/SmoothRegionMask"
 
             fixed4 frag(v2f input) : SV_Target
             {
-                float probability = tex2D(_MaskTex, input.uv).r;
+                float2 maskUv = input.uv;
+                float cornerScale = max(0.5, 1.0 + _CornerReach * 0.18);
+                maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / cornerScale);
+                maskUv.y = saturate(maskUv.y - _VerticalOffset * 0.025);
+
+                float probability = tex2D(_MaskTex, maskUv).r;
                 float coverage = saturate(_Coverage);
-                float threshold = saturate(_Threshold + (0.70 - coverage) * 0.08);
+                float upperBand = 1.0 - smoothstep(0.48, 0.56, maskUv.y);
+                float lowerBand = smoothstep(0.44, 0.52, maskUv.y);
+                float localTightness = _UpperLipTightness * upperBand
+                    + _LowerLipTightness * lowerBand;
+                float threshold = saturate(_Threshold + (0.70 - coverage) * 0.08 + localTightness * 0.08);
                 float high = min(1.0, threshold + max(_Feather, 0.00001));
                 float alpha = smoothstep(threshold, high, probability)
                     * _Opacity

@@ -211,8 +211,6 @@ test('does not render old selector controls', async () => {
 
   const text = collectText(renderer!);
 
-  expect(text).not.toContain('Cand' + 'idate');
-  expect(text).not.toContain('cand' + 'idate');
   expect(text).not.toContain('Vari' + 'ant');
   expect(text).not.toContain('vari' + 'ant');
   expect(text).not.toContain('soft-' + 'wide');
@@ -220,7 +218,6 @@ test('does not render old selector controls', async () => {
 
   pressByText(renderer!, 'Debug');
   const debugText = collectText(renderer!);
-  expect(debugText).not.toContain('cand' + 'idateId');
   expect(debugText).not.toContain('vari' + 'antId');
 });
 
@@ -285,6 +282,12 @@ test('posts lip daily sample by default before build', async () => {
   const payload = getLastRecipePayload();
   expect(payload.version).toBe(2);
   expect(payload.lookId).toBe('lip_daily');
+  expect(payload.candidateId).toBe('lip-smooth-mask-v1');
+  expect(payload.maskTextureId).toBe('lip-smooth-mask-v1');
+  expect(payload.cornerReach).toBe(0);
+  expect(payload.upperLipTightness).toBe(0);
+  expect(payload.lowerLipTightness).toBe(0);
+  expect(payload.verticalOffset).toBe(0);
   expect(payload.activeRegions).toBe('lip');
   expect(payload.enabledLayerCount).toBe(1);
   expect(payload.layers).toHaveLength(3);
@@ -299,6 +302,10 @@ test('posts lip daily sample by default before build', async () => {
     finish: 'cream',
     textureAmount: 0.08,
     glossBoost: 0,
+    cornerReach: 0,
+    upperLipTightness: 0,
+    lowerLipTightness: 0,
+    verticalOffset: 0,
   });
 });
 
@@ -382,6 +389,39 @@ test('updates lip color finish and tuning values from HUD', async () => {
     color: '#B83A55',
     finish: 'matte',
     opacity: 0.45,
+  });
+});
+
+test('posts lip user adjustment probe values from HUD', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByTestID(renderer!, 'lip-adjustment-step-corner-up');
+
+  let payload = getLastRecipePayload();
+  expect(payload.cornerReach).toBe(0.05);
+  expect(payload.upperLipTightness).toBe(0);
+  expect(payload.layers[0]).toMatchObject({
+    region: 'lip',
+    cornerReach: 0.05,
+    upperLipTightness: 0,
+    lowerLipTightness: 0,
+    verticalOffset: 0,
+  });
+
+  pressByTestID(renderer!, 'lip-adjust-field-upperLipTightness');
+  pressByTestID(renderer!, 'lip-adjustment-step-upper-down');
+
+  payload = getLastRecipePayload();
+  expect(payload.cornerReach).toBe(0.05);
+  expect(payload.upperLipTightness).toBe(-0.05);
+  expect(payload.layers[0]).toMatchObject({
+    cornerReach: 0.05,
+    upperLipTightness: -0.05,
   });
 });
 

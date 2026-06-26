@@ -2,7 +2,7 @@
 
 Last updated: 2026-06-26 KST
 
-Status: Phase 0-3 prep bundle complete / Next implementation milestones are M1 buildless personalized lip package, M2 in-app pre-filter calibration slice, M3 runtime candidate sweep / Runtime candidate not created / E7.3 remains Yellow
+Status: Phase 0-3 prep bundle complete / Next implementation milestones are M1 buildless personalized lip package, M2 in-app pre-filter calibration slice, M3 runtime candidate sweep / M3A buildless candidate source-stage implemented but runtime untested / E7.3 remains Yellow
 
 ## 0. One-line Decision
 
@@ -22,7 +22,7 @@ Completed prep bundle:
 
 - Phase 0-3 documentation, schemas, signal priority, candidate ids, privacy rules, stop rules, and buildless stubs are complete enough to stop expanding preparation work.
 - Existing stubs remain useful: `scripts/e7_lip_boundary_fusion/prepare_fusion_summary.py` and `scripts/e7_lip_uv_projection/prepare_one_frame_round_trip.py`.
-- No real personalized lip package, runtime candidate, Unity/iPhone build evidence, or E7.3 Green decision exists yet.
+- No real M1/M2-ready personalized lip package, Unity/iPhone build evidence, runtime visual evidence, Lip G/Y/R, or E7.3 Green decision exists yet. M3A may source-stage validation-only runtime candidate assets under the repo, but those remain `runtimeReady=false` until M3B.
 - The next work is implementation, starting with M1 Buildless Personalized Lip Package v0.
 
 Implementation map note:
@@ -1840,7 +1840,7 @@ M3 is split into two parts so unattended agents do not overrun into build/device
 - M3A Buildless Runtime Sweep Prep: phone-disconnected / overnight-agent work only.
 - M3B Build-Gated Runtime Candidate Sweep: real-device build, motion evidence, and Lip G/Y/R decision.
 
-M3A can prepare the runtime sweep, but it cannot install a candidate, run ARFace sampling, collect FPS/latency, record visual evidence, or decide Lip G/Y/R.
+M3A can prepare the runtime sweep and source-stage validation-only candidate assets/registries inside the repo, but it cannot build/install the app, run ARFace sampling, collect FPS/latency, record runtime visual evidence, or decide Lip G/Y/R.
 
 #### M3A. Buildless Runtime Sweep Prep
 
@@ -1857,8 +1857,8 @@ M1/M2-approved or explicitly draft lip package inputs
 Work:
 
 - Confirm whether M1/M2 outputs are actually ready. If not ready, keep every M3A artifact marked `draft` or `blocked_by_m1_m2` and do not claim runtime readiness.
-- Prepare runtime candidate asset/registry drafts only for `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0`; record `runtimeReady=false` and `runtimeCandidateStatus=draft_not_installed` until a build-gated run proves otherwise.
-- Wire or prepare RN/Unity candidate IDs, local package selection, and the four adjustment controls only: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, and `verticalOffset`.
+- Prepare runtime candidate asset/registry drafts only for `lip-tight-auto-v0`, `lip-tight-user-v0`, and `lip-safe-v0`; if assets are source-staged under Unity Resources, record `runtimeReady=false` and `runtimeCandidateStatus=validation_only_installed_buildless|source_staged_buildless_unproven` until a build-gated run proves otherwise.
+- Wire or prepare RN/Unity candidate IDs, local package selection, and the four adjustment controls only: `cornerReach`, `upperLipTightness`, `lowerLipTightness`, and `verticalOffset`. A lightweight Unity shader sampling/threshold probe may use these values during M3B runtime validation, but the baked candidate mask texture is not regenerated live and this must not be described as `user_confirmed`.
 - Prepare sweep log fields, evidence schema, contact-sheet/review checklist, and prior runtime evidence summary.
 - Run static/buildless checks only: `git diff --check`, RN `npm test -- --runInBand --watchman=false`, `./node_modules/.bin/tsc --noEmit`, `npm run lint`, and Unity compile/import checks if touched and available without device.
 - Summarize existing logs/recordings only as historical context; do not use them as the new M3 runtime evidence.
@@ -1869,6 +1869,7 @@ Expected M3A output folder:
 evidence/e7-lip-runtime-sweep-prep/prep-YYYYMMDDTHHMMSSZ/
   input_readiness.json
   runtime_candidate_registry_draft.json
+  runtime_candidate_registry.json (only if source-staged for buildless compile validation)
   adjustment_controls_contract.json
   sweep_evidence_schema.json
   runtime_sweep_checklist.md
@@ -1881,6 +1882,8 @@ M3A acceptance:
 
 - Result is `prep_ready|partial|blocked`, not Lip Green/Yellow/Red.
 - No UnityFramework/Xcode/iPhone build, no app install, no device runtime claim, and no E7.3 Green claim.
+- Source-staged Unity Resources are allowed only as buildless validation assets with `runtimeReady=false`; they are not proof that the candidate works on-device.
+- Candidate registry must record `userAdjustmentParams`, `userAdjustmentStatus`, and whether those params were actually applied to the mask; auto-provisional values must not be presented as `user_confirmed`.
 - Every candidate traces to an M1/M2-approved package or is explicitly marked `blocked_by_m1_m2`.
 - Static checks pass, or failures are recorded with exact command/status.
 - The next action is either return to M1/M2, request the M2/M3 build gate, or wait for phone-connected runtime testing.
@@ -2131,11 +2134,11 @@ Task: Prepare buildless runtime sweep artifacts only if Section 14B is already c
 Scope:
 - Read the shared contract and M3A section.
 - Confirm whether M1/M2 outputs are actually ready. If not, mark artifacts `draft` or `blocked_by_m1_m2`.
-- Prepare runtime candidate registry draft, adjustment control contract, sweep evidence schema, runtime sweep checklist, prior evidence summary, and static verification summary.
-- Do not install candidates, run device tests, collect runtime evidence, or decide Lip G/Y/R.
+- Prepare runtime candidate registry draft, optional source-staged validation-only Unity Resource masks, adjustment control contract, sweep evidence schema, runtime sweep checklist, prior evidence summary, and static verification summary.
+- Do not build/install the app, run device tests, collect runtime evidence, or decide Lip G/Y/R.
 
 Write scope:
-- `evidence/e7-lip-runtime-sweep-prep/prep-YYYYMMDDTHHMMSSZ/`.
+- `evidence/e7-lip-runtime-sweep-prep/prep-YYYYMMDDTHHMMSSZ/` or a clearly named validation candidate prep folder.
 - Only touch RN/Unity source if the Manager explicitly assigns a narrow buildless wiring patch.
 
 Done when:
@@ -2177,7 +2180,7 @@ Examples:
 - If two mask policies tie, select a provisional policy by coordinate compatibility, spill, hard rejects, and reproducibility, then continue.
 - If user adjustment is missing, create a provisional adjustment candidate/review pack but do not mark it `user_confirmed`.
 - If captures are missing, create a capture manifest/queue and mark those gates `blocked_by_missing_capture`.
-- If runtime evidence is needed, create M3A draft artifacts only and mark candidates `runtimeReady=false`.
+- If runtime evidence is needed, create M3A draft/source-stage artifacts only and mark candidates `runtimeReady=false`.
 
 ## 25. Relationship to Other Docs
 

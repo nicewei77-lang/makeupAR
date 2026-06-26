@@ -47,7 +47,14 @@ public sealed class RNBridge : MonoBehaviour
         public string materialId;
         public string shaderMode;
         public int passCount;
+        public string candidateId;
         public string maskTextureId;
+        public float maskThreshold;
+        public float maskFeatherUvNormalized;
+        public float cornerReach;
+        public float upperLipTightness;
+        public float lowerLipTightness;
+        public float verticalOffset;
         public bool cameraBackdropAvailable;
         public bool lightEstimateAvailable;
         public RecipeLayerPayload[] layers;
@@ -90,7 +97,14 @@ public sealed class RNBridge : MonoBehaviour
         public string materialId;
         public string shaderMode;
         public int passCount;
+        public string candidateId;
         public string maskTextureId;
+        public float maskThreshold;
+        public float maskFeatherUvNormalized;
+        public float cornerReach;
+        public float upperLipTightness;
+        public float lowerLipTightness;
+        public float verticalOffset;
         public bool cameraBackdropAvailable;
         public bool lightEstimateAvailable;
     }
@@ -169,7 +183,14 @@ public sealed class RNBridge : MonoBehaviour
         public string MaterialId;
         public string ShaderMode;
         public int PassCount;
+        public string CandidateId;
         public string MaskTextureId;
+        public float MaskThreshold;
+        public float MaskFeatherUvNormalized;
+        public float CornerReach;
+        public float UpperLipTightness;
+        public float LowerLipTightness;
+        public float VerticalOffset;
         public bool CameraBackdropAvailable;
         public bool LightEstimateAvailable;
     }
@@ -207,7 +228,14 @@ public sealed class RNBridge : MonoBehaviour
         public string MaterialId = "none";
         public string ShaderMode = "unlit-alpha-validation";
         public int PassCount;
+        public string CandidateId = "none";
         public string MaskTextureId = "none";
+        public float MaskThreshold;
+        public float MaskFeatherUvNormalized;
+        public float CornerReach;
+        public float UpperLipTightness;
+        public float LowerLipTightness;
+        public float VerticalOffset;
         public bool CameraBackdropAvailable;
         public bool LightEstimateAvailable;
         public string MaskSource = "smooth_region_mask";
@@ -796,6 +824,13 @@ public sealed class RNBridge : MonoBehaviour
             layer.BlendMode,
             layer.RendererMode,
             layer.MaskTextureId,
+            layer.CandidateId,
+            layer.MaskThreshold,
+            layer.MaskFeatherUvNormalized,
+            layer.CornerReach,
+            layer.UpperLipTightness,
+            layer.LowerLipTightness,
+            layer.VerticalOffset,
             layer.Coverage,
             layer.Finish,
             layer.TextureAmount,
@@ -842,7 +877,14 @@ public sealed class RNBridge : MonoBehaviour
             MaterialId = layer.MaterialId,
             ShaderMode = layer.ShaderMode,
             PassCount = layer.PassCount,
+            CandidateId = layer.CandidateId,
             MaskTextureId = layer.MaskTextureId,
+            MaskThreshold = result.MaskThreshold,
+            MaskFeatherUvNormalized = result.MaskFeatherUvNormalized,
+            CornerReach = layer.CornerReach,
+            UpperLipTightness = layer.UpperLipTightness,
+            LowerLipTightness = layer.LowerLipTightness,
+            VerticalOffset = layer.VerticalOffset,
             CameraBackdropAvailable = layer.CameraBackdropAvailable,
             LightEstimateAvailable = layer.LightEstimateAvailable,
             MaskSource = result.MaskSource,
@@ -898,6 +940,8 @@ public sealed class RNBridge : MonoBehaviour
             state.MeshTriangleCount = result.MeshTriangleCount;
             state.TopologyAuditStatus = result.TopologyAuditStatus;
             state.TopologyAuditSummary = result.TopologyAuditSummary;
+            state.MaskThreshold = result.MaskThreshold;
+            state.MaskFeatherUvNormalized = result.MaskFeatherUvNormalized;
         }
     }
 
@@ -972,7 +1016,14 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
                 + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
+                + ",\"candidateId\":\"" + EscapeJsonString(state.CandidateId) + "\""
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
+                + ",\"maskThreshold\":" + state.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"maskFeatherUvNormalized\":" + state.MaskFeatherUvNormalized.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"cornerReach\":" + state.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"upperLipTightness\":" + state.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"lowerLipTightness\":" + state.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"verticalOffset\":" + state.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(state.BoundaryRenderer) + "\""
                 + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
@@ -1026,6 +1077,14 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"active\":" + active.ToString().ToLowerInvariant()
                 + ",\"lastApplied\":" + (state != null && state.Applied).ToString().ToLowerInvariant()
                 + ",\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
+                + ",\"candidateId\":\"" + EscapeJsonString(state != null ? state.CandidateId : "none") + "\""
+                + ",\"maskTextureId\":\"" + EscapeJsonString(state != null ? state.MaskTextureId : "none") + "\""
+                + ",\"maskThreshold\":" + (state != null ? state.MaskThreshold : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"maskFeatherUvNormalized\":" + (state != null ? state.MaskFeatherUvNormalized : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"cornerReach\":" + (state != null ? state.CornerReach : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"upperLipTightness\":" + (state != null ? state.UpperLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"lowerLipTightness\":" + (state != null ? state.LowerLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"verticalOffset\":" + (state != null ? state.VerticalOffset : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"maskSource\":\"" + EscapeJsonString(maskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(boundaryRenderer) + "\""
                 + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
@@ -1082,7 +1141,14 @@ public sealed class RNBridge : MonoBehaviour
             + " materialId=" + (state != null ? state.MaterialId : "none")
             + " shaderMode=" + (state != null ? state.ShaderMode : "unlit-alpha-validation")
             + " passCount=" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " candidateId=" + (state != null ? state.CandidateId : "none")
             + " maskTextureId=" + (state != null ? state.MaskTextureId : "none")
+            + " maskThreshold=" + (state != null ? state.MaskThreshold : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskFeatherUvNormalized=" + (state != null ? state.MaskFeatherUvNormalized : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " cornerReach=" + (state != null ? state.CornerReach : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " upperLipTightness=" + (state != null ? state.UpperLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " lowerLipTightness=" + (state != null ? state.LowerLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " verticalOffset=" + (state != null ? state.VerticalOffset : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " cameraBackdropAvailable=" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + " lightEstimateAvailable=" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + " color=" + colorHex
@@ -1137,7 +1203,14 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"materialId\":\"" + EscapeJsonString(state != null ? state.MaterialId : "none") + "\""
             + ",\"shaderMode\":\"" + EscapeJsonString(state != null ? state.ShaderMode : "unlit-alpha-validation") + "\""
             + ",\"passCount\":" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"candidateId\":\"" + EscapeJsonString(state != null ? state.CandidateId : "none") + "\""
             + ",\"maskTextureId\":\"" + EscapeJsonString(state != null ? state.MaskTextureId : "none") + "\""
+            + ",\"maskThreshold\":" + (state != null ? state.MaskThreshold : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskFeatherUvNormalized\":" + (state != null ? state.MaskFeatherUvNormalized : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"cornerReach\":" + (state != null ? state.CornerReach : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"upperLipTightness\":" + (state != null ? state.UpperLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"lowerLipTightness\":" + (state != null ? state.LowerLipTightness : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"verticalOffset\":" + (state != null ? state.VerticalOffset : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"cameraBackdropAvailable\":" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + ",\"lightEstimateAvailable\":" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
@@ -1243,7 +1316,14 @@ public sealed class RNBridge : MonoBehaviour
             + " materialId=" + layer.MaterialId
             + " shaderMode=" + layer.ShaderMode
             + " passCount=" + layer.PassCount.ToString(CultureInfo.InvariantCulture)
+            + " candidateId=" + layer.CandidateId
             + " maskTextureId=" + layer.MaskTextureId
+            + " maskThreshold=" + layer.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskFeatherUvNormalized=" + layer.MaskFeatherUvNormalized.ToString("0.###", CultureInfo.InvariantCulture)
+            + " cornerReach=" + layer.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+            + " upperLipTightness=" + layer.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " lowerLipTightness=" + layer.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + " verticalOffset=" + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
             + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + " finish=" + layer.Finish
             + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1275,6 +1355,8 @@ public sealed class RNBridge : MonoBehaviour
             + " phase=" + phase
             + " timestampMs=" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
             + " rendererMode=" + result.RendererMode
+            + " candidateId=" + layer.CandidateId
+            + " maskTextureId=" + layer.MaskTextureId
             + " lookId=" + layer.LookId
             + " recipeId=" + layer.RecipeId
             + " recipeBatchId=" + layer.RecipeBatchId
@@ -1395,9 +1477,24 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(layer.ShaderMode)
             + "\",\"passCount\":"
             + layer.PassCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"candidateId\":\""
+            + EscapeJsonString(layer.CandidateId)
+            + "\""
             + ",\"maskTextureId\":\""
             + EscapeJsonString(layer.MaskTextureId)
-            + "\",\"coverage\":"
+            + "\",\"maskThreshold\":"
+            + layer.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskFeatherUvNormalized\":"
+            + layer.MaskFeatherUvNormalized.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"cornerReach\":"
+            + layer.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"upperLipTightness\":"
+            + layer.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"lowerLipTightness\":"
+            + layer.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"verticalOffset\":"
+            + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"coverage\":"
             + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"finish\":\""
             + EscapeJsonString(layer.Finish)
@@ -1539,7 +1636,14 @@ public sealed class RNBridge : MonoBehaviour
             MaterialId = NormalizeOptional(layer.materialId, recipe.materialId, textureSample + "-validation-material"),
             ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
             PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
+            CandidateId = NormalizeCandidateId(layer.candidateId, recipe.candidateId, region),
             MaskTextureId = NormalizeMaskTextureId(layer.maskTextureId, recipe.maskTextureId, region),
+            MaskThreshold = NormalizeMaskThreshold(layer.maskThreshold, recipe.maskThreshold),
+            MaskFeatherUvNormalized = NormalizeMaskFeather(layer.maskFeatherUvNormalized, recipe.maskFeatherUvNormalized),
+            CornerReach = NormalizeLipAdjustment(layer.cornerReach, recipe.cornerReach, region),
+            UpperLipTightness = NormalizeLipAdjustment(layer.upperLipTightness, recipe.upperLipTightness, region),
+            LowerLipTightness = NormalizeLipAdjustment(layer.lowerLipTightness, recipe.lowerLipTightness, region),
+            VerticalOffset = NormalizeLipAdjustment(layer.verticalOffset, recipe.verticalOffset, region),
             CameraBackdropAvailable = layer.cameraBackdropAvailable || recipe.cameraBackdropAvailable,
             LightEstimateAvailable = layer.lightEstimateAvailable || recipe.lightEstimateAvailable
         };
@@ -1786,8 +1890,58 @@ public sealed class RNBridge : MonoBehaviour
             return value;
         }
 
+        if (region == "lip" && value.StartsWith("e7-lip-validation-", StringComparison.Ordinal))
+        {
+            return value;
+        }
+
         throw new ArgumentException(
             "Unsupported mask texture id for region " + region + ": " + value);
+    }
+
+    private static string NormalizeCandidateId(string preferred, string secondary, string region)
+    {
+        string value = !string.IsNullOrWhiteSpace(preferred) ? preferred : secondary;
+        value = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        if (region == "lip"
+            && (value == "lip-smooth-mask-v1"
+                || value == "lip-tight-auto-v0"
+                || value == "lip-tight-user-v0"
+                || value == "lip-safe-v0"))
+        {
+            return value;
+        }
+
+        string expected = GetDefaultMaskTextureId(region);
+        if (value == expected)
+        {
+            return value;
+        }
+
+        throw new ArgumentException("Unsupported candidate id for region " + region + ": " + value);
+    }
+
+    private static float NormalizeMaskThreshold(float preferred, float secondary)
+    {
+        float value = preferred > 0.0f ? preferred : secondary;
+        return value > 0.0f ? Mathf.Clamp01(value) : -1.0f;
+    }
+
+    private static float NormalizeMaskFeather(float preferred, float secondary)
+    {
+        float value = preferred > 0.0f ? preferred : secondary;
+        return value > 0.0f ? Mathf.Clamp01(value) : -1.0f;
+    }
+
+    private static float NormalizeLipAdjustment(float preferred, float secondary, string region)
+    {
+        if (region != "lip")
+        {
+            return 0.0f;
+        }
+
+        float value = Math.Abs(preferred) > 0.0001f ? preferred : secondary;
+        return Mathf.Clamp(value, -1.0f, 1.0f);
     }
 
     private static string GetDefaultMaskTextureId(string region)
