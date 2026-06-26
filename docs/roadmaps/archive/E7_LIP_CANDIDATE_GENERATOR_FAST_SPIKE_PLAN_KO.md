@@ -1,5 +1,7 @@
 # E7 입술 후보 생성기 빠른 실험 계획
 
+상태: archived. 현재 active 계획은 `docs/roadmaps/active/E7_LIP_PERSONALIZED_GENERATE_FULL_IMPLEMENTATION_PLAN_KO.md`를 따른다.
+
 작성일: 2026-06-26 KST
 
 ## 0. 결정
