@@ -18,6 +18,7 @@ jest.mock('react-native', () => {
 
   const View = createComponent('View');
   const Text = createComponent('Text');
+  const ScrollView = createComponent('ScrollView');
 
   const Pressable = ReactRuntime.forwardRef(
     ({ children, style, ...props }: any, ref: any) =>
@@ -41,6 +42,7 @@ jest.mock('react-native', () => {
       create: jest.fn(() => ({ panHandlers: {} })),
     },
     Pressable,
+    ScrollView,
     StatusBar: jest.fn(() => null),
     StyleSheet: {
       create: (styles: object) => styles,
@@ -183,6 +185,19 @@ function getLastRecipePayload() {
   expect(recipeCall).toBeTruthy();
 
   return JSON.parse(String(recipeCall?.[2]));
+}
+
+function getLastGeneratedLipMaskPayload() {
+  const generatedCall = [...mockUnityPostMessage.mock.calls]
+    .reverse()
+    .find(
+      call =>
+        call[0] === 'RNBridge' && call[1] === 'ApplyGeneratedLipMaskJson',
+    );
+
+  expect(generatedCall).toBeTruthy();
+
+  return JSON.parse(String(generatedCall?.[2]));
 }
 
 test('renders home with neutral validation copy', async () => {
@@ -423,6 +438,41 @@ test('posts lip user adjustment probe values from HUD', async () => {
     cornerReach: 0.05,
     upperLipTightness: -0.05,
   });
+});
+
+test('posts generated lip mask payload with provider and assist choices', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByTestID(renderer!, 'lip-generate-provider-mediapipe');
+  pressByTestID(renderer!, 'lip-generate-expression-blendshapeAssist');
+  pressByTestID(renderer!, 'lip-adjustment-step-corner-up');
+  pressByTestID(renderer!, 'lip-generate-apply');
+
+  const generatedPayload = getLastGeneratedLipMaskPayload();
+
+  expect(generatedPayload.type).toBe('apply_generated_lip_mask');
+  expect(generatedPayload.schemaVersion).toBe(
+    'e7-generated-lip-mask-runtime-payload-v0',
+  );
+  expect(generatedPayload.provider).toBe('mediapipe');
+  expect(generatedPayload.expressionMode).toBe('blendshapeAssist');
+  expect(generatedPayload.localOnly).toBe(true);
+  expect(generatedPayload.offDeviceUpload).toBe(false);
+  expect(generatedPayload.longTermRawFrameStored).toBe(false);
+  expect(generatedPayload.runtimeReady).toBe(false);
+  expect(generatedPayload.maskTextureEncoding).toBe('raw_rgba_base64');
+  expect(generatedPayload.maskTextureId).toContain(
+    'e7-generated-lip-mediapipe-blendshapeAssist',
+  );
+  expect(generatedPayload.maskRawRgbaBase64.length).toBeGreaterThan(100);
+  expect(generatedPayload.maskTextureWidth).toBe(8);
+  expect(generatedPayload.maskTextureHeight).toBe(8);
+  expect(generatedPayload.adjustment.cornerReach).toBeCloseTo(0.05);
 });
 
 test('keeps Unity face debug surface suppressed while Clean preserves makeup overlay', async () => {

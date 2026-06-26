@@ -110,6 +110,38 @@ public sealed class RNBridge : MonoBehaviour
     }
 
     [Serializable]
+    private sealed class LipAdjustmentPayload
+    {
+        public float cornerReach;
+        public float upperLipTightness;
+        public float lowerLipTightness;
+        public float verticalOffset;
+    }
+
+    [Serializable]
+    private sealed class GeneratedLipMaskPayload
+    {
+        public string schemaVersion;
+        public string generatedMaskId;
+        public string provider;
+        public string expressionMode;
+        public LipAdjustmentPayload adjustment;
+        public string maskTexturePath;
+        public string maskTextureId;
+        public string maskTextureEncoding;
+        public string maskPngBase64;
+        public string maskRawRgbaBase64;
+        public int maskTextureWidth;
+        public int maskTextureHeight;
+        public float maskThreshold;
+        public float maskFeatherUvNormalized;
+        public bool localOnly;
+        public bool offDeviceUpload;
+        public bool longTermRawFrameStored;
+        public bool runtimeReady;
+    }
+
+    [Serializable]
     private sealed class RecipeAckPayload
     {
         public string type;
@@ -388,6 +420,101 @@ public sealed class RNBridge : MonoBehaviour
             }
 
             Debug.LogError("[E4] recipe_parse_failed raw=" + json + " error=" + exception.Message);
+        }
+    }
+
+    public void ApplyGeneratedLipMaskJson(string json)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(json))
+            {
+                throw new ArgumentException("Generated lip mask JSON is empty.");
+            }
+
+            GeneratedLipMaskPayload payload = JsonUtility.FromJson<GeneratedLipMaskPayload>(json);
+            if (payload == null)
+            {
+                throw new ArgumentException("Generated lip mask JSON did not parse into a payload.");
+            }
+
+            if (payload.schemaVersion != "e7-generated-lip-mask-runtime-payload-v0")
+            {
+                throw new ArgumentException("Unsupported generated lip mask schemaVersion: " + NormalizeOptional(payload.schemaVersion));
+            }
+
+            if (!payload.localOnly)
+            {
+                throw new ArgumentException("Generated lip mask payload must be localOnly=true.");
+            }
+
+            if (payload.offDeviceUpload)
+            {
+                throw new ArgumentException("Generated lip mask payload must be offDeviceUpload=false.");
+            }
+
+            if (payload.longTermRawFrameStored)
+            {
+                throw new ArgumentException("Generated lip mask payload must be longTermRawFrameStored=false.");
+            }
+
+            if (payload.provider != "vision" && payload.provider != "mediapipe")
+            {
+                throw new ArgumentException("Unsupported generated lip mask provider: " + NormalizeOptional(payload.provider));
+            }
+
+            if (payload.expressionMode != "uvOnly" && payload.expressionMode != "blendshapeAssist")
+            {
+                throw new ArgumentException("Unsupported generated lip mask expressionMode: " + NormalizeOptional(payload.expressionMode));
+            }
+
+            if (payload.maskTextureEncoding != "raw_rgba_base64")
+            {
+                throw new ArgumentException("Generated lip mask texture encoding must be raw_rgba_base64.");
+            }
+
+            string maskTextureId = NormalizeOptional(payload.maskTextureId, payload.generatedMaskId, "none");
+            EnsureRegionMaskOverlay();
+            if (regionMaskOverlay == null)
+            {
+                throw new InvalidOperationException("E3 region mask overlay is unavailable.");
+            }
+
+            regionMaskOverlay.RegisterGeneratedLipMaskTexture(
+                maskTextureId,
+                payload.maskRawRgbaBase64,
+                payload.maskTextureWidth,
+                payload.maskTextureHeight);
+            ParsedRecipeLayer layer = BuildGeneratedLipMaskLayer(payload, maskTextureId, json.Length);
+            E3RegionMaskOverlay.RegionApplyResult result = ApplyRegionLayer(layer);
+            long appliedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            int appliedFrame = Time.frameCount;
+            RememberRegionFeatureState(layer, result);
+            LogRecipeApplied("generated_lip_mask", layer, result, appliedAtMs, appliedFrame);
+            SendRecipeAppliedEvent(layer, result, appliedAtMs, appliedFrame);
+            SendGeneratedLipMaskAppliedEvent(payload, layer, result, appliedAtMs, appliedFrame);
+
+            Debug.Log(
+                "[E7] generated_lip_mask_apply"
+                + " provider=" + payload.provider
+                + " expressionMode=" + payload.expressionMode
+                + " generatedMaskId=" + NormalizeOptional(payload.generatedMaskId)
+                + " maskTextureId=" + maskTextureId
+                + " runtimeReady=" + payload.runtimeReady.ToString().ToLowerInvariant()
+                + " applied=" + result.Applied.ToString().ToLowerInvariant()
+                + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
+                + " maskTriangles=" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture));
+        }
+        catch (Exception exception)
+        {
+            Debug.LogError(
+                "[E7] generated_lip_mask_apply_failed"
+                + " payloadBytes=" + (json == null ? 0 : json.Length).ToString(CultureInfo.InvariantCulture)
+                + " error=" + exception.Message);
+            SendUnityEvent(
+                "{\"type\":\"generated_lip_mask_applied\",\"status\":\"blocked\",\"error\":\""
+                + EscapeJsonString(exception.Message)
+                + "\"}");
         }
     }
 
@@ -805,6 +932,106 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         return false;
+    }
+
+    private static ParsedRecipeLayer BuildGeneratedLipMaskLayer(
+        GeneratedLipMaskPayload payload,
+        string maskTextureId,
+        int payloadBytes)
+    {
+        if (!ColorUtility.TryParseHtmlString("#C76B74", out Color color))
+        {
+            color = new Color(0.78f, 0.42f, 0.45f, 0.52f);
+        }
+
+        double sentAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        float maskThreshold = payload.maskThreshold > 0.0f ? payload.maskThreshold : 0.5f;
+        float maskFeather = payload.maskFeatherUvNormalized > 0.0f
+            ? payload.maskFeatherUvNormalized
+            : 0.07f;
+        LipAdjustmentPayload adjustment = payload.adjustment ?? new LipAdjustmentPayload();
+
+        return new ParsedRecipeLayer
+        {
+            Id = "lip-generated-mask",
+            Region = "lip",
+            LegacyLayer = "lip",
+            ColorHex = "#C76B74",
+            Color = color,
+            Opacity = payload.expressionMode == "blendshapeAssist" ? 0.58f : 0.52f,
+            RecipeId = "e7-generated-lip-mask",
+            RecipeBatchId = "e7-generated-lip-batch-" + Math.Round(sentAtMs).ToString(CultureInfo.InvariantCulture),
+            LookId = "e7_generated_lip",
+            SentAtMs = sentAtMs,
+            ActiveRegions = "lip",
+            LayerCount = 1,
+            EnabledLayerCount = 1,
+            PayloadBytes = payloadBytes,
+            TextureSample = "matte_lip",
+            TextureMode = "sample",
+            Intensity = 1.0f,
+            Feather = 0.08f,
+            BlendMode = "multiply",
+            RendererMode = "smooth-region-mask",
+            Enabled = true,
+            Coverage = 0.78f,
+            Finish = payload.expressionMode == "blendshapeAssist" ? "gloss" : "cream",
+            TextureAmount = payload.expressionMode == "blendshapeAssist" ? 0.14f : 0.08f,
+            Roughness = payload.expressionMode == "blendshapeAssist" ? 0.34f : 0.7f,
+            Specular = payload.expressionMode == "blendshapeAssist" ? 0.28f : 0.08f,
+            SpecularPower = payload.expressionMode == "blendshapeAssist" ? 44.0f : 16.0f,
+            GlossBoost = payload.expressionMode == "blendshapeAssist" ? 0.22f : 0.0f,
+            Shimmer = 0.0f,
+            ShimmerColor = "#FFFFFF",
+            SkinAdaptive = false,
+            PreserveDetail = true,
+            MaterialId = "e7-generated-lip-validation-material",
+            ShaderMode = "smooth-region-mask-generated-uv",
+            PassCount = 1,
+            CandidateId = maskTextureId,
+            MaskTextureId = maskTextureId,
+            MaskThreshold = maskThreshold,
+            MaskFeatherUvNormalized = maskFeather,
+            CornerReach = adjustment.cornerReach,
+            UpperLipTightness = adjustment.upperLipTightness,
+            LowerLipTightness = adjustment.lowerLipTightness,
+            VerticalOffset = adjustment.verticalOffset,
+            CameraBackdropAvailable = false,
+            LightEstimateAvailable = false
+        };
+    }
+
+    private void SendGeneratedLipMaskAppliedEvent(
+        GeneratedLipMaskPayload payload,
+        ParsedRecipeLayer layer,
+        E3RegionMaskOverlay.RegionApplyResult result,
+        long appliedAtMs,
+        int appliedFrame)
+    {
+        bool hasRuntimeTexture = result.Applied
+            && result.UvAvailable
+            && result.MaskTriangleCount > 0;
+        string status = hasRuntimeTexture ? "partial" : "blocked";
+        SendUnityEvent(
+            "{\"type\":\"generated_lip_mask_applied\",\"status\":\"" + status + "\""
+            + ",\"provider\":\"" + EscapeJsonString(payload.provider) + "\""
+            + ",\"expressionMode\":\"" + EscapeJsonString(payload.expressionMode) + "\""
+            + ",\"generatedMaskId\":\"" + EscapeJsonString(payload.generatedMaskId) + "\""
+            + ",\"maskTextureId\":\"" + EscapeJsonString(layer.MaskTextureId) + "\""
+            + ",\"runtimeReady\":" + payload.runtimeReady.ToString().ToLowerInvariant()
+            + ",\"applied\":" + result.Applied.ToString().ToLowerInvariant()
+            + ",\"faceCount\":" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTriangles\":" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"uvAvailable\":" + result.UvAvailable.ToString().ToLowerInvariant()
+            + ",\"maskThreshold\":" + layer.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskFeatherUvNormalized\":" + layer.MaskFeatherUvNormalized.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"cornerReach\":" + layer.CornerReach.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"upperLipTightness\":" + layer.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"lowerLipTightness\":" + layer.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"verticalOffset\":" + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"appliedAtMs\":" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"appliedFrame\":" + appliedFrame.ToString(CultureInfo.InvariantCulture)
+            + "}");
     }
 
     private E3RegionMaskOverlay.RegionApplyResult ApplyRegionLayer(ParsedRecipeLayer layer)

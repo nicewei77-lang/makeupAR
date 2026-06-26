@@ -12,6 +12,11 @@ type BuildRuntimePayloadInput = {
   adjustment: LipAdjustment;
   maskTexturePath?: string;
   maskTextureId?: string;
+  maskTextureEncoding?: LipRuntimeApplyPayload['maskTextureEncoding'];
+  maskPngBase64?: string;
+  maskRawRgbaBase64?: string;
+  maskTextureWidth?: number;
+  maskTextureHeight?: number;
   maskThreshold?: number;
   maskFeatherUvNormalized?: number;
   runtimeReady?: boolean;
@@ -24,6 +29,11 @@ export function buildRuntimeApplyPayload({
   adjustment,
   maskTexturePath,
   maskTextureId,
+  maskTextureEncoding,
+  maskPngBase64,
+  maskRawRgbaBase64,
+  maskTextureWidth,
+  maskTextureHeight,
   maskThreshold = 0.5,
   maskFeatherUvNormalized = 0.07,
   runtimeReady = false,
@@ -36,9 +46,16 @@ export function buildRuntimeApplyPayload({
     adjustment,
     maskTexturePath,
     maskTextureId,
+    maskTextureEncoding,
+    maskPngBase64,
+    maskRawRgbaBase64,
+    maskTextureWidth,
+    maskTextureHeight,
     maskThreshold,
     maskFeatherUvNormalized,
     localOnly: true,
+    offDeviceUpload: false,
+    longTermRawFrameStored: false,
     runtimeReady,
   };
 }
@@ -55,10 +72,19 @@ export function buildUnityMessageFromPackage(
     adjustment: generatedPackage.adjustment,
     maskTexturePath: generatedPackage.runtimeApplyPayload.maskTexturePath,
     maskTextureId: generatedPackage.runtimeApplyPayload.maskTextureId,
+    maskTextureEncoding:
+      generatedPackage.runtimeApplyPayload.maskTextureEncoding,
+    maskPngBase64: generatedPackage.runtimeApplyPayload.maskPngBase64,
+    maskRawRgbaBase64:
+      generatedPackage.runtimeApplyPayload.maskRawRgbaBase64,
+    maskTextureWidth: generatedPackage.runtimeApplyPayload.maskTextureWidth,
+    maskTextureHeight: generatedPackage.runtimeApplyPayload.maskTextureHeight,
     maskThreshold: generatedPackage.runtimeApplyPayload.maskThreshold,
     maskFeatherUvNormalized:
       generatedPackage.runtimeApplyPayload.maskFeatherUvNormalized,
     localOnly: true,
+    offDeviceUpload: false,
+    longTermRawFrameStored: false,
     runtimeReady: generatedPackage.runtimeApplyPayload.runtimeReady,
   };
 }

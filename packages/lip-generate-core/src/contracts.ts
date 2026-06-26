@@ -78,9 +78,16 @@ export type LipRuntimeApplyPayload = {
   adjustment: LipAdjustment;
   maskTexturePath?: string;
   maskTextureId?: string;
+  maskTextureEncoding?: 'png_base64' | 'raw_rgba_base64';
+  maskPngBase64?: string;
+  maskRawRgbaBase64?: string;
+  maskTextureWidth?: number;
+  maskTextureHeight?: number;
   maskThreshold: number;
   maskFeatherUvNormalized: number;
   localOnly: true;
+  offDeviceUpload: false;
+  longTermRawFrameStored: false;
   runtimeReady: boolean;
 };
 

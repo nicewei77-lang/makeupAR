@@ -10,6 +10,7 @@ This folder keeps a small, shareable visual history of the AR makeup validation 
 - `evolution/04-ref-uv-runtime-sweep/`: P8 reference-UV runtime comparison evidence.
 - `evolution/05-smooth-mask-accepted/`: the currently accepted smooth-mask validation screenshots.
 - `screenshots/`: canonical screenshots referenced by result docs.
+- `screenshots/e7-lip-generate-web-beta-2026-06-27/`: React web beta browser proof for local-only lip mask generation, Vision/MediaPipe comparison, Blendshape Assist Off/On comparison, UV projection preview, and round-trip preview. This is buildless `partial` evidence, not RN/Unity runtime proof.
 - `references/`: visual algorithm references, not runtime Green evidence.
 - `e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/`: selected synchronized clean frame, ARFace export, and projected mesh overlay used as the best current gold-mask drawing input.
 

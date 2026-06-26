@@ -9,6 +9,7 @@ not upload or persist new raw camera frames.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import mimetypes
 import re
@@ -33,6 +34,10 @@ INVENTORY_PATH = ROOT / "fixtures/lip-generate/fixture_inventory.json"
 RUN_ROOT = ROOT / "evidence/e7-lip-generate-server"
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 8791
+ALLOWED_ORIGINS = {
+    "http://127.0.0.1:8789",
+    "http://localhost:8789",
+}
 DEFAULT_PRIVACY = {
     "localOnly": True,
     "offDeviceUpload": False,
@@ -79,6 +84,17 @@ def artifact_path(value: str) -> Path:
     return repo_path(value)
 
 
+def is_allowed_artifact(path: Path) -> bool:
+    resolved = path.resolve()
+    allowed_roots = [
+        RUN_ROOT.resolve(),
+        (ROOT / "fixtures/lip-generate").resolve(),
+        (ROOT / "evidence/references").resolve(),
+        (ROOT / "evidence/e7-reference-atlas/capture_pairs").resolve(),
+    ]
+    return any(root in [resolved, *resolved.parents] for root in allowed_roots)
+
+
 def normalize_artifact_value(value: Any) -> Any:
     if not isinstance(value, str):
         return value
@@ -116,6 +132,40 @@ def read_json(path: Path) -> dict[str, Any]:
 def write_json(path: Path, data: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def redact_request_for_storage(value: Any) -> Any:
+    if isinstance(value, list):
+        return [redact_request_for_storage(item) for item in value]
+    if isinstance(value, dict):
+        redacted: dict[str, Any] = {}
+        for key, entry in value.items():
+            normalized_key = key.lower()
+            if any(
+                token in normalized_key
+                for token in ("base64", "imagebytes", "rawframe", "cameraframe")
+            ):
+                redacted[key] = "[redacted]"
+            else:
+                redacted[key] = redact_request_for_storage(entry)
+        return redacted
+    return value
+
+
+def encode_texture_base64(
+    repo_relative_path: str | None,
+) -> tuple[str | None, str | None, int | None, int | None]:
+    if not repo_relative_path:
+        return None, None, None, None
+    path = repo_path(repo_relative_path)
+    if not path.exists() or not path.is_file():
+        return None, None, None, None
+    with Image.open(path) as image:
+        width, height = image.size
+        raw_rgba_base64 = base64.b64encode(image.convert("RGBA").tobytes()).decode(
+            "ascii"
+        )
+    return base64.b64encode(path.read_bytes()).decode("ascii"), raw_rgba_base64, width, height
 
 
 def load_inventory() -> dict[str, Any]:
@@ -338,11 +388,14 @@ def build_package(
     projection_summary: dict[str, Any],
     warnings: list[str],
 ) -> dict[str, Any]:
-    generated_mask_id = safe_id(f"{run_dir.name}-mask")
+    generated_mask_id = safe_id(f"e7-generated-lip-{run_dir.name}-mask")
     frame_path = repo_path(fixture["framePath"])
     frame = Image.open(frame_path)
     uv_texture = projection_summary.get("artifacts", {}).get("lip_probability.png")
     round_trip = projection_summary.get("artifacts", {}).get("round_trip_overlay.png")
+    mask_png_base64, mask_raw_rgba_base64, mask_width, mask_height = encode_texture_base64(
+        uv_texture
+    )
     runtime_payload = {
         "schemaVersion": "e7-generated-lip-mask-runtime-payload-v0",
         "generatedMaskId": generated_mask_id,
@@ -351,9 +404,20 @@ def build_package(
         "adjustment": payload["adjustment"],
         "maskTexturePath": uv_texture,
         "maskTextureId": generated_mask_id,
+        "maskTextureEncoding": "raw_rgba_base64"
+        if mask_raw_rgba_base64
+        else "png_base64"
+        if mask_png_base64
+        else None,
+        "maskPngBase64": mask_png_base64,
+        "maskRawRgbaBase64": mask_raw_rgba_base64,
+        "maskTextureWidth": mask_width,
+        "maskTextureHeight": mask_height,
         "maskThreshold": 0.5,
         "maskFeatherUvNormalized": 0.07,
         "localOnly": True,
+        "offDeviceUpload": False,
+        "longTermRawFrameStored": False,
         "runtimeReady": False,
     }
     generated_package = {
@@ -412,7 +476,7 @@ def generate(payload: dict[str, Any]) -> tuple[int, dict[str, Any]]:
 
     fixture = find_fixture(payload.get("fixtureId"))
     run_dir = make_run_dir(payload.get("requestId") or f"generate-{utc_stamp()}", provider, expression_mode)
-    write_json(run_dir / "request.json", payload)
+    write_json(run_dir / "request.json", redact_request_for_storage(payload))
 
     if provider == "vision":
         mask_outputs, provider_warnings = generate_vision_mask(fixture, run_dir)
@@ -472,12 +536,20 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
         return
 
+    def send_cors_headers(self) -> None:
+        origin = self.headers.get("Origin", "")
+        if origin in ALLOWED_ORIGINS:
+            self.send_header("Access-Control-Allow-Origin", origin)
+            self.send_header("Vary", "Origin")
+        else:
+            self.send_header("Access-Control-Allow-Origin", "http://127.0.0.1:8789")
+
     def send_json(self, status_code: int, data: dict[str, Any]) -> None:
         body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
         self.send_response(status_code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_cors_headers()
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.end_headers()
@@ -485,7 +557,7 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_cors_headers()
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
         self.end_headers()
@@ -522,6 +594,12 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
             except ValueError as exc:
                 self.send_json(400, {"status": "blocked", "reason": str(exc)})
                 return
+            if not is_allowed_artifact(path):
+                self.send_json(
+                    403,
+                    {"status": "blocked", "reason": "artifact_path_not_allowed"},
+                )
+                return
             if not path.exists() or not path.is_file():
                 self.send_json(404, {"status": "blocked", "reason": "artifact_not_found"})
                 return
@@ -530,7 +608,7 @@ class LipGenerateHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", content_type)
             self.send_header("Content-Length", str(len(data)))
-            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_cors_headers()
             self.end_headers()
             self.wfile.write(data)
             return

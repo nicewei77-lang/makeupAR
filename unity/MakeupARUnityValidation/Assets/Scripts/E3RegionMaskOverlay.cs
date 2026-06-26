@@ -124,6 +124,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, RegionApplyResult>();
     private static readonly Dictionary<string, Texture2D> MaskTextures =
         new Dictionary<string, Texture2D>();
+    private readonly Dictionary<string, Texture2D> generatedMaskTextures =
+        new Dictionary<string, Texture2D>();
     private bool overlayRenderingSuppressed;
 
     public void Configure(ARFaceManager manager)
@@ -157,6 +159,56 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         recipes.Clear();
         latestRegionResults.Clear();
         HideAllOverlayViews();
+    }
+
+    public bool RegisterGeneratedLipMaskTexture(
+        string maskTextureId,
+        string rawRgbaBase64,
+        int width,
+        int height)
+    {
+        maskTextureId = NormalizeGeneratedLipMaskTextureId(maskTextureId);
+        if (string.IsNullOrWhiteSpace(rawRgbaBase64))
+        {
+            throw new ArgumentException("Generated lip mask raw RGBA payload is empty.");
+        }
+
+        if (width <= 0 || height <= 0)
+        {
+            throw new ArgumentException("Generated lip mask texture dimensions are invalid.");
+        }
+
+        byte[] bytes = Convert.FromBase64String(StripDataUrlPrefix(rawRgbaBase64));
+        int expectedByteCount = checked(width * height * 4);
+        if (bytes.Length != expectedByteCount)
+        {
+            throw new ArgumentException(
+                "Generated lip mask raw RGBA byte count mismatch: expected "
+                + expectedByteCount.ToString(CultureInfo.InvariantCulture)
+                + " got "
+                + bytes.Length.ToString(CultureInfo.InvariantCulture));
+        }
+
+        Texture2D texture = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        texture.LoadRawTextureData(bytes);
+        texture.Apply(false, false);
+        texture.name = maskTextureId;
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+
+        if (generatedMaskTextures.TryGetValue(maskTextureId, out Texture2D previous)
+            && previous != null)
+        {
+            Destroy(previous);
+        }
+
+        generatedMaskTextures[maskTextureId] = texture;
+        Debug.Log(
+            "[E7] generated_lip_mask_texture_registered"
+            + " maskTextureId=" + maskTextureId
+            + " width=" + texture.width.ToString(CultureInfo.InvariantCulture)
+            + " height=" + texture.height.ToString(CultureInfo.InvariantCulture));
+        return true;
     }
 
     private void Update()
@@ -462,7 +514,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return view;
     }
 
-    private static bool TryUpdateFullFaceUvMesh(
+    private bool TryUpdateFullFaceUvMesh(
         ARFace face,
         RegionOverlayView view,
         RegionRecipeState recipe,
@@ -558,7 +610,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         MaskDefinition mask = ResolveMask(recipe.Region);
         mask.MaskTextureId = NormalizeMaskTextureId(recipe.Region, recipe.MaskTextureId);
-        mask.ResourcePath = "SmoothRegionMasks/" + mask.MaskTextureId;
+        mask.ResourcePath = IsGeneratedLipMaskTextureId(mask.MaskTextureId)
+            ? "GeneratedLipMasks/" + mask.MaskTextureId
+            : "SmoothRegionMasks/" + mask.MaskTextureId;
         if (recipe.MaskThreshold >= 0.0f)
         {
             mask.Threshold = recipe.MaskThreshold;
@@ -587,10 +641,24 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
     }
 
-    private static Texture2D GetMaskTexture(MaskDefinition mask)
+    private Texture2D GetMaskTexture(MaskDefinition mask)
     {
         if (mask == null || string.IsNullOrWhiteSpace(mask.ResourcePath))
         {
+            return null;
+        }
+
+        if (IsGeneratedLipMaskTextureId(mask.MaskTextureId))
+        {
+            if (generatedMaskTextures.TryGetValue(mask.MaskTextureId, out Texture2D generatedTexture)
+                && generatedTexture != null)
+            {
+                return generatedTexture;
+            }
+
+            Debug.LogWarning(
+                "[E7] generated_lip_mask_texture_missing"
+                + " maskTextureId=" + mask.MaskTextureId);
             return null;
         }
 
@@ -1024,6 +1092,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         if (NormalizeRegion(region) == "lip"
+            && IsGeneratedLipMaskTextureId(maskTextureId))
+        {
+            return maskTextureId;
+        }
+
+        if (NormalizeRegion(region) == "lip"
             && maskTextureId.StartsWith("e7-lip-validation-", StringComparison.Ordinal))
         {
             return maskTextureId;
@@ -1043,6 +1117,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || value == "lip-tight-auto-v0"
                 || value == "lip-tight-user-v0"
                 || value == "lip-safe-v0"
+                || IsGeneratedLipMaskTextureId(value)
                 || value.StartsWith("cv-", StringComparison.Ordinal)))
         {
             return value;
@@ -1069,6 +1144,37 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static float NormalizeLipAdjustment(string region, float value)
     {
         return NormalizeRegion(region) == "lip" ? Mathf.Clamp(value, -1.0f, 1.0f) : 0.0f;
+    }
+
+    private static bool IsGeneratedLipMaskTextureId(string maskTextureId)
+    {
+        return !string.IsNullOrWhiteSpace(maskTextureId)
+            && maskTextureId.Trim().StartsWith("e7-generated-lip-", StringComparison.Ordinal);
+    }
+
+    private static string NormalizeGeneratedLipMaskTextureId(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+        if (!IsGeneratedLipMaskTextureId(maskTextureId))
+        {
+            throw new ArgumentException("Unsupported generated lip mask texture id: " + maskTextureId);
+        }
+
+        return maskTextureId;
+    }
+
+    private static string StripDataUrlPrefix(string pngBase64)
+    {
+        int commaIndex = pngBase64.IndexOf(',');
+        if (commaIndex >= 0
+            && pngBase64.Substring(0, commaIndex).IndexOf("base64", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            return pngBase64.Substring(commaIndex + 1);
+        }
+
+        return pngBase64;
     }
 
     private static bool HasUsableUv(ARFace face)

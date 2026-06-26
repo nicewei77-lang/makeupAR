@@ -20,7 +20,13 @@ for (const file of required) {
 }
 
 const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
-for (const token of ['Vision', 'MediaPipe', 'Blendshape Assist', '4-Way']) {
+for (const token of [
+  'Vision',
+  'MediaPipe',
+  '표정 보정',
+  '입술 마스크 생성',
+  '4가지 후보 비교',
+]) {
   if (!app.includes(token)) {
     console.error(`[lip-generate-beta] App.tsx missing UI token: ${token}`);
     failed = true;

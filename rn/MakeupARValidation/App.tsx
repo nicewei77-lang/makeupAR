@@ -23,6 +23,12 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import {
+  buildUnityMessageFromPackage,
+  ExpressionAssistMode as GeneratedExpressionAssistMode,
+  LipGeneratePackage,
+  LipMaskProvider as GeneratedLipMaskProvider,
+} from '../../packages/lip-generate-core/src';
 
 LogBox.ignoreAllLogs(true);
 
@@ -245,6 +251,22 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'compact', label: 'HUD' },
   { name: 'full', label: 'Debug' },
 ] as const;
+const LIP_GENERATE_PROVIDER_OPTIONS: Array<{
+  name: GeneratedLipMaskProvider;
+  label: string;
+}> = [
+  { name: 'vision', label: 'Vision' },
+  { name: 'mediapipe', label: 'MediaPipe' },
+];
+const LIP_GENERATE_EXPRESSION_OPTIONS: Array<{
+  name: GeneratedExpressionAssistMode;
+  label: string;
+}> = [
+  { name: 'uvOnly', label: 'UV Only' },
+  { name: 'blendshapeAssist', label: 'Assist' },
+];
+const GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64 =
+  'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAA////////////////////////////////AAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 const LIP_ADJUSTMENT_STEP = 0.05;
@@ -355,6 +377,7 @@ const UNITY_EVENT_TYPES = [
   'e7_metric_sample',
   'e7_reference_capture',
   'recipe_applied',
+  'generated_lip_mask_applied',
 ] as const;
 
 type UnityMessageEvent = {
@@ -418,6 +441,10 @@ type UnityEventPayload = {
   layer?: string;
   appliedRegion?: string;
   applied?: boolean;
+  provider?: string;
+  expressionMode?: string;
+  generatedMaskId?: string;
+  runtimeReady?: boolean;
   color?: string;
   opacity?: number;
   texture?: string;
@@ -679,6 +706,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   >(createDefaultLipSampleSettings);
   const [lipUserAdjustment, setLipUserAdjustment] =
     useState<LipUserAdjustment>(DEFAULT_LIP_USER_ADJUSTMENT);
+  const [lipGenerateProvider, setLipGenerateProvider] =
+    useState<GeneratedLipMaskProvider>('vision');
+  const [lipGenerateExpressionMode, setLipGenerateExpressionMode] =
+    useState<GeneratedExpressionAssistMode>('uvOnly');
+  const [lastGeneratedLipMaskSummary, setLastGeneratedLipMaskSummary] =
+    useState('generated=none');
   const [activeLipTuningField, setActiveLipTuningField] =
     useState<LipTuningField>('opacity');
   const [activeLipAdjustmentField, setActiveLipAdjustmentField] =
@@ -928,6 +961,92 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       lipUserAdjustment,
     ],
   );
+
+  const postGeneratedLipMask = useCallback(() => {
+    const sentAtMs = Date.now();
+    const generatedMaskId =
+      `e7-generated-lip-${lipGenerateProvider}-${lipGenerateExpressionMode}` +
+      `-${Math.round(sentAtMs)}`;
+    const generatedPackage: LipGeneratePackage = {
+      schemaVersion: 'e7-personalized-lip-generate-package-v0',
+      generatedMaskId,
+      provider: lipGenerateProvider,
+      expressionMode: lipGenerateExpressionMode,
+      adjustment: lipUserAdjustment,
+      sourceFrameMetadata: {
+        orientation: 'ios-current-frame-pending-native-provider',
+        isMirrored: false,
+      },
+      sourceFaceState: {
+        blendshapeAvailable: false,
+        warning: 'rn_buildless_synthetic_until_ios_provider',
+      },
+      lipBoundary2D: {
+        coordinateSpace: 'frame_image_pixel_top_left',
+        outerPoints: [],
+        innerPoints: [],
+        source: lipGenerateProvider,
+      },
+        uvMaskTexture: 'rn-buildless-synthetic-8x8-raw-rgba',
+      uvCoverageMetadata: {
+          uvResolution: 8,
+        roundTripKind: 'same_frame_self_reconstruction',
+      },
+      roundTripPreview: 'rn-buildless-synthetic-preview-unavailable',
+      runtimeApplyPayload: {
+        schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0',
+        generatedMaskId,
+        provider: lipGenerateProvider,
+        expressionMode: lipGenerateExpressionMode,
+        adjustment: lipUserAdjustment,
+        maskTextureId: generatedMaskId,
+        maskTextureEncoding: 'raw_rgba_base64',
+        maskRawRgbaBase64: GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64,
+        maskTextureWidth: 8,
+        maskTextureHeight: 8,
+        maskThreshold: 0.5,
+        maskFeatherUvNormalized: 0.07,
+        localOnly: true,
+        offDeviceUpload: false,
+        longTermRawFrameStored: false,
+        runtimeReady: false,
+      },
+      qualityWarnings: [
+        'rn_buildless_synthetic_mask_until_ios_provider',
+        'runtimeReady_false_until_real_iPhone_generate_evidence',
+      ],
+      createdAt: new Date(sentAtMs).toISOString(),
+      privacyFlags: {
+        localOnly: true,
+        offDeviceUpload: false,
+        longTermRawFrameStored: false,
+      },
+    };
+    const unityMessageJson = JSON.stringify(
+      buildUnityMessageFromPackage(generatedPackage),
+    );
+
+    console.log(
+      '[E7] rn_generated_lip_mask_post',
+      `provider=${lipGenerateProvider}`,
+      `expressionMode=${lipGenerateExpressionMode}`,
+      `generatedMaskId=${generatedMaskId}`,
+      `payloadBytes=${unityMessageJson.length}`,
+      'runtimeReady=false',
+      'source=rn_buildless_synthetic',
+    );
+
+    setActiveRegions(regions => ({ ...regions, lip: true }));
+    setLastGeneratedLipMaskSummary(
+      `${lipGenerateProvider}/${lipGenerateExpressionMode} ` +
+        `payload=${unityMessageJson.length}B synthetic`,
+    );
+    unityRef.current?.postMessage(
+      'RNBridge',
+      'ApplyGeneratedLipMaskJson',
+      unityMessageJson,
+    );
+  }, [lipGenerateExpressionMode, lipGenerateProvider, lipUserAdjustment]);
 
   const postRecipeAck = useCallback(
     (payload: UnityEventPayload, receivedAtMs: number) => {
@@ -1567,6 +1686,89 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               latestRecipe={latestRecipe}
               recipeLatencyMs={recipeLatencyMs}
             />
+
+            <View style={styles.generateControlBlock}>
+              <View style={styles.modeButtonRow}>
+                {LIP_GENERATE_PROVIDER_OPTIONS.map(providerOption => {
+                  const isSelected =
+                    providerOption.name === lipGenerateProvider;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      key={providerOption.name}
+                      testID={`lip-generate-provider-${providerOption.name}`}
+                      style={({ pressed }) => [
+                        styles.modeButton,
+                        isSelected && styles.modeButtonSelected,
+                        pressed && styles.colorButtonPressed,
+                      ]}
+                      onPress={() =>
+                        setLipGenerateProvider(providerOption.name)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.modeButtonText,
+                          isSelected && styles.modeButtonTextSelected,
+                        ]}
+                      >
+                        {providerOption.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.modeButtonRow}>
+                {LIP_GENERATE_EXPRESSION_OPTIONS.map(expressionOption => {
+                  const isSelected =
+                    expressionOption.name === lipGenerateExpressionMode;
+
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      key={expressionOption.name}
+                      testID={`lip-generate-expression-${expressionOption.name}`}
+                      style={({ pressed }) => [
+                        styles.modeButton,
+                        isSelected && styles.modeButtonSelected,
+                        pressed && styles.colorButtonPressed,
+                      ]}
+                      onPress={() =>
+                        setLipGenerateExpressionMode(expressionOption.name)
+                      }
+                    >
+                      <Text
+                        style={[
+                          styles.modeButtonText,
+                          isSelected && styles.modeButtonTextSelected,
+                        ]}
+                      >
+                        {expressionOption.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+                <Pressable
+                  accessibilityRole="button"
+                  testID="lip-generate-apply"
+                  style={({ pressed }) => [
+                    styles.generatedMaskButton,
+                    pressed && styles.colorButtonPressed,
+                  ]}
+                  onPress={postGeneratedLipMask}
+                >
+                  <Text style={styles.generatedMaskButtonText}>Generate</Text>
+                </Pressable>
+              </View>
+
+              <Text style={styles.recipePanelMetaText} numberOfLines={1}>
+                {lastGeneratedLipMaskSummary}
+              </Text>
+            </View>
 
             <View style={styles.regionButtonRow}>
               {RECIPE_REGION_OPTIONS.map(regionOption => {
@@ -3237,6 +3439,9 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     textAlign: 'right',
   },
+  generateControlBlock: {
+    gap: 6,
+  },
   modeButtonRow: {
     flexDirection: 'row',
     gap: 8,
@@ -3264,6 +3469,23 @@ const styles = StyleSheet.create({
   },
   modeButtonTextSelected: {
     color: '#064E3B',
+  },
+  generatedMaskButton: {
+    minHeight: 34,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: '#E7F0FF',
+    backgroundColor: '#E7F0FF',
+  },
+  generatedMaskButtonText: {
+    color: '#08111F',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
   },
   regionButtonRow: {
     flexDirection: 'row',

@@ -40,6 +40,11 @@ evidence/screenshots/e7-03-p8-runtime-sweep-2026-06-23/*
 !evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/
 evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/*
 !evidence/screenshots/e7-region-precision-video-analysis-2026-06-22/contact-sheet-1fps.jpg
+!evidence/screenshots/e7-lip-generate-web-beta-2026-06-27/
+evidence/screenshots/e7-lip-generate-web-beta-2026-06-27/*
+!evidence/screenshots/e7-lip-generate-web-beta-2026-06-27/01-four-way-compare.png
+!evidence/screenshots/e7-lip-generate-web-beta-2026-06-27/02-adjusted-mediapipe-blendshape.png
+!evidence/screenshots/e7-lip-generate-web-beta-2026-06-27/03-step-ui-four-way.png
 !evidence/references/
 !evidence/references/**
 !evidence/e7-reference-atlas/
@@ -74,6 +79,8 @@ rn/MakeupARValidation/android/
 *.log
 *.mp4
 *.mov
+output/
+.playwright-mcp/
 
 # Local secrets/signing material
 .env
