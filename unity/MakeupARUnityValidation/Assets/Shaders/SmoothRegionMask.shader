@@ -49,6 +49,7 @@ Shader "MakeupAR/SmoothRegionMask"
             #include "UnityCG.cginc"
 
             sampler2D _MaskTex;
+            float4 _MaskTex_TexelSize;
             float4 _RegionColor;
             float4 _SecondaryColor;
             float _Opacity;
@@ -88,6 +89,57 @@ Shader "MakeupAR/SmoothRegionMask"
                 return output;
             }
 
+            float FeatherTexelRadius(float feather)
+            {
+                return lerp(1.25, 5.5, saturate(feather * 2.35));
+            }
+
+            float4 SampleMaskSoft(float2 uv)
+            {
+                float2 texel = _MaskTex_TexelSize.xy;
+                float radius = FeatherTexelRadius(_Feather);
+                float2 nearTexel = texel * radius;
+                float2 farTexel = nearTexel * 1.85;
+                float4 center = tex2D(_MaskTex, uv) * 0.24;
+                float4 nearAxis = (
+                    tex2D(_MaskTex, uv + float2(nearTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv - float2(nearTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv + float2(0.0, nearTexel.y)) +
+                    tex2D(_MaskTex, uv - float2(0.0, nearTexel.y))) * 0.085;
+                float4 nearDiagonal = (
+                    tex2D(_MaskTex, uv + nearTexel) +
+                    tex2D(_MaskTex, uv - nearTexel) +
+                    tex2D(_MaskTex, uv + float2(nearTexel.x, -nearTexel.y)) +
+                    tex2D(_MaskTex, uv + float2(-nearTexel.x, nearTexel.y))) * 0.045;
+                float4 farAxis = (
+                    tex2D(_MaskTex, uv + float2(farTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv - float2(farTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv + float2(0.0, farTexel.y)) +
+                    tex2D(_MaskTex, uv - float2(0.0, farTexel.y))) * 0.06;
+                return center + nearAxis + nearDiagonal + farAxis;
+            }
+
+            float SoftMaskAlpha(float value, float threshold, float feather)
+            {
+                float soft = max(feather, 0.00001);
+                return smoothstep(saturate(threshold - soft * 0.46), saturate(threshold + soft), value);
+            }
+
+            float CoreMaskAlpha(float value, float threshold, float feather)
+            {
+                float soft = max(feather, 0.00001);
+                return smoothstep(saturate(threshold + soft * 0.18), saturate(threshold + soft * 0.88), value);
+            }
+
+            float LipCenterDensity(float2 uv, float maskAlpha)
+            {
+                float2 lipUv = uv - float2(0.5, 0.5);
+                float horizontal = 1.0 - smoothstep(0.05, 0.42, abs(lipUv.x));
+                float mouthProximity = 1.0 - smoothstep(0.02, 0.18, abs(lipUv.y));
+                float lowerCenter = 1.0 - smoothstep(0.025, 0.30, distance(lipUv, float2(0.0, -0.055)));
+                return saturate(maskAlpha * max(horizontal * mouthProximity, lowerCenter * 0.68));
+            }
+
             fixed4 frag(v2f input) : SV_Target
             {
                 float2 maskUv = input.uv;
@@ -98,13 +150,19 @@ Shader "MakeupAR/SmoothRegionMask"
                 }
 
                 float4 mask = tex2D(_MaskTex, maskUv);
-                float probability = mask.r;
-                float high = min(1.0, _Threshold + max(_Feather, 0.00001));
-                float fullAlpha = smoothstep(_Threshold, high, probability);
-                float overlineAlpha = smoothstep(_Threshold, high, mask.g);
-                float gradientAlpha = smoothstep(_Threshold, high, mask.b);
+                float4 softMask = SampleMaskSoft(maskUv);
+                float fullSoft = SoftMaskAlpha(softMask.r, _Threshold, _Feather);
+                float fullCore = CoreMaskAlpha(mask.r, _Threshold, _Feather);
+                float overlineSoft = SoftMaskAlpha(softMask.g, _Threshold, _Feather);
+                float gradientMask = SoftMaskAlpha(max(softMask.b, mask.b), _Threshold, _Feather);
+                float edgeBand = saturate(fullSoft - fullCore);
+                float centerDensity = LipCenterDensity(maskUv, fullSoft);
+                float innerDensity = saturate(max(gradientMask, centerDensity) * fullCore);
                 float coverage = saturate(max(_Coverage, 0.001));
-                float maskStrength = fullAlpha * coverage;
+                float baseStain = fullSoft * coverage * 0.54;
+                float innerLayer = innerDensity * coverage * 0.32;
+                float edgeLayer = edgeBand * coverage * 0.06;
+                float maskStrength = baseStain + innerLayer + edgeLayer;
                 float3 pigmentColor = saturate(_RegionColor.rgb);
                 float3 alphaColor = pigmentColor;
 
@@ -112,36 +170,37 @@ Shader "MakeupAR/SmoothRegionMask"
                 {
                     if (_LipStyleMode < 0.5)
                     {
-                        maskStrength = fullAlpha * coverage;
-                        pigmentColor = saturate(lerp(pigmentColor, pigmentColor * 0.88, saturate(_Roughness) * 0.2));
+                        maskStrength = saturate(baseStain * 1.02 + innerLayer * 0.48 + edgeLayer * 0.20);
+                        pigmentColor = saturate(lerp(pigmentColor, pigmentColor * 0.82, saturate(_Roughness) * 0.28));
                         alphaColor = pigmentColor;
                     }
                     else if (_LipStyleMode < 1.5)
                     {
-                        maskStrength = fullAlpha * coverage;
-                        pigmentColor = saturate(lerp(pigmentColor, _SecondaryColor.rgb, 0.08));
-                        alphaColor = saturate(lerp(pigmentColor, _SecondaryColor.rgb, 0.035) * 1.04);
+                        maskStrength = saturate(baseStain * 0.84 + innerLayer * 0.30 + edgeLayer * 0.16);
+                        pigmentColor = saturate(lerp(pigmentColor, _SecondaryColor.rgb, 0.035));
+                        alphaColor = pigmentColor;
                     }
                     else if (_LipStyleMode < 2.5)
                     {
-                        maskStrength = saturate(max(fullAlpha, overlineAlpha * 0.18) * coverage);
+                        maskStrength = saturate(baseStain * 0.98 + innerLayer * 0.34 + edgeLayer * 0.30 + overlineSoft * coverage * 0.08);
                         pigmentColor = saturate(lerp(pigmentColor, pigmentColor * 0.88, 0.12));
                         alphaColor = pigmentColor;
                     }
                     else if (_LipStyleMode < 3.5)
                     {
                         float gradientMix = saturate(_GradientAmount);
-                        float edgeStrength = fullAlpha * coverage * lerp(0.64, 0.42, gradientMix);
-                        float innerDensity = saturate(gradientAlpha * (0.54 + gradientMix * 0.46));
-                        maskStrength = saturate(edgeStrength + fullAlpha * coverage * innerDensity * gradientMix * 0.58);
-                        pigmentColor = saturate(lerp(_SecondaryColor.rgb, pigmentColor, saturate(innerDensity + 0.12)));
+                        float outerSoftWash = fullSoft * coverage * lerp(0.26, 0.18, gradientMix);
+                        float softEdgeFeather = edgeBand * coverage * 0.035;
+                        float innerGradientTint = innerDensity * coverage * lerp(0.52, 0.86, gradientMix);
+                        maskStrength = saturate(outerSoftWash + softEdgeFeather + innerGradientTint);
+                        pigmentColor = saturate(lerp(_SecondaryColor.rgb, pigmentColor * 0.92, saturate(innerDensity * 1.25 + 0.08)));
                         alphaColor = pigmentColor;
                     }
                     else
                     {
-                        float lineAlpha = saturate(overlineAlpha - fullAlpha * 0.45);
-                        maskStrength = max(fullAlpha * coverage * 0.56, lineAlpha * coverage);
-                        pigmentColor = saturate(lerp(_SecondaryColor.rgb, pigmentColor, fullAlpha));
+                        float lineAlpha = saturate(overlineSoft - fullCore * 0.42);
+                        maskStrength = max(baseStain * 0.54 + edgeLayer * 0.2, lineAlpha * coverage * 0.55);
+                        pigmentColor = saturate(lerp(_SecondaryColor.rgb, pigmentColor, fullCore));
                         alphaColor = pigmentColor;
                     }
                 }
@@ -151,7 +210,9 @@ Shader "MakeupAR/SmoothRegionMask"
 
                 if (_PigmentMultiply > 0.5)
                 {
-                    float pigmentStrength = saturate(maskStrength * opacity * preserveScale);
+                    float styleCapBoost = _LipStyleMode < 0.5 ? 0.18 : (_LipStyleMode < 3.5 && _LipStyleMode >= 2.5 ? 0.14 : 0.0);
+                    float maxPigmentStrength = saturate(lerp(0.42, 0.66, saturate(_Coverage)) + styleCapBoost);
+                    float pigmentStrength = min(saturate(maskStrength * opacity * preserveScale), maxPigmentStrength);
                     float3 pigmentFilter = lerp(float3(1.0, 1.0, 1.0), pigmentColor, pigmentStrength);
                     return fixed4(saturate(pigmentFilter), 1.0);
                 }
@@ -179,6 +240,9 @@ Shader "MakeupAR/SmoothRegionMask"
             #include "UnityCG.cginc"
 
             sampler2D _MaskTex;
+            float4 _MaskTex_TexelSize;
+            float4 _RegionColor;
+            float4 _SecondaryColor;
             float _Opacity;
             float _Threshold;
             float _Feather;
@@ -212,6 +276,48 @@ Shader "MakeupAR/SmoothRegionMask"
                 return output;
             }
 
+            float FeatherTexelRadius(float feather)
+            {
+                return lerp(1.25, 5.5, saturate(feather * 2.35));
+            }
+
+            float4 SampleMaskSoft(float2 uv)
+            {
+                float2 texel = _MaskTex_TexelSize.xy;
+                float radius = FeatherTexelRadius(_Feather);
+                float2 nearTexel = texel * radius;
+                float2 farTexel = nearTexel * 1.85;
+                float4 center = tex2D(_MaskTex, uv) * 0.24;
+                float4 nearAxis = (
+                    tex2D(_MaskTex, uv + float2(nearTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv - float2(nearTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv + float2(0.0, nearTexel.y)) +
+                    tex2D(_MaskTex, uv - float2(0.0, nearTexel.y))) * 0.085;
+                float4 nearDiagonal = (
+                    tex2D(_MaskTex, uv + nearTexel) +
+                    tex2D(_MaskTex, uv - nearTexel) +
+                    tex2D(_MaskTex, uv + float2(nearTexel.x, -nearTexel.y)) +
+                    tex2D(_MaskTex, uv + float2(-nearTexel.x, nearTexel.y))) * 0.045;
+                float4 farAxis = (
+                    tex2D(_MaskTex, uv + float2(farTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv - float2(farTexel.x, 0.0)) +
+                    tex2D(_MaskTex, uv + float2(0.0, farTexel.y)) +
+                    tex2D(_MaskTex, uv - float2(0.0, farTexel.y))) * 0.06;
+                return center + nearAxis + nearDiagonal + farAxis;
+            }
+
+            float SoftMaskAlpha(float value, float threshold, float feather)
+            {
+                float soft = max(feather, 0.00001);
+                return smoothstep(saturate(threshold - soft * 0.46), saturate(threshold + soft), value);
+            }
+
+            float CoreMaskAlpha(float value, float threshold, float feather)
+            {
+                float soft = max(feather, 0.00001);
+                return smoothstep(saturate(threshold + soft * 0.18), saturate(threshold + soft * 0.88), value);
+            }
+
             fixed4 frag(v2f input) : SV_Target
             {
                 if (_LipStyleMode < 0.5 || _LipStyleMode >= 1.5)
@@ -227,37 +333,26 @@ Shader "MakeupAR/SmoothRegionMask"
                 }
 
                 float4 mask = tex2D(_MaskTex, maskUv);
-                float high = min(1.0, _Threshold + max(_Feather, 0.00001));
-                float fullAlpha = smoothstep(_Threshold, high, mask.r);
-                float glossAlpha = smoothstep(_Threshold, high, mask.a);
+                float4 softMask = SampleMaskSoft(maskUv);
+                float fullSoft = SoftMaskAlpha(softMask.r, _Threshold, _Feather);
+                float fullCore = CoreMaskAlpha(mask.r, _Threshold, _Feather);
                 float coverage = saturate(max(_Coverage, 0.001));
-                float glossMask = glossAlpha
-                    * fullAlpha
+
+                float glossMask = max(mask.a, softMask.a * 0.35);
+                float lineFeather = max(_Feather * 0.20, 0.026);
+                float thinHorizontalLine = SoftMaskAlpha(glossMask, max(_Threshold * 0.62, 0.018), lineFeather)
+                    * fullSoft
+                    * fullCore;
+                float highlight = thinHorizontalLine
                     * coverage
                     * saturate(_Specular)
                     * saturate(_GlossBoost)
                     * saturate(_Opacity)
-                    * saturate(_VisibilityAlpha);
-
-                float2 lipUv = input.uv - float2(0.5, 0.5);
-                float centerWidth = 1.0 - smoothstep(0.06, 0.25, abs(lipUv.x));
-                float lowerBand = 1.0 - smoothstep(0.012, 0.046, abs(lipUv.y + 0.026));
-                float upperBand = 1.0 - smoothstep(0.012, 0.05, abs(lipUv.y - 0.036));
-                float mouthGap = smoothstep(0.004, 0.026, abs(lipUv.y));
-                float wetLine = glossMask * mouthGap * centerWidth * (
-                    lowerBand * 0.72 + upperBand * 0.3);
-                float fineStreaks = pow(saturate(sin(input.uv.x * 164.0 + 0.7) * 0.5 + 0.5), 18.0)
-                    * glossMask
-                    * mouthGap
-                    * lowerBand
-                    * centerWidth
-                    * 0.28;
-                float pinHighlight = pow(saturate(glossAlpha), max(_SpecularPower, 1.0) / 14.0)
-                    * glossMask
-                    * centerWidth
-                    * 0.12;
-                float highlight = saturate(wetLine + fineStreaks + pinHighlight);
-                return fixed4(float3(1.0, 0.97, 0.92) * highlight, 0.0);
+                    * saturate(_VisibilityAlpha)
+                    * 0.46;
+                float3 tintedWetColor = saturate(lerp(_RegionColor.rgb, _SecondaryColor.rgb, 0.38));
+                float3 highlightColor = saturate(lerp(tintedWetColor, float3(1.0, 0.94, 0.92), 0.30));
+                return fixed4(highlightColor * highlight, 0.0);
             }
             ENDCG
         }

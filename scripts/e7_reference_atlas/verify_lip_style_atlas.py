@@ -54,7 +54,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--min-hit-samples", type=int, default=10000)
     parser.add_argument("--max-new-bbox-height", type=int, default=64)
     parser.add_argument("--max-threshold", type=float, default=0.12)
-    parser.add_argument("--max-feather", type=float, default=0.18)
+    parser.add_argument("--max-feather", type=float, default=0.34)
     parser.add_argument("--max-accepted-triangles", type=int, default=400)
     parser.add_argument("--min-cull-ratio", type=float, default=0.75)
     parser.add_argument("--min-roundtrip-iou", type=float, default=0.75)
@@ -97,7 +97,10 @@ def require(condition: bool, message: str) -> None:
 
 def read_lip_atlas_shader_params(path: Path) -> tuple[float, float]:
     text = path.read_text(encoding="utf-8")
-    threshold_match = re.search(r"Threshold\s*=\s*lipStyleAtlas\s*\?\s*([0-9.]+)f", text)
+    threshold_match = re.search(
+        r"Threshold\s*=\s*lipStyleAtlas(?:\s*\|\|\s*visionLipBoundary)?\s*\?\s*([0-9.]+)f",
+        text,
+    )
     feather_match = re.search(
         r"FeatherUvNormalized\s*=\s*lipStyleAtlas\s*\?\s*([0-9.]+)f",
         text,

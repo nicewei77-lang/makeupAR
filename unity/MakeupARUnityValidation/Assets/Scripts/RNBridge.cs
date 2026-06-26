@@ -30,6 +30,8 @@ public sealed class RNBridge : MonoBehaviour
         public string texture;
         public string sample;
         public string textureMode;
+        public string lipRenderLayerMode;
+        public string glossHighlightMode;
         public float intensity;
         public float feather;
         public string blendMode;
@@ -186,6 +188,8 @@ public sealed class RNBridge : MonoBehaviour
         public float Opacity;
         public string TextureSample = string.Empty;
         public string TextureMode = string.Empty;
+        public string LipRenderLayerMode = "none";
+        public string GlossHighlightMode = "none";
         public string BlendMode = string.Empty;
         public float Intensity;
         public float Feather;
@@ -212,6 +216,9 @@ public sealed class RNBridge : MonoBehaviour
         public string ShaderMode = "unlit-alpha-validation";
         public int PassCount;
         public string MaskTextureId = "none";
+        public string MaskSoftSampleMode = "legacy_soft_alpha";
+        public float MaskFeatherNearRadiusPx;
+        public float MaskFeatherFarRadiusPx;
         public bool CameraBackdropAvailable;
         public bool LightEstimateAvailable;
         public string MaskSource = "smooth_region_mask";
@@ -224,6 +231,10 @@ public sealed class RNBridge : MonoBehaviour
         public int VisionBoundaryImageWidth;
         public int VisionBoundaryImageHeight;
         public long VisionBoundaryAgeMs;
+        public float VisionBoundaryFaceMotionScore;
+        public float VisionBoundaryFaceCenterShiftPx;
+        public float VisionBoundaryFaceScaleDelta;
+        public string VisionBoundaryFaceMotionRisk = "none";
         public string TrackingState = "None";
         public string StateAction = "not_started";
         public int MaskTriangleCount;
@@ -834,6 +845,8 @@ public sealed class RNBridge : MonoBehaviour
             Opacity = layer.Opacity,
             TextureSample = result.TextureSample,
             TextureMode = result.TextureMode,
+            LipRenderLayerMode = result.LipRenderLayerMode,
+            GlossHighlightMode = result.GlossHighlightMode,
             BlendMode = result.BlendMode,
             Intensity = result.Intensity,
             Feather = result.Feather,
@@ -860,6 +873,9 @@ public sealed class RNBridge : MonoBehaviour
             ShaderMode = layer.ShaderMode,
             PassCount = layer.PassCount,
             MaskTextureId = layer.MaskTextureId,
+            MaskSoftSampleMode = result.MaskSoftSampleMode,
+            MaskFeatherNearRadiusPx = result.MaskFeatherNearRadiusPx,
+            MaskFeatherFarRadiusPx = result.MaskFeatherFarRadiusPx,
             CameraBackdropAvailable = layer.CameraBackdropAvailable,
             LightEstimateAvailable = layer.LightEstimateAvailable,
             MaskSource = result.MaskSource,
@@ -872,6 +888,10 @@ public sealed class RNBridge : MonoBehaviour
             VisionBoundaryImageWidth = result.VisionBoundaryImageWidth,
             VisionBoundaryImageHeight = result.VisionBoundaryImageHeight,
             VisionBoundaryAgeMs = result.VisionBoundaryAgeMs,
+            VisionBoundaryFaceMotionScore = result.VisionBoundaryFaceMotionScore,
+            VisionBoundaryFaceCenterShiftPx = result.VisionBoundaryFaceCenterShiftPx,
+            VisionBoundaryFaceScaleDelta = result.VisionBoundaryFaceScaleDelta,
+            VisionBoundaryFaceMotionRisk = result.VisionBoundaryFaceMotionRisk,
             TrackingState = result.TrackingState,
             StateAction = result.StateAction,
             MaskTriangleCount = result.MaskTriangleCount,
@@ -906,6 +926,8 @@ public sealed class RNBridge : MonoBehaviour
             state.Applied = result.Applied;
             state.TextureSample = result.TextureSample;
             state.TextureMode = result.TextureMode;
+            state.LipRenderLayerMode = result.LipRenderLayerMode;
+            state.GlossHighlightMode = result.GlossHighlightMode;
             state.BlendMode = result.BlendMode;
             state.Intensity = result.Intensity;
             state.Feather = result.Feather;
@@ -920,6 +942,10 @@ public sealed class RNBridge : MonoBehaviour
             state.VisionBoundaryImageWidth = result.VisionBoundaryImageWidth;
             state.VisionBoundaryImageHeight = result.VisionBoundaryImageHeight;
             state.VisionBoundaryAgeMs = result.VisionBoundaryAgeMs;
+            state.VisionBoundaryFaceMotionScore = result.VisionBoundaryFaceMotionScore;
+            state.VisionBoundaryFaceCenterShiftPx = result.VisionBoundaryFaceCenterShiftPx;
+            state.VisionBoundaryFaceScaleDelta = result.VisionBoundaryFaceScaleDelta;
+            state.VisionBoundaryFaceMotionRisk = result.VisionBoundaryFaceMotionRisk;
             state.TrackingState = result.TrackingState;
             state.StateAction = result.StateAction;
             state.MaskTriangleCount = result.MaskTriangleCount;
@@ -1003,6 +1029,8 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"texture\":\"" + EscapeJsonString(state.TextureSample) + "\""
                 + ",\"sample\":\"" + EscapeJsonString(state.TextureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(state.TextureMode) + "\""
+                + ",\"lipRenderLayerMode\":\"" + EscapeJsonString(state.LipRenderLayerMode) + "\""
+                + ",\"glossHighlightMode\":\"" + EscapeJsonString(state.GlossHighlightMode) + "\""
                 + ",\"blendMode\":\"" + EscapeJsonString(state.BlendMode) + "\""
                 + ",\"secondaryColor\":\"" + EscapeJsonString(state.SecondaryColorHex) + "\""
                 + ",\"coverage\":" + state.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1014,6 +1042,9 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"gradientAmount\":" + state.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
+                + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(state.MaskSoftSampleMode) + "\""
+                + ",\"maskFeatherNearRadiusPx\":" + state.MaskFeatherNearRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"maskFeatherFarRadiusPx\":" + state.MaskFeatherFarRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"maskSource\":\"" + EscapeJsonString(state.MaskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(state.BoundaryRenderer) + "\""
                 + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(state.VisionBoundaryStatus) + "\""
@@ -1024,6 +1055,10 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"visionBoundaryImageWidth\":" + state.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
                 + ",\"visionBoundaryImageHeight\":" + state.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
                 + ",\"visionBoundaryAgeMs\":" + state.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceMotionScore\":" + state.VisionBoundaryFaceMotionScore.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceCenterShiftPx\":" + state.VisionBoundaryFaceCenterShiftPx.ToString("0.#", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceScaleDelta\":" + state.VisionBoundaryFaceScaleDelta.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceMotionRisk\":\"" + EscapeJsonString(state.VisionBoundaryFaceMotionRisk) + "\""
                 + ",\"trackingState\":\"" + EscapeJsonString(state.TrackingState) + "\""
                 + ",\"stateAction\":\"" + EscapeJsonString(state.StateAction) + "\""
                 + ",\"intensity\":" + state.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1059,6 +1094,15 @@ public sealed class RNBridge : MonoBehaviour
             string textureMode = state != null && !string.IsNullOrWhiteSpace(state.TextureMode)
                 ? state.TextureMode
                 : "sample";
+            string lipRenderLayerMode = state != null && !string.IsNullOrWhiteSpace(state.LipRenderLayerMode)
+                ? state.LipRenderLayerMode
+                : "none";
+            string glossHighlightMode = state != null && !string.IsNullOrWhiteSpace(state.GlossHighlightMode)
+                ? state.GlossHighlightMode
+                : "none";
+            string maskSoftSampleMode = state != null && !string.IsNullOrWhiteSpace(state.MaskSoftSampleMode)
+                ? state.MaskSoftSampleMode
+                : "legacy_soft_alpha";
             string rendererMode = state != null && !string.IsNullOrWhiteSpace(state.RendererMode)
                 ? state.RendererMode
                 : "smooth-region-mask";
@@ -1094,11 +1138,20 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"visionBoundaryImageWidth\":" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"visionBoundaryImageHeight\":" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"visionBoundaryAgeMs\":" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceMotionScore\":" + (state != null ? state.VisionBoundaryFaceMotionScore : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceCenterShiftPx\":" + (state != null ? state.VisionBoundaryFaceCenterShiftPx : 0.0f).ToString("0.#", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceScaleDelta\":" + (state != null ? state.VisionBoundaryFaceScaleDelta : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"visionBoundaryFaceMotionRisk\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryFaceMotionRisk : "none") + "\""
                 + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
                 + ",\"validationScope\":\"debug\""
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
+                + ",\"lipRenderLayerMode\":\"" + EscapeJsonString(lipRenderLayerMode) + "\""
+                + ",\"glossHighlightMode\":\"" + EscapeJsonString(glossHighlightMode) + "\""
+                + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(maskSoftSampleMode) + "\""
+                + ",\"maskFeatherNearRadiusPx\":" + (state != null ? state.MaskFeatherNearRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"maskFeatherFarRadiusPx\":" + (state != null ? state.MaskFeatherFarRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"coverage\":" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
                 + ",\"finish\":\"" + EscapeJsonString(state != null ? state.Finish : "none") + "\""
                 + ",\"gradientAmount\":" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
@@ -1148,10 +1201,15 @@ public sealed class RNBridge : MonoBehaviour
             + " payloadBytes=" + payloadBytes.ToString(CultureInfo.InvariantCulture)
             + " texture=" + textureSample
             + " sample=" + textureSample
+            + " lipRenderLayerMode=" + (state != null ? state.LipRenderLayerMode : "none")
+            + " glossHighlightMode=" + (state != null ? state.GlossHighlightMode : "none")
             + " materialId=" + (state != null ? state.MaterialId : "none")
             + " shaderMode=" + (state != null ? state.ShaderMode : "unlit-alpha-validation")
             + " passCount=" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
             + " maskTextureId=" + (state != null ? state.MaskTextureId : "none")
+            + " maskSoftSampleMode=" + (state != null ? state.MaskSoftSampleMode : "legacy_soft_alpha")
+            + " maskFeatherNearRadiusPx=" + (state != null ? state.MaskFeatherNearRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskFeatherFarRadiusPx=" + (state != null ? state.MaskFeatherFarRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " cameraBackdropAvailable=" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + " lightEstimateAvailable=" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + " color=" + colorHex
@@ -1174,6 +1232,10 @@ public sealed class RNBridge : MonoBehaviour
             + " visionBoundaryImageSize=" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
             + "x" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
             + " visionBoundaryAgeMs=" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceMotionScore=" + (state != null ? state.VisionBoundaryFaceMotionScore : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceCenterShiftPx=" + (state != null ? state.VisionBoundaryFaceCenterShiftPx : 0.0f).ToString("0.#", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceScaleDelta=" + (state != null ? state.VisionBoundaryFaceScaleDelta : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceMotionRisk=" + (state != null ? state.VisionBoundaryFaceMotionRisk : "none")
             + " maskStatus=smooth_mask_runtime"
             + " regionTrackingState=" + (state != null ? state.TrackingState : "None")
             + " regionStateAction=" + (state != null ? state.StateAction : "not_started")
@@ -1219,10 +1281,15 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"payloadBytes\":" + payloadBytes.ToString(CultureInfo.InvariantCulture)
             + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
             + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
+            + ",\"lipRenderLayerMode\":\"" + EscapeJsonString(state != null ? state.LipRenderLayerMode : "none") + "\""
+            + ",\"glossHighlightMode\":\"" + EscapeJsonString(state != null ? state.GlossHighlightMode : "none") + "\""
             + ",\"materialId\":\"" + EscapeJsonString(state != null ? state.MaterialId : "none") + "\""
             + ",\"shaderMode\":\"" + EscapeJsonString(state != null ? state.ShaderMode : "unlit-alpha-validation") + "\""
             + ",\"passCount\":" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"maskTextureId\":\"" + EscapeJsonString(state != null ? state.MaskTextureId : "none") + "\""
+            + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(state != null ? state.MaskSoftSampleMode : "legacy_soft_alpha") + "\""
+            + ",\"maskFeatherNearRadiusPx\":" + (state != null ? state.MaskFeatherNearRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskFeatherFarRadiusPx\":" + (state != null ? state.MaskFeatherFarRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"cameraBackdropAvailable\":" + (state != null && state.CameraBackdropAvailable).ToString().ToLowerInvariant()
             + ",\"lightEstimateAvailable\":" + (state != null && state.LightEstimateAvailable).ToString().ToLowerInvariant()
             + ",\"color\":\"" + EscapeJsonString(colorHex) + "\""
@@ -1245,6 +1312,10 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"visionBoundaryImageWidth\":" + (state != null ? state.VisionBoundaryImageWidth : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"visionBoundaryImageHeight\":" + (state != null ? state.VisionBoundaryImageHeight : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"visionBoundaryAgeMs\":" + (state != null ? state.VisionBoundaryAgeMs : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceMotionScore\":" + (state != null ? state.VisionBoundaryFaceMotionScore : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceCenterShiftPx\":" + (state != null ? state.VisionBoundaryFaceCenterShiftPx : 0.0f).ToString("0.#", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceScaleDelta\":" + (state != null ? state.VisionBoundaryFaceScaleDelta : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceMotionRisk\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryFaceMotionRisk : "none") + "\""
             + ",\"maskStatus\":\"smooth_mask_runtime\""
             + ",\"regionTrackingState\":\"" + EscapeJsonString(state != null ? state.TrackingState : "None") + "\""
             + ",\"regionStateAction\":\"" + EscapeJsonString(state != null ? state.StateAction : "not_started") + "\""
@@ -1333,6 +1404,8 @@ public sealed class RNBridge : MonoBehaviour
             + " texture=" + layer.TextureSample
             + " appliedTexture=" + result.TextureSample
             + " textureMode=" + layer.TextureMode
+            + " lipRenderLayerMode=" + result.LipRenderLayerMode
+            + " glossHighlightMode=" + result.GlossHighlightMode
             + " intensity=" + layer.Intensity.ToString("0.##", CultureInfo.InvariantCulture)
             + " feather=" + layer.Feather.ToString("0.##", CultureInfo.InvariantCulture)
             + " blendMode=" + layer.BlendMode
@@ -1370,6 +1443,13 @@ public sealed class RNBridge : MonoBehaviour
             + " visionBoundaryImageSize=" + result.VisionBoundaryImageWidth.ToString(CultureInfo.InvariantCulture)
             + "x" + result.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
             + " visionBoundaryAgeMs=" + result.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceMotionScore=" + result.VisionBoundaryFaceMotionScore.ToString("0.###", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceCenterShiftPx=" + result.VisionBoundaryFaceCenterShiftPx.ToString("0.#", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceScaleDelta=" + result.VisionBoundaryFaceScaleDelta.ToString("0.###", CultureInfo.InvariantCulture)
+            + " visionBoundaryFaceMotionRisk=" + result.VisionBoundaryFaceMotionRisk
+            + " maskSoftSampleMode=" + result.MaskSoftSampleMode
+            + " maskFeatherNearRadiusPx=" + result.MaskFeatherNearRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskFeatherFarRadiusPx=" + result.MaskFeatherFarRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
             + " maskTextureDiagnosticStatus=" + result.MaskTextureDiagnosticStatus
             + " maskTextureSize=" + result.MaskTextureWidth.ToString(CultureInfo.InvariantCulture)
             + "x" + result.MaskTextureHeight.ToString(CultureInfo.InvariantCulture)
@@ -1447,6 +1527,10 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(result.TextureSample)
             + "\",\"textureMode\":\""
             + EscapeJsonString(layer.TextureMode)
+            + "\",\"lipRenderLayerMode\":\""
+            + EscapeJsonString(result.LipRenderLayerMode)
+            + "\",\"glossHighlightMode\":\""
+            + EscapeJsonString(result.GlossHighlightMode)
             + "\",\"blendMode\":\""
             + EscapeJsonString(layer.BlendMode)
             + "\",\"applied\":"
@@ -1477,6 +1561,21 @@ public sealed class RNBridge : MonoBehaviour
             + result.VisionBoundaryImageHeight.ToString(CultureInfo.InvariantCulture)
             + ",\"visionBoundaryAgeMs\":"
             + result.VisionBoundaryAgeMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceMotionScore\":"
+            + result.VisionBoundaryFaceMotionScore.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceCenterShiftPx\":"
+            + result.VisionBoundaryFaceCenterShiftPx.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceScaleDelta\":"
+            + result.VisionBoundaryFaceScaleDelta.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceMotionRisk\":\""
+            + EscapeJsonString(result.VisionBoundaryFaceMotionRisk)
+            + "\""
+            + ",\"maskSoftSampleMode\":\""
+            + EscapeJsonString(result.MaskSoftSampleMode)
+            + "\",\"maskFeatherNearRadiusPx\":"
+            + result.MaskFeatherNearRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskFeatherFarRadiusPx\":"
+            + result.MaskFeatherFarRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"maskTextureDiagnosticStatus\":\""
             + EscapeJsonString(result.MaskTextureDiagnosticStatus)
             + "\",\"maskTextureWidth\":"

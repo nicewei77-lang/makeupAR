@@ -326,13 +326,14 @@ def lip_gloss(mask: Image.Image) -> Image.Image:
         return Image.new("L", mask.size, 0)
 
     center_x = float(xs.mean())
-    center_y = float(ys.mean())
     width = max(float(xs.max() - xs.min()), 1.0)
     height = max(float(ys.max() - ys.min()), 1.0)
     grid_y, grid_x = np.indices(alpha.shape)
-    lower_bias = np.exp(-(((grid_y - (center_y + height * 0.14)) / (height * 0.16)) ** 2))
-    horizontal = np.exp(-(((grid_x - center_x) / (width * 0.34)) ** 2))
-    gloss = alpha * lower_bias * horizontal
+    line_y = float(ys.min()) + height * 0.68
+    line_sigma = max(0.85, height * 0.018)
+    line = np.exp(-(((grid_y - line_y) / line_sigma) ** 2))
+    horizontal = np.exp(-(((grid_x - center_x) / max(1.0, width * 0.24)) ** 4))
+    gloss = alpha * line * horizontal
     return Image.fromarray(np.rint(np.clip(gloss, 0.0, 1.0) * 255).astype(np.uint8), mode="L")
 
 
@@ -356,7 +357,7 @@ def make_lip_style_atlas(variants: dict[str, Image.Image]) -> Image.Image:
     full = variants["soft"]
     overline = multiply(variants["expanded"], 0.66)
     gradient = center_density(full)
-    gloss = multiply(lip_gloss(full).filter(ImageFilter.GaussianBlur(radius=0.8)), 0.9)
+    gloss = multiply(lip_gloss(full).filter(ImageFilter.GaussianBlur(radius=0.35)), 0.96)
     return Image.merge("RGBA", (full, overline, gradient, gloss))
 
 

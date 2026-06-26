@@ -42,9 +42,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#F29BAA',
-    intensity: 0.84,
-    feather: 0.14,
-    coverage: 0.78,
+    intensity: 0.92,
+    feather: 0.23,
+    coverage: 0.94,
     finish: 'matte',
     roughness: 1,
     specular: 0,
@@ -59,16 +59,16 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#FF8EA0',
-    intensity: 0.9,
-    feather: 0.16,
-    coverage: 0.82,
+    secondaryColor: '#F4A6AF',
+    intensity: 0.86,
+    feather: 0.24,
+    coverage: 0.84,
     finish: 'gloss',
-    roughness: 0.08,
-    specular: 0.96,
-    specularPower: 56,
-    glossBoost: 1,
-    gradientAmount: 0.22,
+    roughness: 0.16,
+    specular: 0.62,
+    specularPower: 42,
+    glossBoost: 0.52,
+    gradientAmount: 0.12,
     preserveDetail: true,
   },
   {
@@ -79,8 +79,8 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     blendMode: 'multiply',
     secondaryColor: '#E06482',
     intensity: 0.74,
-    feather: 0.12,
-    coverage: 0.82,
+    feather: 0.24,
+    coverage: 0.74,
     finish: 'satin',
     roughness: 0.46,
     specular: 0.14,
@@ -95,16 +95,16 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#F7B4BC',
-    intensity: 0.86,
-    feather: 0.2,
-    coverage: 0.84,
+    secondaryColor: '#F3A8B2',
+    intensity: 0.92,
+    feather: 0.31,
+    coverage: 0.96,
     finish: 'gradient',
     roughness: 0.74,
     specular: 0.02,
     specularPower: 12,
     glossBoost: 0,
-    gradientAmount: 0.88,
+    gradientAmount: 1,
     preserveDetail: true,
   },
   {
@@ -115,8 +115,8 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     blendMode: 'multiply',
     secondaryColor: '#D94B74',
     intensity: 0.5,
-    feather: 0.1,
-    coverage: 0.46,
+    feather: 0.24,
+    coverage: 0.42,
     finish: 'overline',
     roughness: 0.44,
     specular: 0.1,
@@ -458,6 +458,8 @@ type UnityEventPayload = {
   texture?: string;
   sample?: string;
   textureMode?: string;
+  lipRenderLayerMode?: string;
+  glossHighlightMode?: string;
   intensity?: number;
   feather?: number;
   blendMode?: string;
@@ -504,6 +506,9 @@ type UnityEventPayload = {
   shaderMode?: string;
   passCount?: number;
   maskTextureId?: string;
+  maskSoftSampleMode?: string;
+  maskFeatherNearRadiusPx?: number;
+  maskFeatherFarRadiusPx?: number;
   maskTextureDiagnosticStatus?: string;
   maskTextureWidth?: number;
   maskTextureHeight?: number;
@@ -545,9 +550,17 @@ type UnityEventPayload = {
   visionBoundaryImageWidth?: number;
   visionBoundaryImageHeight?: number;
   visionBoundaryAgeMs?: number;
+  visionBoundaryFaceMotionScore?: number;
+  visionBoundaryFaceCenterShiftPx?: number;
+  visionBoundaryFaceScaleDelta?: number;
+  visionBoundaryFaceMotionRisk?: string;
   outerPointCount?: number;
   innerPointCount?: number;
   available?: boolean;
+  stabilizationMode?: string;
+  transitionProgress?: number;
+  transitionDurationMs?: number;
+  faceBoundsAvailable?: boolean;
   capturePairId?: string;
   relativeDirectory?: string;
   coordinateSpaceValidated?: boolean;
@@ -794,6 +807,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
+        `focusMaskTextureId=${DEFAULT_MASK_TEXTURE_ID_BY_REGION[focusRegion]}`,
+        `lipMaskTextureId=${DEFAULT_MASK_TEXTURE_ID_BY_REGION.lip}`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );
@@ -1946,6 +1961,15 @@ function formatE7VisionLipBoundarySummary(event: UnityEventPayload) {
     event.visionBoundaryImageWidth ?? event.frameWidth ?? event.imageWidth ?? 'n/a',
   )}x${String(
     event.visionBoundaryImageHeight ?? event.imageHeight ?? 'n/a',
+  )} smooth=${String(event.stabilizationMode ?? 'n/a')} t=${String(
+    event.transitionProgress ?? 'n/a',
+  )}/${String(event.transitionDurationMs ?? 'n/a')} faceLocal=${String(
+    event.faceBoundsAvailable ?? false,
+  )} motion=${formatMetricNumber(
+    event.visionBoundaryFaceMotionScore,
+    3,
+  )}/${String(
+    event.visionBoundaryFaceMotionRisk ?? 'n/a',
   )} privacy raw=false offDevice=false`;
 }
 
@@ -2174,10 +2198,22 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.region ?? event.layer,
   )} texture=${texture} mode=${String(
     event.textureMode ?? 'n/a',
+  )} layers=${String(
+    event.lipRenderLayerMode ?? 'n/a',
+  )} gloss=${String(
+    event.glossHighlightMode ?? 'n/a',
   )} blend=${String(event.blendMode ?? 'n/a')} finish=${String(
     event.finish ?? 'n/a',
   )} maskTex=${String(
     event.maskTextureId ?? 'n/a',
+  )} soft=${String(
+    event.maskSoftSampleMode ?? 'n/a',
+  )} featherPx=${formatMetricNumber(
+    event.maskFeatherNearRadiusPx,
+    2,
+  )}/${formatMetricNumber(
+    event.maskFeatherFarRadiusPx,
+    2,
   )} color=${String(event.color)} opacity=${String(
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} applied=${String(
@@ -2196,8 +2232,17 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.visionBoundaryStatus ?? 'n/a',
   )}:${String(event.visionBoundaryOuterPointCount ?? 'n/a')}/${String(
     event.visionBoundaryInnerPointCount ?? 'n/a',
+  )} visionCoord=${String(
+    event.visionBoundaryCoordinateMode ?? 'n/a',
   )} visionAge=${String(
     event.visionBoundaryAgeMs ?? 'n/a',
+  )} visionMotion=${formatMetricNumber(
+    event.visionBoundaryFaceMotionScore,
+    3,
+  )}/${String(
+    event.visionBoundaryFaceMotionRisk ?? 'n/a',
+  )} maskDiag=${String(
+    event.maskTextureDiagnosticStatus ?? 'n/a',
   )} texGt8=${String(
     event.maskTextureActivePixelCountGt8 ?? 'n/a',
   )}/${formatMetricNumber(

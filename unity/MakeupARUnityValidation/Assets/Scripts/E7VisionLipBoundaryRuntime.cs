@@ -5,6 +5,8 @@ using System.IO;
 using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
+using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
 
 public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
 {
@@ -25,6 +27,16 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         public long AgeMs;
         public Vector2[] OuterPoints;
         public Vector2[] InnerPoints;
+        public bool FaceBoundsAvailable;
+        public Vector2 FaceBoundsCenter;
+        public Vector2 FaceBoundsSize;
+        public string StabilizationMode;
+        public float TransitionProgress;
+        public long TransitionDurationMs;
+        public float FaceMotionScore;
+        public float FaceMotionCenterShiftPx;
+        public float FaceMotionScaleDelta;
+        public string FaceMotionRisk;
     }
 
     [Serializable]
@@ -50,8 +62,20 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         public VisionPointPayload[] inner;
     }
 
+    private struct FaceScreenBounds
+    {
+        public bool Available;
+        public Vector2 Center;
+        public Vector2 Size;
+    }
+
     private const float CaptureIntervalSeconds = 0.20f;
     private const long FreshBoundaryMaxAgeMs = 300;
+    private const long BoundaryTransitionDurationMs = 160;
+    private const float BoundarySmoothBlend = 0.56f;
+    private const float BoundaryLargeMotionBlend = 0.86f;
+    private const float FaceMotionMediumThreshold = 0.18f;
+    private const float FaceMotionLargeThreshold = 0.32f;
     private const string RuntimeSource = "apple_vision_runtime_lip_landmarks";
     private const string CoordinateMode = "raw-y";
 
@@ -60,9 +84,13 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
     private float nextCaptureAt;
     private int sequence;
     private BoundarySnapshot latestSnapshot;
+    private BoundarySnapshot transitionFromSnapshot;
+    private BoundarySnapshot transitionToSnapshot;
+    private long transitionStartedAtMs;
     private RNBridge rnBridge;
     private E3RegionMaskOverlay regionMaskOverlay;
     private FaceTrackingStatusReporter statusReporter;
+    private ARFaceManager faceManager;
 
 #if UNITY_IOS && !UNITY_EDITOR
     [DllImport("__Internal")]
@@ -109,16 +137,17 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         int targetHeight,
         out BoundarySnapshot snapshot)
     {
-        snapshot = latestSnapshot;
-        snapshot.AgeMs = latestSnapshot.DetectedAtMs > 0
-            ? DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - latestSnapshot.DetectedAtMs
+        long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        snapshot = BuildInterpolatedSnapshot(nowMs);
+        snapshot.AgeMs = snapshot.DetectedAtMs > 0
+            ? nowMs - snapshot.DetectedAtMs
             : 0;
 
-        if (!latestSnapshot.Available
-            || latestSnapshot.OuterPoints == null
-            || latestSnapshot.InnerPoints == null
-            || latestSnapshot.OuterPoints.Length < 3
-            || latestSnapshot.InnerPoints.Length < 3
+        if (!snapshot.Available
+            || snapshot.OuterPoints == null
+            || snapshot.InnerPoints == null
+            || snapshot.OuterPoints.Length < 3
+            || snapshot.InnerPoints.Length < 3
             || snapshot.AgeMs > FreshBoundaryMaxAgeMs)
         {
             return false;
@@ -126,21 +155,31 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
 
         if (targetWidth <= 0
             || targetHeight <= 0
-            || latestSnapshot.ImageWidth <= 0
-            || latestSnapshot.ImageHeight <= 0)
+            || snapshot.ImageWidth <= 0
+            || snapshot.ImageHeight <= 0)
         {
             return true;
         }
 
-        if (targetWidth == latestSnapshot.ImageWidth && targetHeight == latestSnapshot.ImageHeight)
+        if (targetWidth == snapshot.ImageWidth && targetHeight == snapshot.ImageHeight)
         {
             return true;
         }
 
-        float scaleX = targetWidth / (float)latestSnapshot.ImageWidth;
-        float scaleY = targetHeight / (float)latestSnapshot.ImageHeight;
-        snapshot.OuterPoints = ScalePoints(latestSnapshot.OuterPoints, scaleX, scaleY);
-        snapshot.InnerPoints = ScalePoints(latestSnapshot.InnerPoints, scaleX, scaleY);
+        float scaleX = targetWidth / (float)snapshot.ImageWidth;
+        float scaleY = targetHeight / (float)snapshot.ImageHeight;
+        snapshot.OuterPoints = ScalePoints(snapshot.OuterPoints, scaleX, scaleY);
+        snapshot.InnerPoints = ScalePoints(snapshot.InnerPoints, scaleX, scaleY);
+        if (snapshot.FaceBoundsAvailable)
+        {
+            snapshot.FaceBoundsCenter = new Vector2(
+                snapshot.FaceBoundsCenter.x * scaleX,
+                snapshot.FaceBoundsCenter.y * scaleY);
+            snapshot.FaceBoundsSize = new Vector2(
+                snapshot.FaceBoundsSize.x * scaleX,
+                snapshot.FaceBoundsSize.y * scaleY);
+        }
+
         snapshot.ImageWidth = targetWidth;
         snapshot.ImageHeight = targetHeight;
         return true;
@@ -191,10 +230,11 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
             {
                 status = "invalid_screen_size";
                 detail = "screen_width_or_height_zero";
-                ApplyBoundaryPayload(BuildFailurePayload(status, detail, width, height));
+                ApplyBoundaryPayload(BuildFailurePayload(status, detail, width, height), default);
                 yield break;
             }
 
+            FaceScreenBounds faceBounds = CaptureCurrentFaceBounds();
             frameTexture = new Texture2D(width, height, TextureFormat.RGB24, false);
             frameTexture.ReadPixels(new Rect(0, 0, width, height), 0, 0, false);
             frameTexture.Apply(false, false);
@@ -208,18 +248,19 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
                     "parse_failed",
                     "native_vision_json_empty",
                     width,
-                    height));
+                    height),
+                    faceBounds);
             }
             else
             {
-                ApplyBoundaryPayload(payload);
+                ApplyBoundaryPayload(payload, faceBounds);
             }
         }
         catch (Exception exception)
         {
             status = "exception";
             detail = exception.GetType().Name + ":" + exception.Message;
-            ApplyBoundaryPayload(BuildFailurePayload(status, detail, width, height));
+            ApplyBoundaryPayload(BuildFailurePayload(status, detail, width, height), default);
         }
         finally
         {
@@ -258,6 +299,11 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         if (statusReporter == null)
         {
             statusReporter = FindFirstObjectByType<FaceTrackingStatusReporter>();
+        }
+
+        if (faceManager == null)
+        {
+            faceManager = FindFirstObjectByType<ARFaceManager>();
         }
     }
 
@@ -299,7 +345,7 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
 #endif
     }
 
-    private void ApplyBoundaryPayload(VisionBoundaryPayload payload)
+    private void ApplyBoundaryPayload(VisionBoundaryPayload payload, FaceScreenBounds faceBounds)
     {
         sequence++;
         long detectedAtMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
@@ -310,7 +356,7 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
             && outerPoints.Length >= 3
             && innerPoints.Length >= 3;
 
-        latestSnapshot = new BoundarySnapshot
+        BoundarySnapshot rawSnapshot = new BoundarySnapshot
         {
             Available = available,
             Status = status,
@@ -326,29 +372,127 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
             DetectedAtMs = detectedAtMs,
             AgeMs = 0,
             OuterPoints = outerPoints,
-            InnerPoints = innerPoints
+            InnerPoints = innerPoints,
+            FaceBoundsAvailable = faceBounds.Available,
+            FaceBoundsCenter = faceBounds.Center,
+            FaceBoundsSize = faceBounds.Size,
+            StabilizationMode = available
+                ? "temporal_smooth_transition"
+                : "unavailable",
+            TransitionProgress = 1.0f,
+            TransitionDurationMs = BoundaryTransitionDurationMs,
+            FaceMotionScore = 0.0f,
+            FaceMotionCenterShiftPx = 0.0f,
+            FaceMotionScaleDelta = 0.0f,
+            FaceMotionRisk = faceBounds.Available
+                ? "initial_face_motion_reference"
+                : "face_motion_unavailable"
         };
+
+        PrepareBoundaryTransition(rawSnapshot);
+        BoundarySnapshot eventSnapshot = BuildInterpolatedSnapshot(detectedAtMs);
 
         Debug.Log(
             "[E7] vision_lip_boundary_result"
-            + " status=" + latestSnapshot.Status
-            + " source=" + latestSnapshot.Source
-            + " coordinateMode=" + latestSnapshot.CoordinateMode
-            + " sequence=" + latestSnapshot.Sequence.ToString(CultureInfo.InvariantCulture)
-            + " imageSize=" + latestSnapshot.ImageWidth.ToString(CultureInfo.InvariantCulture)
-            + "x" + latestSnapshot.ImageHeight.ToString(CultureInfo.InvariantCulture)
-            + " faceCount=" + latestSnapshot.FaceCount.ToString(CultureInfo.InvariantCulture)
-            + " outerPoints=" + latestSnapshot.OuterPointCount.ToString(CultureInfo.InvariantCulture)
-            + " innerPoints=" + latestSnapshot.InnerPointCount.ToString(CultureInfo.InvariantCulture)
-            + " available=" + latestSnapshot.Available.ToString().ToLowerInvariant()
+            + " status=" + eventSnapshot.Status
+            + " source=" + eventSnapshot.Source
+            + " coordinateMode=" + eventSnapshot.CoordinateMode
+            + " sequence=" + eventSnapshot.Sequence.ToString(CultureInfo.InvariantCulture)
+            + " imageSize=" + eventSnapshot.ImageWidth.ToString(CultureInfo.InvariantCulture)
+            + "x" + eventSnapshot.ImageHeight.ToString(CultureInfo.InvariantCulture)
+            + " faceCount=" + eventSnapshot.FaceCount.ToString(CultureInfo.InvariantCulture)
+            + " outerPoints=" + eventSnapshot.OuterPointCount.ToString(CultureInfo.InvariantCulture)
+            + " innerPoints=" + eventSnapshot.InnerPointCount.ToString(CultureInfo.InvariantCulture)
+            + " available=" + eventSnapshot.Available.ToString().ToLowerInvariant()
+            + " stabilization=" + eventSnapshot.StabilizationMode
+            + " transitionMs=" + eventSnapshot.TransitionDurationMs.ToString(CultureInfo.InvariantCulture)
+            + " faceBoundsAvailable=" + eventSnapshot.FaceBoundsAvailable.ToString().ToLowerInvariant()
+            + " faceMotionScore=" + eventSnapshot.FaceMotionScore.ToString("0.###", CultureInfo.InvariantCulture)
+            + " faceMotionRisk=" + eventSnapshot.FaceMotionRisk
             + " rawCameraFrameStored=false"
             + " offDeviceUpload=false"
-            + " detail=" + SanitizeLogValue(latestSnapshot.Detail));
+            + " detail=" + SanitizeLogValue(eventSnapshot.Detail));
 
         if (rnBridge != null)
         {
-            rnBridge.SendE7VisionLipBoundaryEvent(BuildBoundaryEventJson(latestSnapshot));
+            rnBridge.SendE7VisionLipBoundaryEvent(BuildBoundaryEventJson(eventSnapshot));
         }
+    }
+
+    private void PrepareBoundaryTransition(BoundarySnapshot rawSnapshot)
+    {
+        if (!rawSnapshot.Available)
+        {
+            latestSnapshot = rawSnapshot;
+            transitionFromSnapshot = rawSnapshot;
+            transitionToSnapshot = rawSnapshot;
+            transitionStartedAtMs = rawSnapshot.DetectedAtMs;
+            return;
+        }
+
+        bool canBlend = latestSnapshot.Available
+            && CanInterpolatePoints(latestSnapshot.OuterPoints, rawSnapshot.OuterPoints)
+            && CanInterpolatePoints(latestSnapshot.InnerPoints, rawSnapshot.InnerPoints);
+        if (!canBlend)
+        {
+            ApplyFaceMotionDiagnostics(latestSnapshot, ref rawSnapshot);
+            latestSnapshot = rawSnapshot;
+            transitionFromSnapshot = rawSnapshot;
+            transitionToSnapshot = rawSnapshot;
+            transitionStartedAtMs = rawSnapshot.DetectedAtMs;
+            return;
+        }
+
+        float blend = ResolveTemporalBlend(latestSnapshot, rawSnapshot);
+        BoundarySnapshot target = rawSnapshot;
+        ApplyFaceMotionDiagnostics(latestSnapshot, ref target);
+        target.OuterPoints = LerpPoints(latestSnapshot.OuterPoints, rawSnapshot.OuterPoints, blend);
+        target.InnerPoints = LerpPoints(latestSnapshot.InnerPoints, rawSnapshot.InnerPoints, blend);
+        target.StabilizationMode = "temporal_smooth_transition";
+        if (target.FaceMotionRisk == "large_face_motion")
+        {
+            target.StabilizationMode += "|large_face_motion_smooth";
+        }
+
+        target.TransitionProgress = 0.0f;
+        target.TransitionDurationMs = BoundaryTransitionDurationMs;
+
+        transitionFromSnapshot = latestSnapshot;
+        transitionToSnapshot = target;
+        transitionStartedAtMs = rawSnapshot.DetectedAtMs;
+        latestSnapshot = target;
+    }
+
+    private BoundarySnapshot BuildInterpolatedSnapshot(long nowMs)
+    {
+        if (!transitionToSnapshot.Available
+            || !transitionFromSnapshot.Available
+            || !CanInterpolatePoints(transitionFromSnapshot.OuterPoints, transitionToSnapshot.OuterPoints)
+            || !CanInterpolatePoints(transitionFromSnapshot.InnerPoints, transitionToSnapshot.InnerPoints))
+        {
+            BoundarySnapshot snapshot = latestSnapshot;
+            snapshot.TransitionProgress = snapshot.Available ? 1.0f : 0.0f;
+            snapshot.TransitionDurationMs = BoundaryTransitionDurationMs;
+            return snapshot;
+        }
+
+        float progress = BoundaryTransitionDurationMs <= 0
+            ? 1.0f
+            : Mathf.Clamp01((nowMs - transitionStartedAtMs) / (float)BoundaryTransitionDurationMs);
+        progress = progress * progress * (3.0f - 2.0f * progress);
+
+        BoundarySnapshot interpolated = transitionToSnapshot;
+        interpolated.OuterPoints = LerpPoints(
+            transitionFromSnapshot.OuterPoints,
+            transitionToSnapshot.OuterPoints,
+            progress);
+        interpolated.InnerPoints = LerpPoints(
+            transitionFromSnapshot.InnerPoints,
+            transitionToSnapshot.InnerPoints,
+            progress);
+        interpolated.TransitionProgress = progress;
+        interpolated.TransitionDurationMs = BoundaryTransitionDurationMs;
+        return interpolated;
     }
 
     private static VisionBoundaryPayload BuildFailurePayload(
@@ -414,10 +558,203 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
             + ",\"outerPointCount\":" + snapshot.OuterPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"innerPointCount\":" + snapshot.InnerPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"available\":" + snapshot.Available.ToString().ToLowerInvariant()
+            + ",\"stabilizationMode\":\"" + EscapeJsonString(snapshot.StabilizationMode) + "\""
+            + ",\"transitionProgress\":" + snapshot.TransitionProgress.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"transitionDurationMs\":" + snapshot.TransitionDurationMs.ToString(CultureInfo.InvariantCulture)
+            + ",\"faceBoundsAvailable\":" + snapshot.FaceBoundsAvailable.ToString().ToLowerInvariant()
+            + ",\"visionBoundaryFaceMotionScore\":" + snapshot.FaceMotionScore.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceCenterShiftPx\":" + snapshot.FaceMotionCenterShiftPx.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceScaleDelta\":" + snapshot.FaceMotionScaleDelta.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"visionBoundaryFaceMotionRisk\":\"" + EscapeJsonString(snapshot.FaceMotionRisk) + "\""
             + ",\"rawCameraFrameStored\":false"
             + ",\"offDeviceUpload\":false"
             + ",\"detail\":\"" + EscapeJsonString(snapshot.Detail) + "\""
             + "}";
+    }
+
+    private FaceScreenBounds CaptureCurrentFaceBounds()
+    {
+        if (faceManager == null)
+        {
+            RefreshSceneReferences();
+        }
+
+        Camera camera = Camera.main;
+        if (faceManager == null || camera == null)
+        {
+            return default;
+        }
+
+        foreach (ARFace face in faceManager.trackables)
+        {
+            if (face == null || face.trackingState != TrackingState.Tracking)
+            {
+                continue;
+            }
+
+            if (TryProjectFaceBounds(face, camera, out FaceScreenBounds bounds))
+            {
+                return bounds;
+            }
+        }
+
+        return default;
+    }
+
+    private static bool TryProjectFaceBounds(ARFace face, Camera camera, out FaceScreenBounds bounds)
+    {
+        bounds = default;
+        if (face == null
+            || camera == null
+            || !face.vertices.IsCreated
+            || face.vertices.Length == 0)
+        {
+            return false;
+        }
+
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+        int count = 0;
+        for (int index = 0; index < face.vertices.Length; index++)
+        {
+            Vector3 screen = camera.WorldToScreenPoint(face.transform.TransformPoint(face.vertices[index]));
+            if (screen.z <= 0.0f)
+            {
+                continue;
+            }
+
+            float topLeftY = Screen.height - screen.y;
+            minX = Mathf.Min(minX, screen.x);
+            maxX = Mathf.Max(maxX, screen.x);
+            minY = Mathf.Min(minY, topLeftY);
+            maxY = Mathf.Max(maxY, topLeftY);
+            count++;
+        }
+
+        if (count <= 0 || maxX <= minX || maxY <= minY)
+        {
+            return false;
+        }
+
+        bounds = new FaceScreenBounds
+        {
+            Available = true,
+            Center = new Vector2((minX + maxX) * 0.5f, (minY + maxY) * 0.5f),
+            Size = new Vector2(maxX - minX, maxY - minY)
+        };
+        return true;
+    }
+
+    private static float ResolveTemporalBlend(BoundarySnapshot previous, BoundarySnapshot next)
+    {
+        CalculatePointBbox(previous.OuterPoints, out Vector2 previousCenter, out Vector2 previousSize);
+        CalculatePointBbox(next.OuterPoints, out Vector2 nextCenter, out Vector2 nextSize);
+        float reference = Mathf.Max(1.0f, Mathf.Max(previousSize.x, previousSize.y));
+        float centerMotion = Vector2.Distance(previousCenter, nextCenter) / reference;
+        float sizeMotion = Mathf.Abs(nextSize.magnitude - previousSize.magnitude) / Mathf.Max(1.0f, previousSize.magnitude);
+        return centerMotion > 0.22f || sizeMotion > 0.18f
+            ? BoundaryLargeMotionBlend
+            : BoundarySmoothBlend;
+    }
+
+    private static void ApplyFaceMotionDiagnostics(BoundarySnapshot previous, ref BoundarySnapshot next)
+    {
+        if (!next.FaceBoundsAvailable)
+        {
+            next.FaceMotionScore = 0.0f;
+            next.FaceMotionCenterShiftPx = 0.0f;
+            next.FaceMotionScaleDelta = 0.0f;
+            next.FaceMotionRisk = "face_motion_unavailable";
+            return;
+        }
+
+        if (!previous.Available || !previous.FaceBoundsAvailable)
+        {
+            next.FaceMotionScore = 0.0f;
+            next.FaceMotionCenterShiftPx = 0.0f;
+            next.FaceMotionScaleDelta = 0.0f;
+            next.FaceMotionRisk = "initial_face_motion_reference";
+            return;
+        }
+
+        float centerShiftPx = Vector2.Distance(previous.FaceBoundsCenter, next.FaceBoundsCenter);
+        float referenceSize = Mathf.Max(1.0f, Mathf.Max(previous.FaceBoundsSize.x, previous.FaceBoundsSize.y));
+        float centerShiftNormalized = centerShiftPx / referenceSize;
+        float scaleDeltaX = Mathf.Abs(next.FaceBoundsSize.x - previous.FaceBoundsSize.x)
+            / Mathf.Max(1.0f, previous.FaceBoundsSize.x);
+        float scaleDeltaY = Mathf.Abs(next.FaceBoundsSize.y - previous.FaceBoundsSize.y)
+            / Mathf.Max(1.0f, previous.FaceBoundsSize.y);
+        float scaleDelta = Mathf.Max(scaleDeltaX, scaleDeltaY);
+        float motionScore = centerShiftNormalized + scaleDelta * 0.5f;
+        next.FaceMotionScore = motionScore;
+        next.FaceMotionCenterShiftPx = centerShiftPx;
+        next.FaceMotionScaleDelta = scaleDelta;
+        next.FaceMotionRisk = ResolveFaceMotionRisk(motionScore);
+    }
+
+    private static string ResolveFaceMotionRisk(float motionScore)
+    {
+        if (motionScore >= FaceMotionLargeThreshold)
+        {
+            return "large_face_motion";
+        }
+
+        if (motionScore >= FaceMotionMediumThreshold)
+        {
+            return "medium_face_motion";
+        }
+
+        return "low_face_motion";
+    }
+
+    private static void CalculatePointBbox(Vector2[] points, out Vector2 center, out Vector2 size)
+    {
+        center = Vector2.zero;
+        size = Vector2.zero;
+        if (points == null || points.Length == 0)
+        {
+            return;
+        }
+
+        float minX = float.MaxValue;
+        float minY = float.MaxValue;
+        float maxX = float.MinValue;
+        float maxY = float.MinValue;
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            minX = Mathf.Min(minX, point.x);
+            maxX = Mathf.Max(maxX, point.x);
+            minY = Mathf.Min(minY, point.y);
+            maxY = Mathf.Max(maxY, point.y);
+        }
+
+        center = new Vector2((minX + maxX) * 0.5f, (minY + maxY) * 0.5f);
+        size = new Vector2(maxX - minX, maxY - minY);
+    }
+
+    private static bool CanInterpolatePoints(Vector2[] a, Vector2[] b)
+    {
+        return a != null && b != null && a.Length == b.Length && a.Length >= 3;
+    }
+
+    private static Vector2[] LerpPoints(Vector2[] from, Vector2[] to, float amount)
+    {
+        if (!CanInterpolatePoints(from, to))
+        {
+            return to ?? Array.Empty<Vector2>();
+        }
+
+        Vector2[] blended = new Vector2[to.Length];
+        amount = Mathf.Clamp01(amount);
+        for (int index = 0; index < to.Length; index++)
+        {
+            blended[index] = Vector2.Lerp(from[index], to[index], amount);
+        }
+
+        return blended;
     }
 
     private static string NormalizeOptional(string value, string fallback)

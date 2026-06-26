@@ -285,11 +285,13 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
     type: 'recipe_applied',
     region: 'lip',
     layer: 'lip',
-    texture: 'matte_lip',
-    sample: 'matte_lip',
+    texture: 'gloss_lip',
+    sample: 'gloss_lip',
     textureMode: 'sample',
+    lipRenderLayerMode: 'soft_sdf_logical_multilayer',
+    glossHighlightMode: 'tinted_soft_lower_wet_line',
     blendMode: 'multiply',
-    finish: 'matte',
+    finish: 'gloss',
     maskTextureId: 'lip-vision-boundary-v1',
     color: '#D94B74',
     opacity: 0.72,
@@ -304,15 +306,24 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
     maskSource: 'apple_vision_runtime_lip_landmarks',
     visionBoundaryStatus: 'ok',
     visionBoundarySource: 'apple_vision_runtime_lip_landmarks',
-    visionBoundaryCoordinateMode: 'raw-y',
+    visionBoundaryCoordinateMode: 'raw-y->flip-y->face-local-warp->arface-uv-bake',
     visionBoundaryOuterPointCount: 12,
     visionBoundaryInnerPointCount: 8,
     visionBoundaryImageWidth: 1179,
     visionBoundaryImageHeight: 2556,
     visionBoundaryAgeMs: 90,
+    visionBoundaryFaceMotionScore: 0.276,
+    visionBoundaryFaceCenterShiftPx: 42.4,
+    visionBoundaryFaceScaleDelta: 0.08,
+    visionBoundaryFaceMotionRisk: 'medium_face_motion',
     sourceTriangles: 2304,
     culledTriangles: 2081,
-    meshCullingMode: 'apple_vision_lip_landmark_screen_space',
+    meshCullingMode: 'apple_vision_lip_landmark_arface_uv_baked',
+    maskSoftSampleMode: 'feather_scaled_13tap_near_far',
+    maskFeatherNearRadiusPx: 3.447,
+    maskFeatherFarRadiusPx: 6.377,
+    maskTextureDiagnosticStatus:
+      'vision_arface_uv_baked_outer_minus_inner_soft_falloff',
     maskTextureActivePixelCountGt8: 1,
     maskTextureActiveCoverageGt8: 1,
     maskTextureActiveBbox: 'left=0,top=0,right=0,bottom=0,width=1,height=1',
@@ -321,15 +332,127 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
   const text = collectText(renderer!);
 
   expect(text).toContain('apple_vision_runtime_lip_landmarks');
+  expect(text).toContain('layers=soft_sdf_logical_multilayer');
+  expect(text).toContain('gloss=tinted_soft_lower_wet_line');
   expect(text).toContain('blend=multiply');
-  expect(text).toContain('finish=matte');
+  expect(text).toContain('finish=gloss');
   expect(text).toContain('maskTex=lip-vision-boundary-v1');
+  expect(text).toContain('soft=feather_scaled_13tap_near_far');
+  expect(text).toContain('featherPx=3.45/6.38');
   expect(text).toContain('vision=ok:12/8');
+  expect(text).toContain(
+    'visionCoord=raw-y->flip-y->face-local-warp->arface-uv-bake',
+  );
+  expect(text).toContain('visionMotion=0.276/medium_face_motion');
+  expect(text).toContain(
+    'maskDiag=vision_arface_uv_baked_outer_minus_inner_soft_falloff',
+  );
   expect(text).toContain('texGt8=');
   expect(text).toContain('1');
   expect(text).toContain('left=0,top=0,right=0,bottom=0');
   expect(text).toContain('cull=2081/2304');
-  expect(text).toContain('apple_vision_lip_landmark_screen_space');
+  expect(text).toContain('apple_vision_lip_landmark_arface_uv_baked');
+});
+
+test('surfaces Vision smoothing transition and capture motion events', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'e7_vision_lip_boundary',
+    status: 'ok',
+    available: true,
+    source: 'apple_vision_runtime_lip_landmarks',
+    coordinateMode: 'raw-y',
+    outerPointCount: 12,
+    innerPointCount: 8,
+    imageWidth: 1179,
+    imageHeight: 2556,
+    stabilizationMode: 'temporal_smooth_transition|large_face_motion_smooth',
+    transitionProgress: 0.42,
+    transitionDurationMs: 160,
+    faceBoundsAvailable: true,
+    visionBoundaryFaceMotionScore: 0.39,
+    visionBoundaryFaceCenterShiftPx: 64.2,
+    visionBoundaryFaceScaleDelta: 0.13,
+    visionBoundaryFaceMotionRisk: 'large_face_motion',
+    rawCameraFrameStored: false,
+    offDeviceUpload: false,
+  });
+
+  pressByText(renderer!, 'Debug');
+  const text = collectText(renderer!);
+
+  expect(text).toContain('e7_vision_lip_boundary');
+  expect(text).toContain('status=ok');
+  expect(text).toContain('coord=raw-y');
+  expect(text).toContain('points=12/8');
+  expect(text).toContain(
+    'smooth=temporal_smooth_transition|large_face_motion_smooth',
+  );
+  expect(text).toContain('t=0.42/160');
+  expect(text).toContain('faceLocal=true');
+  expect(text).toContain('motion=0.390/large_face_motion');
+  expect(text).toContain('privacy raw=false offDevice=false');
+});
+
+test('keeps thin wet-line diagnostics off matte lip recipe events', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'lip',
+    layer: 'lip',
+    texture: 'matte_lip',
+    sample: 'matte_lip',
+    textureMode: 'sample',
+    lipRenderLayerMode: 'soft_sdf_logical_multilayer',
+    glossHighlightMode: 'none',
+    blendMode: 'multiply',
+    finish: 'matte',
+    maskTextureId: 'lip-drawn-style-atlas-v1',
+    color: '#D94B74',
+    opacity: 0.72,
+    intensity: 0.84,
+    applied: true,
+    faceCount: 1,
+    meshTriangles: 2304,
+    maskTriangles: 2304,
+    uvAvailable: true,
+    stateAction: 'tracking_render',
+    topologyAuditStatus: 'pass_uv_topology_ready',
+    maskSource: 'lip_style_atlas_v1_uv_back_projection',
+    boundaryRenderer: 'rgba_style_atlas_logical_multilayer_sdf_feather',
+    sourceTriangles: 2304,
+    culledTriangles: 2081,
+    meshCullingMode: 'lip_atlas_threshold_sample',
+    maskSoftSampleMode: 'feather_scaled_13tap_near_far',
+    maskFeatherNearRadiusPx: 3.447,
+    maskFeatherFarRadiusPx: 6.377,
+    maskTextureActivePixelCountGt8: 957,
+    maskTextureActiveCoverageGt8: 0.0036,
+    maskTextureActiveBbox:
+      'left=207,top=292,right=302,bottom=347,width=96,height=56',
+  });
+
+  const text = collectText(renderer!);
+
+  expect(text).toContain('texture=matte_lip');
+  expect(text).toContain('layers=soft_sdf_logical_multilayer');
+  expect(text).toContain('gloss=none');
+  expect(text).toContain('finish=matte');
+  expect(text).toContain('soft=feather_scaled_13tap_near_far');
+  expect(text).toContain('featherPx=3.45/6.38');
+  expect(text).not.toContain('tinted_soft_lower_wet_line');
 });
 
 test('posts smooth mask renderer by default before build', async () => {
@@ -350,6 +473,10 @@ test('posts smooth mask renderer by default before build', async () => {
 
   expect(recipePostCall).toBeTruthy();
   expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
+  expect(recipePostCall).toContain('focusRegion=lip');
+  expect(recipePostCall).toContain('focusMaskTextureId=lip-drawn-style-atlas-v1');
+  expect(recipePostCall).toContain('lipMaskTextureId=lip-drawn-style-atlas-v1');
+  expect(recipePostCall).not.toContain('lipMaskTextureId=lip-vision-boundary-v1');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
 });
@@ -406,8 +533,8 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(lipLayer.preserveDetail).toBe(textureSample.preserveDetail);
     expect(lipLayer.blendMode).toBe('multiply');
     if (textureSample.name === 'gloss_lip') {
-      expect(lipLayer.specular).toBeGreaterThan(0.9);
-      expect(lipLayer.glossBoost).toBe(1);
+      expect(lipLayer.specular).toBeGreaterThan(0.5);
+      expect(lipLayer.glossBoost).toBeLessThan(0.7);
       expect(lipLayer.passCount).toBe(2);
     }
     if (textureSample.name === 'matte_lip') {
@@ -416,7 +543,8 @@ test('builds five lip style recipe payloads with preset material fields', () => 
       expect(lipLayer.passCount).toBe(1);
     }
     if (textureSample.name === 'gradient_lip') {
-      expect(lipLayer.gradientAmount).toBeGreaterThan(0.8);
+      expect(lipLayer.coverage).toBeGreaterThan(0.9);
+      expect(lipLayer.gradientAmount).toBe(1);
       expect(lipLayer.passCount).toBe(1);
     }
     expect(cheekLayer.texture).toBe('soft_blush');

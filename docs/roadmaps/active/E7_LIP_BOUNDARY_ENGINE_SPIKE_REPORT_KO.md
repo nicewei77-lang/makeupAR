@@ -2,7 +2,9 @@
 
 Date: 2026-06-26 KST
 
-Status: active E7.3 lip-only validation report / Apple Vision gate v1 invalidated by preview-coordinate bug / Apple Vision gate v2 regenerated with corrected `raw-y` coordinates / runtime Apple Vision lip boundary implementation candidate retained for debug only / active lip path reverted to ARFace-attached `lip-drawn-style-atlas-v1` / Vision debug transform `raw-y->flip-y` added / UnityFramework build+sync Green for latest fallback / unsigned RN device-targeted compile Green / signed install blocked by provisioning / iPhone runtime visual evidence pending
+Status: active E7.3 lip-only validation report / Apple Vision gate v1 invalidated by preview-coordinate bug / Apple Vision gate v2 regenerated with corrected `raw-y` coordinates / runtime Apple Vision lip boundary implementation candidate retained for debug only / active lip path reverted to ARFace-attached `lip-drawn-style-atlas-v1` / Vision debug transform `raw-y->flip-y` added / soft-SDF logical multilayer lip rendering source-only pass added / Vision debug path now bakes stabilized boundary into ARFace UV mask source-only / soft-SDF multilayer offline preview evidence added / latest matte-gradient-gloss user-photo retune changed gloss to `tinted_soft_lower_wet_line` and gradient to weak outer base plus stronger inner tint / latest retune UnityFramework build+sync Green / RN signed install blocked by provisioning / unsigned device-targeted RN/Xcode compile-link Green / iPhone runtime visual evidence pending
+
+Latest lip finish handoff: `docs/roadmaps/active/E7_LIP_FINISH_NEXT_HANDOFF_KO.md` freezes `matte_lip` for validation and keeps `gradient_lip` / `gloss_lip` open for the next pass.
 
 ## 1. Decision Summary
 
@@ -28,6 +30,18 @@ Implemented no-build/runtime-content changes:
   - separate `GlossAdditiveHighlight` pass with `Blend One One`.
 - Gloss is no longer part of the base pigment color; it is a separate additive highlight pass.
 - Gradient keeps full lip coverage and changes pigment density toward the inner lip.
+- 2026-06-26 soft-SDF logical multilayer source-only pass:
+  - `SmoothRegionMask.shader` now softens lip mask alpha with `_Feather`-scaled 13-tap near/far sampling and separates soft/core/edge alpha for shader-internal logical layers.
+  - Lip pigment is split into weak base stain multiply, lip-center/inner density, edge feather band, and a separate gloss highlight pass.
+  - Gloss was simplified per user reference to a very thin lower-center white horizontal line. The shader now samples the atlas `A` channel for that line instead of estimating gloss position from UV.
+  - The active lip style atlas `A(gloss)` channel was reduced from a broad `89x20-22px` region to a narrow line (`57x4px` for `lip-drawn-style-atlas-v1`, `58x4px` for `lip-style-atlas-v1`, measured at `A>8`).
+  - RN lip presets now bias toward higher feather and lower coverage, while Unity lip atlas culling keeps more edge triangles available for feathering.
+- 2026-06-26 later user-photo retune after the first soft-SDF UnityFramework build:
+  - User iPhone screenshots showed the result was too light, `matte_lip` and `gradient_lip` were too similar, and the gloss line still looked like a white sticker.
+  - Latest `matte_lip` restores stronger pigment while keeping the soft-SDF edge.
+  - Latest `gradient_lip` follows the requested logical composition: weak full-lip base multiply, stronger inner/center tint, and soft outer feather so the color fades outward instead of sitting as a center sticker.
+  - Latest `gloss_lip` changes diagnostics/highlight mode from the earlier near-white line to `tinted_soft_lower_wet_line` with lower additive boost.
+  - This retune is now included in `TIMESTAMP=e7-matte-gradient-gloss-retune-20260626-1435`, which supersedes the previous `e7-soft-sdf-multilayer-20260626-1322` framework for lip visual review.
 
 Apple Vision offline/runtime gate:
 
@@ -46,6 +60,8 @@ Apple Vision offline/runtime gate:
   - Screenshot feedback correction: runtime Vision now generates a screen-space `outerLips - innerLips` mask texture and `SmoothRegionMask.shader` can sample that mask with `_UseScreenSpaceMask`, so GPU multiply is clipped per pixel instead of relying on coarse ARFace triangle inclusion plus a 1x1 white placeholder.
   - Final no-build stabilization after inverted/delayed Vision motion: the active/default lip path is no longer the live Apple Vision screen-space mask. RN and Unity now default lip to the ARFace-attached `lip-drawn-style-atlas-v1` mask so the overlay follows ARFace mesh/UV. The Apple Vision path remains available as an explicit debug/compare candidate only.
   - When the Vision candidate is explicitly used, Unity transforms runtime landmarks `raw-y->flip-y` before screen-space culling/mask creation, expires stale Vision boundaries after `300ms`, captures at `0.20s` cadence, and logs `raw`, `flip-y`, `flip-x`, and `flip-xy` candidate bboxes with `selected=flip-y`.
+  - The Vision debug path now smooths new boundary snapshots through a short transition, stores ARFace screen bounds at capture time, and can warp retained Vision points from the capture face bbox to the current ARFace bbox to reduce delayed screen-space drift.
+  - Latest source-only stabilization: the explicit Vision debug/compare path now bakes the stabilized `outerLips - innerLips` boundary into a transient `512x512` ARFace UV mask using current ARFace screen projection plus barycentric back-projection, then samples that mask in face UV space with `_UseScreenSpaceMask=0`. Runtime diagnostics identify this path as `apple_vision_lip_landmark_arface_uv_baked` / `vision_arface_uv_baked_outer_minus_inner_soft_falloff` and append `->arface-uv-bake` to `visionBoundaryCoordinateMode`.
   - Vision capture temporarily suppresses Unity region overlays and the Unity debug GUI before `ReadPixels`, reducing self-feedback from the currently rendered makeup.
   - There is no second camera session and no raw frame persistence in this implementation.
   - `RNBridge` / RN HUD now surface `maskSource=apple_vision_runtime_lip_landmarks`, `boundaryRenderer=apple_vision_lip_landmark_screen_space`, Vision point counts, image size, and age.
@@ -89,6 +105,11 @@ Consequence:
 - 2026-06-26 screenshot feedback update: screen-space mask correction is implementation/static evidence only. It still needs a fresh UnityFramework/RN install and iPhone runtime photos/logs before any boundary acceptance claim.
 - 2026-06-26 screenshot feedback build update: the screen-space mask UnityFramework build/sync is Green and unsigned device-targeted RN/Xcode compile/link is Green, but signed install is still blocked by missing provisioning for `com.yeoseojin.makeupar.validation202268054`. This is not runtime acceptance.
 - 2026-06-26 final stabilization build update: because real-device feedback showed inverted and delayed Vision motion, the active/default lip renderer is now the ARFace-attached atlas path again. Vision screen-space is retained only for explicit compare/debug, with `raw-y->flip-y`, stricter freshness, and transform candidate logging. UnityFramework build/sync and unsigned device-targeted RN/Xcode compile/link are Green for this latest fallback. Signed install remains blocked by missing provisioning for `com.yeoseojin.makeupar.validation202268054`, so this is not runtime acceptance.
+- 2026-06-26 soft-SDF logical multilayer update: user screenshots showed hard lip edges and sticker-like gloss/gradient, and the follow-up reference asked for one very thin white horizontal line. The latest source-only pass softens mask sampling, lowers lip atlas culling threshold, keeps minimum effective feather, adds shader-internal base/inner/edge/gloss layers, changes gloss to an atlas `A` channel line mask, and adds Vision transition/face-bbox stabilization plus render-time face motion diagnostics. This has no UnityFramework/RN install or iPhone runtime photo/log acceptance yet, so E7.3 remains Yellow.
+- 2026-06-26 Vision ARFace UV-bake update: the retained Vision candidate is no longer only a screen-space shader mask. It now back-projects the stabilized Vision lip polygon through current ARFace triangles into a transient UV mask and renders that mask as a face-attached UV texture. This better matches the validation goal of using Vision as a boundary seed/gate rather than as live screen tracking, but it is source-only evidence until a fresh UnityFramework/RN install and iPhone photo/log review are collected.
+- 2026-06-26 soft-SDF offline preview update: a buildless preview sheet now compares original, hard alpha sticker-risk baseline, soft-SDF matte, soft-SDF gradient, thin wet-line gloss, and layer diagnostic from the same clean reference frame and lip atlas round-trip mask. This supports the rendering direction but does not replace Unity runtime/iPhone visual acceptance.
+- 2026-06-26 matte/gradient/gloss user-photo retune: after real-device photos from the soft-SDF build, the shader/RN presets were retuned to make matte stronger, make gradient visibly different from matte by emphasizing inner tint over a weak outer wash, and make gloss a tinted narrow lower wet-line rather than a pure white additive line. A fresh UnityFramework build/sync now exists for this retune, but signed RN install and iPhone visual acceptance are still blocked by provisioning.
+- 2026-06-26 lip finish multi-agent handoff: user screenshots from the latest build freeze `matte_lip` as the E7.3 validation baseline. `gradient_lip` remains open because the inner tint and outer wash still separate too clearly; the next implementation should replace thresholded mask/core composition with a continuous soft ramp. `gloss_lip` remains open because the current effect reads as pigment lightening rather than localized shine; the next implementation should preserve pigment and improve the gloss mask/additive pass. Full handoff and next-session prompt: `docs/roadmaps/active/E7_LIP_FINISH_NEXT_HANDOFF_KO.md`.
 
 ## 4. No-Build Verification
 
@@ -116,6 +137,12 @@ Latest no-build checks on 2026-06-26 KST:
 - `git diff --check` passed.
 - Screenshot feedback screen-space mask correction checks passed: scoped `git diff --check` for the touched Unity files, RN Jest (`11` tests), TypeScript, RN lint, and a Unity DLL referenced Roslyn script compile. Full `git diff --check` still fails on pre-existing dirty Unity scene trailing whitespace outside this correction.
 - Final ARFace-attached fallback / Vision transform checks passed: RN Jest (`11` tests), TypeScript, RN lint, scoped `git diff --check`, and Unity DLL-referenced Roslyn compile for the changed/runtime-dependent C# files. Roslyn emitted only existing JSON payload field warnings (`CS0649`).
+- Soft-SDF logical multilayer source-only checks passed: RN Jest (`13` tests, including matte `gloss=none`, wide feather `soft=feather_scaled_13tap_near_far`, `featherPx=3.45/6.38`, Vision capture-motion diagnostics, render-stage `visionMotion=0.276/medium_face_motion`, soft bake `maskDiag=vision_arface_uv_baked_outer_minus_inner_soft_falloff`, and Vision event `motion=0.390/large_face_motion`), TypeScript, RN lint, scoped `git diff --check`, shader/static guard search for the new soft/core/multilayer/gloss paths, preview regeneration, atlas guard, Python compile, runtime log verifier contract guard (`runtimeVerifier=guarded`), and Unity batchmode import/compile in `evidence/logs/e7-soft-sdf-a-channel-line-unity-batchmode-20260626.log`. The latest guard also locks Vision freshness/transition/face-bbox warp markers (`FreshBoundaryMaxAgeMs=300`, `CaptureIntervalSeconds=0.20f`, `face_bbox_translate_scale`, `large_face_motion_smooth`, `VisionUvMaskSoftSplatRadius`, and `visionBoundaryFaceMotionRisk`) and shader feather radius markers (`FeatherTexelRadius`, near/far texel rings, near radius `3.447px`, far radius `6.377px`, plus runtime `maskSoftSampleMode` / `maskFeatherNearRadiusPx` / `maskFeatherFarRadiusPx`) so hard-edge or delayed screen-space Vision behavior is less likely to regress silently. The latest soft-white line guard records `wetLineActivePixels=493`, `wetLineMeanLumaBoost=0.1968`, `thinWetLine lumaCorrelation=0.8531`, and one-line shape metrics (`bbox=119x5px`, `aspect=23.8`, `height/lip=0.040`, `width/lip=0.509`, `componentCount=1`). The Unity batchmode log records both lip style atlas textures and `SmoothRegionMask.shader` imported, `CompileScripts: 3202.976ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
+- Vision ARFace UV-bake source-only checks passed: scoped `git diff --check`, Unity DLL-referenced Roslyn compile for all six runtime scripts, Unity batchmode import/compile, RN Jest (`11` tests), TypeScript, and RN lint. Roslyn emitted only existing JSON payload field warnings (`CS0649`). The Unity batchmode log `evidence/logs/e7-vision-arface-uv-bake-diag-unity-batchmode-20260626.log` records `CompileScripts: 2965.738ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
+- Soft-SDF offline preview checks passed: Python compile for `scripts/e7_reference_atlas/make_lip_soft_sdf_multilayer_preview.py`, preview generation under `evidence/e7-reference-atlas/lip-style-atlas-v1/soft_sdf_multilayer_preview_20260626/`, and `scripts/e7_reference_atlas/verify_lip_soft_sdf_multilayer.py` guard coverage for shader soft-SDF layers, Vision ARFace UV baking, RNBridge runtime diagnostics, edge feather band mean, detail-preservation luma correlation, and single-line gloss.
+- Matte/gradient/gloss user-photo retune checks passed after updating RN presets, Unity material scaling, shader logical layer weights, preview generation, and verifier expectations: RN Jest (`13` tests), TypeScript, RN lint, atlas guard, soft-SDF verifier (`softMatteLumaStdRatio=0.7951`, `softGradientLumaStdRatio=1.2470`, `softGradientLumaCorrelation=0.9364`, `wetLineMeanLumaBoost=0.0553`, `wetLineComponentCount=1`), scoped `git diff --check`, preview regeneration, and Unity batchmode import/compile in `evidence/logs/e7-matte-gradient-gloss-retune-unity-batchmode-20260626.log` with `CompileScripts: 3287.457ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
+- Matte/gradient/gloss retune UnityFramework build/sync passed with `TIMESTAMP=e7-matte-gradient-gloss-retune-20260626-1435`: Unity export verified ARKit/Vision/MetalPerformanceShaders links, Xcode UnityFramework recorded `** BUILD SUCCEEDED **`, RN/package frameworks were synced as arm64 Mach-O (`113M`, Unity `Data` `18M`), and the measured wrapper time was `real 134.45s` while reusing Unity `Library/` and Xcode DerivedData.
+- RN signed install/build to `202268054(여서진)` failed at the known provisioning gate: no iOS App Development profile for `com.yeoseojin.makeupar.validation202268054` with automatic signing disabled. The follow-up unsigned device-targeted Xcode build with `CODE_SIGNING_ALLOWED=NO` succeeded and embedded `UnityFramework.framework` into `MakeupARValidation.app`, so compile/link/package is Green but runtime visual acceptance is still missing.
 
 UnityFramework/RN build attempt on 2026-06-26 KST:
 
@@ -173,7 +200,162 @@ Final ARFace-attached fallback / Vision debug transform build checkpoint on 2026
   - `evidence/logs/e7-arface-lip-fallback-rn-ios-device-20260626-0349.log`
   - `evidence/logs/e7-arface-lip-fallback-xcodebuild-device-nosign-20260626-0349.log`
 
-## 5. Face Parsing Note
+Soft-SDF logical multilayer source-only checkpoint on 2026-06-26 KST:
+
+- Active/default RN lip mask remains `lip-drawn-style-atlas-v1`.
+- Lip atlas mask threshold is lower and effective feather has a higher validation floor so the shader can render a soft edge instead of a hard cut.
+- Shader rendering now uses logical layers inside the existing material pass structure: weak base stain, inner/center density, soft edge band, and separate gloss highlight.
+- Latest user-photo retune keeps the same logical layer structure but raises matte/gradient pigment strength after the real-device result became too faint.
+- Gradient is now explicitly modeled as weak outer base multiply plus stronger inner/center tint plus a soft edge fade; this is the validation target for the Korean-style gradient lip look.
+- Gloss highlight remains intentionally minimal but is no longer a pure white line. Runtime diagnostics now expose `glossHighlightMode=tinted_soft_lower_wet_line` for `gloss_lip`, and RN tests still verify matte events stay at `gloss=none`.
+- Vision debug candidate now records transition progress, stabilization mode, capture-time face bounds availability, and can face-bbox warp stale screen points to the current ARFace projection. It also reports `visionBoundaryFaceMotionScore`, `visionBoundaryFaceCenterShiftPx`, `visionBoundaryFaceScaleDelta`, and `visionBoundaryFaceMotionRisk` so device logs can distinguish low/medium/large compensation while reviewing delayed motion.
+- Latest soft-white A-channel line / wide-feather retune passed shader/static guard, atlas guard, RN Jest, TypeScript, RN lint, scoped `git diff --check`, preview regeneration, Python compile, runtime log verifier synthetic pass/expected-fail, and Unity batchmode import/compile. The latest batchmode log `evidence/logs/e7-soft-sdf-a-channel-line-unity-batchmode-20260626.log` records both lip style atlas textures and `SmoothRegionMask.shader` imported, `CompileScripts: 3202.976ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
+- Latest matte/gradient/gloss user-photo retune then passed RN Jest, TypeScript, RN lint, atlas guard, soft-SDF verifier, scoped `git diff --check`, preview regeneration, Unity batchmode import/compile, UnityFramework build/sync, and unsigned RN device-targeted compile/link. Signed RN install and iPhone runtime visual acceptance are still blocked by provisioning, so E7.3 remains Yellow.
+
+Vision ARFace UV-bake source-only checkpoint on 2026-06-26 KST:
+
+- Active/default RN lip mask remains `lip-drawn-style-atlas-v1`.
+- The retained explicit Vision candidate still starts from Apple Vision `outerLips` / `innerLips`, but after transform/smoothing/face-bbox stabilization it is baked into a transient ARFace UV mask rather than sampled as a live screen-space shader texture.
+- The bake projects current ARFace triangles to screen, samples points inside the stabilized Vision lip polygon, back-projects those samples with barycentric weights into UV, writes a `512x512` RGBA style-compatible mask with soft falloff splats, and renders with `_UseScreenSpaceMask=0`.
+- Runtime diagnostics should show `boundaryRenderer=apple_vision_lip_landmark_arface_uv_baked`, `meshCullingMode=apple_vision_lip_landmark_arface_uv_baked`, `visionBoundaryCoordinateMode` ending in `->arface-uv-bake`, `maskTextureDiagnosticStatus=vision_arface_uv_baked_outer_minus_inner_soft_falloff`, and `vision_lip_boundary_arface_uv_bake` log fields for hit triangles/samples plus `softSplatRadius=3`.
+- Unity batchmode import/compile passed for this source-only checkpoint with no shader or C# compile error in `evidence/logs/e7-vision-arface-uv-bake-diag-unity-batchmode-20260626.log`.
+- No UnityFramework build, RN install, or iPhone runtime visual acceptance was collected for this source-only checkpoint; E7.3 remains Yellow.
+
+Soft-SDF logical multilayer offline preview checkpoint on 2026-06-26 KST:
+
+- Preview script: `scripts/e7_reference_atlas/make_lip_soft_sdf_multilayer_preview.py`.
+- Inputs: clean reference frame `pair_face_20260622T143334Z_03/frame.png` and `lip_atlas_roundtrip_mask.png`.
+- Output sheet: `evidence/e7-reference-atlas/lip-style-atlas-v1/soft_sdf_multilayer_preview_20260626/soft_sdf_multilayer_sheet.png`.
+- The latest sheet compares original, hard alpha baseline, stronger soft-SDF matte, soft outer wash plus stronger inner gradient, tinted lower wet-line gloss, and layer diagnostic.
+- Summary metrics after the user-photo retune record hard alpha `lumaStdRatio=0.4046`, soft matte `0.7951`, soft gradient `1.2470`, soft matte/gradient luma correlation `0.8712` / `0.9364`, thin tinted wet-line luma correlation `0.9361`, `edgeBandMean=0.5947`, `wetLineActivePixels=493`, `wetLineMeanLumaBoost=0.0553`, and one-line shape `aspect=23.8` / `height/lip=0.040` / `width/lip=0.509` / `componentCount=1`.
+- This is offline preview evidence only; no UnityFramework build, RN install, or iPhone runtime visual acceptance was collected, so E7.3 remains Yellow.
+
+## 5. Multilayer Lip Rendering Handoff
+
+Purpose for the next Codex or multi-agent worker:
+
+- Continue E7.3 lip-only validation from the current ARFace-attached `lip-drawn-style-atlas-v1` default path.
+- Treat `docs/roadmaps/active/E7_LIP_FINISH_NEXT_HANDOFF_KO.md` as the current detailed handoff for lip finish work.
+- Do not modify `matte_lip`; it is frozen as the validation baseline from the latest user screenshot.
+- Fix the remaining user-visible issues in `gradient_lip` and `gloss_lip` while preserving the frozen `matte_lip` baseline.
+- Keep Apple Vision as explicit debug/compare only; do not restore live Vision screen-space masking as the default lip renderer.
+- Stay validation-only. Do not claim E7.3 Green, product readiness, or product-quality makeup without iPhone runtime visual/log evidence.
+
+Current implementation status:
+
+- RN/Unity integration and UnityFramework packaging are functional.
+- The active/default lip mask is `lip-drawn-style-atlas-v1`, attached to ARFace UV/mesh.
+- GPU multiply is already used for pigment preservation.
+- Gloss highlight is already separated from the base pigment pass.
+- Offline soft-SDF logical multilayer preview exists and should be treated as the current direction of travel.
+- Signed iPhone install remains blocked by local provisioning for `com.yeoseojin.makeupar.validation202268054`; unsigned device-targeted compile/link has succeeded in prior build gates.
+
+Estimated completion by area:
+
+- RN/Unity/ARKit integration: about `85%` for validation.
+- ARFace-attached lip placement: about `65%`.
+- Lip boundary naturalness: about `40%`.
+- Texture-preserving multiply lip color: about `55%`.
+- Gradient lip naturalness: about `25-35%`.
+- Gloss lip naturalness: about `25-35%`.
+- Latest runtime visual acceptance: `0%` until a fresh signed install or user-provided runtime screenshots confirm the new build.
+
+Primary user feedback to address:
+
+- Lip color is visible and tracks the mouth, but the outer boundary still appears too hard.
+- Feather/blur looks insufficient, especially around the upper lip bow, mouth corners, and lower-lip outer edge.
+- Gloss feels like a broad artificial overlay rather than a small wet highlight.
+- Gradient feels like a mask color change rather than natural inner-lip staining.
+- The desired direction is logical multilayer rendering: base stain, inner tint, soft edge feather, and optional gloss highlight.
+
+Recommended implementation priority:
+
+1. Fix lip edge softness before increasing gloss or gradient strength.
+2. Keep one ARFace-attached mask path and improve shader-side soft alpha/SDF-like falloff.
+3. Implement logical multilayer composition inside the shader rather than stacking many transparent Unity meshes.
+4. Keep `matte_lip` frozen, and retune only `gradient_lip` / `gloss_lip` as different combinations of the same layers.
+5. Add diagnostics for the soft mask/layer mode so runtime logs can prove the intended path is active.
+
+Recommended layer model:
+
+```txt
+finalLip =
+  base stain multiply
++ soft outer edge wash
++ inner gradient tint
++ optional tinted gloss highlight
+```
+
+Layer guidance:
+
+- `base stain`: weak multiply tint across the lip, preserving skin/lip luminance and texture.
+- `soft outer edge wash`: weaker color near the outer boundary using SDF-like or blurred alpha falloff.
+- `inner gradient tint`: stronger pigment near the inner lip or lip center; avoid a simple mechanical vertical UV gradient if possible.
+- `gloss highlight`: narrow tinted wet-line or lower-lip center/streak highlight only; avoid broad pure-white screen/additive over the whole lip.
+
+Shader-side direction:
+
+- Inspect `SmoothRegionMask.shader` first.
+- Avoid treating mask alpha as a hard 0/1 threshold.
+- If the atlas alpha is binary-like, approximate soft alpha with a cheap 5-tap or 9-tap neighborhood sample before `smoothstep`.
+- Split fill and edge values conceptually:
+
+```hlsl
+float blurredMask = ...; // 5-tap or 9-tap local alpha average
+float edgeMask = smoothstep(edgeLow, edgeHigh, blurredMask);
+float fillMask = smoothstep(fillLow, fillHigh, blurredMask);
+float edgeBand = saturate(edgeMask - fillMask);
+```
+
+- Use `fillMask` for stronger inner/base color.
+- Use `edgeBand` or `edgeMask` for weak outer wash only.
+- Keep gloss masked by fill/inner areas so it does not brighten surrounding skin.
+
+Finish-specific expectations:
+
+- `matte_lip`: base multiply plus soft edge only; minimal/no specular; should preserve lip creases.
+- `gradient_lip`: weak outer base plus stronger inner/center tint; edge should fade softly.
+- `gloss_lip`: base multiply plus a thin tinted wet-line/lower-lip highlight; no broad white shine.
+
+Suggested diagnostics:
+
+```txt
+maskSoft=on
+softSample=5tap or 9tap
+edgeLow=...
+edgeHigh=...
+fillLow=...
+fillHigh=...
+layerModel=base_edge_inner_gloss
+glossHighlightMode=tinted_soft_lower_wet_line
+gradientMode=soft_inner_tint
+```
+
+Minimum no-build verification before any build gate:
+
+- RN Jest.
+- TypeScript.
+- RN lint.
+- Scoped `git diff --check`.
+- Shader/static guard if available.
+- Atlas/soft-SDF preview regeneration if the mask or layer math changes.
+- Unity batchmode import/compile or Roslyn/static Unity C# check when Unity scripts changed.
+
+Build gate reminder:
+
+- Before UnityFramework or RN real-device build, report the build question, primary path, compare-only paths, validation contract, evidence matrix, and out-of-scope items.
+- The primary path should remain ARFace-attached `lip-drawn-style-atlas-v1` with shader-side logical multilayer soft rendering.
+- Compare-only paths may include Apple Vision debug, hard-alpha baseline, and offline soft-SDF preview.
+
+Do not do in this handoff:
+
+- Do not make Apple Vision live screen-space mask the default again.
+- Do not add a second camera session.
+- Do not introduce Core ML, MediaPipe runtime, backend upload, raw-frame storage, or product implementation.
+- Do not solve this by stacking many real transparent meshes without a measured reason.
+- Do not mark E7.3 Green without real-device runtime evidence.
+
+## 6. Face Parsing Note
 
 The user review correctly points toward face parsing / lip segmentation as the more appropriate boundary class.
 
@@ -187,7 +369,7 @@ That is not part of the current v2 implementation scope. If the team expands sco
 
 No runtime face parsing, Core ML model integration, MediaPipe runtime, native Metal path, backend upload, or product-readiness claim is authorized by this v2 report.
 
-## 6. Build Gate
+## 7. Build Gate
 
 Before any UnityFramework or RN real-device build, stop and report:
 
@@ -212,7 +394,7 @@ cd rn/MakeupARValidation
 npm run ios -- --udid 00008110-0001794E0CD9801E --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK
 ```
 
-## 7. Acceptance Bar
+## 8. Acceptance Bar
 
 This v2 pass must answer boundary first:
 
