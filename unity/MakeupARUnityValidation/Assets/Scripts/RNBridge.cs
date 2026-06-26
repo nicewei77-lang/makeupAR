@@ -1907,7 +1907,8 @@ public sealed class RNBridge : MonoBehaviour
             && (value == "lip-smooth-mask-v1"
                 || value == "lip-tight-auto-v0"
                 || value == "lip-tight-user-v0"
-                || value == "lip-safe-v0"))
+                || value == "lip-safe-v0"
+                || value.StartsWith("cv-", StringComparison.Ordinal)))
         {
             return value;
         }

@@ -11,6 +11,7 @@ import {
   LogBox,
   PanResponder,
   Pressable,
+  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
@@ -193,6 +194,51 @@ const LIP_RUNTIME_CANDIDATE_OPTIONS = [
     feather: 0.06,
     status: 'spill-check',
   },
+  {
+    candidateId: 'cv-parsing-smooth-v1',
+    label: 'parse',
+    maskTextureId: 'e7-lip-validation-cv-parsing-smooth-v1',
+    maskThreshold: 0.5,
+    coverage: 0.7,
+    feather: 0.075,
+    status: 'cv-smooth',
+  },
+  {
+    candidateId: 'cv-vision-fill-v1',
+    label: 'vision',
+    maskTextureId: 'e7-lip-validation-cv-vision-fill-v1',
+    maskThreshold: 0.5,
+    coverage: 0.69,
+    feather: 0.07,
+    status: 'curve-fill',
+  },
+  {
+    candidateId: 'cv-vision-color-v1',
+    label: 'color',
+    maskTextureId: 'e7-lip-validation-cv-vision-color-v1',
+    maskThreshold: 0.5,
+    coverage: 0.69,
+    feather: 0.07,
+    status: 'edge-snap',
+  },
+  {
+    candidateId: 'cv-hybrid-safe-v1',
+    label: 'safe2',
+    maskTextureId: 'e7-lip-validation-cv-hybrid-safe-v1',
+    maskThreshold: 0.54,
+    coverage: 0.66,
+    feather: 0.065,
+    status: 'low-spill',
+  },
+  {
+    candidateId: 'cv-hybrid-balanced-v1',
+    label: 'bal2',
+    maskTextureId: 'e7-lip-validation-cv-hybrid-balanced-v1',
+    maskThreshold: 0.52,
+    coverage: 0.7,
+    feather: 0.07,
+    status: 'coverage',
+  },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'clean', label: 'Clean' },
@@ -238,6 +284,11 @@ type MaskTextureId =
   | 'e7-lip-validation-tight-auto-v0'
   | 'e7-lip-validation-tight-user-v0'
   | 'e7-lip-validation-safe-v0'
+  | 'e7-lip-validation-cv-parsing-smooth-v1'
+  | 'e7-lip-validation-cv-vision-fill-v1'
+  | 'e7-lip-validation-cv-vision-color-v1'
+  | 'e7-lip-validation-cv-hybrid-safe-v1'
+  | 'e7-lip-validation-cv-hybrid-balanced-v1'
   | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
@@ -1591,7 +1642,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   })}
                 </View>
 
-                <View style={styles.lipRuntimeCandidateRow}>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.lipRuntimeCandidateRow}
+                >
                   {LIP_RUNTIME_CANDIDATE_OPTIONS.map(candidate => {
                     const isSelected =
                       candidate.candidateId ===
@@ -1633,7 +1688,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                       </Pressable>
                     );
                   })}
-                </View>
+                </ScrollView>
 
                 <View style={styles.colorButtonRow}>
                   {LIP_COLOR_OPTIONS.map(colorOption => {
@@ -3311,9 +3366,10 @@ const styles = StyleSheet.create({
   lipRuntimeCandidateRow: {
     flexDirection: 'row',
     gap: 6,
+    paddingRight: 6,
   },
   lipRuntimeCandidateButton: {
-    flex: 1,
+    minWidth: 72,
     minHeight: 42,
     borderRadius: 8,
     alignItems: 'center',

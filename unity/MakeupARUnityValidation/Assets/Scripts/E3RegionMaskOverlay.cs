@@ -1042,7 +1042,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             && (value == "lip-smooth-mask-v1"
                 || value == "lip-tight-auto-v0"
                 || value == "lip-tight-user-v0"
-                || value == "lip-safe-v0"))
+                || value == "lip-safe-v0"
+                || value.StartsWith("cv-", StringComparison.Ordinal)))
         {
             return value;
         }

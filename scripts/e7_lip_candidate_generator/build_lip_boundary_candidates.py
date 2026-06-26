@@ -11,14 +11,17 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import importlib.util
 import json
 import math
 import os
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from importlib import metadata as importlib_metadata
 from pathlib import Path
 from typing import Any
 
@@ -40,6 +43,7 @@ DEFAULT_COLOR_CONFIDENCE = Path(
 )
 DEFAULT_MEDIAPIPE_MODEL = Path(".cache/mediapipe/face_landmarker.task")
 DEFAULT_OUTPUT_ROOT = Path("evidence/e7-lip-candidate-generator")
+DEFAULT_UNITY_RESOURCE_DIR = Path("unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks")
 CANDIDATES = (
     "parsing_curve_smooth",
     "vision_curve_fill",
@@ -47,6 +51,53 @@ CANDIDATES = (
     "hybrid_curve_safe",
     "hybrid_curve_balanced",
 )
+CANDIDATE_RUNTIME = {
+    "parsing_curve_smooth": {
+        "candidateId": "cv-parsing-smooth-v1",
+        "unityMaskTextureId": "e7-lip-validation-cv-parsing-smooth-v1",
+        "label": "parsing",
+        "status": "cv-smooth",
+        "threshold": 0.50,
+        "coverage": 0.70,
+        "feather": 0.075,
+    },
+    "vision_curve_fill": {
+        "candidateId": "cv-vision-fill-v1",
+        "unityMaskTextureId": "e7-lip-validation-cv-vision-fill-v1",
+        "label": "vision",
+        "status": "curve-fill",
+        "threshold": 0.50,
+        "coverage": 0.69,
+        "feather": 0.07,
+    },
+    "vision_color_snap": {
+        "candidateId": "cv-vision-color-v1",
+        "unityMaskTextureId": "e7-lip-validation-cv-vision-color-v1",
+        "label": "color",
+        "status": "edge-snap",
+        "threshold": 0.50,
+        "coverage": 0.69,
+        "feather": 0.07,
+    },
+    "hybrid_curve_safe": {
+        "candidateId": "cv-hybrid-safe-v1",
+        "unityMaskTextureId": "e7-lip-validation-cv-hybrid-safe-v1",
+        "label": "safe2",
+        "status": "low-spill",
+        "threshold": 0.54,
+        "coverage": 0.66,
+        "feather": 0.065,
+    },
+    "hybrid_curve_balanced": {
+        "candidateId": "cv-hybrid-balanced-v1",
+        "unityMaskTextureId": "e7-lip-validation-cv-hybrid-balanced-v1",
+        "label": "bal2",
+        "status": "coverage",
+        "threshold": 0.52,
+        "coverage": 0.70,
+        "feather": 0.07,
+    },
+}
 ADJUSTMENT_FIELDS = ("cornerReach", "upperLipTightness", "lowerLipTightness", "verticalOffset")
 MEDIAPIPE_OUTER_LIP = (61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 409, 270, 269, 267, 0, 37, 39, 40, 185)
 MEDIAPIPE_INNER_LIP = (78, 95, 88, 178, 87, 14, 317, 402, 318, 324, 308, 415, 310, 311, 312, 13, 82, 81, 80, 191)
@@ -70,11 +121,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--color-confidence", type=Path, default=DEFAULT_COLOR_CONFIDENCE)
     parser.add_argument("--output-root", type=Path, default=DEFAULT_OUTPUT_ROOT)
     parser.add_argument("--run-id", default=None)
-    parser.add_argument("--uv-resolution", type=int, default=256)
+    parser.add_argument("--uv-resolution", type=int, default=512)
     parser.add_argument("--uv-sample-stride", type=int, default=5)
     parser.add_argument("--curve-samples", type=int, default=180)
     parser.add_argument("--mediapipe-model", type=Path, default=DEFAULT_MEDIAPIPE_MODEL)
     parser.add_argument("--skip-mediapipe", action="store_true")
+    parser.add_argument("--install-unity-assets", action="store_true")
+    parser.add_argument("--unity-resource-dir", type=Path, default=DEFAULT_UNITY_RESOURCE_DIR)
     parser.add_argument("--mediapipe-child", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--mediapipe-output-dir", type=Path, default=None, help=argparse.SUPPRESS)
     return parser.parse_args()
@@ -109,6 +162,8 @@ def ensure_dirs(output_dir: Path) -> dict[str, Path]:
         "inputs": output_dir / "inputs",
         "candidates": output_dir / "candidates",
         "debug": output_dir / "debug",
+        "evaluation": output_dir / "evaluation",
+        "report": output_dir / "report",
         "review": output_dir / "review",
         "mediapipe": output_dir / "mediapipe",
     }
@@ -119,20 +174,82 @@ def ensure_dirs(output_dir: Path) -> dict[str, Path]:
 
 def package_status() -> dict[str, Any]:
     packages = {
-        "cv2": "opencv",
-        "scipy": "scipy",
-        "skimage": "scikit-image",
-        "mediapipe": "mediapipe",
-        "numpy": "numpy",
-        "PIL": "pillow",
+        "opencv": ("cv2", "opencv-python-headless"),
+        "scipy": ("scipy", "scipy"),
+        "scikit-image": ("skimage", "scikit-image"),
+        "mediapipe": ("mediapipe", "mediapipe"),
+        "numpy": ("numpy", "numpy"),
+        "pillow": ("PIL", "pillow"),
     }
-    return {
-        label: {
-            "importName": name,
-            "available": importlib.util.find_spec(name) is not None,
+    status: dict[str, Any] = {}
+    for label, (import_name, distribution_name) in packages.items():
+        available = importlib.util.find_spec(import_name) is not None
+        item: dict[str, Any] = {
+            "importName": import_name,
+            "distributionName": distribution_name,
+            "available": available,
         }
-        for name, label in packages.items()
-    }
+        try:
+            item["distributionVersion"] = importlib_metadata.version(distribution_name)
+        except importlib_metadata.PackageNotFoundError:
+            item["distributionVersion"] = None
+        if available and import_name != "mediapipe":
+            try:
+                module = importlib.import_module(import_name)
+                item["moduleVersion"] = getattr(module, "__version__", None)
+            except Exception as exception:
+                item["moduleImportError"] = f"{exception.__class__.__name__}: {exception}"
+        elif available:
+            item["moduleVersion"] = item["distributionVersion"]
+            item["moduleImportSkipped"] = "Skipped during package status collection; MediaPipe is tested in its child process."
+        status[label] = item
+    return status
+
+
+def optional_import(import_name: str) -> Any | None:
+    if importlib.util.find_spec(import_name) is None:
+        return None
+    try:
+        return importlib.import_module(import_name)
+    except Exception:
+        return None
+
+
+def cv2_module() -> Any | None:
+    return optional_import("cv2")
+
+
+def scipy_ndimage_module() -> Any | None:
+    if importlib.util.find_spec("scipy.ndimage") is None:
+        return None
+    try:
+        from scipy import ndimage as ndi  # type: ignore[import-not-found]
+
+        return ndi
+    except Exception:
+        return None
+
+
+def skimage_measure_module() -> Any | None:
+    if importlib.util.find_spec("skimage.measure") is None:
+        return None
+    try:
+        from skimage import measure  # type: ignore[import-not-found]
+
+        return measure
+    except Exception:
+        return None
+
+
+def skimage_morphology_module() -> Any | None:
+    if importlib.util.find_spec("skimage.morphology") is None:
+        return None
+    try:
+        from skimage import morphology  # type: ignore[import-not-found]
+
+        return morphology
+    except Exception:
+        return None
 
 
 def load_mask(path: Path, size: tuple[int, int]) -> np.ndarray:
@@ -218,6 +335,75 @@ def keep_largest_component(mask: np.ndarray) -> np.ndarray:
         by, bx = zip(*best)
         out[np.asarray(by), np.asarray(bx)] = True
     return out
+
+
+def cv_find_largest_contour(mask: np.ndarray) -> Any | None:
+    cv2 = cv2_module()
+    if cv2 is None or not np.any(mask):
+        return None
+    contours, _ = cv2.findContours(
+        (mask.astype(np.uint8) * 255),
+        cv2.RETR_EXTERNAL,
+        cv2.CHAIN_APPROX_NONE,
+    )
+    if not contours:
+        return None
+    return max(contours, key=cv2.contourArea)
+
+
+def smooth_mask_cv_skimage(mask: np.ndarray, close_radius: int = 3, blur_sigma: float = 1.2) -> np.ndarray:
+    """Use available CV libraries to remove jagged bits without changing the source signal role."""
+    if not np.any(mask):
+        return mask.copy()
+    refined = mask.copy()
+    morphology = skimage_morphology_module()
+    if morphology is not None:
+        refined = morphology.remove_small_objects(refined.astype(bool), max_size=48)
+        refined = morphology.remove_small_holes(refined.astype(bool), max_size=48)
+    cv2 = cv2_module()
+    if cv2 is not None:
+        source = (refined.astype(np.uint8) * 255)
+        kernel_size = max(1, close_radius * 2 + 1)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+        source = cv2.morphologyEx(source, cv2.MORPH_CLOSE, kernel)
+        source = cv2.morphologyEx(source, cv2.MORPH_OPEN, kernel)
+        if blur_sigma > 0:
+            source = cv2.GaussianBlur(source, (0, 0), blur_sigma)
+            source = (source >= 128).astype(np.uint8) * 255
+        refined = source > 0
+    return keep_largest_component(refined.astype(bool))
+
+
+def mask_boundary(mask: np.ndarray) -> np.ndarray:
+    cv2 = cv2_module()
+    if cv2 is not None:
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        edge = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_GRADIENT, kernel)
+        return edge > 0
+    return mask & ~erode(mask, 1)
+
+
+def contour_quality(mask: np.ndarray) -> dict[str, Any]:
+    area = int(np.count_nonzero(mask))
+    contour = cv_find_largest_contour(mask)
+    if area == 0 or contour is None:
+        return {
+            "available": False,
+            "perimeterPx": 0.0,
+            "roughnessIndex": None,
+            "solidity": None,
+        }
+    cv2 = cv2_module()
+    perimeter = float(cv2.arcLength(contour, True)) if cv2 is not None else float(np.count_nonzero(mask_boundary(mask)))
+    hull = cv2.convexHull(contour) if cv2 is not None else None
+    hull_area = float(cv2.contourArea(hull)) if cv2 is not None and hull is not None else 0.0
+    circle_perimeter = 2.0 * math.pi * math.sqrt(max(area, 1) / math.pi)
+    return {
+        "available": True,
+        "perimeterPx": round(perimeter, 3),
+        "roughnessIndex": round(perimeter / circle_perimeter, 6) if circle_perimeter else None,
+        "solidity": round(area / hull_area, 6) if hull_area > 0 else None,
+    }
 
 
 def boundary_points_from_mask(mask: np.ndarray, samples: int = 180) -> list[tuple[float, float]]:
@@ -325,9 +511,20 @@ def snap_curve_to_color_edge(
         empty = np.zeros((frame.height, frame.width), dtype=bool)
         return points, {"status": "skipped_insufficient_points"}, empty
     rgb = np.asarray(frame.convert("RGB"), dtype=np.float32)
-    luma = (rgb[:, :, 0] * 0.299) + (rgb[:, :, 1] * 0.587) + (rgb[:, :, 2] * 0.114)
-    grad_y, grad_x = np.gradient(luma)
-    gradient = np.sqrt((grad_x * grad_x) + (grad_y * grad_y))
+    cv2 = cv2_module()
+    if cv2 is not None:
+        lab = cv2.cvtColor(np.asarray(frame.convert("RGB"), dtype=np.uint8), cv2.COLOR_RGB2LAB).astype(np.float32)
+        gradient = np.zeros((frame.height, frame.width), dtype=np.float32)
+        for channel_index, weight in ((0, 0.45), (1, 0.35), (2, 0.20)):
+            gx = cv2.Sobel(lab[:, :, channel_index], cv2.CV_32F, 1, 0, ksize=3)
+            gy = cv2.Sobel(lab[:, :, channel_index], cv2.CV_32F, 0, 1, ksize=3)
+            gradient += weight * np.sqrt((gx * gx) + (gy * gy))
+        gradient_source = "opencv_lab_sobel"
+    else:
+        luma = (rgb[:, :, 0] * 0.299) + (rgb[:, :, 1] * 0.587) + (rgb[:, :, 2] * 0.114)
+        grad_y, grad_x = np.gradient(luma)
+        gradient = np.sqrt((grad_x * grad_x) + (grad_y * grad_y))
+        gradient_source = "numpy_luma_gradient"
     cx, cy = curve_center(points, (frame.width / 2.0, frame.height / 2.0))
     snapped: list[tuple[float, float]] = []
     band = np.zeros((frame.height, frame.width), dtype=bool)
@@ -357,6 +554,7 @@ def snap_curve_to_color_edge(
         movements.append(math.sqrt(((best_point[0] - x) ** 2) + ((best_point[1] - y) ** 2)))
     return snapped, {
         "status": "applied",
+        "gradientSource": gradient_source,
         "maxOffsetPx": max_offset,
         "meanMovementPx": round(float(np.mean(movements)), 3) if movements else 0.0,
         "maxMovementPx": round(float(np.max(movements)), 3) if movements else 0.0,
@@ -466,6 +664,7 @@ def build_candidates(
     parsing_source = close_mask(open_mask(parsing_lip, 1), 2)
     parsing_points = chaikin(resample_polyline(boundary_points_from_mask(parsing_source, samples=samples)), 3)
     parsing_mask = keep_largest_component(close_mask(fill_polygon(parsing_points, size), 1))
+    parsing_mask = smooth_mask_cv_skimage(parsing_mask, close_radius=2, blur_sigma=0.9)
     parsing_mask = subtract_optional(parsing_mask, inner)
     candidates["parsing_curve_smooth"] = Candidate(
         "parsing_curve_smooth",
@@ -478,6 +677,7 @@ def build_candidates(
                 "extract parsing lip boundary",
                 "reduce and smooth boundary points",
                 "fill smoothed curve",
+                "clean boundary with OpenCV/scikit-image when available",
                 "subtract inner mouth if available",
             ],
             "inputPixels": int(np.count_nonzero(parsing_lip)),
@@ -494,6 +694,7 @@ def build_candidates(
     vision_curve = chaikin(outer, 4)
     inner_curve = chaikin(inner_points, 3) if len(inner_points) >= 3 else []
     vision_mask = keep_largest_component(close_mask(fill_polygon(vision_curve, size, [inner_curve] if inner_curve else None), 1))
+    vision_mask = smooth_mask_cv_skimage(vision_mask, close_radius=1, blur_sigma=0.7)
     vision_mask = subtract_optional(vision_mask, inner)
     candidates["vision_curve_fill"] = Candidate(
         "vision_curve_fill",
@@ -502,7 +703,13 @@ def build_candidates(
         vision_curve,
         {
             "sourceSignals": ["apple_vision_outer_lips", "apple_vision_inner_lips"],
-            "steps": ["read Vision points", "smooth closed curve", "fill outer curve", "subtract inner curve when usable"],
+            "steps": [
+                "read Vision points",
+                "smooth closed curve",
+                "fill outer curve",
+                "clean boundary with OpenCV/scikit-image when available",
+                "subtract inner curve when usable",
+            ],
             "outerPointCount": len(outer),
             "innerPointCount": len(inner_points),
             "outputPixels": int(np.count_nonzero(vision_mask)),
@@ -511,6 +718,7 @@ def build_candidates(
 
     snapped_curve, snap_report, color_band = snap_curve_to_color_edge(vision_curve, frame, max_offset=8)
     snap_mask = keep_largest_component(close_mask(fill_polygon(snapped_curve, size, [inner_curve] if inner_curve else None), 1))
+    snap_mask = smooth_mask_cv_skimage(snap_mask, close_radius=1, blur_sigma=0.7)
     snap_mask = subtract_optional(snap_mask, inner)
     candidates["vision_color_snap"] = Candidate(
         "vision_color_snap",
@@ -519,7 +727,13 @@ def build_candidates(
         snapped_curve,
         {
             "sourceSignals": ["apple_vision_outer_lips", "frame_luma_gradient", "limited_color_edge_band"],
-            "steps": ["start from Vision curve", "scan local normal band", "move points to strong gradient", "fill curve"],
+            "steps": [
+                "start from Vision curve",
+                "scan local normal band",
+                "move points to strong LAB/luma gradient",
+                "fill curve",
+                "clean boundary with OpenCV/scikit-image when available",
+            ],
             "snapReport": snap_report,
             "outputPixels": int(np.count_nonzero(snap_mask)),
         },
@@ -535,6 +749,7 @@ def build_candidates(
     safe = subtract_optional(safe, inner)
     safe_points = chaikin(resample_polyline(boundary_points_from_mask(safe, samples=samples)), 3)
     safe = keep_largest_component(fill_polygon(safe_points, size)) if len(safe_points) >= 3 else safe
+    safe = smooth_mask_cv_skimage(safe, close_radius=2, blur_sigma=0.9)
     safe = subtract_optional(safe, inner)
     candidates["hybrid_curve_safe"] = Candidate(
         "hybrid_curve_safe",
@@ -548,6 +763,7 @@ def build_candidates(
                 "erode once for spill prevention",
                 "remove confident skin guard",
                 "smooth final boundary",
+                "clean boundary with OpenCV/scikit-image when available",
             ],
             "outputPixels": int(np.count_nonzero(safe)),
         },
@@ -564,6 +780,7 @@ def build_candidates(
     balanced = subtract_optional(balanced, inner)
     balanced_points = chaikin(resample_polyline(boundary_points_from_mask(balanced, samples=samples)), 3)
     balanced = keep_largest_component(fill_polygon(balanced_points, size)) if len(balanced_points) >= 3 else balanced
+    balanced = smooth_mask_cv_skimage(balanced, close_radius=2, blur_sigma=0.9)
     balanced = subtract_optional(balanced, inner)
     candidates["hybrid_curve_balanced"] = Candidate(
         "hybrid_curve_balanced",
@@ -583,6 +800,7 @@ def build_candidates(
                 "preserve upper/lower parsing support",
                 "skin guard rollback",
                 "smooth final boundary",
+                "clean boundary with OpenCV/scikit-image when available",
             ],
             "outputPixels": int(np.count_nonzero(balanced)),
         },
@@ -747,11 +965,201 @@ def comparison_metrics(candidate: np.ndarray, reference: np.ndarray | None) -> d
     return {
         "available": True,
         "iou": round(tp / union, 6) if union else 0.0,
+        "dice": round((2 * tp) / ((2 * tp) + fp + fn), 6) if ((2 * tp) + fp + fn) else 0.0,
         "precision": round(tp / (tp + fp), 6) if (tp + fp) else 0.0,
         "recall": round(tp / (tp + fn), 6) if (tp + fn) else 0.0,
         "outsideReference": round(fp / cand, 6) if cand else 0.0,
         "missReference": round(fn / ref, 6) if ref else 0.0,
     }
+
+
+def boundary_distance_metrics(candidate: np.ndarray, reference: np.ndarray | None) -> dict[str, Any]:
+    if reference is None or candidate.shape != reference.shape or not np.any(candidate) or not np.any(reference):
+        return {"available": False}
+    ndi = scipy_ndimage_module()
+    if ndi is None:
+        return {"available": False, "reason": "scipy_ndimage_unavailable"}
+    candidate_edge = mask_boundary(candidate)
+    reference_edge = mask_boundary(reference)
+    if not np.any(candidate_edge) or not np.any(reference_edge):
+        return {"available": False, "reason": "edge_missing"}
+    dist_to_reference = ndi.distance_transform_edt(~reference_edge)
+    dist_to_candidate = ndi.distance_transform_edt(~candidate_edge)
+    candidate_to_reference = dist_to_reference[candidate_edge]
+    reference_to_candidate = dist_to_candidate[reference_edge]
+    symmetric = np.concatenate([candidate_to_reference, reference_to_candidate])
+    return {
+        "available": True,
+        "candidateToReferenceMeanPx": round(float(np.mean(candidate_to_reference)), 4),
+        "candidateToReferenceP95Px": round(float(np.percentile(candidate_to_reference, 95)), 4),
+        "candidateToReferenceMaxPx": round(float(np.max(candidate_to_reference)), 4),
+        "referenceToCandidateMeanPx": round(float(np.mean(reference_to_candidate)), 4),
+        "referenceToCandidateP95Px": round(float(np.percentile(reference_to_candidate, 95)), 4),
+        "referenceToCandidateMaxPx": round(float(np.max(reference_to_candidate)), 4),
+        "symmetricMeanPx": round(float(np.mean(symmetric)), 4),
+        "symmetricP95Px": round(float(np.percentile(symmetric, 95)), 4),
+    }
+
+
+def component_metrics(mask: np.ndarray) -> dict[str, Any]:
+    measure = skimage_measure_module()
+    ndi = scipy_ndimage_module()
+    if measure is not None:
+        labels = measure.label(mask.astype(bool), connectivity=2)
+        component_count = int(labels.max())
+    else:
+        cv2 = cv2_module()
+        if cv2 is not None:
+            component_count = int(cv2.connectedComponents(mask.astype(np.uint8), connectivity=8)[0] - 1)
+        else:
+            component_count = 1 if np.any(mask) else 0
+    hole_pixels = 0
+    hole_component_count = 0
+    if ndi is not None and np.any(mask):
+        filled = ndi.binary_fill_holes(mask)
+        holes = filled & ~mask
+        hole_pixels = int(np.count_nonzero(holes))
+        if measure is not None:
+            hole_component_count = int(measure.label(holes.astype(bool), connectivity=2).max())
+    return {
+        "componentCount": component_count,
+        "holePixels": hole_pixels,
+        "holeComponentCount": hole_component_count,
+    }
+
+
+def corner_recall_metrics(candidate: np.ndarray, reference: np.ndarray | None) -> dict[str, Any]:
+    if reference is None or candidate.shape != reference.shape or not np.any(reference):
+        return {"available": False}
+    box = bbox(reference)
+    if not box.get("available"):
+        return {"available": False}
+    width = max(1, int(box["width"]))
+    left_limit = int(box["minX"] + max(2, round(width * 0.18)))
+    right_limit = int(box["maxX"] - max(2, round(width * 0.18)))
+    yy, xx = np.indices(reference.shape)
+    left_ref = reference & (xx <= left_limit)
+    right_ref = reference & (xx >= right_limit)
+
+    def recall(region: np.ndarray) -> float | None:
+        total = int(np.count_nonzero(region))
+        if total == 0:
+            return None
+        return round(float(np.count_nonzero(candidate & region) / total), 6)
+
+    left_total = int(np.count_nonzero(left_ref))
+    right_total = int(np.count_nonzero(right_ref))
+    return {
+        "available": True,
+        "leftCornerRecall": recall(left_ref),
+        "rightCornerRecall": recall(right_ref),
+        "leftCornerMissPixels": int(np.count_nonzero(left_ref & ~candidate)),
+        "rightCornerMissPixels": int(np.count_nonzero(right_ref & ~candidate)),
+        "leftCornerReferencePixels": left_total,
+        "rightCornerReferencePixels": right_total,
+    }
+
+
+def symmetry_metrics(mask: np.ndarray) -> dict[str, Any]:
+    box = bbox(mask)
+    if not box.get("available"):
+        return {"available": False}
+    center_x = (float(box["minX"]) + float(box["maxX"])) / 2.0
+    yy, xx = np.indices(mask.shape)
+    left = int(np.count_nonzero(mask & (xx < center_x)))
+    right = int(np.count_nonzero(mask & (xx >= center_x)))
+    total = left + right
+    return {
+        "available": True,
+        "leftPixels": left,
+        "rightPixels": right,
+        "leftRightAbsDiffRatio": round(abs(left - right) / total, 6) if total else None,
+    }
+
+
+def upper_lower_metrics(mask: np.ndarray, upper: np.ndarray | None, lower: np.ndarray | None) -> dict[str, Any]:
+    if not np.any(mask):
+        return {"available": False}
+    if upper is not None and lower is not None and np.any(upper | lower):
+        upper_pixels = int(np.count_nonzero(mask & upper))
+        lower_pixels = int(np.count_nonzero(mask & lower))
+        source = "face_parsing_upper_lower"
+    else:
+        box = bbox(mask)
+        if not box.get("available"):
+            return {"available": False}
+        split_y = int(round((float(box["minY"]) + float(box["maxY"])) / 2.0))
+        yy, _ = np.indices(mask.shape)
+        upper_pixels = int(np.count_nonzero(mask & (yy <= split_y)))
+        lower_pixels = int(np.count_nonzero(mask & (yy > split_y)))
+        source = "bbox_midline"
+    total = upper_pixels + lower_pixels
+    return {
+        "available": True,
+        "source": source,
+        "upperPixels": upper_pixels,
+        "lowerPixels": lower_pixels,
+        "upperLowerRatio": round(upper_pixels / total, 6) if total else None,
+    }
+
+
+def advanced_candidate_metrics(
+    candidate: np.ndarray,
+    reference: np.ndarray | None,
+    upper: np.ndarray | None,
+    lower: np.ndarray | None,
+) -> dict[str, Any]:
+    positive = int(np.count_nonzero(candidate))
+    reference_positive = int(np.count_nonzero(reference)) if reference is not None and reference.shape == candidate.shape else None
+    area_change = None
+    if reference_positive:
+        area_change = round((positive - reference_positive) / reference_positive, 6)
+    return {
+        "schemaVersion": "e7-lip-candidate-evaluation-v1",
+        "positivePixels": positive,
+        "referencePixels": reference_positive,
+        "areaChangeVsGold": area_change,
+        "bbox": bbox(candidate),
+        "goldOverlap": comparison_metrics(candidate, reference),
+        "boundaryDistance": boundary_distance_metrics(candidate, reference),
+        "cornerRecall": corner_recall_metrics(candidate, reference),
+        "contourQuality": contour_quality(candidate),
+        "components": component_metrics(candidate),
+        "symmetry": symmetry_metrics(candidate),
+        "upperLower": upper_lower_metrics(candidate, upper, lower),
+    }
+
+
+def write_failure_overlay(
+    frame: Image.Image,
+    candidate: np.ndarray,
+    reference: np.ndarray | None,
+    output_path: Path,
+    title: str,
+) -> None:
+    if reference is None or reference.shape != candidate.shape:
+        edge = mask_boundary(candidate)
+        image = overlay_masks(frame, [(candidate, (255, 42, 96), 0.34), (edge, (80, 255, 120), 0.90)]).convert("RGB")
+    else:
+        tp = candidate & reference
+        ref_only = reference & ~candidate
+        candidate_only = candidate & ~reference
+        candidate_edge = mask_boundary(candidate)
+        reference_edge = mask_boundary(reference)
+        image = overlay_masks(
+            frame,
+            [
+                (tp, (255, 42, 96), 0.40),
+                (ref_only, (255, 220, 40), 0.75),
+                (candidate_only, (40, 180, 255), 0.70),
+                (candidate_edge, (70, 255, 110), 0.90),
+                (reference_edge, (255, 255, 255), 0.75),
+            ],
+        ).convert("RGB")
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((0, 0, min(image.width - 1, 920), 52), fill=(0, 0, 0))
+    draw.text((12, 16), title, fill=(255, 255, 255))
+    image.save(output_path)
 
 
 def load_gold_reference(size: tuple[int, int]) -> np.ndarray | None:
@@ -820,6 +1228,8 @@ def write_candidate_artifacts(
     candidates: dict[str, Candidate],
     arface_export: dict[str, Any] | None,
     gold_reference: np.ndarray | None,
+    upper: np.ndarray | None,
+    lower: np.ndarray | None,
     args: argparse.Namespace,
 ) -> tuple[dict[str, Any], list[tuple[str, Image.Image]]]:
     metrics_by_candidate: dict[str, Any] = {}
@@ -845,6 +1255,8 @@ def write_candidate_artifacts(
         overlay_masks(frame, [(edge_band, (80, 255, 120), 0.75)]).save(dirs["debug"] / f"{candidate_id}_edge_band.png")
         curve_overlay = dirs["debug"] / f"{candidate_id}_curve_overlay.png"
         write_curve_overlay(frame, candidate.mask, candidate.curve_points, curve_overlay, f"{candidate_id} curve")
+        failure_overlay_path = dirs["evaluation"] / f"{candidate_id}_gold_difference_overlay.png"
+        write_failure_overlay(frame, candidate.mask, gold_reference, failure_overlay_path, f"{candidate_id} difference vs gold")
 
         uv_status: dict[str, Any] = {"available": False}
         if arface_export:
@@ -861,15 +1273,22 @@ def write_candidate_artifacts(
         else:
             Image.new("RGB", frame.size, "white").save(dirs["debug"] / f"{candidate_id}_uv_round_trip_overlay.png")
 
+        advanced_metrics = advanced_candidate_metrics(candidate.mask, gold_reference, upper, lower)
+        evaluation_path = dirs["evaluation"] / f"{candidate_id}_evaluation.json"
+        write_json(evaluation_path, advanced_metrics)
         candidate_metrics = {
             "maskPath": str(mask_path),
             "alphaPath": str(alpha_path),
             "overlayPath": str(overlay_path),
+            "failureOverlayPath": str(failure_overlay_path),
             "positivePixels": int(np.count_nonzero(candidate.mask)),
             "bbox": bbox(candidate.mask),
             "goldComparison": comparison_metrics(candidate.mask, gold_reference),
+            "advancedEvaluation": advanced_metrics,
+            "evaluationPath": str(evaluation_path),
             "uvProjection": uv_status,
             "tracePath": str(dirs["debug"] / f"{candidate_id}_generation_trace.json"),
+            "runtime": CANDIDATE_RUNTIME[candidate_id],
         }
         metrics_by_candidate[candidate_id] = candidate_metrics
         contact_entries.append((candidate_id, Image.open(overlay_path).copy()))
@@ -1172,7 +1591,8 @@ def run_mediapipe_test(
     report["goldComparison"] = comparison_metrics(mask, gold_reference)
     uv_status: dict[str, Any] = {"available": False}
     if arface_export:
-        predicted = forward_project_uv(back_project_mask(mask, arface_export), arface_export, frame.size)
+        probability = back_project_mask(mask, arface_export, args.uv_resolution, args.uv_sample_stride)
+        predicted = render_atlas_to_screen(probability, arface_export, frame.size, 0.5, args.uv_sample_stride)
         round_trip_path = output_dir / "mediapipe_uv_round_trip_overlay.png"
         round_trip_overlay(frame, mask, predicted).save(round_trip_path)
         uv_status = {
@@ -1198,8 +1618,8 @@ def write_review_docs(
     rows = [
         "# E7 입술 후보 생성기 비교표",
         "",
-        "| 후보 | 픽셀 수 | gold IoU | gold precision | gold recall | UV round-trip IoU | 현재 해석 |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | --- |",
+        "| 후보 | 픽셀 수 | gold IoU | Dice | 경계 평균 거리(px) | 왼쪽 입꼬리 | 오른쪽 입꼬리 | 면적 변화 | 거칠기 | UV 미리보기 IoU | 현재 해석 |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
     interpretation = {
         "parsing_curve_smooth": "face parsing 면적을 매끈하게 정리한 후보",
@@ -1211,14 +1631,22 @@ def write_review_docs(
     for candidate_id in CANDIDATES:
         item = metrics[candidate_id]
         gold = item["goldComparison"]
+        advanced = item.get("advancedEvaluation", {})
+        distance = advanced.get("boundaryDistance", {})
+        corner = advanced.get("cornerRecall", {})
+        contour = advanced.get("contourQuality", {})
         uv = item["uvProjection"].get("roundTrip", {})
         rows.append(
-            "| `{}` | {} | {} | {} | {} | {} | {} |".format(
+            "| `{}` | {} | {} | {} | {} | {} | {} | {} | {} | {} | {} |".format(
                 candidate_id,
                 item["positivePixels"],
                 gold.get("iou", "n/a") if gold.get("available") else "n/a",
-                gold.get("precision", "n/a") if gold.get("available") else "n/a",
-                gold.get("recall", "n/a") if gold.get("available") else "n/a",
+                gold.get("dice", "n/a") if gold.get("available") else "n/a",
+                distance.get("symmetricMeanPx", "n/a") if distance.get("available") else "n/a",
+                corner.get("leftCornerRecall", "n/a") if corner.get("available") else "n/a",
+                corner.get("rightCornerRecall", "n/a") if corner.get("available") else "n/a",
+                advanced.get("areaChangeVsGold", "n/a"),
+                contour.get("roughnessIndex", "n/a") if contour.get("available") else "n/a",
                 uv.get("iou", "n/a") if uv.get("available") else "n/a",
                 interpretation[candidate_id],
             )
@@ -1365,6 +1793,271 @@ def write_review_docs(
     (dirs["review"] / "loop_notes.md").write_text("\n".join(loop_notes), encoding="utf-8")
 
 
+def review_priority_score(item: dict[str, Any]) -> float:
+    gold = item.get("goldComparison", {})
+    advanced = item.get("advancedEvaluation", {})
+    distance = advanced.get("boundaryDistance", {})
+    corner = advanced.get("cornerRecall", {})
+    area_change = advanced.get("areaChangeVsGold")
+    contour = advanced.get("contourQuality", {})
+    iou = float(gold.get("iou", 0.0)) if gold.get("available") else 0.0
+    mean_distance = float(distance.get("symmetricMeanPx", 20.0)) if distance.get("available") else 20.0
+    left_corner = corner.get("leftCornerRecall")
+    right_corner = corner.get("rightCornerRecall")
+    corner_min = min(
+        float(left_corner) if isinstance(left_corner, (int, float)) else 0.0,
+        float(right_corner) if isinstance(right_corner, (int, float)) else 0.0,
+    )
+    area_penalty = abs(float(area_change)) if isinstance(area_change, (int, float)) else 0.2
+    roughness = contour.get("roughnessIndex")
+    roughness_penalty = max(0.0, float(roughness) - 1.4) if isinstance(roughness, (int, float)) else 0.2
+    return round(iou + (corner_min * 0.04) - (mean_distance * 0.01) - (area_penalty * 0.12) - (roughness_penalty * 0.03), 6)
+
+
+def sorted_candidate_ids_by_priority(metrics: dict[str, Any]) -> list[str]:
+    return sorted(CANDIDATES, key=lambda candidate_id: review_priority_score(metrics[candidate_id]), reverse=True)
+
+
+def meta_from_template(template_path: Path) -> str:
+    guid = uuid.uuid4().hex
+    if template_path.exists():
+        lines = template_path.read_text(encoding="utf-8").splitlines()
+        return "\n".join([f"guid: {guid}" if line.startswith("guid: ") else line for line in lines]) + "\n"
+    return f"fileFormatVersion: 2\nguid: {guid}\n"
+
+
+def install_unity_assets(
+    dirs: dict[str, Path],
+    metrics: dict[str, Any],
+    args: argparse.Namespace,
+) -> dict[str, Any]:
+    install_report: dict[str, Any] = {
+        "installed": False,
+        "resourceDir": str(args.unity_resource_dir),
+        "assets": {},
+    }
+    if not args.install_unity_assets:
+        install_report["reason"] = "install_unity_assets_flag_not_set"
+        write_json(dirs["review"] / "unity_asset_install_report.json", install_report)
+        return install_report
+
+    args.unity_resource_dir.mkdir(parents=True, exist_ok=True)
+    template_meta = args.unity_resource_dir / "e7-lip-validation-tight-auto-v0.png.meta"
+    for candidate_id in CANDIDATES:
+        runtime = CANDIDATE_RUNTIME[candidate_id]
+        source = dirs["debug"] / f"{candidate_id}_uv_probability.png"
+        target = args.unity_resource_dir / f"{runtime['unityMaskTextureId']}.png"
+        if not source.exists():
+            install_report["assets"][candidate_id] = {
+                "installed": False,
+                "reason": "uv_probability_missing",
+                "source": str(source),
+            }
+            continue
+        source_image = Image.open(source).convert("L")
+        if source_image.size != (512, 512):
+            source_image = source_image.resize((512, 512), Image.Resampling.BILINEAR)
+        arr = np.asarray(source_image, dtype=np.uint8)
+        rgba = np.dstack([arr, arr, arr, np.full_like(arr, 255)])
+        Image.fromarray(rgba, mode="RGBA").save(target)
+        meta_path = Path(str(target) + ".meta")
+        if not meta_path.exists():
+            meta_path.write_text(meta_from_template(template_meta), encoding="utf-8")
+        install_report["assets"][candidate_id] = {
+            "installed": True,
+            "candidateId": runtime["candidateId"],
+            "unityMaskTextureId": runtime["unityMaskTextureId"],
+            "source": str(source),
+            "target": str(target),
+            "targetMeta": str(meta_path),
+            "targetSha256": sha256_file(target),
+            "metricsPath": metrics[candidate_id].get("evaluationPath"),
+        }
+    install_report["installed"] = any(item.get("installed") for item in install_report["assets"].values())
+    write_json(dirs["review"] / "unity_asset_install_report.json", install_report)
+    return install_report
+
+
+def write_runtime_registry(
+    output_dir: Path,
+    metrics: dict[str, Any],
+    unity_install: dict[str, Any],
+) -> dict[str, Any]:
+    registry = {
+        "schemaVersion": "e7-lip-cv-runtime-candidate-registry-v1",
+        "createdAtUtc": utc_now(),
+        "runtimeReady": False,
+        "candidateIds": [CANDIDATE_RUNTIME[candidate_id]["candidateId"] for candidate_id in CANDIDATES],
+        "userAdjustmentFields": list(ADJUSTMENT_FIELDS),
+        "unityAssetsInstalled": bool(unity_install.get("installed")),
+        "candidates": [],
+    }
+    for candidate_id in CANDIDATES:
+        runtime = CANDIDATE_RUNTIME[candidate_id]
+        item = metrics[candidate_id]
+        install_item = unity_install.get("assets", {}).get(candidate_id, {})
+        registry["candidates"].append(
+            {
+                "sourceCandidateId": candidate_id,
+                "candidateId": runtime["candidateId"],
+                "label": runtime["label"],
+                "status": runtime["status"],
+                "unityMaskTextureId": runtime["unityMaskTextureId"],
+                "threshold": runtime["threshold"],
+                "coverage": runtime["coverage"],
+                "feather": runtime["feather"],
+                "screenMask": item["maskPath"],
+                "overlay": item["overlayPath"],
+                "evaluation": item["evaluationPath"],
+                "unityAssetPath": install_item.get("target"),
+                "runtimeReady": False,
+                "runtimeReadyReason": "installed_for_validation_selection_not_user_confirmed",
+            }
+        )
+    write_json(output_dir / "candidate_registry_cv_runtime.json", registry)
+    return registry
+
+
+def write_korean_report(
+    output_dir: Path,
+    dirs: dict[str, Path],
+    metrics: dict[str, Any],
+    unity_install: dict[str, Any],
+    mediapipe_report: dict[str, Any] | None,
+) -> Path:
+    ranked = sorted_candidate_ids_by_priority(metrics)
+    best = ranked[0] if ranked else CANDIDATES[0]
+    lines = [
+        "# E7 입술 경계 후보 생성 실험 보고서",
+        "",
+        f"- 실행 폴더: `{output_dir}`",
+        "- 목적: 기존 신호를 조합해 실제 AR 화면에서 비교할 입술 경계 후보 5개를 만든다.",
+        "- 판단 범위: 현재 clean female sample 기준의 buildless 결과다. 실제 카메라 최종 판정은 아니다.",
+        "",
+        "## 입력 신호",
+        "",
+        "| 신호 | 이번 실험에서의 역할 | 한계 |",
+        "| --- | --- | --- |",
+        "| gold 기준 마스크 | 비교 기준과 누락/넘침 확인 | 사람이 그린 기준이라 같은 사진에는 강하지만 일반화 근거는 약함 |",
+        "| face parsing | 입술 면적과 피부/입 안쪽 제외 힌트 | 가장자리가 거칠고 입꼬리를 짧게 잡을 수 있음 |",
+        "| Apple Vision | 입술 형태와 좌표 안정성 힌트 | 점이 적으면 실제 곡선을 덜 따라갈 수 있음 |",
+        "| color/gradient | Vision 선을 실제 색 경계 쪽으로 조금 옮기는 보정 | 조명, 그림자, 기존 립 컬러에 영향을 받음 |",
+        "| ARFace UV | 실제 카메라에서 얼굴 mesh에 붙일 좌표계 | 색 경계 자체를 알려주지는 않음 |",
+        "| OpenCV/scikit-image | 경계 정리, 부드럽게 만들기, 거리/거칠기 평가 | 새 입술 인식 모델은 아니며 입력 신호가 틀리면 함께 틀릴 수 있음 |",
+        "",
+        "## 후보 요약",
+        "",
+        "| 후보 | 설명 | gold IoU | Dice | 경계 평균 거리(px) | 입꼬리 최소 recall | 면적 변화 | 리뷰 우선값 |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    description = {
+        "parsing_curve_smooth": "face parsing 결과를 매끈한 곡선 mask로 다시 그린 후보",
+        "vision_curve_fill": "Apple Vision 입술 점을 곡선으로 이어 채운 후보",
+        "vision_color_snap": "Vision 곡선을 사진의 색/밝기 경계 쪽으로 조금 이동한 후보",
+        "hybrid_curve_safe": "parsing, Vision, 색 경계를 합치되 번짐을 줄인 후보",
+        "hybrid_curve_balanced": "safe보다 입꼬리와 얇은 윗입술 보존을 더 시도한 후보",
+    }
+    for candidate_id in CANDIDATES:
+        item = metrics[candidate_id]
+        gold = item["goldComparison"]
+        advanced = item["advancedEvaluation"]
+        distance = advanced["boundaryDistance"]
+        corner = advanced["cornerRecall"]
+        corner_values = [
+            value for value in (corner.get("leftCornerRecall"), corner.get("rightCornerRecall")) if isinstance(value, (int, float))
+        ]
+        corner_min = min(corner_values) if corner_values else "n/a"
+        lines.append(
+            "| `{}` | {} | {} | {} | {} | {} | {} | {} |".format(
+                candidate_id,
+                description[candidate_id],
+                gold.get("iou", "n/a") if gold.get("available") else "n/a",
+                gold.get("dice", "n/a") if gold.get("available") else "n/a",
+                distance.get("symmetricMeanPx", "n/a") if distance.get("available") else "n/a",
+                corner_min,
+                advanced.get("areaChangeVsGold", "n/a"),
+                review_priority_score(item),
+            )
+        )
+    lines.extend(
+        [
+            "",
+            "## 후보별 이미지",
+            "",
+            "아래 이미지는 작게 삽입했다. 원본 비교는 각 이미지 경로를 직접 열어 확인하면 된다.",
+            "",
+        ]
+    )
+    for candidate_id in CANDIDATES:
+        item = metrics[candidate_id]
+        lines.extend(
+            [
+                f"### {candidate_id}",
+                "",
+                f"- 최종 overlay: `{item['overlayPath']}`",
+                f"- 기준 대비 차이 overlay: `{item['failureOverlayPath']}`",
+                f"- 중간/디버그: `{dirs['debug'] / (candidate_id + '_curve_overlay.png')}` / `{dirs['debug'] / (candidate_id + '_edge_band.png')}`",
+                "",
+                f'<img src="../candidates/{candidate_id}_overlay.png" width="320" />',
+                "",
+                f'<img src="../evaluation/{candidate_id}_gold_difference_overlay.png" width="320" />',
+                "",
+            ]
+        )
+    lines.extend(
+        [
+            "## 현재 추천",
+            "",
+            f"- buildless 리뷰 우선 후보: `{best}`",
+            "- 이 추천은 자동 확정이 아니라 실제 카메라에서 먼저 볼 후보 순서다.",
+            "- 이유: gold와의 겹침, 경계 거리, 입꼬리 누락, 면적 증가를 함께 본 보조값이 가장 높다.",
+            "",
+            "## 앱 연결 상태",
+            "",
+        ]
+    )
+    if unity_install.get("installed"):
+        lines.append("- 새 후보 UV texture를 Unity Resources에 설치했다. RN 후보 버튼과 Unity mask id를 연결하면 실제 카메라 화면에서 전환 가능하다.")
+    else:
+        lines.append("- 이번 실행에서는 Unity Resources 설치 플래그가 꺼져 있었다. `--install-unity-assets`로 다시 실행하면 후보 texture를 설치한다.")
+    lines.extend(
+        [
+            f"- Unity 설치 리포트: `{dirs['review'] / 'unity_asset_install_report.json'}`",
+            f"- 런타임 후보 registry: `{output_dir / 'candidate_registry_cv_runtime.json'}`",
+            "",
+            "## MediaPipe",
+            "",
+        ]
+    )
+    if mediapipe_report is not None and mediapipe_report.get("available"):
+        lines.append("- MediaPipe 비교 신호도 생성됐다. 단, 이번 5개 core 후보를 대체하는 신호로 보지 않는다.")
+    else:
+        reason = mediapipe_report.get("reason") if mediapipe_report else "not_run"
+        lines.append(f"- MediaPipe는 이번 로컬 실행에서 사용 불가로 기록했다: `{reason}`.")
+    lines.extend(
+        [
+            "",
+            "## 실제 카메라에서 볼 점",
+            "",
+            "- 피부 쪽으로 번지는지",
+            "- 입꼬리가 비는지",
+            "- 윗입술 산과 얇은 윗입술이 무너지는지",
+            "- 입을 조금 열거나 표정을 바꿀 때 경계가 얼굴에 붙어 보이는지",
+            "- 사용자 조정값으로 충분히 보정 가능한지",
+            "",
+            "## 남은 위험",
+            "",
+            "- clean female sample 하나에서 만든 결과다.",
+            "- gold 기준 점수는 실제 AR 적용감을 대신하지 않는다.",
+            "- ARFace UV 미리보기는 실제 카메라 runtime 증거가 아니다.",
+            "- 후보 선택 UI는 검증용이며 최종 사용자 흐름은 별도 정리가 필요하다.",
+        ]
+    )
+    path = dirs["report"] / "E7_LIP_CANDIDATE_GENERATOR_REPORT_KO.md"
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path
+
+
 def main() -> int:
     args = parse_args()
     if args.mediapipe_child:
@@ -1389,7 +2082,7 @@ def main() -> int:
     candidates, warnings, color_band = build_candidates(frame, vision, parsing_lip, upper, lower, inner, skin, args.curve_samples)
     write_input_overlays(dirs, frame, vision, parsing_lip, upper, lower, skin, color_band, arface_export)
     gold_reference = load_gold_reference(size)
-    metrics, contact_entries = write_candidate_artifacts(dirs, frame, candidates, arface_export, gold_reference, args)
+    metrics, contact_entries = write_candidate_artifacts(dirs, frame, candidates, arface_export, gold_reference, upper, lower, args)
     mediapipe_report, mediapipe_contact_entry = run_mediapipe_test(args, dirs, frame, arface_export, gold_reference)
     if mediapipe_contact_entry is not None:
         contact_entries.append(mediapipe_contact_entry)
@@ -1410,6 +2103,9 @@ def main() -> int:
             )
         )
     write_review_docs(output_dir, dirs, metrics, contact_entries, mediapipe_report)
+    unity_install = install_unity_assets(dirs, metrics, args)
+    runtime_registry = write_runtime_registry(output_dir, metrics, unity_install)
+    report_path = write_korean_report(output_dir, dirs, metrics, unity_install, mediapipe_report)
 
     input_report = {
         "schemaVersion": SCHEMA_VERSION,
@@ -1499,7 +2195,16 @@ def main() -> int:
         "outputDir": str(output_dir),
         "candidateCount": len(CANDIDATES),
         "candidates": metrics,
+        "reviewPriority": [
+            {
+                "candidateId": candidate_id,
+                "score": review_priority_score(metrics[candidate_id]),
+            }
+            for candidate_id in sorted_candidate_ids_by_priority(metrics)
+        ],
         "mediapipeComparison": mediapipe_report,
+        "unityInstall": unity_install,
+        "runtimeRegistry": runtime_registry,
         "reviewArtifacts": {
             "fullSizeContactSheet": str(dirs["review"] / "full_size_contact_sheet.png"),
             "compactContactSheet": str(dirs["review"] / "compact_contact_sheet.png"),
@@ -1507,6 +2212,8 @@ def main() -> int:
             "reviewNotesTemplate": str(dirs["review"] / "review_notes_template.md"),
             "nextCameraChecklist": str(dirs["review"] / "next_camera_checklist.md"),
             "loopNotes": str(dirs["review"] / "loop_notes.md"),
+            "koreanReport": str(report_path),
+            "unityInstallReport": str(dirs["review"] / "unity_asset_install_report.json"),
         },
         "knownLimits": [
             "single clean neutral frame only",
@@ -1532,10 +2239,14 @@ def main() -> int:
         gold = item["goldComparison"]
         uv = item["uvProjection"].get("roundTrip", {})
         lines.append(
-            "- `{}`: pixels `{}`, goldIoU `{}`, uvRoundTripIoU `{}`".format(
+            "- `{}`: pixels `{}`, goldIoU `{}`, boundaryMeanPx `{}`, reviewPriority `{}`, uvPreviewIoU `{}`".format(
                 candidate_id,
                 item["positivePixels"],
                 gold.get("iou", "n/a") if gold.get("available") else "n/a",
+                item["advancedEvaluation"]["boundaryDistance"].get("symmetricMeanPx", "n/a")
+                if item["advancedEvaluation"]["boundaryDistance"].get("available")
+                else "n/a",
+                review_priority_score(item),
                 uv.get("iou", "n/a") if uv.get("available") else "n/a",
             )
         )
@@ -1572,11 +2283,14 @@ def main() -> int:
             f"- Next camera checklist: `{dirs['review'] / 'next_camera_checklist.md'}`",
             f"- Loop notes: `{dirs['review'] / 'loop_notes.md'}`",
             f"- Candidate registry draft: `{output_dir / 'candidate_registry_draft.json'}`",
+            f"- CV runtime registry: `{output_dir / 'candidate_registry_cv_runtime.json'}`",
+            f"- Korean report: `{report_path}`",
+            f"- Unity asset install report: `{dirs['review'] / 'unity_asset_install_report.json'}`",
             "",
             "## 제한",
             "",
             "- 기존 local evidence만 사용했다.",
-            "- 새 capture, iPhone build, runtime evidence는 없다.",
+            "- 새 capture, iPhone build, 실제 카메라 runtime evidence는 없다.",
             "- 이 결과는 후보 리뷰용이며 M1 ready / runtime ready / E7.3 Green 증거가 아니다.",
         ]
     )

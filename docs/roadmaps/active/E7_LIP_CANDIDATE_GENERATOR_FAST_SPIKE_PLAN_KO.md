@@ -254,6 +254,13 @@ scripts/e7_lip_candidate_generator/
 - 없으면 PIL + numpy로 직접 구현한다.
 - MediaPipe는 설치되어 있으면 core 5 후보 생성 이후 별도 비교 신호로 시도한다. 성공하면 landmark overlay / lip curve overlay / mask / report를 저장하고, 실패하면 정확한 실패 이유와 stderr를 저장한다.
 
+현재 로컬 CV 세팅:
+
+- `.venv` 기준 재현용 파일: `requirements-cv.txt`
+- 포함 패키지: `opencv-python-headless==4.13.0.92`, `scikit-image==0.26.0`
+- smoke check: `.venv/bin/python scripts/e7_lip_candidate_generator/check_cv_dependencies.py`
+- 후보 생성기는 `input_signal_report.json`에 OpenCV / scipy / scikit-image / numpy / pillow / MediaPipe 사용 가능 여부와 버전을 기록한다.
+
 공통 함수:
 
 | 함수 | 역할 |
@@ -389,3 +396,89 @@ review/review_notes_template.md
 - 긴 구현은 Goal 모드가 적합하다.
 - 새 Codex 세션은 필수는 아니다. 단, 병렬 실험을 시키고 싶으면 별도 세션/하위 에이전트를 쓸 수 있다.
 - Plan 모드는 사용자가 세부 승인 단계를 원할 때만 쓴다. 이번 목표는 빠른 시도이므로 Goal 모드가 더 맞다.
+
+## 12. MediaPipe 재시도 결과
+
+MediaPipe는 기존 5개 core 후보를 다시 만들지 않고 별도 비교 신호로만 재시도했다.
+
+Codex shell 재시도 폴더:
+
+```txt
+evidence/e7-lip-candidate-generator/mediapipe-retry-20260626T152244Z/
+```
+
+macOS Terminal 앱 성공 폴더:
+
+```txt
+evidence/e7-lip-candidate-generator/mediapipe-gui-terminal-20260626T154247Z/
+```
+
+확인한 것:
+
+- `.venv` Python 경로와 버전.
+- `mediapipe 0.10.35` import와 package 위치.
+- `.cache/mediapipe/face_landmarker.task` 존재 여부, 크기, hash.
+- clean female sample 경로, 크기, hash.
+- FaceLandmarker option signature와 실행 mode.
+- `create_from_file`, RGB numpy 입력, 명시 CPU delegate, default delegate, threshold 변경.
+
+결과:
+
+- Codex shell에서는 네 가지 재시도 모두 `exitCode=-6`으로 실패했다.
+- Codex shell 실패 stderr에는 `gl_context_nsgl`, `graph_service.h:139`, `DrishtiMetalHelper`가 남았다.
+- 같은 `.venv`와 같은 script를 macOS Terminal 앱에서 실행하자 성공했다.
+- 성공 결과는 `faceCount=1`, `landmarkCount=478`, `positivePixels=15154`이며, `mediapipe_landmark_overlay.png`, `mediapipe_lip_curve_overlay.png`, `mediapipe_lip_curve_mask.png`가 생성됐다.
+- 따라서 경로/모델/입력 손상이나 Python package import 문제가 아니라, Codex shell 환경에서 MediaPipe FaceLandmarker가 필요한 GL/Metal context를 만들지 못한 문제로 본다.
+- MediaPipe는 이제 수동 GUI Terminal 비교 신호로 사용할 수 있지만, Codex shell 자동화 단계에 그대로 넣으면 다시 실패할 수 있다.
+
+## 13. MediaPipe 후보 평가 결과
+
+MediaPipe GUI Terminal 성공 산출물을 기존 5개 core 후보와 같은 기준으로 비교했다. 기존 core 후보 생성기는 다시 실행하거나 수정하지 않았다.
+
+평가 폴더:
+
+```txt
+evidence/e7-lip-candidate-generator/mediapipe-evaluation-20260626T160852Z/
+```
+
+핵심 산출물:
+
+- `input_inventory.json`
+- `mediapipe_vs_core_metrics.json`
+- `mediapipe_vs_core_metrics.md`
+- `mediapipe_vs_core_contact_sheet.png`
+- `mediapipe_lip_crop_contact_sheet.png`
+- `mediapipe_visual_review.md`
+- `mediapipe_integration_recommendation.md`
+- `mediapipe_environment_caveat.md`
+- `summary.md`
+
+핵심 수치:
+
+| 후보 | gold IoU | precision | recall | upper recall | lower recall | 판단 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| `hybrid_curve_safe` | 0.906866 | 0.959292 | 0.943162 | 0.970317 | 0.908229 | core 최고 |
+| `hybrid_curve_balanced` | 0.905590 | 0.938426 | 0.962799 | 0.982702 | 0.937196 | coverage 보존형 |
+| `mediapipe_lip_curve` | 0.856425 | 0.989970 | 0.863922 | 0.807881 | 0.936011 | 보조 신호 |
+
+결정:
+
+```txt
+use_as_helper_signal
+```
+
+이유:
+
+- MediaPipe는 크게 번지지 않아 precision이 높지만, gold 기준 IoU와 recall은 core 5개보다 낮다.
+- 특히 upper recall이 낮아서 단독 후보로 쓰면 윗입술 coverage가 약하다.
+- 시각적으로는 깔끔한 곡선이지만, 색 경계에 붙는 신호가 아니라 landmark 기반 기하 신호다.
+- 따라서 다음 후보 생성기에서는 shape prior, centerline / inner-mouth hint, curve smoothing hint, gross sanity check로만 쓴다.
+- MediaPipe GUI Terminal 결과는 수동 비교 신호로는 유효하지만, Codex shell 자동화 필수 gate로 넣지 않는다.
+
+이번 평가에서 하지 않은 것:
+
+- 기존 5개 core 후보 재생성 또는 수정.
+- Unity/Xcode/iPhone build.
+- 새 raw frame capture.
+- upload.
+- M1 ready, runtime ready, E7.3 Green, Lip G/Y/R 주장.
