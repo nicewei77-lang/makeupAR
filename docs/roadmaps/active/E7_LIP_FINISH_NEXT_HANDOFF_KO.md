@@ -2,7 +2,7 @@
 
 Date: 2026-06-26 KST
 
-Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / `gradient_lip` user accepted + freeze / `gloss_lip` 다음 단계
+Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / `gradient_lip` user accepted + freeze / `gloss_lip` 1px edge-blended lower-lip specular mask no-build correction, UnityFramework rebuild/runtime acceptance pending
 
 ## 1. 현재 결정
 
@@ -10,7 +10,7 @@ Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / `gradi
 
 - `matte_lip`: 완료/freeze. 사용자가 명시적으로 다시 열지 않는 한 더 건드리지 않는다.
 - `gradient_lip`: 완료/freeze. 사용자 실기기 HUD screenshot `IMG_5268.PNG`에서 RED 100% gradient 결과를 승인했다. 사용자가 명시적으로 다시 열지 않는 한 더 건드리지 않는다.
-- `gloss_lip`: no-build 수정 완료. red base 보존을 강화하고 localized tinted wet-line highlight만 올리도록 조정했다. 런타임 사진 승인 전까지는 미승인이다.
+- `gloss_lip`: 이전 clustered gloss 후보는 사용자 실기기 사진에서 작은 흰 조각처럼 보여 reject. 더 넓은 matte-base wet-sheen 후보도 사용자의 gloss 목표에 비해 밝은 면처럼 읽힐 위험이 있어 superseded. 최신 active 후보는 matte와 같은 tint base를 유지하고, 별도 atlas A-channel로 lower-lip 1px specular streak를 만든 뒤 shader에서 edge만 주변 tint로 뭉갠다. 이 edge-blended 1px correction은 buildless preview/verifier/RN check와 Unity batchmode import/compile까지 통과했지만 UnityFramework rebuild/RN install/runtime 사진 승인은 아직 없다.
 - E7.3은 계속 Yellow다. 이 작업은 validation-only 렌더러 하드닝이며 제품급 립 메이크업 claim은 금지한다.
 
 이번 이어서 작업한 체크포인트:
@@ -20,12 +20,18 @@ Status: E7.3 validation-only 립 피니시 핸드오프 / 매트 freeze / `gradi
   - Gloss: A-channel mask만으로는 부족하고 red base가 먼저 유지되어야 한다. normal/view-direction highlight는 이번 E7.3 validation pass에서는 보류한다.
 - `matte_lip` RN preset, Unity material scale, shader matte branch는 수정하지 않았다.
 - `gradient_lip`는 같은 선택 색상 `_RegionColor`를 유지한 채 B-channel `singleGradientDensity` / pigment strength만 바꿔 약한 outer density, 넓은 mid transition, 강한 inner density를 만든다.
-- `gloss_lip`는 RN `coverage/specular/glossBoost`, Unity gloss-only material alpha scale, shader gloss branch base pigment, additive wet-line strength/color mix를 조정했다.
-- Previous gradient/gloss continuous-ramp checkpoint checks: `git diff --check`, atlas guard, soft-SDF verifier, RN Jest (`13` tests), TypeScript, RN lint, Python compile, preview regeneration, Unity batchmode import/compile all passed.
-- Previous Unity batchmode log: `evidence/logs/e7-gradient-gloss-continuous-ramp-unity-batchmode-20260626.log` records `CompileScripts: 3074.723ms`, no `Shader error` / `error CS`, and `Exiting batchmode successfully now!`.
-- Previous preview metrics before the internal-boundary follow-up: `softGradientLumaStdRatio=1.3368`, `softGradientLumaCorrelation=0.9472`, `gradientTransitionWidthToLipWidth=0.9744`, `gradientInnerOuterStrengthRatio=3.2299`, `gradientRampMaxAdjacentDeltaP95=0.0110`, `gradientCenterBoundaryJump=0.1243`, `wetLineActivePixels=493`, `wetLineMeanLumaBoost=0.0767`, `wetLineComponentCount=1`, `glossRedBasePreservationRatio=1.0452`.
+- Rejected gloss runtime screenshots are retained under `evidence/screenshots/e7-gloss-lip-rejected-2026-06-26/`. They show the clustered gloss candidate reading as separate small pieces, not lip gloss.
+- `gloss_lip` active correction: RN preset now keeps matte-like tint/coverage/feather with stronger but localized specular (`specular=0.78`, `specularPower=36`, `glossBoost=0.68`); Unity diagnostics still report `glossHighlightMode=matte_base_wet_sheen`; Unity gloss brightness matches matte (`0.9`); shader gloss branch uses matte-derived pigment base, narrow gloss-mask specular, softened specular edges, and constrained tint-colored halo. The goal is not to whiten the lip color: inner-mouth/center whitening is failure.
+- Latest gloss 1px checks: soft-SDF preview regeneration, AR expected preview regeneration, soft-SDF verifier, RN Jest, TypeScript, RN lint, Python compile, `git diff --check`, and Unity batchmode import/compile passed. Latest Unity log: `evidence/logs/e7-gloss-1px-edge-blend-unity-batchmode-20260626.log` (`CompileScripts: 4313.752ms`, no `Shader error` / `error CS`, `Exiting batchmode successfully now!`).
+- Previous Unity batchmode log for the broader matte-base sheen candidate: `evidence/logs/e7-gloss-matte-base-sheen-unity-batchmode-20260626.log`. It is superseded by the latest edge-blended 1px compile evidence above.
+- Latest gloss preview metrics: style-atlas A-channel `A>8=35`, bbox `x=238..272/y=336..336`, max alpha `253`; direct atlas guard has one soft/core component, `upperSoftPixelsGt48=0`, `lowerCorePixelsGt96=25`; soft-SDF verifier `wetLineActivePixels=237`, `wetLineHeightToLipHeight=0.0238`, `wetLineMeanLumaBoost=0.0679`, `wetLineComponentCount=1`, `glossRedBasePreservationRatio=0.9986`; AR expected preview gloss `componentCount=1`, `heightToLipHeight=0.0968`, `meanAdditiveLuma=0.1352`, max `0.1453`, red base ratio `1.0`, still `expected_ar_preview_review` pending real-device visual acceptance.
+- Previous clustered Build Gate history remains evidence only: `evidence/logs/e7-gloss-cluster-runtime-buildgate-20260626.md` records the superseded UnityFramework build/sync and the RN signing/provisioning blocker. Do not treat that build as active gloss acceptance.
+- Debug preview outputs: `debug_show_lip_base_only.png`, `debug_show_gloss_mask_only.png`, `debug_show_gloss_halo_only.png`, and `debug_show_final_gloss.png` under `evidence/e7-reference-atlas/lip-style-atlas-v1/soft_sdf_multilayer_preview_20260626/`; the verifier now requires all four.
+- Previous runtime Build Gate packet: `evidence/logs/e7-gloss-cluster-runtime-buildgate-20260626.md` records the required approval question, primary path, compare-only paths, validation contract, evidence matrix, commands, and out-of-scope items for the rejected clustered candidate.
+- Previous runtime Build Gate result: buildless checks re-ran and passed, Unity batchmode import/compile passed in `evidence/logs/e7-gloss-cluster-buildgate-unity-batchmode-20260626.log` with `CompileScripts: 990.195ms`, and `scripts/build_m3_unityframework.sh` succeeded with `TIMESTAMP=e7-gloss-cluster-20260626` in `real 136.04s`. Evidence logs: `evidence/logs/m3-repro-unity-export-e7-gloss-cluster-20260626.log`, `evidence/logs/m3-repro-xcodebuild-unityframework-e7-gloss-cluster-20260626.log`, and `evidence/logs/m3-repro-artifact-verification-e7-gloss-cluster-20260626.log`.
+- Previous RN signed install result: `evidence/logs/e7-gloss-cluster-rn-ios-device-20260626.log` records `202268054(???)` / `00008110-0001794E0CD9801E` unavailable/not found by RN CLI, then Xcode failure at the known provisioning gate: no iOS App Development profile for `com.yeoseojin.makeupar.validation202268054`, automatic signing disabled, error code `65`. No install, launch, runtime diagnostics, or gloss acceptance screenshot was collected.
 - AR-runtime expected preview: `scripts/e7_reference_atlas/make_lip_runtime_ar_expected_preview.py` mirrors RN default lip recipe, Unity material scaling, ARFace UV/triangle culling, the shader pigment multiply pass, and the gloss additive pass. Generated sheet: `evidence/e7-reference-atlas/lip-style-atlas-v1/ar_runtime_expected_20260626/ar_runtime_expected_sheet.png`.
-- AR expected verdict: `expected_ar_preview_review`, not Green, because gloss footprint is still deferred. Mesh culling is tight enough (`279/2304` triangles accepted, cull ratio `0.8789`). The latest `gradient_lip` same-color density guard passes with `outsideSourceDilatedRatio=0.0248`, `edgeInnerPigmentRatio=0.0303`, `adjacentDensityDeltaP95=0.0351`, `centerLineMaxJump=0.0279`, and `pigmentColorRangeMax=0.0`. `gloss_lip` preserves red base (`glossRedBasePreservationRatio=1.0335`) and has localized wet highlight (`componentCount=2`, `meanAdditiveLuma=0.0518`), but full pigment changed-pixels still show ARFace triangle footprint expansion (`outsideSourceDilatedRatio=0.1557`). Treat this as buildless review evidence only.
+- AR expected verdict: `expected_ar_preview_review`, not Green, because conservative footprint/gradient guards still require runtime review. Mesh culling is tight enough (`279/2304` triangles accepted, cull ratio `0.8789`). The latest `gradient_lip` same-color density guard remains the frozen acceptance context, and active `gloss_lip` preserves the red base (`redBasePreservationRatio=1.0`) with one localized edge-blended 1px-mask specular streak (`componentCount=1`, `heightToLipHeight=0.0968`, `meanAdditiveLuma=0.1352`, max `0.1453`). Treat this as buildless review evidence only.
 - Gradient density-field correction: `gradient_lip` now uses a dedicated `lip-drawn-gradient-density-atlas-v1` resource instead of sharing the default matte/gloss atlas. The new atlas copies R/G/A from `lip-drawn-style-atlas-v1` but replaces B with a distance-transform continuous density seed. RN sends this mask id only for `gradient_lip`; default matte/gloss continue using `lip-drawn-style-atlas-v1`.
 - Shader correction: the gradient branch no longer adds `outerSoftWash + midGradientLayer + innerGradientTint`. It uses one `singleGradientDensity` curve from the B channel, derives one pigment-strength curve from it, and keeps `outerMlbbColor` / `innerRedColor` equal to the same selected `_RegionColor`; the gradient effect is density/strength, not a second hue.
 - Follow-up gradient internal-boundary correction: user clarified the visible issue was between the inner red density and outer tint, not the outer lip edge. The B-channel seed is now wider (`seedPixels=327`, `densityMeanActive=0.2433`), and the shader now uses `GradientDensityBlur` plus gradient-only feather to soften the density field before pigment strength is applied.
@@ -181,7 +187,7 @@ RN preset
    - matte `gloss=none`, `finish=matte_lip`, gradient same-pigment density path, multiply path, ARFace atlas mask 관련 테스트를 유지한다.
 
 2. 남은 작업은 `gloss_lip`만 다룬다.
-   - primary path: current red-base `gloss_lip`.
+   - primary path: active lower-lip 1px specular-mask `gloss_lip`.
    - compare-only path: frozen `matte_lip` and frozen `gradient_lip`.
    - out-of-scope: matte changes, gradient changes, Apple Vision active renderer, product-quality claim.
 
@@ -219,7 +225,7 @@ RN preset
 
 - Matte: `IMG_5262` 수준 유지 또는 개선.
 - Gradient: `IMG_5268` 기준으로 완료/freeze. 사용자가 명시적으로 다시 열기 전까지 더 조정하지 않는다.
-- Gloss: pigment가 씻겨 나가지 않고, lower-center 또는 wet-line 영역에 localized highlight가 보여야 한다.
+- Gloss: pigment가 씻겨 나가지 않고, 입술 안쪽 중앙이 허옇게 비지 않아야 하며, lower-lip surface에 짧고 얇은 localized specular streak가 주변 tint로 뭉개진 약한 halo와 함께 보여야 한다.
 
 최근 no-build 보정:
 

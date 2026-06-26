@@ -193,6 +193,24 @@ def continuous_gradient_ramp(
     return density, pigment_curve, np.zeros_like(pigment_curve)
 
 
+def gloss_sheen_masks(full_soft: np.ndarray, full_core: np.ndarray, box: dict[str, int]) -> tuple[np.ndarray, np.ndarray]:
+    height, width = full_soft.shape
+    y = np.arange(height, dtype=np.float32)[:, None]
+    x = np.arange(width, dtype=np.float32)[None, :]
+    center_x = box["left"] + box["width"] * 0.5
+    lower_y = round(box["top"] + box["height"] * 0.76)
+    sx = max(1.0, box["width"] * 0.13)
+    sy = max(0.25, box["height"] * 0.006)
+    sharp = np.exp(-np.abs((x - center_x) / sx) ** 4 - ((y - lower_y) / sy) ** 2)
+    sharp = np.clip(sharp * full_core * full_soft, 0.0, 1.0)
+    halo_image = Image.fromarray(np.rint(sharp * 255).astype(np.uint8), mode="L").filter(
+        ImageFilter.GaussianBlur(radius=max(1.4, box["height"] * 0.050))
+    )
+    halo = np.asarray(halo_image, dtype=np.float32) / 255.0
+    halo = np.clip(halo * full_soft - sharp * 0.56, 0.0, 1.0)
+    return sharp, halo
+
+
 def hard_alpha_sticker(frame: np.ndarray, hard_mask: np.ndarray, color: np.ndarray) -> np.ndarray:
     alpha = (hard_mask > 0.025).astype(np.float32) * 0.72
     return frame * (1.0 - alpha[..., None]) + color * alpha[..., None]
@@ -227,11 +245,11 @@ def soft_sdf_layers(
         pixel_color = color * 0.9496
         pigment_cap = 0.82
     elif style == "gloss":
-        base_layer = full_soft * 0.54
-        inner_layer = inner_density * 0.12
-        edge_layer = edge_band * 0.011
-        pixel_color = color * 0.985 + secondary_color * 0.015
-        pigment_cap = 0.72
+        base_layer = full_soft * 0.55
+        inner_layer = inner_density * 0.18
+        edge_layer = edge_band * 0.035
+        pixel_color = color * 0.92
+        pigment_cap = 0.80
     else:
         base_layer = full_soft * 0.55
         inner_layer = inner_density * 0.18
@@ -244,20 +262,23 @@ def soft_sdf_layers(
     rendered = np.clip(frame * pigment_filter, 0.0, 1.0)
 
     if gloss_amount > 0.0:
-        height, width = full_soft.shape
-        y = np.arange(height, dtype=np.float32)[:, None]
-        x = np.arange(width, dtype=np.float32)[None, :]
-        line_y = box["top"] + box["height"] * 0.68
-        center_x = box["left"] + box["width"] * 0.5
-        line_sigma = max(0.65, min(1.1, box["height"] * 0.010))
-        lower_line = np.exp(-(((y - line_y) / line_sigma) ** 2))
-        center_width = np.exp(-(((x - center_x) / max(1.0, box["width"] * 0.18)) ** 4))
-        wet_line = lower_line * center_width * full_core
-        tinted_wet = color * 0.62 + secondary_color * 0.38
-        highlight_color = np.clip(tinted_wet * 0.76 + np.array([1.0, 0.94, 0.92], dtype=np.float32) * 0.24, 0.0, 1.0)
-        rendered = np.clip(rendered + wet_line[..., None] * highlight_color * gloss_amount, 0.0, 1.0)
+        gloss_sharp, gloss_halo = gloss_sheen_masks(full_soft, full_core, box)
+        gloss_color = np.array([1.0, 0.78, 0.84], dtype=np.float32)
+        screen_lift = np.clip(1.0 - color * 0.56, 0.0, 1.0)
+        sharp_color = np.clip(color * 0.66 + gloss_color * 0.34, 0.0, 1.0)
+        halo_color = np.clip(color * 0.97 + gloss_color * 0.03, 0.0, 1.0)
+        rendered = np.clip(
+            rendered
+            + gloss_sharp[..., None] * sharp_color * screen_lift * gloss_amount * 0.92
+            + gloss_halo[..., None] * halo_color * screen_lift * gloss_amount * 0.22,
+            0.0,
+            1.0,
+        )
+        wet_line = gloss_sharp
     else:
         wet_line = np.zeros_like(full_soft)
+        gloss_sharp = np.zeros_like(full_soft)
+        gloss_halo = np.zeros_like(full_soft)
 
     layers = {
         "fullSoft": full_soft,
@@ -268,6 +289,8 @@ def soft_sdf_layers(
         "midGradientRamp": mid_gradient_ramp,
         "innerGradientDensity": inner_gradient_density,
         "wetLine": wet_line,
+        "glossSharpMask": gloss_sharp,
+        "glossHaloMask": gloss_halo,
         "pigmentStrength": pigment_strength,
     }
     return rendered, layers
@@ -470,7 +493,7 @@ def main() -> None:
         secondary,
         args.threshold,
         gradient_amount=0.20,
-        gloss_amount=0.26,
+        gloss_amount=0.48,
         style="gloss",
     )
     wet_line_pixels = glow_layers["wetLine"] > 0.08
@@ -481,7 +504,7 @@ def main() -> None:
         ("hard alpha", label(boundary_overlay(to_image(sticker), hard_mask, (255, 74, 132)), "hard alpha baseline", "sticker-risk comparison")),
         ("soft matte", label(to_image(matte), "soft-SDF matte", "base + inner + edge")),
         ("soft gradient", label(to_image(gradient), "soft-SDF gradient", "soft outer wash + stronger inner tint")),
-        ("tinted wet-line", label(to_image(glow), "tinted lower wet-line", "narrow gloss only")),
+        ("gloss sheen", label(to_image(glow), "matte base + wet sheen", "single soft reflection + halo")),
         ("mask layers", label(
             Image.merge(
                 "RGB",
@@ -502,7 +525,11 @@ def main() -> None:
         "hardAlpha": save(out_dir / "hard_alpha_baseline.png", to_image(sticker)),
         "softMatte": save(out_dir / "soft_sdf_matte.png", to_image(matte)),
         "softGradient": save(out_dir / "soft_sdf_gradient.png", to_image(gradient)),
-        "thinWetLine": save(out_dir / "soft_sdf_thin_wet_line.png", to_image(glow)),
+        "thinWetLine": save(out_dir / "soft_sdf_gloss_sheen.png", to_image(glow)),
+        "showLipBaseOnly": save(out_dir / "debug_show_lip_base_only.png", to_image(glow_base)),
+        "showGlossMaskOnly": save(out_dir / "debug_show_gloss_mask_only.png", mask_to_rgb(glow_layers["glossSharpMask"])),
+        "showGlossHaloOnly": save(out_dir / "debug_show_gloss_halo_only.png", mask_to_rgb(glow_layers["glossHaloMask"])),
+        "showFinalGloss": save(out_dir / "debug_show_final_gloss.png", to_image(glow)),
         "layerDiagnostic": save(out_dir / "soft_sdf_layer_diagnostic.png", panels[-1][1]),
     }
     summary: dict[str, Any] = {
@@ -565,7 +592,11 @@ def main() -> None:
                 "- Scope: `E7.3 validation-only`",
                 f"- Sheet: `{outputs['sheet']}`",
                 f"- Layer diagnostic: `{outputs['layerDiagnostic']}`",
-                "- Guard shape: wet-line must stay one thin tinted lower-center line.",
+                f"- Debug base only: `{outputs['showLipBaseOnly']}`",
+                f"- Debug gloss mask only: `{outputs['showGlossMaskOnly']}`",
+                f"- Debug gloss halo only: `{outputs['showGlossHaloOnly']}`",
+                f"- Debug final gloss: `{outputs['showFinalGloss']}`",
+                "- Guard shape: gloss should read as one soft wet sheen over the matte lip base.",
                 "- Gradient shape: weak full-lip base with a stronger inner tint, fading through the soft outer edge.",
                 "",
                 "This preview approximates the current shader intent from the same reference frame and lip atlas round-trip mask.",

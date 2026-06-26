@@ -329,10 +329,10 @@ def lip_gloss(mask: Image.Image) -> Image.Image:
     width = max(float(xs.max() - xs.min()), 1.0)
     height = max(float(ys.max() - ys.min()), 1.0)
     grid_y, grid_x = np.indices(alpha.shape)
-    line_y = float(ys.min()) + height * 0.68
-    line_sigma = max(0.85, height * 0.018)
+    line_y = float(round(float(ys.min()) + height * 0.76))
+    line_sigma = max(0.25, height * 0.006)
     line = np.exp(-(((grid_y - line_y) / line_sigma) ** 2))
-    horizontal = np.exp(-(((grid_x - center_x) / max(1.0, width * 0.24)) ** 4))
+    horizontal = np.exp(-(((grid_x - center_x) / max(1.0, width * 0.13)) ** 4))
     gloss = alpha * line * horizontal
     return Image.fromarray(np.rint(np.clip(gloss, 0.0, 1.0) * 255).astype(np.uint8), mode="L")
 

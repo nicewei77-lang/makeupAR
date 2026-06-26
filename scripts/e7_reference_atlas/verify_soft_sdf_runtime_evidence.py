@@ -34,10 +34,10 @@ CORE_PATTERNS = {
         "maskFeatherFarRadiusPx",
         "featherPx=",
     ],
-    "glowThinWetLine": [
-        "glossHighlightMode=tinted_soft_lower_wet_line",
-        '"glossHighlightMode":"tinted_soft_lower_wet_line"',
-        "gloss=tinted_soft_lower_wet_line",
+    "glowGlossSheen": [
+        "glossHighlightMode=matte_base_wet_sheen",
+        '"glossHighlightMode":"matte_base_wet_sheen"',
+        "gloss=matte_base_wet_sheen",
     ],
     "matteNoGloss": [
         "glossHighlightMode=none",
@@ -191,7 +191,7 @@ def build_requirements(args: argparse.Namespace) -> dict[str, list[str]]:
         "softSdfLayerMode": CORE_PATTERNS["softSdfLayerMode"],
         "wideFeatherSampleMode": CORE_PATTERNS["wideFeatherSampleMode"],
         "wideFeatherRadius": CORE_PATTERNS["wideFeatherRadius"],
-        "glowThinWetLine": CORE_PATTERNS["glowThinWetLine"],
+        "glowGlossSheen": CORE_PATTERNS["glowGlossSheen"],
         "matteNoGloss": CORE_PATTERNS["matteNoGloss"],
     }
 

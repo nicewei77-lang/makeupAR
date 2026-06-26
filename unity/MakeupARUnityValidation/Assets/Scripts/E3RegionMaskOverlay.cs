@@ -548,7 +548,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? "soft_sdf_logical_multilayer"
             : "none";
         result.GlossHighlightMode = lipLogicalMultilayer && recipe.TextureSample == "gloss_lip"
-            ? "tinted_soft_lower_wet_line"
+            ? "matte_base_wet_sheen"
             : "none";
         result.MaskSource = visionLipBoundary
             ? VisionLipBoundarySource
@@ -2462,6 +2462,29 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_GlossBoost", recipe.GlossBoost);
         }
 
+        if (material.HasProperty("_GlossColor"))
+        {
+            material.SetColor("_GlossColor", new Color(1.0f, 0.78f, 0.84f, 1.0f));
+        }
+
+        if (material.HasProperty("_GlossSharpness"))
+        {
+            material.SetFloat(
+                "_GlossSharpness",
+                recipe.TextureSample == "gloss_lip"
+                    ? Mathf.Lerp(0.60f, 0.86f, recipe.GlossBoost)
+                    : 0.0f);
+        }
+
+        if (material.HasProperty("_GlossHaloIntensity"))
+        {
+            material.SetFloat(
+                "_GlossHaloIntensity",
+                recipe.TextureSample == "gloss_lip"
+                    ? Mathf.Lerp(0.045f, 0.10f, recipe.GlossBoost)
+                    : 0.0f);
+        }
+
         if (material.HasProperty("_GradientAmount"))
         {
             material.SetFloat("_GradientAmount", recipe.GradientAmount);
@@ -2530,8 +2553,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 brightnessScale = 0.9f;
                 break;
             case "gloss_lip":
-                sampleAlphaScale = Mathf.Lerp(0.70f, 0.88f, recipe.Intensity);
-                brightnessScale = 0.94f;
+                sampleAlphaScale = Mathf.Lerp(0.72f, 0.92f, recipe.Intensity);
+                brightnessScale = 0.9f;
                 break;
             case "full_lip":
                 sampleAlphaScale = Mathf.Lerp(0.5f, 0.72f, recipe.Intensity);

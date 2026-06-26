@@ -14,6 +14,9 @@ Shader "MakeupAR/SmoothRegionMask"
         _Specular ("Specular", Range(0, 1)) = 0.04
         _SpecularPower ("Specular Power", Range(1, 64)) = 8
         _GlossBoost ("Gloss Boost", Range(0, 1)) = 0
+        _GlossColor ("Gloss Color", Color) = (1.0, 0.78, 0.84, 1)
+        _GlossSharpness ("Gloss Sharpness", Range(0, 1)) = 0.72
+        _GlossHaloIntensity ("Gloss Halo Intensity", Range(0, 1)) = 0.07
         _GradientAmount ("Gradient Amount", Range(0, 1)) = 0
         _PreserveDetail ("Preserve Detail", Range(0, 1)) = 1
         _LipStyleMode ("Lip Style Mode", Float) = -1
@@ -52,6 +55,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float4 _MaskTex_TexelSize;
             float4 _RegionColor;
             float4 _SecondaryColor;
+            float4 _GlossColor;
             float _Opacity;
             float _Threshold;
             float _Feather;
@@ -206,8 +210,8 @@ Shader "MakeupAR/SmoothRegionMask"
                     }
                     else if (_LipStyleMode < 1.5)
                     {
-                        maskStrength = saturate(baseStain * 1.00 + innerLayer * 0.38 + edgeLayer * 0.18);
-                        pigmentColor = saturate(lerp(pigmentColor, _SecondaryColor.rgb, 0.015));
+                        maskStrength = matteReferenceMaskStrength;
+                        pigmentColor = matteReferencePigmentColor;
                         alphaColor = pigmentColor;
                     }
                     else if (_LipStyleMode < 2.5)
@@ -286,6 +290,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float4 _MaskTex_TexelSize;
             float4 _RegionColor;
             float4 _SecondaryColor;
+            float4 _GlossColor;
             float _Opacity;
             float _Threshold;
             float _Feather;
@@ -294,6 +299,8 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
+            float _GlossSharpness;
+            float _GlossHaloIntensity;
             float _LipStyleMode;
             float _UseScreenSpaceMask;
 
@@ -381,21 +388,33 @@ Shader "MakeupAR/SmoothRegionMask"
                 float fullCore = CoreMaskAlpha(mask.r, _Threshold, _Feather);
                 float coverage = saturate(max(_Coverage, 0.001));
 
-                float glossMask = max(mask.a, softMask.a * 0.28);
-                float lineFeather = max(_Feather * 0.20, 0.026);
-                float thinHorizontalLine = SoftMaskAlpha(glossMask, max(_Threshold * 0.62, 0.018), lineFeather)
+                float glossSharpMask = SoftMaskAlpha(
+                    saturate(mask.a),
+                    max(_Threshold * 0.96, 0.022),
+                    max(lerp(0.044, 0.032, saturate(_GlossSharpness)), 0.032))
                     * fullSoft
                     * fullCore;
-                float highlight = thinHorizontalLine
+                float glossHaloMask = SoftMaskAlpha(
+                    saturate(max(softMask.a, mask.a * 0.52)),
+                    max(_Threshold * 0.70, 0.018),
+                    max(_Feather * 0.26, 0.050))
+                    * fullSoft
+                    * fullCore;
+                float glossHalo = saturate(glossHaloMask - glossSharpMask * 0.56);
+                float glossEnergy = coverage
                     * coverage
                     * saturate(_Specular)
                     * saturate(_GlossBoost)
                     * saturate(_Opacity)
-                    * saturate(_VisibilityAlpha)
-                    * 0.62;
-                float3 tintedWetColor = saturate(lerp(_RegionColor.rgb, _SecondaryColor.rgb, 0.38));
-                float3 highlightColor = saturate(lerp(tintedWetColor, float3(1.0, 0.94, 0.92), 0.24));
-                return fixed4(highlightColor * highlight, 0.0);
+                    * saturate(_VisibilityAlpha);
+                float sharpHighlight = glossSharpMask * glossEnergy * 0.96;
+                float haloHighlight = glossHalo * glossEnergy * saturate(_GlossHaloIntensity) * 0.22;
+                float3 glossScreenLift = saturate(1.0 - _RegionColor.rgb * 0.56);
+                float3 sharpHighlightColor = saturate(lerp(_RegionColor.rgb, _GlossColor.rgb, 0.34));
+                float3 haloHighlightColor = saturate(lerp(_RegionColor.rgb, _GlossColor.rgb, 0.03));
+                float3 additiveGloss = sharpHighlightColor * glossScreenLift * sharpHighlight
+                    + haloHighlightColor * glossScreenLift * haloHighlight;
+                return fixed4(additiveGloss, 0.0);
             }
             ENDCG
         }

@@ -289,7 +289,7 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
     sample: 'gloss_lip',
     textureMode: 'sample',
     lipRenderLayerMode: 'soft_sdf_logical_multilayer',
-    glossHighlightMode: 'tinted_soft_lower_wet_line',
+    glossHighlightMode: 'matte_base_wet_sheen',
     blendMode: 'multiply',
     finish: 'gloss',
     maskTextureId: 'lip-vision-boundary-v1',
@@ -333,7 +333,7 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
 
   expect(text).toContain('apple_vision_runtime_lip_landmarks');
   expect(text).toContain('layers=soft_sdf_logical_multilayer');
-  expect(text).toContain('gloss=tinted_soft_lower_wet_line');
+  expect(text).toContain('gloss=matte_base_wet_sheen');
   expect(text).toContain('blend=multiply');
   expect(text).toContain('finish=gloss');
   expect(text).toContain('maskTex=lip-vision-boundary-v1');
@@ -452,7 +452,7 @@ test('keeps thin wet-line diagnostics off matte lip recipe events', async () => 
   expect(text).toContain('finish=matte');
   expect(text).toContain('soft=feather_scaled_13tap_near_far');
   expect(text).toContain('featherPx=3.45/6.38');
-  expect(text).not.toContain('tinted_soft_lower_wet_line');
+  expect(text).not.toContain('matte_base_wet_sheen');
 });
 
 test('posts smooth mask renderer by default before build', async () => {
@@ -537,8 +537,9 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(lipLayer.preserveDetail).toBe(textureSample.preserveDetail);
     expect(lipLayer.blendMode).toBe('multiply');
     if (textureSample.name === 'gloss_lip') {
-      expect(lipLayer.specular).toBeGreaterThan(0.5);
-      expect(lipLayer.glossBoost).toBeLessThan(0.7);
+      expect(lipLayer.specular).toBeGreaterThan(0.7);
+      expect(lipLayer.glossBoost).toBeGreaterThan(0.6);
+      expect(lipLayer.glossBoost).toBeLessThan(0.75);
       expect(lipLayer.passCount).toBe(2);
     }
     if (textureSample.name === 'matte_lip') {

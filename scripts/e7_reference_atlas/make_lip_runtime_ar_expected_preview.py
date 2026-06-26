@@ -138,18 +138,18 @@ STYLE_CONFIGS: dict[str, StyleConfig] = {
     ),
     "gloss_lip": StyleConfig(
         texture_sample="gloss_lip",
-        secondary_color="#F4A6AF",
-        feather=0.24,
-        coverage=0.92,
-        roughness=0.16,
-        specular=0.68,
-        specular_power=42.0,
+        secondary_color="#F29BAA",
+        feather=0.23,
+        coverage=0.94,
+        roughness=0.26,
+        specular=0.78,
+        specular_power=36.0,
         gloss_boost=0.68,
-        gradient_amount=0.12,
+        gradient_amount=0.02,
         lip_style_mode=1.0,
-        brightness_scale=0.94,
-        alpha_scale_min=0.70,
-        alpha_scale_max=0.88,
+        brightness_scale=0.90,
+        alpha_scale_min=0.72,
+        alpha_scale_max=0.92,
     ),
 }
 
@@ -597,6 +597,21 @@ def material_params(
         "specular": float(np.clip(config.specular, 0.0, 1.0)),
         "specularPower": config.specular_power,
         "glossBoost": float(np.clip(config.gloss_boost, 0.0, 1.0)),
+        "glossColor": np.asarray([1.0, 0.78, 0.84], dtype=np.float32),
+        "glossSharpness": float(
+            np.clip(
+                0.60 + (0.86 - 0.60) * np.clip(config.gloss_boost, 0.0, 1.0),
+                0.0,
+                1.0,
+            )
+        ),
+        "glossHaloIntensity": float(
+            np.clip(
+                0.045 + (0.10 - 0.045) * np.clip(config.gloss_boost, 0.0, 1.0),
+                0.0,
+                1.0,
+            )
+        ),
         "gradientAmount": float(np.clip(config.gradient_amount, 0.0, 1.0)),
         "preserveScale": PRESERVE_DETAIL_SCALE,
         "lipStyleMode": config.lip_style_mode,
@@ -652,8 +667,8 @@ def shader_first_pass(
         pigment_color = matte_reference_pigment_color
         alpha_color = pigment_color
     elif mode < 1.5:
-        mask_strength = np.clip(base_stain * 1.00 + inner_layer * 0.38 + edge_layer * 0.18, 0.0, 1.0)
-        pigment_color = np.clip(lerp(pigment_color, params["secondaryColor"], 0.015), 0.0, 1.0)
+        mask_strength = matte_reference_mask_strength
+        pigment_color = matte_reference_pigment_color
         alpha_color = pigment_color
     elif mode < 2.5:
         mask_strength = np.clip(
@@ -771,9 +786,9 @@ def shader_gloss_additive(
     if config.lip_style_mode < 0.5 or config.lip_style_mode >= 1.5:
         zeros = np.zeros((len(uv), 3), dtype=np.float32)
         return zeros, {
-            "thinHorizontalLine": np.zeros((len(uv),), dtype=np.float32),
+            "glossSharpMask": np.zeros((len(uv),), dtype=np.float32),
+            "glossHaloMask": np.zeros((len(uv),), dtype=np.float32),
             "highlight": np.zeros((len(uv),), dtype=np.float32),
-            "glossMask": np.zeros((len(uv),), dtype=np.float32),
         }
 
     threshold = params["threshold"]
@@ -783,27 +798,45 @@ def shader_gloss_additive(
     full_soft = soft_mask_alpha(soft_mask[:, 0], threshold, feather)
     full_core = core_mask_alpha(mask[:, 0], threshold, feather)
     coverage = max(params["coverage"], 0.001)
-    gloss_mask = np.maximum(mask[:, 3], soft_mask[:, 3] * 0.28)
-    line_feather = max(feather * 0.20, 0.026)
-    thin_horizontal_line = (
-        soft_mask_alpha(gloss_mask, max(threshold * 0.62, 0.018), line_feather)
+    gloss_sharp_mask = (
+        soft_mask_alpha(
+            np.clip(mask[:, 3], 0.0, 1.0),
+            max(threshold * 0.96, 0.022),
+            max((0.044 + (0.032 - 0.044) * params["glossSharpness"]), 0.032),
+        )
         * full_soft
         * full_core
     )
-    highlight = (
-        thin_horizontal_line
+    gloss_halo_mask = (
+        soft_mask_alpha(
+            np.clip(np.maximum(soft_mask[:, 3], mask[:, 3] * 0.52), 0.0, 1.0),
+            max(threshold * 0.70, 0.018),
+            max(feather * 0.26, 0.050),
+        )
+        * full_soft
+        * full_core
+    )
+    gloss_halo = np.clip(gloss_halo_mask - gloss_sharp_mask * 0.56, 0.0, 1.0)
+    gloss_energy = (
+        coverage
         * coverage
         * params["specular"]
         * params["glossBoost"]
         * params["opacity"]
-        * 0.62
     )
-    tinted_wet = np.clip(lerp(params["regionColor"], params["secondaryColor"], 0.38), 0.0, 1.0)
-    highlight_color = np.clip(lerp(tinted_wet, np.asarray([1.0, 0.94, 0.92], dtype=np.float32), 0.24), 0.0, 1.0)
-    return highlight_color[None, :] * highlight[:, None], {
-        "thinHorizontalLine": thin_horizontal_line,
-        "highlight": highlight,
-        "glossMask": gloss_mask,
+    sharp_highlight = gloss_sharp_mask * gloss_energy * 0.96
+    halo_highlight = gloss_halo * gloss_energy * params["glossHaloIntensity"] * 0.22
+    gloss_screen_lift = np.clip(1.0 - params["regionColor"] * 0.56, 0.0, 1.0)
+    sharp_color = np.clip(lerp(params["regionColor"], params["glossColor"], 0.34), 0.0, 1.0)
+    halo_color = np.clip(lerp(params["regionColor"], params["glossColor"], 0.03), 0.0, 1.0)
+    additive = (
+        sharp_color[None, :] * gloss_screen_lift[None, :] * sharp_highlight[:, None]
+        + halo_color[None, :] * gloss_screen_lift[None, :] * halo_highlight[:, None]
+    )
+    return additive, {
+        "glossSharpMask": gloss_sharp_mask,
+        "glossHaloMask": gloss_halo_mask,
+        "highlight": np.maximum(sharp_highlight, halo_highlight),
     }
 
 
@@ -894,7 +927,7 @@ def style_metrics(
         outside = changed & ~source_dilated
         metrics["outsideSourceDilatedPixels"] = int(outside.sum())
         metrics["outsideSourceDilatedRatio"] = float(outside.sum() / max(int(changed.sum()), 1))
-    wet = layers["highlight"] > 0.006
+    wet = layers["highlight"] > 0.012
     if int(wet.sum()) > 0:
         wet_box = bbox(wet)
         lip_box = bbox(active)
@@ -1306,8 +1339,8 @@ def verdict(summary: dict[str, Any]) -> dict[str, Any]:
         >= 0.78,
         "gradientNotBroadLeak": gradient.get("outsideSourceDilatedRatio", 0.0) <= 0.12,
         "glossWetHighlightLocalized": wet["pixelCount"] > 0
-        and wet["heightToLipHeight"] <= 0.55
-        and wet["componentCount"] <= 3,
+        and wet["heightToLipHeight"] <= 0.50
+        and 1 <= wet["componentCount"] <= 2,
         "glossRedBasePreserved": red_ratio >= 0.90,
         "glossNotBroadLeak": gloss.get("outsideSourceDilatedRatio", 0.0) <= 0.12,
     }

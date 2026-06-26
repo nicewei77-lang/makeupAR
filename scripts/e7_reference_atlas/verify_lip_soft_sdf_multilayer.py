@@ -8,6 +8,9 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+from PIL import Image
+
 
 DEFAULT_SHADER = Path("unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionMask.shader")
 DEFAULT_OVERLAY = Path("unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs")
@@ -16,6 +19,9 @@ DEFAULT_VISION_RUNTIME = Path("unity/MakeupARUnityValidation/Assets/Scripts/E7Vi
 DEFAULT_RN_APP = Path("rn/MakeupARValidation/App.tsx")
 DEFAULT_RN_TEST = Path("rn/MakeupARValidation/__tests__/App.test.tsx")
 DEFAULT_RUNTIME_VERIFIER = Path("scripts/e7_reference_atlas/verify_soft_sdf_runtime_evidence.py")
+DEFAULT_LIP_STYLE_ATLAS = Path(
+    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/lip-drawn-style-atlas-v1.png"
+)
 DEFAULT_PREVIEW_SUMMARY = Path(
     "evidence/e7-reference-atlas/lip-style-atlas-v1/"
     "soft_sdf_multilayer_preview_20260626/summary.json"
@@ -34,24 +40,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rn-app", type=Path, default=DEFAULT_RN_APP)
     parser.add_argument("--rn-test", type=Path, default=DEFAULT_RN_TEST)
     parser.add_argument("--runtime-verifier", type=Path, default=DEFAULT_RUNTIME_VERIFIER)
+    parser.add_argument("--lip-style-atlas", type=Path, default=DEFAULT_LIP_STYLE_ATLAS)
     parser.add_argument("--preview-summary", type=Path, default=DEFAULT_PREVIEW_SUMMARY)
     parser.add_argument("--max-hard-alpha-luma-std-ratio", type=float, default=0.60)
     parser.add_argument("--min-soft-matte-luma-std-ratio", type=float, default=0.75)
     parser.add_argument("--min-soft-gradient-luma-std-ratio", type=float, default=0.80)
     parser.add_argument("--min-soft-matte-luma-correlation", type=float, default=0.85)
     parser.add_argument("--min-soft-gradient-luma-correlation", type=float, default=0.90)
-    parser.add_argument("--min-thin-wet-line-luma-correlation", type=float, default=0.78)
+    parser.add_argument("--min-thin-wet-line-luma-correlation", type=float, default=0.68)
     parser.add_argument("--min-soft-minus-hard-luma-std-ratio", type=float, default=0.30)
     parser.add_argument("--min-edge-band-mean", type=float, default=0.30)
     parser.add_argument("--max-edge-band-mean", type=float, default=0.85)
-    parser.add_argument("--min-wet-line-active-pixels", type=int, default=300)
-    parser.add_argument("--max-wet-line-active-pixels", type=int, default=1500)
-    parser.add_argument("--min-wet-line-mean-luma-boost", type=float, default=0.07)
-    parser.add_argument("--min-wet-line-aspect-ratio", type=float, default=12.0)
-    parser.add_argument("--max-wet-line-height-to-lip-height", type=float, default=0.07)
-    parser.add_argument("--min-wet-line-width-to-lip-width", type=float, default=0.35)
-    parser.add_argument("--max-wet-line-width-to-lip-width", type=float, default=0.60)
-    parser.add_argument("--max-wet-line-component-count", type=int, default=1)
+    parser.add_argument("--min-wet-line-active-pixels", type=int, default=180)
+    parser.add_argument("--max-wet-line-active-pixels", type=int, default=1800)
+    parser.add_argument("--min-wet-line-mean-luma-boost", type=float, default=0.045)
+    parser.add_argument("--min-wet-line-aspect-ratio", type=float, default=1.4)
+    parser.add_argument("--max-wet-line-height-to-lip-height", type=float, default=0.22)
+    parser.add_argument("--min-wet-line-width-to-lip-width", type=float, default=0.25)
+    parser.add_argument("--max-wet-line-width-to-lip-width", type=float, default=0.66)
+    parser.add_argument("--min-wet-line-component-count", type=int, default=1)
+    parser.add_argument("--max-wet-line-component-count", type=int, default=2)
     parser.add_argument("--min-gradient-transition-width-to-lip-width", type=float, default=0.40)
     parser.add_argument("--min-gradient-inner-outer-strength-ratio", type=float, default=1.25)
     parser.add_argument("--max-gradient-inner-outer-strength-ratio", type=float, default=5.50)
@@ -59,6 +67,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-gradient-ramp-adjacent-delta-p95", type=float, default=0.025)
     parser.add_argument("--max-gradient-center-boundary-jump", type=float, default=0.15)
     parser.add_argument("--min-gloss-red-base-preservation-ratio", type=float, default=0.70)
+    parser.add_argument("--min-gloss-atlas-active-pixels", type=int, default=24)
+    parser.add_argument("--max-gloss-atlas-active-pixels", type=int, default=80)
+    parser.add_argument("--min-gloss-atlas-core-components", type=int, default=1)
+    parser.add_argument("--max-gloss-atlas-core-components", type=int, default=2)
+    parser.add_argument("--min-gloss-atlas-soft-components", type=int, default=1)
+    parser.add_argument("--max-gloss-atlas-soft-components", type=int, default=2)
+    parser.add_argument("--max-gloss-atlas-core-component-width", type=int, default=44)
     return parser.parse_args()
 
 
@@ -86,6 +101,117 @@ def load_json(path: Path) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8"))
     require(isinstance(data, dict), f"Expected JSON object in {path}")
     return data
+
+
+def component_boxes(active: np.ndarray) -> list[dict[str, int]]:
+    seen = np.zeros_like(active, dtype=bool)
+    boxes: list[dict[str, int]] = []
+    height, width = active.shape
+    for y_value, x_value in np.argwhere(active):
+        y = int(y_value)
+        x = int(x_value)
+        if seen[y, x]:
+            continue
+        stack = [(y, x)]
+        seen[y, x] = True
+        ys: list[int] = []
+        xs: list[int] = []
+        while stack:
+            cy, cx = stack.pop()
+            ys.append(cy)
+            xs.append(cx)
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if dy == 0 and dx == 0:
+                        continue
+                    ny = cy + dy
+                    nx = cx + dx
+                    if 0 <= ny < height and 0 <= nx < width and active[ny, nx] and not seen[ny, nx]:
+                        seen[ny, nx] = True
+                        stack.append((ny, nx))
+        boxes.append(
+            {
+                "pixelCount": len(xs),
+                "left": min(xs),
+                "top": min(ys),
+                "right": max(xs),
+                "bottom": max(ys),
+                "width": max(xs) - min(xs) + 1,
+                "height": max(ys) - min(ys) + 1,
+            }
+        )
+    return sorted(boxes, key=lambda box: box["pixelCount"], reverse=True)
+
+
+def active_bbox(active: np.ndarray) -> dict[str, int]:
+    ys, xs = np.where(active)
+    require(len(xs) > 0, "Expected active atlas pixels.")
+    return {
+        "left": int(xs.min()),
+        "top": int(ys.min()),
+        "right": int(xs.max()),
+        "bottom": int(ys.max()),
+        "width": int(xs.max() - xs.min() + 1),
+        "height": int(ys.max() - ys.min() + 1),
+    }
+
+
+def verify_gloss_atlas(path: Path, args: argparse.Namespace) -> dict[str, Any]:
+    require(path.exists(), f"Missing lip style atlas: {path}")
+    atlas = np.asarray(Image.open(path).convert("RGBA"), dtype=np.uint8)
+    full_mask = (atlas[:, :, 0] > 8) | (atlas[:, :, 1] > 8)
+    soft_active = atlas[:, :, 3] > 8
+    mid_active = atlas[:, :, 3] > 48
+    core_active = atlas[:, :, 3] > 96
+    active_pixels = int(soft_active.sum())
+    require(
+        args.min_gloss_atlas_active_pixels <= active_pixels <= args.max_gloss_atlas_active_pixels,
+        f"Gloss atlas A-channel active pixels out of range: {active_pixels}",
+    )
+    outside_lip = soft_active & ~full_mask
+    require(
+        int(outside_lip.sum()) == 0,
+        f"Gloss atlas A-channel leaks outside lip RGB mask: {int(outside_lip.sum())} pixels",
+    )
+    box = active_bbox(soft_active)
+    require(
+        237 <= box["left"] <= 239
+        and 271 <= box["right"] <= 273
+        and box["top"] == 336
+        and box["bottom"] == 336,
+        f"Gloss atlas A-channel bbox moved out of the expected lower-lip specular streak: {box}",
+    )
+    soft_boxes = component_boxes(mid_active)
+    core_boxes = component_boxes(core_active)
+    require(
+        args.min_gloss_atlas_soft_components
+        <= len(soft_boxes)
+        <= args.max_gloss_atlas_soft_components,
+        f"Gloss atlas soft highlight should stay as one continuous narrow streak: {len(soft_boxes)}",
+    )
+    require(
+        args.min_gloss_atlas_core_components
+        <= len(core_boxes)
+        <= args.max_gloss_atlas_core_components,
+        f"Gloss atlas bright core should stay as one lower-lip reflection: {len(core_boxes)}",
+    )
+    require(
+        all(box_item["width"] <= args.max_gloss_atlas_core_component_width for box_item in core_boxes),
+        f"Gloss atlas bright core has a component too wide: {core_boxes}",
+    )
+    upper_soft_pixels = int((mid_active & (np.indices(mid_active.shape)[0] < 332)).sum())
+    lower_core_pixels = int((core_active & (np.indices(core_active.shape)[0] >= 335)).sum())
+    require(upper_soft_pixels <= 2, f"Gloss atlas should not brighten the inner mouth line: {upper_soft_pixels}")
+    require(lower_core_pixels >= 22, f"Gloss atlas lower-lip specular core is too weak: {lower_core_pixels}")
+    return {
+        "activePixelsGt8": active_pixels,
+        "bboxGt8": box,
+        "softComponentCountGt48": len(soft_boxes),
+        "coreComponentCountGt96": len(core_boxes),
+        "upperSoftPixelsGt48": upper_soft_pixels,
+        "lowerCorePixelsGt96": lower_core_pixels,
+        "maxAlpha": int(atlas[:, :, 3].max()),
+    }
 
 
 def verify_shader(shader_text: str) -> None:
@@ -116,11 +242,13 @@ def verify_shader(shader_text: str) -> None:
             "innerLayer",
             "edgeBand",
             "maxPigmentStrength",
-            "glossMask",
-            "thinHorizontalLine",
-            "highlightColor",
-            "tintedWetColor",
-            "lerp(tintedWetColor, float3(1.0, 0.94, 0.92), 0.24)",
+            "_GlossColor",
+            "_GlossSharpness",
+            "_GlossHaloIntensity",
+            "glossSharpMask",
+            "glossHaloMask",
+            "glossScreenLift",
+            "additiveGloss",
             "Blend One One",
         ],
         "SmoothRegionMask.shader",
@@ -131,11 +259,11 @@ def verify_shader(shader_text: str) -> None:
     )
     require(
         "atlasLine" not in shader_text and "fallbackLine" not in shader_text,
-        "Gloss path should stay as one thin wet-line, not atlas/fallback composite highlights.",
+        "Gloss path should stay atlas-driven, not return to procedural fallback highlights.",
     )
     require(
         "mask.a" in shader_text,
-        "Gloss path should sample the atlas A channel as the single horizontal-line mask.",
+        "Gloss path should sample the atlas A channel as the wet-sheen strength mask.",
     )
     require(
         "innerDensity = saturate(max(gradientMask, centerDensity) * fullCore)" not in shader_text
@@ -187,7 +315,10 @@ def verify_overlay(overlay_text: str) -> None:
             "LipRenderLayerMode",
             "soft_sdf_logical_multilayer",
             "GlossHighlightMode",
-            "tinted_soft_lower_wet_line",
+            "matte_base_wet_sheen",
+            "_GlossColor",
+            "_GlossSharpness",
+            "_GlossHaloIntensity",
             "WideFeatherSoftSampleMode",
             "feather_scaled_13tap_near_far",
             "FeatherNearRadiusMinPx",
@@ -296,7 +427,7 @@ def verify_rn(rn_app_text: str, rn_test_text: str) -> None:
             "apple_vision_lip_landmark_arface_uv_baked",
             "visionCoord=raw-y->flip-y->face-local-warp->arface-uv-bake",
             "layers=soft_sdf_logical_multilayer",
-            "gloss=tinted_soft_lower_wet_line",
+            "gloss=matte_base_wet_sheen",
             "smooth=temporal_smooth_transition|large_face_motion_smooth",
             "t=0.42/160",
             "faceLocal=true",
@@ -325,7 +456,7 @@ def verify_runtime_verifier(runtime_verifier_text: str) -> None:
             "softSdfLayerMode",
             "wideFeatherSampleMode",
             "wideFeatherRadius",
-            "glowThinWetLine",
+            "glowGlossSheen",
             "matteNoGloss",
             "visionSoftUvBake",
             "visionArfaceUvCoordinate",
@@ -345,7 +476,7 @@ def verify_runtime_verifier(runtime_verifier_text: str) -> None:
             "wideFeatherFarRadiusTooNarrow",
             "matte,glow,gradient",
             "maskDiag=vision_arface_uv_baked_outer_minus_inner_soft_falloff",
-            "glossHighlightMode=tinted_soft_lower_wet_line",
+            "glossHighlightMode=matte_base_wet_sheen",
             "lipRenderLayerMode=soft_sdf_logical_multilayer",
             "visionMotion=(-?\\d+(?:\\.\\d+)?)/",
             "Vision boundary logs are allowed as explicit debug/compare evidence.",
@@ -385,7 +516,17 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
     )
     outputs = summary.get("outputs")
     require(isinstance(outputs, dict), "Preview summary is missing outputs.")
-    for key in ("sheet", "layerDiagnostic", "softMatte", "softGradient", "thinWetLine"):
+    for key in (
+        "sheet",
+        "layerDiagnostic",
+        "softMatte",
+        "softGradient",
+        "thinWetLine",
+        "showLipBaseOnly",
+        "showGlossMaskOnly",
+        "showGlossHaloOnly",
+        "showFinalGloss",
+    ):
         value = outputs.get(key)
         require(isinstance(value, str) and value, f"Preview output {key} is missing.")
         output_path = Path(value)
@@ -476,7 +617,7 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
     )
     require(
         wet_line_correlation >= args.min_thin_wet_line_luma_correlation,
-        f"Thin wet-line lumaCorrelation too low: {wet_line_correlation}",
+        f"Gloss sheen lumaCorrelation too low: {wet_line_correlation}",
     )
     require(
         matte - hard >= args.min_soft_minus_hard_luma_std_ratio,
@@ -488,31 +629,35 @@ def verify_preview(summary: dict[str, Any], repo: Path, args: argparse.Namespace
     )
     require(
         args.min_wet_line_active_pixels <= wet_line <= args.max_wet_line_active_pixels,
-        f"Wet-line active pixel count is out of guard range: {wet_line}",
+        f"Gloss sheen active pixel count is out of guard range: {wet_line}",
     )
     require(
         float(wet_line_boost) >= args.min_wet_line_mean_luma_boost,
-        f"Wet-line mean luma boost too low: {wet_line_boost}",
+        f"Gloss sheen mean luma boost too low: {wet_line_boost}",
     )
     require(
         float(wet_line_aspect) >= args.min_wet_line_aspect_ratio,
-        f"Wet-line is not horizontal enough: aspectRatio={wet_line_aspect}",
+        f"Gloss sheen footprint is too tall or scattered: aspectRatio={wet_line_aspect}",
     )
     require(
         float(wet_line_height_ratio) <= args.max_wet_line_height_to_lip_height,
-        f"Wet-line is too vertically thick: heightToLipHeight={wet_line_height_ratio}",
+        f"Gloss sheen is too vertically tall: heightToLipHeight={wet_line_height_ratio}",
     )
     require(
         float(wet_line_width_ratio) >= args.min_wet_line_width_to_lip_width,
-        f"Wet-line is too short to read as a horizontal line: widthToLipWidth={wet_line_width_ratio}",
+        f"Gloss sheen is too short to read as lip gloss: widthToLipWidth={wet_line_width_ratio}",
     )
     require(
         float(wet_line_width_ratio) <= args.max_wet_line_width_to_lip_width,
-        f"Wet-line is too long to read as one lower-center highlight: widthToLipWidth={wet_line_width_ratio}",
+        f"Gloss sheen is too long and risks becoming a full lip stripe: widthToLipWidth={wet_line_width_ratio}",
+    )
+    require(
+        wet_line_components >= args.min_wet_line_component_count,
+        f"Gloss sheen should stay as one smooth highlight, not disappear: componentCount={wet_line_components}",
     )
     require(
         wet_line_components <= args.max_wet_line_component_count,
-        f"Wet-line is fragmented into too many components: componentCount={wet_line_components}",
+        f"Gloss sheen is fragmented into too many components: componentCount={wet_line_components}",
     )
     require(
         float(gradient_transition_width) >= args.min_gradient_transition_width_to_lip_width,
@@ -577,6 +722,7 @@ def main() -> None:
     rn_app_text = read_text(resolve(repo, args.rn_app))
     rn_test_text = read_text(resolve(repo, args.rn_test))
     runtime_verifier_text = read_text(resolve(repo, args.runtime_verifier))
+    gloss_atlas_metrics = verify_gloss_atlas(resolve(repo, args.lip_style_atlas), args)
     preview_summary = load_json(resolve(repo, args.preview_summary))
 
     verify_shader(shader_text)
@@ -593,6 +739,7 @@ def main() -> None:
                 "status": "pass",
                 "scope": "E7 lip soft-SDF logical multilayer and Vision ARFace UV-bake guard",
                 "runtimeVerifier": "guarded",
+                "glossAtlasMetrics": gloss_atlas_metrics,
                 "previewMetrics": preview_metrics,
             },
             ensure_ascii=False,
