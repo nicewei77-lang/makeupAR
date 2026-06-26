@@ -9,7 +9,7 @@
 ## Required Reading
 - Start each session with `AGENTS.md` and `TECH_VALIDATION_RESULT.md` > `Current Session Snapshot`.
 - Open `docs/roadmaps/README.md` as the menu, then open exactly one selected roadmap file; do not load whole `active/`, `archive/`, or `research/` folders.
-- For the current lane, read `docs/roadmaps/active/E7_LIP_PERSONALIZED_GENERATE_FULL_IMPLEMENTATION_PLAN_KO.md`.
+- For the current lane, read `docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md`.
 - Read archive roadmap docs only when the user names them, the snapshot routes there, or an old boundary must be checked.
 
 ## Product Quality Gates

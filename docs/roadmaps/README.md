@@ -12,7 +12,7 @@ Token-safe reading rule:
 
 | File | Use |
 | --- | --- |
-| `active/E7_LIP_PERSONALIZED_GENERATE_FULL_IMPLEMENTATION_PLAN_KO.md` | E7 개인 맞춤 립 Generate 완전 구현 계획. 웹앱 베타, 로컬 마스크 생성, 실제 RN/Unity 앱 빌드, 최종 iPhone 테스트까지의 현재 작업 계약. |
+| `active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md` | E7 립 / 블러셔 / 눈썹 / 아이라인 region Generate 완전 구현 계획. CLI 실험, 웹앱 검증, RN/Unity 적용 준비, pre-Xcode build gate package까지의 현재 작업 계약. iPhone/Xcode 빌드와 실기기 테스트는 다음 phone-connected 세션으로 deferred. |
 
 ## Strategy
 
@@ -43,6 +43,7 @@ Token-safe reading rule:
 | `archive/E7_REFERENCE_DRIVEN_UV_ATLAS_PLAN_KR.md` | UV atlas 계획의 사용자/팀원용 한국어 companion. `_KO.md`를 우선한다. |
 | `archive/E7_LIP_SAMPLE_PACK_V0_RUNTIME_REVIEW_CONTEXT_KO.md` | lip sample v0 runtime review 컨텍스트. lip sample 튜닝을 재개할 때만 연다. |
 | `archive/E7_LIP_CANDIDATE_GENERATOR_FAST_SPIKE_PLAN_KO.md` | E7 lip candidate generator fast spike 완료 계획. 후보 생성 결과/설계 맥락을 다시 확인할 때만 연다. |
+| `archive/E7_LIP_PERSONALIZED_GENERATE_FULL_IMPLEMENTATION_PLAN_KO.md` | E7 개인 맞춤 립 Generate 완전 구현 계획. 현재 전체 부위 Generate 계획으로 superseded 되었으며, lip-only 웹앱/로컬서버/RN-Unity 설계를 다시 확인할 때만 연다. |
 | `archive/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md` | E7.6 FPS/frame-time, thermal, memory, latency evidence 계약. |
 | `archive/E7_COSMETIC_RENDERING_TEAM_CHECK_PLAN_KO.md` | 팀원이 보는 E7.4/E7.5 cosmetic rendering 실험 범위와 진입 조건. |
 | `archive/E7_EXTERNAL_MASK_PRIOR_SUBSPIKE_PLAN_KO.md` | external mask prior 탐색 가드레일. 명시적으로 재개할 때만 사용한다. |
