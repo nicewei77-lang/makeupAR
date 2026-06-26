@@ -44,7 +44,7 @@
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
 - Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
 - Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; keep metadata/contact sheets/representative frames, delete raw recordings when no longer needed, and prefer Homebrew `ffmpeg`/`ffprobe` for inspection.
-- In user-facing Korean, avoid impressive-sounding internal jargon unless it is an exact repo/API term needed for the decision; explain with plain app-flow words first.
+- In user-facing Korean, avoid impressive-sounding internal jargon; when the user says the issue is important or asks to think deeply, inspect relevant context/code/evidence first, separate facts/inferences/hypotheses, and answer objectively rather than giving a simple agreement.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.
 - Do not commit generated/cache state: `unity-builds/`, Unity `Library/`, `Logs/`, `UserSettings/`, Xcode derived data, raw evidence, or `.DS_Store`; curated evidence follows `evidence/README.md`.
