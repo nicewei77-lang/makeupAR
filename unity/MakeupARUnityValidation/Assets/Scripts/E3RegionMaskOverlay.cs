@@ -162,6 +162,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public int Width;
         public int Height;
         public int ThresholdByte;
+        public int CullingChannelMask;
         public Color32[] Pixels = new Color32[0];
     }
 
@@ -199,6 +200,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const int VisionUvMaskSoftSplatRadius = 3;
     private const string WideFeatherSoftSampleMode = "feather_scaled_13tap_near_far";
     private const string LegacySoftSampleMode = "legacy_soft_alpha";
+    private const string MaskDebugFinal = "final";
+    private const string MaskDebugRaw = "raw";
+    private const string MaskDebugProcessed = "processed";
+    private const int MaskChannelR = 1;
+    private const int MaskChannelG = 2;
+    private const int MaskChannelB = 4;
+    private const int MaskChannelA = 8;
     private const float FeatherNearRadiusMinPx = 1.25f;
     private const float FeatherNearRadiusMaxPx = 5.5f;
     private const float FeatherRadiusScale = 2.35f;
@@ -220,6 +228,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, MaskTextureSampleData>();
     private bool overlayRenderingSuppressed;
     private bool visionCaptureSuppressed;
+    private string maskDebugViewMode = MaskDebugFinal;
 
     public void Configure(ARFaceManager manager)
     {
@@ -227,6 +236,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             faceManager = manager;
         }
+    }
+
+    public void SetMaskDebugViewMode(string mode)
+    {
+        string normalized = NormalizeMaskDebugViewMode(mode);
+        if (maskDebugViewMode == normalized)
+        {
+            return;
+        }
+
+        maskDebugViewMode = normalized;
+        Debug.Log("[E7] mask_debug_view_mode mode=" + maskDebugViewMode);
     }
 
     public bool TryGetLatestRegionApplyResult(string region, out RegionApplyResult result)
@@ -547,7 +568,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
             : "none";
-        result.GlossHighlightMode = lipLogicalMultilayer && IsGlowFinish(recipe)
+        result.GlossHighlightMode = lipLogicalMultilayer && IsGlossFinish(recipe)
             ? "matte_base_wet_sheen"
             : "none";
         result.MaskSource = visionLipBoundary
@@ -686,11 +707,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         MaskTextureSampleData sampleData = null;
         if (shouldCullToMask)
         {
-            sampleData = GetMaskTextureSampleData(mask);
-            meshCullingMode = "lip_atlas_threshold_sample";
+            int cullingChannelMask = ResolveMaskCullingChannelMask(recipe);
+            sampleData = GetMaskTextureSampleData(mask, cullingChannelMask);
+            meshCullingMode = "lip_atlas_threshold_sample_"
+                + FormatMaskChannelMask(cullingChannelMask);
             if (sampleData == null || sampleData.Status != "ok")
             {
-                meshCullingMode = "lip_atlas_threshold_sample_unavailable";
+                meshCullingMode = "lip_atlas_threshold_sample_"
+                    + FormatMaskChannelMask(cullingChannelMask)
+                    + "_unavailable";
                 view.Mesh.Clear();
                 return false;
             }
@@ -2141,6 +2166,30 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return texture;
     }
 
+    private static Texture2D GetGlossHighlightMaskTexture(
+        RegionRecipeState recipe,
+        Texture2D fallbackTexture)
+    {
+        if (recipe == null
+            || NormalizeRegion(recipe.Region) != "lip"
+            || !IsGlossFinish(recipe)
+            || IsVisionLipBoundaryMask(recipe.MaskTextureId))
+        {
+            return Texture2D.blackTexture;
+        }
+
+        Texture2D glossTexture = GetMaskTexture(new MaskDefinition
+        {
+            Region = "lip",
+            MaskTextureId = LipDrawnStyleAtlasMaskId,
+            ResourcePath = "SmoothRegionMasks/" + LipDrawnStyleAtlasMaskId,
+            Threshold = 0.025f,
+            FeatherUvNormalized = 0.32f
+        });
+
+        return glossTexture != null ? glossTexture : fallbackTexture;
+    }
+
     private static Texture2D GetVisionBoundaryMaskTexture()
     {
         const string cacheKey = "runtime:lip-vision-boundary-v1:white-mask";
@@ -2188,15 +2237,70 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             && IsVisionLipBoundaryMask(recipe.MaskTextureId);
     }
 
-    private static MaskTextureSampleData GetMaskTextureSampleData(MaskDefinition mask)
+    private static int ResolveMaskCullingChannelMask(RegionRecipeState recipe)
+    {
+        if (recipe == null)
+        {
+            return MaskChannelR;
+        }
+
+        switch (recipe.TextureSample)
+        {
+            case "gradient_lip":
+                return MaskChannelR | MaskChannelB;
+            case "overline_lip":
+                return MaskChannelR | MaskChannelG;
+            default:
+                return MaskChannelR;
+        }
+    }
+
+    private static int NormalizeMaskChannelMask(int channelMask)
+    {
+        int normalized = channelMask & (MaskChannelR | MaskChannelG | MaskChannelB | MaskChannelA);
+        return normalized == 0 ? MaskChannelR : normalized;
+    }
+
+    private static string FormatMaskChannelMask(int channelMask)
+    {
+        channelMask = NormalizeMaskChannelMask(channelMask);
+        string formatted = string.Empty;
+        if ((channelMask & MaskChannelR) != 0)
+        {
+            formatted += "r";
+        }
+
+        if ((channelMask & MaskChannelG) != 0)
+        {
+            formatted += "g";
+        }
+
+        if ((channelMask & MaskChannelB) != 0)
+        {
+            formatted += "b";
+        }
+
+        if ((channelMask & MaskChannelA) != 0)
+        {
+            formatted += "a";
+        }
+
+        return formatted;
+    }
+
+    private static MaskTextureSampleData GetMaskTextureSampleData(
+        MaskDefinition mask,
+        int cullingChannelMask)
     {
         if (mask == null)
         {
             return null;
         }
 
+        cullingChannelMask = NormalizeMaskChannelMask(cullingChannelMask);
         string cacheKey = mask.ResourcePath + "|sampleThreshold="
-            + mask.Threshold.ToString("0.######", CultureInfo.InvariantCulture);
+            + mask.Threshold.ToString("0.######", CultureInfo.InvariantCulture)
+            + "|channels=" + cullingChannelMask.ToString(CultureInfo.InvariantCulture);
         if (MaskTextureSampleCache.TryGetValue(cacheKey, out MaskTextureSampleData cached))
         {
             return cached;
@@ -2204,7 +2308,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         MaskTextureSampleData sampleData = new MaskTextureSampleData
         {
-            ThresholdByte = Mathf.Clamp(Mathf.RoundToInt(mask.Threshold * 255.0f), 0, 255)
+            ThresholdByte = Mathf.Clamp(Mathf.RoundToInt(mask.Threshold * 255.0f), 0, 255),
+            CullingChannelMask = cullingChannelMask
         };
         Texture2D texture = GetMaskTexture(mask);
         if (texture == null)
@@ -2281,7 +2386,30 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return 0;
         }
 
-        return sampleData.Pixels[pixelIndex].r;
+        Color32 pixel = sampleData.Pixels[pixelIndex];
+        int channelMask = NormalizeMaskChannelMask(sampleData.CullingChannelMask);
+        int value = 0;
+        if ((channelMask & MaskChannelR) != 0)
+        {
+            value = Mathf.Max(value, pixel.r);
+        }
+
+        if ((channelMask & MaskChannelG) != 0)
+        {
+            value = Mathf.Max(value, pixel.g);
+        }
+
+        if ((channelMask & MaskChannelB) != 0)
+        {
+            value = Mathf.Max(value, pixel.b);
+        }
+
+        if ((channelMask & MaskChannelA) != 0)
+        {
+            value = Mathf.Max(value, pixel.a);
+        }
+
+        return value;
     }
 
     private static MaskTextureDiagnostics GetMaskTextureDiagnostics(MaskDefinition mask)
@@ -2395,12 +2523,27 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         view.MeshRenderer.sharedMaterial = material;
         material.SetTexture("_MaskTex", maskTexture);
+        if (material.HasProperty("_GlossMaskTex"))
+        {
+            material.SetTexture("_GlossMaskTex", GetGlossHighlightMaskTexture(recipe, maskTexture));
+        }
+
         ApplyMaterialBlendMode(material, recipe.BlendMode);
+        if (maskDebugViewMode != MaskDebugFinal)
+        {
+            ApplyMaskDebugBlendMode(material);
+        }
+
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
 
         if (material.HasProperty("_UseScreenSpaceMask"))
         {
             material.SetFloat("_UseScreenSpaceMask", visionLipBoundary ? 1.0f : 0.0f);
+        }
+
+        if (material.HasProperty("_DebugMaskMode"))
+        {
+            material.SetFloat("_DebugMaskMode", ResolveMaskDebugModeValue(maskDebugViewMode));
         }
 
         if (material.HasProperty("_RegionColor"))
@@ -2471,7 +2614,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_GlossSharpness",
-                IsGlowFinish(recipe)
+                IsGlossFinish(recipe)
                     ? Mathf.Lerp(0.60f, 0.86f, recipe.GlossBoost)
                     : 0.0f);
         }
@@ -2480,7 +2623,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_GlossHaloIntensity",
-                IsGlowFinish(recipe)
+                IsGlossFinish(recipe)
                     ? Mathf.Lerp(0.045f, 0.10f, recipe.GlossBoost)
                     : 0.0f);
         }
@@ -2589,7 +2732,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Mathf.Clamp01(recipe.Opacity * sampleAlphaScale));
     }
 
-    private static bool IsGlowFinish(RegionRecipeState recipe)
+    private static bool IsGlossFinish(RegionRecipeState recipe)
     {
         return recipe != null
             && (string.Equals(recipe.Finish, "gloss", StringComparison.OrdinalIgnoreCase)
@@ -2656,6 +2799,44 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         material.renderQueue = 5000;
+    }
+
+    private static void ApplyMaskDebugBlendMode(Material material)
+    {
+        if (material == null)
+        {
+            return;
+        }
+
+        if (material.HasProperty("_SrcBlend"))
+        {
+            material.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
+        }
+
+        if (material.HasProperty("_DstBlend"))
+        {
+            material.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
+        }
+
+        if (material.HasProperty("_PigmentMultiply"))
+        {
+            material.SetFloat("_PigmentMultiply", 0.0f);
+        }
+
+        material.renderQueue = 5000;
+    }
+
+    private static float ResolveMaskDebugModeValue(string mode)
+    {
+        switch (NormalizeMaskDebugViewMode(mode))
+        {
+            case MaskDebugRaw:
+                return 1.0f;
+            case MaskDebugProcessed:
+                return 2.0f;
+            default:
+                return 0.0f;
+        }
     }
 
     private static void SetViewVisibility(RegionOverlayView view, bool showMesh)
@@ -2843,6 +3024,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         throw new ArgumentException("Unsupported smooth mask blend mode: " + blendMode);
+    }
+
+    private static string NormalizeMaskDebugViewMode(string mode)
+    {
+        mode = string.IsNullOrWhiteSpace(mode)
+            ? MaskDebugFinal
+            : mode.Trim().ToLowerInvariant();
+
+        switch (mode)
+        {
+            case MaskDebugRaw:
+            case MaskDebugProcessed:
+            case MaskDebugFinal:
+                return mode;
+            default:
+                return MaskDebugFinal;
+        }
     }
 
     private static string NormalizeMaskTextureId(string region, string maskTextureId)

@@ -16,6 +16,7 @@ import App, {
   RECIPE_COLOR_OPTIONS,
   RECIPE_TEXTURE_SAMPLE_OPTIONS,
   composeLipTextureSample,
+  getSelectedMaskTextureOptionId,
 } from '../App';
 
 declare const __dirname: string;
@@ -279,16 +280,16 @@ test('shows lip color, finish type, area style, and intensity controls in HUD mo
   expect(hudText).toContain('coral');
   expect(hudText).toContain('Normal');
   expect(hudText).toContain('Matte');
-  expect(hudText).toContain('Glow');
+  expect(hudText).toContain('Glossy');
   expect(hudText).toContain('Full');
   expect(hudText).toContain('Gradient');
-  expect(hudText).toContain('Overline');
+  expect(hudText).toContain('Overlip');
   expect(hudText).toContain('Intensity');
   expect(hudText).not.toContain('matte_lip');
 
-  pressByText(renderer!, 'Glow');
+  pressByText(renderer!, 'Glossy');
 
-  expect(collectText(renderer!)).toContain('type Glow');
+  expect(collectText(renderer!)).toContain('type Glossy');
   expect(collectText(renderer!)).not.toContain('gloss_lip');
 
   pressByText(renderer!, 'Gradient');
@@ -327,7 +328,7 @@ test('marks lip finish and area options as one-selected radio groups', async () 
       .length,
   ).toBe(1);
 
-  pressByText(renderer!, 'Glow');
+  pressByText(renderer!, 'Glossy');
   pressByText(renderer!, 'Gradient');
 
   const selectedFinishButtons = LIP_FINISH_TYPE_OPTIONS.map(option =>
@@ -338,9 +339,18 @@ test('marks lip finish and area options as one-selected radio groups', async () 
   ).filter(button => button.props.accessibilityState?.selected);
 
   expect(selectedFinishButtons).toHaveLength(1);
-  expect(selectedFinishButtons[0].props.testID).toBe('lip-finish-glow');
+  expect(selectedFinishButtons[0].props.testID).toBe('lip-finish-glossy');
   expect(selectedAreaButtons).toHaveLength(1);
   expect(selectedAreaButtons[0].props.testID).toBe('lip-area-gradient');
+});
+
+test('shows gradient density atlas as the Atlas mask source in UI', () => {
+  expect(
+    getSelectedMaskTextureOptionId(
+      'lip',
+      'lip-drawn-gradient-density-atlas-v1',
+    ),
+  ).toBe('lip-drawn-style-atlas-v1');
 });
 
 test('renders collapsible per-region tuning controls in HUD mode', async () => {
@@ -358,6 +368,9 @@ test('renders collapsible per-region tuning controls in HUD mode', async () => {
   expect(text).toContain('Guide');
   expect(text).toContain('Mesh');
   expect(text).toContain('Diagnostics');
+  expect(text).toContain('Final');
+  expect(text).toContain('Raw');
+  expect(text).toContain('Processed');
   expect(text).toContain('Opacity');
   expect(text).toContain('Coverage');
   expect(text).toContain('Feather');
@@ -412,6 +425,16 @@ test('posts green guide and yellow mesh overlay visibility toggles immediately',
   expect(meshVisibilityCall).toContain('meshColor=yellow');
   expect(meshVisibilityCall).toContain('meshRenderMode=wireframe');
   expect(meshVisibilityCall).toContain('guideOverlayMode=mesh_landmarks');
+
+  pressByText(renderer!, 'Raw');
+
+  const rawMaskDebugCall = consoleLogSpy.mock.calls.find(
+    call =>
+      call.includes('[E7] rn_region_overlay_visibility_post') &&
+      call.includes('maskDebugViewMode=raw'),
+  );
+
+  expect(rawMaskDebugCall).toBeTruthy();
 });
 
 test('posts independent tuning parameters for each region', () => {
@@ -479,6 +502,7 @@ test('posts independent tuning parameters for each region', () => {
 
   expect(payload.region).toBe('cheek');
   expect(payload.debugDisplay.maskOverlayVisible).toBe(true);
+  expect(payload.debugDisplay.maskDebugViewMode).toBe('final');
   expect(lipLayer.opacity).toBe(0.81);
   expect(lipLayer.intensity).toBe(0.77);
   expect(lipLayer.feather).toBe(0.31);
@@ -504,15 +528,15 @@ test('combines lip finish type and area style independently in payload', () => {
   expect(LIP_FINISH_TYPE_OPTIONS.map(option => option.label)).toEqual([
     'Normal',
     'Matte',
-    'Glow',
+    'Glossy',
   ]);
   expect(LIP_AREA_STYLE_OPTIONS.map(option => option.label)).toEqual([
     'Full',
     'Gradient',
-    'Overline',
+    'Overlip',
   ]);
 
-  const glowGradientSample = composeLipTextureSample('glow', 'gradient');
+  const glossyGradientSample = composeLipTextureSample('glossy', 'gradient');
   const normalFullSample = composeLipTextureSample('normal', 'full');
   const matteOverlineSample = composeLipTextureSample('matte', 'overline');
 
@@ -520,11 +544,12 @@ test('combines lip finish type and area style independently in payload', () => {
   expect(normalFullSample.finish).toBe('normal');
   expect(normalFullSample.specular).toBeGreaterThan(0);
   expect(normalFullSample.glossBoost).toBeLessThan(0.2);
-  expect(glowGradientSample.name).toBe('gradient_lip');
-  expect(glowGradientSample.finish).toBe('gloss');
-  expect(glowGradientSample.specular).toBeGreaterThan(0.85);
-  expect(glowGradientSample.glossBoost).toBeGreaterThan(0.85);
-  expect(glowGradientSample.gradientAmount).toBe(1);
+  expect(glossyGradientSample.name).toBe('gradient_lip');
+  expect(glossyGradientSample.finish).toBe('gloss');
+  expect(glossyGradientSample.specular).toBeGreaterThan(0.7);
+  expect(glossyGradientSample.glossBoost).toBeGreaterThan(0.6);
+  expect(glossyGradientSample.glossBoost).toBeLessThan(0.75);
+  expect(glossyGradientSample.gradientAmount).toBe(1);
   expect(matteOverlineSample.name).toBe('overline_lip');
   expect(matteOverlineSample.finish).toBe('matte');
   expect(matteOverlineSample.specular).toBe(0);
@@ -535,7 +560,7 @@ test('combines lip finish type and area style independently in payload', () => {
       ...DEFAULT_REGION_RECIPES,
       lip: {
         ...DEFAULT_REGION_RECIPES.lip,
-        textureSample: glowGradientSample,
+        textureSample: glossyGradientSample,
       },
     },
     DEFAULT_ACTIVE_REGIONS,
@@ -549,8 +574,9 @@ test('combines lip finish type and area style independently in payload', () => {
   expect(lipLayer.finish).toBe('gloss');
   expect(lipLayer.maskTextureId).toBe('lip-drawn-gradient-density-atlas-v1');
   expect(lipLayer.passCount).toBe(2);
-  expect(lipLayer.specular).toBeGreaterThan(0.85);
-  expect(lipLayer.glossBoost).toBeGreaterThan(0.85);
+  expect(lipLayer.specular).toBeGreaterThan(0.7);
+  expect(lipLayer.glossBoost).toBeGreaterThan(0.6);
+  expect(lipLayer.glossBoost).toBeLessThan(0.75);
   expect(lipLayer.gradientAmount).toBe(1);
 });
 
@@ -849,7 +875,7 @@ test('passes selected lip color, finish, and intensity through payload', () => {
   const selectedColor = RECIPE_COLOR_OPTIONS.find(
     colorOption => colorOption.name === 'berry',
   )!;
-  const selectedTextureSample = composeLipTextureSample('glow', 'full');
+  const selectedTextureSample = composeLipTextureSample('glossy', 'full');
   const payload = buildValidationRecipeBatchPayload(
     {
       ...DEFAULT_REGION_RECIPES,
@@ -874,13 +900,14 @@ test('passes selected lip color, finish, and intensity through payload', () => {
   expect(lipLayer.intensity).toBe(0.85);
   expect(lipLayer.textureAmount).toBe(0.85);
   expect(lipLayer.finish).toBe('gloss');
-  expect(lipLayer.specular).toBeGreaterThan(0.85);
-  expect(lipLayer.glossBoost).toBeGreaterThan(0.85);
+  expect(lipLayer.specular).toBeGreaterThan(0.7);
+  expect(lipLayer.glossBoost).toBeGreaterThan(0.6);
+  expect(lipLayer.glossBoost).toBeLessThan(0.75);
   expect(lipLayer.blendMode).toBe('multiply');
   expect(lipLayer.passCount).toBe(2);
 });
 
-test('enables shader gloss pass from glow material values across lip areas', () => {
+test('enables shader glossy pass from separate highlight mask across lip areas', () => {
   const shaderPath = path.resolve(
     __dirname,
     '../../../unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionMask.shader',
@@ -891,7 +918,28 @@ test('enables shader gloss pass from glow material values across lip areas', () 
     '_LipStyleMode < 0.5 || _LipStyleMode >= 1.5',
   );
   expect(shaderSource).toContain('_GlossBoost <= 0.001');
+  expect(shaderSource).toContain('sampler2D _GlossMaskTex');
+  expect(shaderSource).toContain('tex2D(_GlossMaskTex');
   expect(shaderSource).toContain('styleGlossSeed');
+  expect(shaderSource).toContain('_DebugMaskMode > 0.5');
+  expect(shaderSource).toContain('return fixed4(rawMask.xxx');
+  expect(shaderSource).not.toContain(
+    'styleGlossSeed = max(styleGlossSeed, saturate(max(mask.b',
+  );
+});
+
+test('uses lip style channels for mesh culling instead of full-only culling', () => {
+  const overlayPath = path.resolve(
+    __dirname,
+    '../../../unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs',
+  );
+  const overlaySource = fs.readFileSync(overlayPath, 'utf8');
+
+  expect(overlaySource).toContain('ResolveMaskCullingChannelMask');
+  expect(overlaySource).toContain('case "gradient_lip":');
+  expect(overlaySource).toContain('MaskChannelR | MaskChannelB');
+  expect(overlaySource).toContain('case "overline_lip":');
+  expect(overlaySource).toContain('MaskChannelR | MaskChannelG');
 });
 
 test('keeps Unity face debug surface disabled across view modes', async () => {

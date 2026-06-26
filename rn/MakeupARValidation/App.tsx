@@ -64,7 +64,7 @@ export type RecipeTextureSample = {
   gradientAmount: number;
   preserveDetail: boolean;
 };
-export type LipFinishType = 'normal' | 'matte' | 'glow';
+export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 
 export const LIP_FINISH_TYPE_OPTIONS: {
@@ -73,7 +73,7 @@ export const LIP_FINISH_TYPE_OPTIONS: {
 }[] = [
   { id: 'normal', label: 'Normal' },
   { id: 'matte', label: 'Matte' },
-  { id: 'glow', label: 'Glow' },
+  { id: 'glossy', label: 'Glossy' },
 ];
 export const LIP_AREA_STYLE_OPTIONS: {
   id: LipAreaStyle;
@@ -82,7 +82,7 @@ export const LIP_AREA_STYLE_OPTIONS: {
 }[] = [
   { id: 'full', label: 'Full', textureSampleName: 'full_lip' },
   { id: 'gradient', label: 'Gradient', textureSampleName: 'gradient_lip' },
-  { id: 'overline', label: 'Overline', textureSampleName: 'overline_lip' },
+  { id: 'overline', label: 'Overlip', textureSampleName: 'overline_lip' },
 ];
 
 export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
@@ -160,7 +160,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
   },
   {
     name: 'overline_lip',
-    label: 'overline lip',
+    label: 'overlip lip',
     region: 'lip',
     textureMode: 'sample',
     blendMode: 'multiply',
@@ -168,7 +168,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     intensity: 0.5,
     feather: 0.24,
     coverage: 0.42,
-    finish: 'overline',
+    finish: 'overlip',
     roughness: 0.44,
     specular: 0.1,
     specularPower: 18,
@@ -218,6 +218,11 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'compact', label: 'HUD' },
   { name: 'full', label: 'Debug' },
 ] as const;
+const MASK_DEBUG_VIEW_MODE_OPTIONS = [
+  { id: 'final', label: 'Final' },
+  { id: 'raw', label: 'Raw' },
+  { id: 'processed', label: 'Processed' },
+] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'lip-makeup-validation-v1';
 const E7_LIP_LOOK_ID = 'lip_makeup_validation_v1';
@@ -246,12 +251,12 @@ const LIP_FINISH_MATERIAL_VALUES: Record<
     specularPower: 6,
     glossBoost: 0,
   },
-  glow: {
+  glossy: {
     finish: 'gloss',
-    roughness: 0.18,
-    specular: 0.92,
-    specularPower: 52,
-    glossBoost: 0.88,
+    roughness: 0.26,
+    specular: 0.78,
+    specularPower: 36,
+    glossBoost: 0.68,
   },
 };
 
@@ -302,7 +307,7 @@ function getLipFinishTypeForSample(
   }
 
   if (textureSample.finish === 'gloss' || textureSample.glossBoost >= 0.3) {
-    return 'glow';
+    return 'glossy';
   }
 
   if (
@@ -316,7 +321,7 @@ function getLipFinishTypeForSample(
 }
 
 function getRecipePassCount(textureSample: RecipeTextureSample) {
-  return getLipFinishTypeForSample(textureSample) === 'glow' ? 2 : 1;
+  return getLipFinishTypeForSample(textureSample) === 'glossy' ? 2 : 1;
 }
 
 function formatLipFinishTypeLabel(finishType: LipFinishType) {
@@ -347,6 +352,8 @@ type MaskTextureId =
   | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
+export type MaskDebugViewMode =
+  (typeof MASK_DEBUG_VIEW_MODE_OPTIONS)[number]['id'];
 export type RegionRecipe = {
   color: RecipeColor;
   opacity: number;
@@ -370,7 +377,12 @@ export type DebugDisplayOptions = {
   guideOverlayVisible: boolean;
   meshOverlayVisible: boolean;
   diagnosticsHudVisible: boolean;
+  maskDebugViewMode: MaskDebugViewMode;
 };
+type BooleanDebugDisplayOption = Exclude<
+  keyof DebugDisplayOptions,
+  'maskDebugViewMode'
+>;
 
 export const DEBUG_GUIDE_OVERLAY_MODE = 'mesh_landmarks';
 export const DEBUG_MESH_RENDER_MODE = 'wireframe';
@@ -434,6 +446,7 @@ export const DEFAULT_DEBUG_DISPLAY_OPTIONS: DebugDisplayOptions = {
   guideOverlayVisible: true,
   meshOverlayVisible: false,
   diagnosticsHudVisible: true,
+  maskDebugViewMode: 'final',
 };
 const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
   RecipeRegion,
@@ -442,7 +455,7 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
   lip: [
     { id: 'lip-drawn-style-atlas-v1', label: 'Atlas' },
     { id: 'lip-vision-boundary-v1', label: 'Vision' },
-    { id: 'lip-drawn-mask-v1', label: 'Drawn' },
+    { id: 'lip-drawn-mask-v1', label: 'Flat' },
   ],
   cheek: [
     { id: 'cheek-drawn-mask-v1', label: 'Drawn' },
@@ -463,6 +476,60 @@ function resolveMaskTextureIdForRecipe(
   }
 
   return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+}
+
+export function getSelectedMaskTextureOptionId(
+  region: RecipeRegion,
+  maskTextureId: MaskTextureId,
+): MaskTextureId {
+  if (
+    region === 'lip' &&
+    (maskTextureId === GRADIENT_LIP_MASK_TEXTURE_ID ||
+      maskTextureId === 'lip-style-atlas-v1')
+  ) {
+    return 'lip-drawn-style-atlas-v1';
+  }
+
+  return maskTextureId;
+}
+
+function resolveMaskTextureIdForUiOption(
+  region: RecipeRegion,
+  maskTextureId: MaskTextureId,
+  lipAreaStyle: LipAreaStyle,
+): MaskTextureId {
+  if (
+    region === 'lip' &&
+    maskTextureId === 'lip-drawn-style-atlas-v1' &&
+    lipAreaStyle === 'gradient'
+  ) {
+    return GRADIENT_LIP_MASK_TEXTURE_ID;
+  }
+
+  return maskTextureId;
+}
+
+function formatMaskTextureSummary(
+  region: RecipeRegion,
+  maskTextureId: MaskTextureId,
+) {
+  if (region === 'lip') {
+    if (maskTextureId === 'lip-vision-boundary-v1') {
+      return 'Vision';
+    }
+
+    if (maskTextureId === 'lip-drawn-mask-v1') {
+      return 'Flat';
+    }
+
+    if (maskTextureId === GRADIENT_LIP_MASK_TEXTURE_ID) {
+      return 'Atlas gradient';
+    }
+
+    return 'Atlas';
+  }
+
+  return maskTextureId.replace(/-v1$/, '').split('-').join(' ');
 }
 
 function buildDefaultRegionTuningForSample(
@@ -1103,6 +1170,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `diagnosticsHudVisible=${String(
           displayOptions.diagnosticsHudVisible,
         )}`,
+        `maskDebugViewMode=${displayOptions.maskDebugViewMode}`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );
@@ -1171,6 +1239,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         guideOverlayMode: DEBUG_GUIDE_OVERLAY_MODE,
         meshRenderMode: DEBUG_MESH_RENDER_MODE,
         diagnosticsHudVisible: displayOptions.diagnosticsHudVisible,
+        maskDebugViewMode: displayOptions.maskDebugViewMode,
         validationViewMode,
         reason,
         entryCount,
@@ -1183,6 +1252,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `guideOverlayVisible=${guideOverlayVisible}`,
         `meshOverlayVisible=${meshOverlayVisible}`,
         `diagnosticsHudVisible=${displayOptions.diagnosticsHudVisible}`,
+        `maskDebugViewMode=${displayOptions.maskDebugViewMode}`,
         'guideColor=green',
         'meshColor=yellow',
         `meshRenderMode=${DEBUG_MESH_RENDER_MODE}`,
@@ -1632,11 +1702,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const updateFocusedMaskTexture = useCallback(
     (maskTextureId: MaskTextureId) => {
+      const resolvedMaskTextureId = resolveMaskTextureIdForUiOption(
+        focusedRegion,
+        maskTextureId,
+        lipAreaStyle,
+      );
       const nextTuning = {
         ...regionTuning,
         [focusedRegion]: {
           ...regionTuning[focusedRegion],
-          maskTextureId,
+          maskTextureId: resolvedMaskTextureId,
         },
       };
 
@@ -1652,6 +1727,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [
       activeRegions,
       focusedRegion,
+      lipAreaStyle,
       postRecipeBatch,
       regionRecipes,
       regionTuning,
@@ -1734,7 +1810,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   }, [postRecipeBatch, selectedRendererMode]);
 
   const toggleDebugDisplayOption = useCallback(
-    (key: keyof DebugDisplayOptions) => {
+    (key: BooleanDebugDisplayOption) => {
       const nextDisplayOptions = {
         ...debugDisplayOptions,
         [key]: !debugDisplayOptions[key],
@@ -1768,19 +1844,54 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     ],
   );
 
+  const selectMaskDebugViewMode = useCallback(
+    (maskDebugViewMode: MaskDebugViewMode) => {
+      const nextDisplayOptions = {
+        ...debugDisplayOptions,
+        maskDebugViewMode,
+      };
+
+      setDebugDisplayOptions(nextDisplayOptions);
+      postRegionOverlayVisibility(
+        validationViewMode !== 'clean',
+        'mask_debug_view_mode_changed',
+        nextDisplayOptions,
+      );
+      postRecipeBatch(
+        regionRecipes,
+        activeRegions,
+        focusedRegion,
+        selectedRendererMode,
+        regionTuning,
+        nextDisplayOptions,
+      );
+    },
+    [
+      activeRegions,
+      debugDisplayOptions,
+      focusedRegion,
+      postRecipeBatch,
+      postRegionOverlayVisibility,
+      regionRecipes,
+      regionTuning,
+      selectedRendererMode,
+      validationViewMode,
+    ],
+  );
+
   const intensityPercent = Math.round(focusedIntensity * 100);
   const opacityPercent = Math.round(focusedRecipe.opacity * 100);
   const formatTextureLabel = useCallback(
     (textureSample: RecipeTextureSample) => {
       switch (textureSample.name) {
         case 'gloss_lip':
-          return 'Glow';
+          return 'Glossy';
         case 'gradient_lip':
           return 'Gradient';
         case 'full_lip':
           return 'Full';
         case 'overline_lip':
-          return 'Overline';
+          return 'Overlip';
         case 'soft_blush':
           return 'Blush';
         case 'shimmer_eye':
@@ -2077,6 +2188,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   Diagnostics
                 </Text>
               </Pressable>
+
+              {MASK_DEBUG_VIEW_MODE_OPTIONS.map(maskDebugOption => {
+                const isSelected =
+                  maskDebugOption.id ===
+                  debugDisplayOptions.maskDebugViewMode;
+
+                return (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                    key={maskDebugOption.id}
+                    testID={`mask-debug-${maskDebugOption.id}`}
+                    style={({ pressed }) => [
+                      styles.displayToggleButton,
+                      isSelected && styles.displayToggleButtonSelected,
+                      pressed && styles.colorButtonPressed,
+                    ]}
+                    onPress={() =>
+                      selectMaskDebugViewMode(maskDebugOption.id)
+                    }
+                  >
+                    <Text
+                      style={[
+                        styles.displayToggleButtonText,
+                        isSelected &&
+                          styles.displayToggleButtonTextSelected,
+                      ]}
+                    >
+                      {maskDebugOption.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
 
             {showDiagnosticsHud && (
@@ -2260,13 +2404,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {MASK_TEXTURE_OPTIONS_BY_REGION[focusedRegion].map(
                     maskOption => {
                       const isSelected =
-                        maskOption.id === focusedTuning.maskTextureId;
+                        maskOption.id ===
+                        getSelectedMaskTextureOptionId(
+                          focusedRegion,
+                          focusedTuning.maskTextureId,
+                        );
 
                       return (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityState={{ selected: isSelected }}
                           key={maskOption.id}
+                          testID={`${focusedRegion}-mask-${maskOption.id}`}
                           style={({ pressed }) => [
                             styles.maskSourceButton,
                             isSelected && styles.maskSourceButtonSelected,
@@ -2354,7 +2503,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 />
 
                 <ValueSlider
-                  label="Gloss"
+                  label="Glossy"
                   value={focusedTuning.glossBoost}
                   width={sliderWidth}
                   fillColor="#F9A8D4"
@@ -2429,7 +2578,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   active {activeRegionSummary} / focus {focusedRegion} /{' '}
                   {selectedColor.name} {selectedColor.color} / opacity{' '}
                   {opacityPercent}% / intensity {intensityPercent}% / mask{' '}
-                  {focusedTuning.maskTextureId} / {focusedTextureSummary}
+                  {formatMaskTextureSummary(
+                    focusedRegion,
+                    focusedTuning.maskTextureId,
+                  )}{' '}
+                  / {focusedTextureSummary}
                 </Text>
 
                 <Text style={styles.recipeAppliedText} numberOfLines={2}>

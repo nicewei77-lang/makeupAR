@@ -4,11 +4,12 @@ public sealed class SmoothRegionMaskTextureImporter : AssetPostprocessor
 {
     private const string SmoothMaskPath =
         "Assets/Resources/SmoothRegionMasks/";
+    private const string SourceMaskPath =
+        "Assets/SourceMasks/";
 
     private void OnPreprocessTexture()
     {
-        if (!assetPath.StartsWith(SmoothMaskPath, System.StringComparison.Ordinal)
-            || !assetPath.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase))
+        if (!IsMaskTexturePath(assetPath))
         {
             return;
         }
@@ -22,5 +23,12 @@ public sealed class SmoothRegionMaskTextureImporter : AssetPostprocessor
         importer.wrapMode = UnityEngine.TextureWrapMode.Clamp;
         importer.filterMode = UnityEngine.FilterMode.Bilinear;
         importer.textureCompression = TextureImporterCompression.Uncompressed;
+    }
+
+    private static bool IsMaskTexturePath(string path)
+    {
+        return path.EndsWith(".png", System.StringComparison.OrdinalIgnoreCase)
+            && (path.StartsWith(SmoothMaskPath, System.StringComparison.Ordinal)
+                || path.StartsWith(SourceMaskPath, System.StringComparison.Ordinal));
     }
 }

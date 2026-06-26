@@ -135,6 +135,7 @@ public sealed class RNBridge : MonoBehaviour
         public bool diagnosticsHudVisible = true;
         public string guideOverlayMode = "mesh_landmarks";
         public string meshRenderMode = "wireframe";
+        public string maskDebugViewMode = "final";
         public string validationViewMode;
         public string reason;
     }
@@ -459,11 +460,15 @@ public sealed class RNBridge : MonoBehaviour
             bool hasGuideOverlayField = json.IndexOf("\"guideOverlayVisible\"", StringComparison.Ordinal) >= 0;
             bool hasMeshOverlayField = json.IndexOf("\"meshOverlayVisible\"", StringComparison.Ordinal) >= 0;
             bool hasDiagnosticsHudField = json.IndexOf("\"diagnosticsHudVisible\"", StringComparison.Ordinal) >= 0;
+            bool hasMaskDebugViewField = json.IndexOf("\"maskDebugViewMode\"", StringComparison.Ordinal) >= 0;
             bool maskOverlayVisible = payload == null || !hasMaskOverlayField || payload.maskOverlayVisible;
             bool guideOverlayVisible = payload == null || !hasGuideOverlayField || payload.guideOverlayVisible;
             bool meshOverlayVisible = payload != null && hasMeshOverlayField && payload.meshOverlayVisible;
             bool diagnosticsHudVisible = payload == null || !hasDiagnosticsHudField || payload.diagnosticsHudVisible;
             string validationViewMode = payload != null ? NormalizeOptional(payload.validationViewMode) : "unknown";
+            string maskDebugViewMode = hasMaskDebugViewField
+                ? NormalizeMaskDebugViewMode(payload != null ? payload.maskDebugViewMode : string.Empty)
+                : "final";
             bool regionOverlayVisible = visible && maskOverlayVisible;
             bool faceGuideVisible = visible && guideOverlayVisible;
             bool faceMeshVisible = visible && meshOverlayVisible;
@@ -480,6 +485,7 @@ public sealed class RNBridge : MonoBehaviour
             }
 
             regionMaskOverlay.SetOverlayRenderingSuppressed(!regionOverlayVisible);
+            regionMaskOverlay.SetMaskDebugViewMode(maskDebugViewMode);
             SetFaceMeshOverlayVisible(false);
 
             if (statusReporter != null)
@@ -496,6 +502,7 @@ public sealed class RNBridge : MonoBehaviour
                 + " guideOverlayVisible=" + guideOverlayVisible.ToString().ToLowerInvariant()
                 + " meshOverlayVisible=" + meshOverlayVisible.ToString().ToLowerInvariant()
                 + " diagnosticsHudVisible=" + diagnosticsHudVisible.ToString().ToLowerInvariant()
+                + " maskDebugViewMode=" + maskDebugViewMode
                 + " guideColor=green"
                 + " meshColor=yellow"
                 + " meshRenderMode=" + meshRenderMode
@@ -2266,6 +2273,22 @@ public sealed class RNBridge : MonoBehaviour
     private static string NormalizeOptional(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "none" : value.Trim();
+    }
+
+    private static string NormalizeMaskDebugViewMode(string value)
+    {
+        string normalized = string.IsNullOrWhiteSpace(value)
+            ? "final"
+            : value.Trim().ToLowerInvariant();
+        switch (normalized)
+        {
+            case "raw":
+            case "processed":
+            case "final":
+                return normalized;
+            default:
+                return "final";
+        }
     }
 
     private static string NormalizeOptional(string preferred, string secondary, string defaultValue)
