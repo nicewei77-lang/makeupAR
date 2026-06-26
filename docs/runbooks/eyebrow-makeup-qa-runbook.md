@@ -9,6 +9,9 @@ Use this runbook after the user approves a real-device Unity/RN build for the
 first eyebrow makeup loop. This checks only the local AR eyebrow feature inside
 the existing app.
 
+Completion evidence is tracked separately in
+`docs/runbooks/eyebrow-makeup-completion-audit.md`.
+
 Out of scope:
 
 - Android.

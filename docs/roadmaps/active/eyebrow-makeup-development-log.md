@@ -191,6 +191,13 @@ Approval is still required before:
   - Disk check: `/System/Volumes/Data` had `368Mi` free. Large generated
     cleanup candidates observed: `unity-builds` `3.1G` and Unity `Library`
     `793M`. No cleanup was performed without user approval.
+- 2026-06-27: Completion audit added at
+  `docs/runbooks/eyebrow-makeup-completion-audit.md`.
+  - Current conclusion: the first-loop eyebrow module is locally verified, but
+    the full objective is not complete until Unity compile is rerun after the
+    latest C# policy change, real-device iPhone QA confirms placement/natural
+    appearance/tracking recovery, and the left/right asymmetry-control gap is
+    either implemented or explicitly deferred by user decision.
 
 ## Build Gate Packet
 
