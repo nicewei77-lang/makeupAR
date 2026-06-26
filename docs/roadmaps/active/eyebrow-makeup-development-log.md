@@ -249,3 +249,27 @@ Remaining:
   recovery, and lip/cheek/eye smoke check.
 - Decide whether explicit left/right asymmetry controls are required before
   calling the eyebrow module complete.
+- First user QA on the launched build confirmed the runtime path is working but
+  the brow art direction needs tuning:
+  - `natural_brow`, `soft_brow`, opacity, and intensity controls work.
+  - Brow attachment is stable during left/right head turns and expression
+    changes.
+  - Brow placement is near the eyebrow line.
+  - The shape reads as `^ ^`; the center of each brow is the highest point.
+  - The stroke is much too thick and sticker-like.
+- Tuning checkpoint before the next build:
+  - `verify_brow_mask_texture.py` was tightened to fail the installed mask's
+    thickness and central-arch shape.
+  - RED: old mask failed with `Unexpected active pixels: 11205`.
+  - RN RED: focused Jest failed because `natural_brow` still used intensity
+    `0.58` instead of the new softer default.
+  - Generator update flattened the cubic brow curves, reduced strokes from
+    `34/24/13px` to `20/13/6px`, removed the hard upper highlight stroke, and
+    increased blur from `1.7` to `2.3`.
+  - GREEN: mask verifier passed with `5845` active pixels, `0.022297`
+    coverage, bbox `left=112,top=100,right=399,bottom=130,width=288,height=31`,
+    center rise about `4.4px`, and zero overlap with eye/cheek/lip masks.
+  - GREEN: RN focused Jest passed with 23 tests after lowering `natural_brow`
+    default opacity/intensity/coverage to `0.48/0.48/0.54`.
+  - The tuned mask has not yet been rebuilt into `UnityFramework.framework` or
+    reinstalled on the iPhone.

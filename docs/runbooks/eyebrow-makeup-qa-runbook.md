@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Installed and launched; user visual QA pending
+Status: First iPhone QA tuning in progress; rebuild pending
 Date: 2026-06-27
 
 ## Scope
@@ -92,6 +92,17 @@ No face screenshots, recordings, or raw frames were captured by default.
 
 Start in HUD mode with `lip` active by default, then select `brow`.
 
+First QA result on the installed `eyebrow-20260627-ufw-r3` build:
+
+- Passed: `natural_brow`, `soft_brow`, opacity, and intensity controls respond.
+- Passed: brow attachment stays stable during left/right head turns and
+  expression changes.
+- Needs tuning: brow placement is near the eyebrow line, but the shape reads as
+  `^ ^`; the center of each brow is the highest point; the stroke is far too
+  thick and sticker-like.
+- Local tuning has been made, but a new UnityFramework/RN device build is
+  required before the following checks can accept the visual result.
+
 Check:
 
 - `brow` can be enabled and disabled independently.
@@ -107,6 +118,9 @@ Check:
   bleed.
 - Temporary tracking loss fades/hides and recovers without stale brow placement.
 - Existing lip, cheek, and eye controls still toggle and render.
+- The tuned shape does not read as `^ ^`.
+- The center of each brow is not the obvious highest point.
+- The brow stroke is thin enough to read as makeup, not a sticker.
 
 ## Acceptance Notes
 
@@ -144,13 +158,13 @@ Minimum observations:
 
 | Scenario | Question | User observation | Pass / Needs tuning |
 | --- | --- | --- | --- |
-| Frontal neutral | Are both brows close to the natural brow line, without forehead or eyelid bleed? |  |  |
-| Left head turn | Does the near/far brow stay attached, or does either side float? |  |  |
-| Right head turn | Does the near/far brow stay attached, or does either side float? |  |  |
-| Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? |  |  |
-| `natural_brow` preset | Does it read as soft makeup rather than a sticker? |  |  |
-| `soft_brow` preset | Is the lighter preset still visible but natural? |  |  |
-| Opacity/intensity change | Do changes apply immediately without AR restart? |  |  |
+| Frontal neutral | Are both brows close to the natural brow line, without forehead or eyelid bleed? | Near eyebrow line, but `^ ^`; center too high; far too thick and sticker-like on the installed build | Needs tuning |
+| Left head turn | Does the near/far brow stay attached, or does either side float? | Tracks well on the installed build | Pass |
+| Right head turn | Does the near/far brow stay attached, or does either side float? | Tracks well on the installed build | Pass |
+| Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? | Stays attached on the installed build | Pass for attachment; shape needs tuning |
+| `natural_brow` preset | Does it read as soft makeup rather than a sticker? | Control works, but visual is too thick/sticker-like on the installed build | Needs tuning |
+| `soft_brow` preset | Is the lighter preset still visible but natural? | Control works on the installed build | Recheck after tuning |
+| Opacity/intensity change | Do changes apply immediately without AR restart? | Works on the installed build | Pass |
 | Temporary tracking loss | Does the brow hide/fade and recover without stale placement? |  |  |
 | Existing regions smoke test | Do lip, cheek, and eye still toggle/render? |  |  |
 

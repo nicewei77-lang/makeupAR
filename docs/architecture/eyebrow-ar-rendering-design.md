@@ -1,6 +1,6 @@
 # Eyebrow AR Rendering Design
 
-Status: Build/install/launch complete; visual QA pending
+Status: First iPhone QA tuning in progress; rebuild pending
 Date: 2026-06-27
 Related product doc: `docs/product/eyebrow-makeup-feature.md`
 
@@ -91,15 +91,20 @@ soft, symmetric eyebrow shape in ARFace UV space, stored as a readable,
 uncompressed Unity resource. It favors conservative coverage so it does not
 paint the forehead or eyelids.
 
-Local verifier result for `brow-drawn-mask-v1.png`:
+Initial installed mask QA showed the shape followed the face correctly but
+looked like `^ ^`: each brow's center was too high, the mask was far too thick,
+and the effect read as sticker-like. The tuned mask keeps the same resource id
+and renderer contract, but flattens the arch and reduces the stroke footprint.
+
+Current local verifier result for `brow-drawn-mask-v1.png`:
 
 - Size: `512x512`
-- Active red-channel pixels (`> 8`): `11205`
-- Coverage: `0.042744`
-- Bbox: `left=99, top=80, right=412, bottom=142, width=314, height=63`
-- Components: two large brow components, center gap empty at the verifier
-  threshold.
-- Region separation guard: `eye-drawn=406/1200`, `eye-smooth=56/4200`,
+- Active red-channel pixels (`> 8`): `5845`
+- Coverage: `0.022297`
+- Bbox: `left=112, top=100, right=399, bottom=130, width=288, height=31`
+- Components: two thinner brow components with bbox height `27`.
+- Center arch guard: left `4.41px` center rise, right `4.43px` center rise.
+- Region separation guard: `eye-drawn=0/1200`, `eye-smooth=0/4200`,
   `cheek-drawn=0/50`, `lip-drawn=0/0`.
 
 The mask can start as a single-channel soft alpha shape. If the first device QA
@@ -118,8 +123,10 @@ First-loop brow should avoid glossy or glitter behavior. Use low specular,
 moderate feather, and multiply or normal alpha behavior depending on which looks
 more natural on device. Brow now has its own mask policy inside the shared
 smooth-mask backend: threshold `0.035`, default feather `0.42`, and recipe
-feather clamped to `0.34..0.48`. This keeps the brow edge softer than a sticker
-without inheriting the wider generic cheek/eye feather.
+feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` at
+opacity `0.48`, intensity `0.48`, and coverage `0.54` so the first visible
+result is less sticker-like while still allowing the user to raise opacity and
+intensity during QA.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in
@@ -154,7 +161,7 @@ Local checks before any real-device build:
 - RN lint with `npm run lint`: passed.
 - Region renderer route verifier: passed.
 
-Remaining real-device visual QA:
+Remaining real-device visual QA after rebuild:
 
 - Frontal neutral brow placement.
 - Left and right head turn stability.

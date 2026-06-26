@@ -532,14 +532,19 @@ test('posts eyebrow as a fourth independent region layer', () => {
   );
 
   expect(browSample).toBeTruthy();
+  expect(browSample!.intensity).toBe(0.48);
+  expect(browSample!.feather).toBe(0.48);
+  expect(browSample!.coverage).toBe(0.54);
+  expect(browSample!.specular).toBe(0);
+  expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.48);
 
   const payload = buildValidationRecipeBatchPayload(
     {
       ...DEFAULT_REGION_RECIPES,
       brow: {
         color: RECIPE_COLOR_OPTIONS[2],
-        opacity: 0.62,
-        intensity: 0.58,
+        opacity: DEFAULT_REGION_RECIPES.brow.opacity,
+        intensity: browSample!.intensity,
         textureSample: browSample!,
       },
     },
@@ -554,10 +559,10 @@ test('posts eyebrow as a fourth independent region layer', () => {
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        feather: 0.42,
-        coverage: 0.7,
-        roughness: 0.96,
-        specular: 0.02,
+        feather: browSample!.feather,
+        coverage: browSample!.coverage,
+        roughness: browSample!.roughness,
+        specular: browSample!.specular,
         glossBoost: 0,
         gradientAmount: 0,
         maskTextureId: 'brow-drawn-mask-v1',
@@ -577,11 +582,11 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.texture).toBe('natural_brow');
   expect(browLayer.sample).toBe('natural_brow');
   expect(browLayer.maskTextureId).toBe('brow-drawn-mask-v1');
-  expect(browLayer.opacity).toBe(0.62);
-  expect(browLayer.intensity).toBe(0.58);
-  expect(browLayer.feather).toBe(0.42);
-  expect(browLayer.coverage).toBe(0.7);
-  expect(browLayer.specular).toBe(0.02);
+  expect(browLayer.opacity).toBe(0.48);
+  expect(browLayer.intensity).toBe(0.48);
+  expect(browLayer.feather).toBe(0.48);
+  expect(browLayer.coverage).toBe(0.54);
+  expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });

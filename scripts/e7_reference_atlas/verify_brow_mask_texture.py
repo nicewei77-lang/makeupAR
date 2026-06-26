@@ -116,6 +116,55 @@ def connected_components(mask: np.ndarray, min_pixels: int) -> list[dict[str, An
     return sorted(components, key=lambda component: component["centerX"])
 
 
+def component_arch_metrics(
+    red: np.ndarray,
+    component: dict[str, Any],
+    threshold: int,
+) -> dict[str, float]:
+    bbox = component["bbox"]
+    column_centers: list[float] = []
+    column_tops: list[float] = []
+    for x in range(bbox["left"], bbox["right"] + 1):
+        ys = np.nonzero(red[:, x] > threshold)[0]
+        if len(ys) == 0:
+            continue
+
+        column_centers.append(float(ys.mean()))
+        column_tops.append(float(ys.min()))
+
+    require(
+        len(column_centers) >= 5,
+        f"Brow component is too sparse for arch checks: {component}.",
+    )
+
+    count = len(column_centers)
+    edge_width = max(1, count // 5)
+    center_start = (count * 2) // 5
+    center_end = max(center_start + 1, (count * 3) // 5)
+    center_indices = range(center_start, center_end)
+    left_indices = range(0, edge_width)
+    right_indices = range(count - edge_width, count)
+
+    def average(values: list[float], indices: range) -> float:
+        return sum(values[index] for index in indices) / float(len(indices))
+
+    center_mean = average(column_centers, center_indices)
+    endpoint_mean = (
+        average(column_centers, left_indices)
+        + average(column_centers, right_indices)
+    ) / 2.0
+    center_top = average(column_tops, center_indices)
+    endpoint_top = (
+        average(column_tops, left_indices)
+        + average(column_tops, right_indices)
+    ) / 2.0
+
+    return {
+        "centerRisePx": endpoint_mean - center_mean,
+        "centerTopRisePx": endpoint_top - center_top,
+    }
+
+
 def load_red_mask(path: Path, threshold: int) -> np.ndarray:
     rgba = np.asarray(Image.open(path).convert("RGBA"))
     return rgba[:, :, 0] > threshold
@@ -143,14 +192,14 @@ def main() -> None:
     bounds = bbox_for(active)
 
     require(bounds is not None, "Brow mask has no active red-channel pixels.")
-    require(2500 <= active_count <= 13000, f"Unexpected active pixels: {active_count}.")
-    require(0.008 <= coverage <= 0.05, f"Unexpected active coverage: {coverage:.6f}.")
-    require(95 <= bounds["left"] <= 170, f"Brow bbox left is off: {bounds}.")
-    require(340 <= bounds["right"] <= 430, f"Brow bbox right is off: {bounds}.")
-    require(70 <= bounds["top"] <= 135, f"Brow bbox top is off: {bounds}.")
-    require(120 <= bounds["bottom"] <= 175, f"Brow bbox bottom is off: {bounds}.")
-    require(220 <= bounds["width"] <= 340, f"Brow bbox width is off: {bounds}.")
-    require(35 <= bounds["height"] <= 95, f"Brow bbox height is off: {bounds}.")
+    require(4500 <= active_count <= 7600, f"Unexpected active pixels: {active_count}.")
+    require(0.017 <= coverage <= 0.03, f"Unexpected active coverage: {coverage:.6f}.")
+    require(105 <= bounds["left"] <= 130, f"Brow bbox left is off: {bounds}.")
+    require(382 <= bounds["right"] <= 410, f"Brow bbox right is off: {bounds}.")
+    require(92 <= bounds["top"] <= 112, f"Brow bbox top is off: {bounds}.")
+    require(122 <= bounds["bottom"] <= 138, f"Brow bbox bottom is off: {bounds}.")
+    require(260 <= bounds["width"] <= 310, f"Brow bbox width is off: {bounds}.")
+    require(24 <= bounds["height"] <= 42, f"Brow bbox height is too thick/sticker-like: {bounds}.")
 
     components = connected_components(
         red > args.component_threshold,
@@ -161,8 +210,28 @@ def main() -> None:
     left, right = components
     require(120 <= left["centerX"] <= 220, f"Left brow center is off: {left}.")
     require(292 <= right["centerX"] <= 392, f"Right brow center is off: {right}.")
+    require(1400 <= left["pixelCount"] <= 3300, f"Left brow density is off: {left}.")
+    require(1400 <= right["pixelCount"] <= 3300, f"Right brow density is off: {right}.")
+    require(left["bbox"]["height"] <= 36, f"Left brow is too thick: {left}.")
+    require(right["bbox"]["height"] <= 36, f"Right brow is too thick: {right}.")
     require(left["bbox"]["right"] < 245, f"Left brow crosses center gap: {left}.")
     require(right["bbox"]["left"] > 267, f"Right brow crosses center gap: {right}.")
+
+    arch_summaries: list[str] = []
+    for label, component in (("left", left), ("right", right)):
+        arch_metrics = component_arch_metrics(red, component, args.component_threshold)
+        arch_summaries.append(
+            f"{label}=centerRisePx:{arch_metrics['centerRisePx']:.2f}"
+            f"/centerTopRisePx:{arch_metrics['centerTopRisePx']:.2f}"
+        )
+        require(
+            arch_metrics["centerRisePx"] <= 8.0,
+            f"{label} brow center arches too high: {arch_metrics}.",
+        )
+        require(
+            arch_metrics["centerTopRisePx"] <= 9.0,
+            f"{label} brow top edge makes a ^ shape: {arch_metrics}.",
+        )
 
     center_gap_pixels = int((red[:, 245:267] > args.component_threshold).sum())
     require(center_gap_pixels <= 30, f"Center gap is too filled: {center_gap_pixels}.")
@@ -183,7 +252,8 @@ def main() -> None:
         "brow_mask_texture_ok "
         f"path={mask_path.relative_to(repo).as_posix()} "
         f"activePixels={active_count} coverage={coverage:.6f} bbox={bounds} "
-        f"components={components} overlaps={','.join(overlap_summaries)}"
+        f"components={components} arch={','.join(arch_summaries)} "
+        f"overlaps={','.join(overlap_summaries)}"
     )
 
 

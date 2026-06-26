@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Local implementation complete; iPhone QA pending
+Status: First iPhone QA tuning in progress; rebuild pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -55,11 +55,11 @@ Important quality questions for device QA:
 
 First-loop presets are conservative:
 
-- `natural_brow`: soft neutral brown, multiply blend, opacity `0.62`,
-  intensity `0.58`, feather `0.42`, coverage `0.70`, roughness `0.96`,
-  specular `0.02`, gloss boost `0`.
-- `soft_brow`: lighter brown, lower intensity, wider feather, roughness `1`,
+- `natural_brow`: soft neutral brown, multiply blend, opacity `0.48`,
+  intensity `0.48`, feather `0.48`, coverage `0.54`, roughness `1`,
   specular `0`, gloss boost `0`.
+- `soft_brow`: lighter brown, lower intensity, feather `0.48`,
+  coverage `0.50`, roughness `1`, specular `0`, gloss boost `0`.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -109,6 +109,15 @@ or bridge rewrite.
   `UnityFramework.framework`, fixed the Unity ARKit Swift compatibility link
   path, built the RN Debug app, installed it on `CloudsiPhone (26.5)`, and
   launched `com.celeste.makeupar.validation`. Visual brow QA is still pending.
+- 2026-06-27: First iPhone brow QA showed the runtime path is working:
+  `natural_brow`, `soft_brow`, opacity, and intensity controls respond; brow
+  attachment remains stable during left/right head turns and expression
+  changes. Visual quality needs tuning because the brow shape appears as
+  `^ ^`, with the center of each brow too high, the stroke far too thick, and
+  the result sticker-like.
+- 2026-06-27: Tuned `brow-drawn-mask-v1` before the next device build by
+  flattening the center arch, reducing mask thickness, removing the hard upper
+  highlight stroke, and lowering default brow opacity/intensity/coverage.
 
 ## Local Verification
 
@@ -135,9 +144,11 @@ or bridge rewrite.
 
 ## QA Status
 
-The feature is installed and launchable on the approved iPhone build, but it is
-not accepted as visually product-quality until user iPhone QA confirms placement,
-attachment, color response, and tracking recovery.
+The feature is installed and launchable on the approved iPhone build. First QA
+confirmed attachment and control response, but visual product quality is not
+accepted yet because the installed build's brow mask was too arched and too
+thick. The flatter/thinner tuning requires a fresh UnityFramework/RN device
+build before the next iPhone QA pass.
 
 ## Risks
 

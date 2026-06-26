@@ -82,12 +82,9 @@ def draw_brow(
 ) -> None:
     draw = ImageDraw.Draw(layer)
     points = scaled_points(curve, scale)
-    draw_round_line(draw, points, width=round(34 * scale), fill=72)
-    draw_round_line(draw, points, width=round(24 * scale), fill=148)
-    draw_round_line(draw, points, width=round(13 * scale), fill=245)
-
-    upper_points = scaled_points([(x, y - 4.0) for x, y in curve[8:-8]], scale)
-    draw_round_line(draw, upper_points, width=round(6 * scale), fill=255)
+    draw_round_line(draw, points, width=round(20 * scale), fill=50)
+    draw_round_line(draw, points, width=round(13 * scale), fill=122)
+    draw_round_line(draw, points, width=round(6 * scale), fill=210)
 
 
 def build_mask(resolution: int, scale: int) -> Image.Image:
@@ -95,24 +92,24 @@ def build_mask(resolution: int, scale: int) -> Image.Image:
     mask = Image.new("L", (high_resolution, high_resolution), 0)
 
     left_curve = cubic_bezier(
-        (118, 124),
-        (144, 96),
-        (195, 89),
-        (224, 114),
+        (124, 119),
+        (152, 112),
+        (192, 109),
+        (222, 116),
         samples=52,
     )
     right_curve = cubic_bezier(
-        (288, 114),
-        (317, 89),
-        (368, 96),
-        (394, 124),
+        (290, 116),
+        (320, 109),
+        (360, 112),
+        (388, 119),
         samples=52,
     )
 
     draw_brow(mask, left_curve, scale)
     draw_brow(mask, right_curve, scale)
 
-    mask = mask.filter(ImageFilter.GaussianBlur(radius=1.7 * scale))
+    mask = mask.filter(ImageFilter.GaussianBlur(radius=2.3 * scale))
     mask = mask.resize((resolution, resolution), Image.Resampling.LANCZOS)
 
     values = np.asarray(mask, dtype=np.uint8)

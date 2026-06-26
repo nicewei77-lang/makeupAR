@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: Build/install/launch complete; visual QA still pending
+Status: First iPhone QA tuning in progress; rebuild pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -30,7 +30,7 @@ Fresh local checks recorded on 2026-06-27:
 | Check | Status |
 | --- | --- |
 | `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py` | Passed |
-| `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py` | Passed |
+| `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py` | Passed after thinner/flatter brow tuning |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
 | `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 23 tests |
@@ -41,6 +41,17 @@ Fresh local checks recorded on 2026-06-27:
 | RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log` |
 | `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-20260627.log` |
 | `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-20260627.log` |
+
+Post-QA tuning notes:
+
+- User visual QA confirmed brow tracking, head-turn attachment, expression
+  attachment, `natural_brow`, `soft_brow`, opacity, and intensity controls.
+- User visual QA rejected the installed mask shape as `^ ^`, with each brow's
+  center too high, the stroke far too thick, and the effect sticker-like.
+- The local mask has since been tuned to `5845` active pixels,
+  `0.022297` coverage, bbox height `31`, and center rise about `4.4px`.
+- The tuned local mask and softer RN defaults have not yet been regenerated into
+  UnityFramework or reinstalled on the iPhone.
 
 Build notes:
 
@@ -63,13 +74,13 @@ Build notes:
 | Implement only the eyebrow makeup module inside the existing app | Product docs keep camera/photo/video/backend/AI/Android/payment out of scope; code changes are limited to RN recipe/UI, Unity bridge/rendering, mask asset, verifiers, and docs | Satisfied for current loop |
 | Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` | Build/install proven; visual QA pending |
 | React Native minimal UI, events, presets | RN focused tests cover brow as fourth region, brow HUD controls, and four-layer recipe dispatch | Locally verified |
-| Natural brow presets | `natural_brow`, `soft_brow`, `brow-drawn-mask-v1`, brow color/material cases, and brow-specific mask threshold/feather are covered by static verifiers | Locally verified |
+| Natural brow presets | `natural_brow`, `soft_brow`, `brow-drawn-mask-v1`, brow color/material cases, and brow-specific mask threshold/feather are covered by static verifiers; defaults were softened after first QA | Locally verified; device rebuild pending |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | `brow-drawn-mask-v1.png` is generated procedurally by repo script; docs record no third-party asset or unclear license path | Locally verified |
-| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, and overlap thresholds | Locally verified |
+| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds | Locally verified; device rebuild pending |
 | Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest and static contract verifiers cover the payload and acceptance path | Locally verified; visual quality pending |
-| Face-attached motion under head turns | ARFace UV mesh attachment is implemented and the app launches on device, but no user visual observation has been collected after selecting brow in AR | Not visually proven |
-| Natural appearance under lighting and expression change | Material policy is conservative, but no user visual observation has been collected | Not visually proven |
+| Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
+| Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning is ready but not device-verified | Needs re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
 | Left/right asymmetry correction is possible | The current first loop supports symmetric procedural brow masks and shared tuning; explicit left/right asymmetry controls are not implemented | Incomplete |
 | Existing lip/cheek/eye behavior is not regressed | RN tests, static route checks, Unity compile, UnityFramework build, RN build, install, and launch passed; no manual region smoke observation yet | Partially proven |
@@ -79,26 +90,31 @@ Build notes:
 
 ## Remaining QA Items
 
-The build approval gate has been executed. Remaining work is visual/user QA, not
-more build plumbing:
+The first build approval gate has been executed. Remaining work is visual/user
+QA after applying the local tuning to a fresh device build:
 
 1. On the iPhone, open the AR screen and select `brow`.
 2. Confirm the HUD eventually reports
    `renderer=brow-smooth-region-mask-renderer` after Unity applies the recipe.
-3. Collect user visual observations for frontal neutral, left/right head turns,
+3. Confirm the tuned brow no longer appears as `^ ^`, no longer has the center
+   as the obvious highest point, and no longer reads as a thick sticker.
+4. Collect user visual observations for frontal neutral, left/right head turns,
    expression change, color/intensity update, tracking recovery, and existing
    lip/cheek/eye smoke behavior using the observation template in
    `docs/runbooks/eyebrow-makeup-qa-runbook.md`.
-4. Decide whether explicit left/right asymmetry correction is required before
+5. Decide whether explicit left/right asymmetry correction is required before
    calling the eyebrow module complete.
 
 ## Current Conclusion
 
 The current codebase has a locally verified and device-installed first-loop
-eyebrow makeup module, but the full objective is not complete. Completion still
-needs:
+eyebrow makeup module, and the first iPhone QA confirmed attachment/control
+behavior. The full objective is not complete because visual quality failed on
+shape and thickness. Completion still needs:
 
-- User visual QA confirming product-quality placement and attachment on the
-  installed iPhone build.
+- UnityFramework/RN device rebuild with the tuned flatter/thinner mask and
+  softer default brow presets.
+- User visual QA confirming product-quality shape and thickness on the rebuilt
+  iPhone build.
 - A decision on whether explicit left/right asymmetry correction must be added
   before calling the eyebrow module complete.
