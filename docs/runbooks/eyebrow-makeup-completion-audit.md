@@ -35,10 +35,10 @@ Fresh local checks recorded on 2026-06-27:
 | `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py --mask <selected-brow-mask>` | Passed for the three selected local candidates |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
-| `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 25 tests |
+| `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 26 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
-| Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-mask-spread-unity-batchmode-20260627.log` |
+| Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log` |
 | `scripts/build_m3_unityframework.sh` | Passed after Swift compatibility link fix, `TIMESTAMP=eyebrow-20260627-ufw-r3` |
 | RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log` |
 | `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-20260627.log` |
@@ -78,6 +78,9 @@ Post-QA tuning notes:
   Unity smooth-mask shader. `Brow Spread` adjusts the two brows symmetrically
   outward/inward from center; this placement tuning has not yet been
   regenerated into UnityFramework or reinstalled on the iPhone.
+- User approved using the current post-QA tuning as the next iPhone rebuild
+  candidate. The real-device Unity/RN build approval remains a separate pending
+  gate.
 
 Build notes:
 

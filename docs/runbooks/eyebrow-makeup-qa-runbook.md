@@ -40,6 +40,11 @@ Unity local import/compile check:
 Confirm there is enough local disk space first. The 2026-06-27 build needed
 generated-cache cleanup before it could complete.
 
+Latest pre-build refresh on 2026-06-27 passed with `73Gi` free on
+`/System/Volumes/Data`. Unity `6000.3.18f1` batchmode import/compile exited `0`
+and logged `Tundra build success` in
+`evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log`.
+
 Observed generated cleanup candidates, if the user approves cleanup:
 
 - `unity-builds`: about `3.1G`
@@ -200,8 +205,8 @@ Build context:
 - Signing team used: `X5C5U3T6B4`
 - UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes,
   `TIMESTAMP=eyebrow-20260627-ufw-r3`
-- Unity batchmode compile after latest brow C# change: pass,
-  `evidence/logs/eyebrow-unity-batchmode-20260627.log`
+- Latest Unity batchmode compile before the pending rebuild: pass,
+  `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log`
 
 Minimum observations:
 

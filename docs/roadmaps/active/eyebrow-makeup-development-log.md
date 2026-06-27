@@ -389,3 +389,19 @@ Remaining:
     contract, renderer routes, UnityFramework build contract, scoped
     `git diff --check`, and Unity `6000.3.18f1` batchmode import/compile passed
     with `evidence/logs/eyebrow-placement-diagnostics-unity-batchmode-20260627.log`.
+- 2026-06-27: User approved approach 1: proceed with the current local
+  post-QA tuning as the next iPhone rebuild candidate, rather than adding
+  left/right asymmetry controls or splitting a dedicated brow renderer first.
+  This approval confirms direction only; Unity/RN real-device build approval is
+  still a separate gate.
+  - Refreshed approval-safe local checks before the build gate:
+    `verify_brow_unity_contract.py`, `verify_region_renderer_routes.py`,
+    `verify_unityframework_build_contract.py`, focused RN Jest (`26` tests),
+    RN lint, TypeScript, and all three selected brow mask verifiers passed.
+  - Disk had `73Gi` free on `/System/Volumes/Data`.
+  - Unity `6000.3.18f1` batchmode import/compile exited `0` and logged
+    `Tundra build success` in
+    `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log`.
+  - Unity rewrote whitespace-only empty YAML fields in the three brow PNG
+    `.meta` files during import; those agent-created metadata churn changes
+    were reverted because they did not affect importer settings.
