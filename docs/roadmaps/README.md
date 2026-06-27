@@ -28,6 +28,7 @@ Token-safe reading rule:
 | `research/BEAUTY_AR_ENGINE_BENCHMARK_REPORT_KO.md` | 상용/소셜 beauty AR engine capability와 v1 설계 교훈. |
 | `research/E7_COSMETIC_CONTROL_MAP_MERGE_REHEARSAL_PLAN_KO.md` | `blush-mask` 화장품 renderer와 런타임 생성 RGBA control map을 별도 thread/worktree에서 모의병합하기 위한 충돌 지도, 멀티 에이전트 역할, buildless 검증 계획. 현재 active 구현 계약은 아니다. |
 | `research/E7_EYELINER_MASK_CANDIDATE_FINAL_EXPERIMENT_PLAN_KO.md` | 앱 구현 직전 아이라인 후보를 MediaPipe upper eyelid landmark, parametric curve, style preset, 사용자 조정축 기준으로 빠르게 확정하기 위한 buildless 최종 실험 계획. |
+| `research/E7_EYELINER_ANCHOR_TO_BAND_MASS_SAMPLE_PLAN_KO.md` | 사용자가 가장 좋은 예시로 지정한 Cat/Puppy/Sexy/Winged/Colored/Doll 레퍼런스를 shape taxonomy로 삼아, MediaPipe upper eyelid anchor를 실제 아이라인 band 후보 100-180개로 확장하는 30-60분 buildless 대량 샘플 실험 계획. |
 | `research/E7_AXIS1_FACE_REGION_TRACKING_*.md` | E7.3 region precision 작업 때만 lazy-load한다. |
 | `research/E7_AXIS2_COSMETIC_RENDERING_*.md` | E7.4/E7.5 cosmetic rendering 작업 때만 lazy-load한다. |
 | `research/AR_ENGINE_RESEARCH_PLAN_KO.md` | research 진행 계획. 현재 구현 지시서는 아니다. |

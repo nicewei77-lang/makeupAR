@@ -41,6 +41,21 @@
     "blinkFade": 0.25,
     "leftRightBalance": 0.0
   },
+  "referenceDerivedGuards": {
+    "outerCornerFillDefault": true,
+    "innerStartDefaultRange": [
+      0.18,
+      0.28
+    ],
+    "tailLengthEyeWidthDefaultRange": [
+      0.12,
+      0.22
+    ],
+    "maxLidFillHeightEyeHeightRatioDefault": 0.18,
+    "lowerLidCoverageDefault": 0.0,
+    "closedRingAllowedByDefault": false,
+    "fullLidBlockAllowedByDefault": false
+  },
   "recommendedControlStyle": "slider_plus_quick_buttons",
   "quickButtons": [
     "얇게",

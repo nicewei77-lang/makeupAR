@@ -10,6 +10,8 @@ Secondary visual candidate: `mp-upper-balanced-v0`
 
 Fallback: `mp-tail-only-v0`
 
+Reference review: user provided 4 good references and 2 failure references. Good references favor upper-lashline anchored outer-corner-filled wing eyeliner; failure references reject full-lid black block and closed-ring lower-line-heavy shapes.
+
 Generated candidates: `8`
 
 Same-frame legacy baselines: `3`

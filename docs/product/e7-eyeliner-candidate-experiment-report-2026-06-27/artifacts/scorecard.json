@@ -19,6 +19,18 @@
     "mp-upper-balanced-v0",
     "mp-tail-only-v0"
   ],
+  "referenceRubricArtifact": "docs/product/e7-eyeliner-candidate-experiment-report-2026-06-27/artifacts/reference_rubric.json",
+  "humanReferenceReview": {
+    "status": "good_4_failure_2_reference_set_reviewed",
+    "goodReferenceCount": 4,
+    "failureReferenceCount": 2,
+    "positiveTarget": "upper_lashline_anchored_outer_corner_filled_tapered_wing",
+    "rejectTargets": [
+      "full_lid_black_block",
+      "closed_upper_lower_eye_ring",
+      "heavy_lower_lashline_default"
+    ]
+  },
   "fallbackCandidateId": "mp-tail-only-v0",
   "rankedCandidates": [
     {

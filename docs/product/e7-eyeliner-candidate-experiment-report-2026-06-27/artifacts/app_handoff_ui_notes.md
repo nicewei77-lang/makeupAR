@@ -15,6 +15,14 @@ Implementation recommendation:
 - Color/edge may only be a small snap helper. It must not become the primary tracker.
 - Face parsing remains an offline/evaluation helper, not runtime primary.
 
+Reference-derived product rules:
+
+- Good references favor upper-lashline anchored, outer-corner-filled wing eyeliner with a tapered tail.
+- Default eyeliner must not become a full-lid black block.
+- Default eyeliner must not close the whole eye with a heavy lower lashline ring.
+- Keep lower-lid coverage off by default until a separate lower-line style is deliberately designed.
+- Use `mp-upper-balanced-v0` as the natural comparison candidate, not as the only final look.
+
 Controls:
 
 - Sliders: `lineHeight`, `lineThickness`, `innerStart`, `outerReach`, `tailLength`, `tailAngle`, `tailLift`, `taper`, `softness`, `leftRightBalance`.

@@ -21,5 +21,32 @@
   "reason": "Human visual review preferred asset-fit-wing because product eyeliner should fill through the outer corner. MediaPipe upper eyelid remains the tracking anchor, mp-upper-balanced remains both the clean reference line and a natural/balanced comparison candidate, and tail-only is retained as the safety fallback.",
   "requiresHumanReview": true,
   "humanReviewStatus": "reviewed_preferred_asset_fit_wing",
+  "referenceRubricArtifact": "docs/product/e7-eyeliner-candidate-experiment-report-2026-06-27/artifacts/reference_rubric.json",
+  "referenceReviewStatus": "good_4_failure_2_reference_set_distilled_to_shape_rules",
+  "referenceRubric": {
+    "usage": "visual_shape_rubric_only_not_runtime_asset",
+    "goodReferences": [
+      "photo_1",
+      "photo_2",
+      "photo_3",
+      "photo_4"
+    ],
+    "failureReferences": [
+      "photo_5_full_lid_block",
+      "photo_6_closed_eye_ring"
+    ],
+    "mustHave": [
+      "upper_lashline_anchor",
+      "outer_corner_fill",
+      "tapered_wing_tail",
+      "thin_or_empty_inner_corner"
+    ],
+    "reject": [
+      "full_lid_black_block",
+      "closed_upper_lower_eye_ring",
+      "heavy_lower_lashline_default",
+      "blunt_sticker_tail"
+    ]
+  },
   "iphoneEvidenceRequiredForGreen": true
 }

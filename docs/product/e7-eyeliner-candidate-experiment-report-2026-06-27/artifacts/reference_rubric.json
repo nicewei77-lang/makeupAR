@@ -1,0 +1,121 @@
+{
+  "schemaVersion": "e7-eyeliner-reference-rubric-v0",
+  "createdAt": "2026-06-27",
+  "status": "user_reference_reviewed",
+  "sourceHandling": {
+    "source": "user_provided_chat_reference_images_1_to_6",
+    "bestReference": "photo_2_cat_puppy_sexy_winged_colored_doll_style_grid",
+    "goodReferenceCount": 4,
+    "failureReferenceCount": 2,
+    "committedSourceImages": false,
+    "reasonSourceImagesNotCommitted": "source_or_license_not_confirmed; use as visual rubric only",
+    "runtimeAssetUsage": "forbidden"
+  },
+  "referenceSets": [
+    {
+      "id": "good_reference_photos_1_to_4",
+      "role": "positive_shape_target",
+      "traits": [
+        "upper_lashline_anchor",
+        "outer_corner_fill",
+        "wing_tail_from_outer_corner",
+        "tapered_tail",
+        "thin_or_empty_inner_corner",
+        "moderate_lid_coverage"
+      ]
+    },
+    {
+      "id": "failure_photo_5",
+      "role": "reject_full_lid_block",
+      "traits": [
+        "overly_thick_black_fill",
+        "full_lid_block",
+        "editorial_stage_makeup_not_default_product_preset"
+      ]
+    },
+    {
+      "id": "failure_photo_6",
+      "role": "reject_closed_eye_ring",
+      "traits": [
+        "heavy_lower_lashline",
+        "closed_ring_shape",
+        "inner_corner_overload",
+        "harsh_outer_contour"
+      ]
+    }
+  ],
+  "candidateImplication": {
+    "selectedVisualCandidateId": "asset-fit-wing-local-style-v0",
+    "trackingAnchorCandidateId": "mp-upper-balanced-v0",
+    "secondaryCandidateIds": [
+      "mp-upper-balanced-v0"
+    ],
+    "fallbackCandidateId": "mp-tail-only-v0",
+    "reason": "good references favor outer-corner-filled wing eyeliner; failure references reject full-lid black block and closed-ring lower-line-heavy shapes"
+  },
+  "followupExperiment": {
+    "plan": "docs/roadmaps/research/E7_EYELINER_ANCHOR_TO_BAND_MASS_SAMPLE_PLAN_KO.md",
+    "status": "planned",
+    "purpose": "generate 100-180 anchor-to-band candidate images before app implementation so the user can visually pick the default preset",
+    "families": [
+      "cat",
+      "puppy",
+      "sexy",
+      "winged",
+      "colored",
+      "doll",
+      "balanced_reference",
+      "tail_only_safe"
+    ]
+  },
+  "positiveShapeRules": [
+    "follow upper eyelid or lashline, not the iris edge",
+    "fill through the outer corner for the default wing preset",
+    "start inner corner thin or partially empty",
+    "taper the tail end",
+    "keep lid fill moderate instead of block-like",
+    "treat lower lashline as off by default"
+  ],
+  "rejectShapeRules": [
+    "full_lid_black_block",
+    "closed_upper_lower_eye_ring",
+    "heavy_lower_lashline_default",
+    "thick_inner_corner_default",
+    "blunt_sticker_tail"
+  ],
+  "parameterGuards": {
+    "outerCornerFillDefault": true,
+    "innerStartDefaultRange": [
+      0.18,
+      0.28
+    ],
+    "tailLengthEyeWidthDefaultRange": [
+      0.12,
+      0.22
+    ],
+    "maxLidFillHeightEyeHeightRatioDefault": 0.18,
+    "lowerLidCoverageDefault": 0.0,
+    "closedRingAllowedByDefault": false,
+    "fullLidBlockAllowedByDefault": false
+  },
+  "uiPresetContract": [
+    {
+      "id": "wing_default",
+      "candidateId": "asset-fit-wing-local-style-v0",
+      "labelKo": "Wing 기본",
+      "role": "default"
+    },
+    {
+      "id": "balanced_natural",
+      "candidateId": "mp-upper-balanced-v0",
+      "labelKo": "Balanced 자연형",
+      "role": "secondary_comparison"
+    },
+    {
+      "id": "tail_only_safe",
+      "candidateId": "mp-tail-only-v0",
+      "labelKo": "Tail-only 안전형",
+      "role": "fallback"
+    }
+  ]
+}

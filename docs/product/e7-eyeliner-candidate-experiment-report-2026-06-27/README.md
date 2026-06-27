@@ -83,7 +83,51 @@ Fallback은 `mp-tail-only-v0` 이다.
 - `mp-upper-balanced-v0`: 자연형/균형형 비교 후보이자 추적 기준선 reference
 - `mp-tail-only-v0`: full-line이 불안정할 때의 안전 fallback
 
-## 9. Score 요약
+## 9. 사용자 레퍼런스 반영
+
+사용자가 추가로 제공한 레퍼런스는 좋은 예시 4장과 실패 예시 2장이다. 이 중 `Cat / Puppy / Sexy / Winged / Colored / Doll`이 들어간 6-style grid가 가장 좋은 예시로 지정됐다. 원본 이미지는 출처/라이선스가 확정된 runtime asset이 아니므로 repo asset으로 복사하지 않고, 아래의 형태 기준만 제품 룰로 반영한다.
+
+| 묶음 | 판단 | 제품 룰 |
+| --- | --- | --- |
+| 사진 1-4 | 잘된 아이라인 | upper lashline을 기준으로 하되 눈꼬리 바깥쪽을 채우고, inner corner는 얇거나 비운다. tail은 lower lashline 연장선보다 살짝 올라가는 wing 형태가 좋다. |
+| 사진 5 | 실패 | 검은 면이 눈두덩 전체를 덮는 block fill은 금지한다. stage/editorial makeup처럼 보여 앱 기본 preset으로 쓰면 안 된다. |
+| 사진 6 | 실패 | 위아래가 두껍게 닫힌 ring 형태는 금지한다. 특히 lower lashline과 inner corner를 과하게 채우면 자연스러운 아이라인이 아니라 눈 외곽선처럼 보인다. |
+
+좋은 후보의 공통점:
+
+- 눈동자 윗가장자리가 아니라 속눈썹/upper eyelid anchor를 따라간다.
+- 바깥쪽 1/3부터 눈꼬리까지는 끊기지 않고 채운다.
+- tail은 얇게 뻗고 끝이 taper 처리된다.
+- inner corner는 처음부터 두껍게 시작하지 않는다.
+- 모노리드/속쌍에서는 full inner line보다 outer corner fill과 wing 방향이 더 중요하다.
+
+금지 규칙:
+
+- 눈두덩을 넓은 검정 면으로 덮지 않는다.
+- lower lashline을 기본값으로 진하게 닫지 않는다.
+- inner corner까지 두껍게 감싸는 closed ring을 만들지 않는다.
+- tail이 sticker처럼 뭉툭하거나 너무 넓게 끝나면 실패로 본다.
+
+이 기준을 반영하면 최종 정책은 더 분명해진다. 기본값은 `asset-fit-wing-local-style-v0`처럼 눈꼬리까지 채우는 wing preset이고, `mp-upper-balanced-v0`는 자연형/기준선 후보로 계속 함께 본다. 즉 `mp-upper-balanced-v0`를 그대로 최종 아이라인으로 칠하는 것이 아니라, upper eyelid tracking anchor와 보수적인 비교 후보로 둔 뒤 그 anchor 위에 제품형 wing shape를 합성한다.
+
+앱 구현 전 마지막 추가 실험은 이 합성 단계를 직접 검증하는 **anchor-to-band 대량 샘플 실험**으로 둔다. 계획 문서는 `docs/roadmaps/research/E7_EYELINER_ANCHOR_TO_BAND_MASS_SAMPLE_PLAN_KO.md`다. 목표는 `Cat / Puppy / Sexy / Winged / Colored / Doll` 계열을 우리 frame 위에서 100-180개 후보로 뽑고, 사용자가 contact sheet에서 후보 ID를 고르는 것이다.
+
+구현 파라미터 가드:
+
+```txt
+outerCornerFill: required
+innerStart: 0.18-0.28 기본, 사용자 조정 가능
+tailLength: 0.12-0.22 eyeWidth 기본 범위
+tailAngle: 살짝 upward wing
+maxLidFillHeight: eyeHeight의 약 18% 이하 기본값
+lowerLidCoverage: 기본 0 또는 매우 약하게
+closedRing: reject
+fullLidBlock: reject
+```
+
+자세한 레퍼런스 리뷰와 구현용 rubric은 `artifacts/reference_review.md`, `artifacts/reference_rubric.json`에 따로 고정했다.
+
+## 10. Score 요약
 
 | 후보 | Score | Eye opening overlap | Upper lid mean distance | Continuity | UV IoU |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -113,7 +157,7 @@ Human review 해석:
 - 여성 리뷰에서는 눈꼬리까지 채우는 `asset-fit-wing-local-style-v0`가 더 아이라인처럼 보인다는 판단이 나왔다.
 - 따라서 앱 구현의 기본 visual preset은 `asset-fit-wing-local-style-v0` 방향으로 잡고, `mp-upper-balanced-v0`는 기준선/reference이자 자연형 후보로 함께 노출한다.
 
-## 10. 앱 구현으로 넘길 결정
+## 11. 앱 구현으로 넘길 결정
 
 ```txt
 primary tracker: MediaPipe upper eyelid landmark
@@ -159,14 +203,14 @@ blinkFade
 오른쪽만 조정
 ```
 
-## 11. 남은 한계
+## 12. 남은 한계
 
 - 이 결과는 static buildless frame 기준이다.
 - blink/yaw/squint 안정성은 iPhone AR 화면에서 따로 봐야 한다.
 - UV round-trip은 얇은 선 특성상 IoU가 낮을 수 있으므로, runtime에서는 실제 렌더링 crop으로 판단해야 한다.
 - authored wing preset은 여성 리뷰 기준 가장 좋아 보였지만, blink/yaw에서 튀는지는 iPhone에서 확인해야 한다.
 
-## 12. 산출물 위치
+## 13. 산출물 위치
 
 | 항목 | 위치 |
 | --- | --- |
@@ -177,6 +221,6 @@ blinkFade
 | App handoff | `evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/app_handoff_ui_notes.md` |
 | Report artifact mirror | `docs/product/e7-eyeliner-candidate-experiment-report-2026-06-27/artifacts` |
 
-## 13. 최종 판정
+## 14. 최종 판정
 
 아이라인 앱 구현은 진행 가능하다. 최종 구현 전략은 **MediaPipe upper eyelid anchor + asset-fit wing style preset + balanced 자연형 후보 + tail-only fallback + 사용자 조정**으로 갱신한다. `mp-upper-balanced-v0`는 추적 기준선/reference이면서 나중에 함께 볼 자연형 후보로 유지하고, 기존 eye-prior/dark-pixel 방식은 baseline 또는 보조 참고로만 둔다.
