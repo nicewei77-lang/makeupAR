@@ -1,6 +1,6 @@
 # Eyebrow AR Rendering Design
 
-Status: First iPhone QA tuning in progress; rebuild pending
+Status: Latest brow tuning rebuilt and launched; user QA pending
 Date: 2026-06-27
 Related product doc: `docs/product/eyebrow-makeup-feature.md`
 
@@ -106,7 +106,9 @@ for comparison.
 The first three-option device QA confirmed tracking and expression attachment,
 but the brows were too faint, too centered, and slightly below the real brow
 line. The current local post-QA candidate masks are shifted `10px` outward per
-side and `7px` upward without increasing thickness.
+side and `7px` upward without increasing thickness. This post-QA tuning has now
+been rebuilt into `UnityFramework.framework`, installed, and launched on
+`CloudsiPhone (26.5)`; visual acceptance on the rebuilt app is still pending.
 
 Current local verifier result for `brow-drawn-mask-v1.png`:
 
@@ -190,14 +192,18 @@ Local checks before any real-device build:
 - Unity batchmode import/compile passed with Unity `6000.3.18f1`.
 - UnityFramework build contract verifier passed and now guards Swift
   compatibility link flags plus Unity export failure detection.
-- UnityFramework regeneration/sync passed with
-  `TIMESTAMP=eyebrow-20260627-ufw-r3`.
-- RN/Xcode Debug build, install, and launch passed on `CloudsiPhone (26.5)`.
+- UnityFramework regeneration/sync passed for the latest tuning with
+  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
+- RN/Xcode Debug build initially failed from stale ignored CocoaPods VFS paths
+  that referenced an old Dropbox checkout; `pod install --no-repo-update`
+  refreshed local Pod support files, then the RN/Xcode Debug build passed.
+- `devicectl` install and launch passed on `CloudsiPhone (26.5)` for
+  `com.celeste.makeupar.validation`.
 - TypeScript compile with `npx tsc --noEmit`: passed.
 - RN lint with `npm run lint`: passed.
 - Region renderer route verifier: passed.
 
-Remaining real-device visual QA after rebuild:
+Remaining real-device visual QA on the rebuilt app:
 
 - Frontal neutral brow placement.
 - Left and right head turn stability.

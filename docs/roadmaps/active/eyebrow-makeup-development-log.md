@@ -405,3 +405,32 @@ Remaining:
   - Unity rewrote whitespace-only empty YAML fields in the three brow PNG
     `.meta` files during import; those agent-created metadata churn changes
     were reverted because they did not affect importer settings.
+- 2026-06-27: User approved the real-device rebuild for approach 1, and the
+  current post-QA tuning was regenerated, installed, and launched.
+  - UnityFramework regeneration/sync passed with
+    `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
+  - Unity export/build/artifact evidence:
+    `evidence/logs/m3-repro-unity-export-eyebrow-rebuild-20260627-ufw-r1.log`,
+    `evidence/logs/m3-repro-xcodebuild-unityframework-eyebrow-rebuild-20260627-ufw-r1.log`,
+    and
+    `evidence/logs/m3-repro-artifact-verification-eyebrow-rebuild-20260627-ufw-r1.log`.
+    Verification recorded `119M` UnityFramework copies and `23M` `Data`
+    folders in both RN and package-local locations.
+  - RN/Xcode Debug build attempt 1 failed with exit `65` because ignored
+    CocoaPods support files still referenced an old Dropbox checkout path for
+    `Pods/React-Core-prebuilt/React-VFS.yaml`.
+  - Running `pod install --no-repo-update` from `rn/MakeupARValidation/ios`
+    refreshed the local Pod support files without changing tracked source.
+  - RN/Xcode Debug build attempt 2 passed with
+    `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`.
+    The built app bundle is `198M`, including `119M`
+    `UnityFramework.framework` and `23M` `UnityFramework.framework/Data`.
+  - First `devicectl` install by device name failed with a transient CoreDevice
+    connection invalidation; retry by the approved device identifier passed:
+    `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log`.
+  - Launch passed:
+    `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`.
+  - No face screenshots, recordings, or raw camera frames were captured.
+  - Next gate: user iPhone visual QA must check brow visibility, placement,
+    shape, color, `Warmth`/`Depth`, `Brow Spread`/`Brow Y`, tracking recovery,
+    and lip/cheek/eye smoke behavior before calling the module complete.

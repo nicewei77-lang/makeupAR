@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: First iPhone QA tuning in progress; rebuild pending
+Status: Latest brow tuning rebuilt and launched; user QA pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -141,29 +141,37 @@ or bridge rewrite.
   variation sheet. The local app now exposes `brow-soft-arch-fine-hair-v1`
   as the default, plus `brow-back-arch-soft-mix-v1` and
   `brow-slim-tail-fine-hair-v1` for comparison. `brow-drawn-mask-v1` remains
-  as a legacy comparison option. This is local only and has not been rebuilt
-  to the iPhone.
+  as a legacy comparison option. At that checkpoint this was local only; the
+  following build record covers the iPhone install.
 - 2026-06-27: The three-option build was installed and launched on
   `CloudsiPhone`. User QA confirmed tracking and expression attachment, but the
   brow was too faint, especially `soft_brow`; the masks were too centered and
   slightly below the real brow line; color choices were still lip colors.
 - 2026-06-27: Local post-QA tuning raises `natural_brow` visibility, adds the
   brow-specific color palette, and shifts the three selected mask PNGs outward
-  and upward. This post-QA tuning has not yet been installed on-device.
+  and upward. At that checkpoint this tuning was local only; the latest rebuild
+  record below covers the iPhone install.
 - 2026-06-27: Added brow `Warmth` and `Depth` color parameters in the RN HUD.
   This keeps Unity's recipe contract stable while allowing real-device QA to
   tune ash/warm and light/dark brow color without adding more fixed swatches.
 - 2026-06-27: Added brow `Brow Spread` and `Brow Y` placement parameters
   through the RN recipe, Unity bridge, overlay material, and smooth mask shader.
-  This local tuning is not yet installed on-device.
+  At that checkpoint this tuning was local only; the latest rebuild record below
+  covers the iPhone install.
 - 2026-06-27: Added applied brow placement diagnostics to Unity
   `recipe_applied` events and the RN HUD summary (`spread=`/`y=`) for the next
   iPhone QA loop.
+- 2026-06-27: User approved the current post-QA tuning rebuild. Regenerated and
+  synced `UnityFramework.framework` with
+  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`, rebuilt the RN Debug app after
+  refreshing stale local CocoaPods VFS paths, installed it on
+  `CloudsiPhone (26.5)`, and launched `com.celeste.makeupar.validation`. The
+  latest visual QA is now pending on the rebuilt app.
 
 ## Local Verification
 
 - RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
-  passed with 23 tests.
+  passed with 26 tests.
 - Brow mask verifier passed for the three selected local candidates:
   `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
   `brow-slim-tail-fine-hair-v1`. The verifier now accepts the thinner
@@ -180,22 +188,26 @@ or bridge rewrite.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
-- UnityFramework regeneration/sync passed with
-  `TIMESTAMP=eyebrow-20260627-ufw-r3`.
-- RN/Xcode Debug build, `devicectl` install, and `devicectl` launch passed on
-  `CloudsiPhone (26.5)`.
+- UnityFramework regeneration/sync passed for the latest tuning with
+  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
+- RN/Xcode Debug build first failed because ignored CocoaPods files still
+  referenced an old Dropbox `React-VFS.yaml` path. `pod install --no-repo-update`
+  regenerated local Pod support files, then the RN Debug build passed with
+  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`.
+- `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
+  `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log` and
+  `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`.
 
 ## QA Status
 
-The feature is installed and launchable on the approved iPhone builds. Device QA
-has confirmed attachment, expression stability, and control response. Visual
-product quality is not accepted yet because the latest installed build is too
-faint, too centered, and slightly low, with lip-color choices still showing in
-the brow HUD. The current local branch fixes those issues by increasing brow
-visibility, adding brow-specific colors, shifting the selected masks outward and
-upward, and adding live `Brow Spread`/`Brow Y` mask-position controls. This
-post-QA tuning requires a fresh UnityFramework/RN device build before the next
-iPhone QA pass.
+The feature is installed and launchable on the approved iPhone rebuild. Earlier
+device QA confirmed attachment, expression stability, and control response, then
+rejected the visuals as too faint, too centered, slightly low, and still using
+lip-color choices in the brow HUD. The latest installed rebuild includes the
+post-QA visibility increase, brow-specific colors, outward/upward mask shift,
+live `Warmth`/`Depth`, live `Brow Spread`/`Brow Y`, and applied placement
+diagnostics. Product quality is still not accepted until the user checks this
+rebuilt app on the iPhone.
 
 ## Risks
 

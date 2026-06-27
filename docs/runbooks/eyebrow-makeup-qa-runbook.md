@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: First iPhone QA tuning in progress; rebuild pending
+Status: Latest brow tuning rebuilt and launched; user QA pending
 Date: 2026-06-27
 
 ## Scope
@@ -55,7 +55,7 @@ Observed generated cleanup candidates, if the user approves cleanup:
 "/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity" \
   -batchmode \
   -quit \
-  -projectPath "/Users/hi/Library/CloudStorage/Dropbox/Mac/Desktop/Jungle/makeupAR/unity/MakeupARUnityValidation" \
+  -projectPath "/Users/hi/dev/Jungle/makeupAR/unity/MakeupARUnityValidation" \
   -logFile -
 ```
 
@@ -93,6 +93,44 @@ Only after user approval:
 
 No face screenshots, recordings, or raw frames were captured by default.
 
+## 2026-06-27 Rebuild Evidence
+
+Latest approved post-QA tuning rebuild:
+
+- Device: `CloudsiPhone (26.5)`.
+- Bundle id: `com.celeste.makeupar.validation`.
+- Signing team: `X5C5U3T6B4`.
+- UnityFramework regenerated and synced:
+  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
+- Unity export log:
+  `evidence/logs/m3-repro-unity-export-eyebrow-rebuild-20260627-ufw-r1.log`.
+- UnityFramework build log:
+  `evidence/logs/m3-repro-xcodebuild-unityframework-eyebrow-rebuild-20260627-ufw-r1.log`,
+  `** BUILD SUCCEEDED **`.
+- UnityFramework artifact verification:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-rebuild-20260627-ufw-r1.log`;
+  RN/package frameworks were `119M`, with `23M` `Data` folders.
+- RN/Xcode device build attempt 1:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627.log`,
+  failed because ignored CocoaPods files referenced the old Dropbox
+  `React-VFS.yaml` path.
+- Local Pod support refresh:
+  `pod install --no-repo-update` from `rn/MakeupARValidation/ios`.
+- RN/Xcode device build attempt 2:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`,
+  `** BUILD SUCCEEDED **`.
+- Built app bundle:
+  `unity-builds/xcode-derived-data/RNDevice-eyebrow-rebuild-20260627/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+  `198M`, including `119M` `UnityFramework.framework` and `23M`
+  `UnityFramework.framework/Data`.
+- `devicectl` install by device name first failed with a transient CoreDevice
+  connection invalidation; retry by the approved device identifier passed:
+  `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log`.
+- `devicectl` launch passed:
+  `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`.
+
+No face screenshots, recordings, or raw frames were captured by default.
+
 ## Device QA
 
 Start in HUD mode with `lip` active by default, then select `brow`.
@@ -108,20 +146,19 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
 - Local tuning has been made, but a new UnityFramework/RN device build is
   required before the following checks can accept the visual result.
 - User then chose to skip applying the intermediate tuning build and continue
-  into the next local loop. The current local mask also includes subtle
-  procedural hair/powder density variation; it is not installed on the iPhone
-  yet.
-- The latest local loop adds three selectable mask candidates from the generated
+  into the next local loop. At that checkpoint the mask also included subtle
+  procedural hair/powder density variation and was still local only.
+- A following local loop added three selectable mask candidates from the generated
   variation sheet: `brow-soft-arch-fine-hair-v1` as default,
-  `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1`. These are
-  not installed on the iPhone yet.
+  `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1`.
 - The `eyebrow-options-20260627-ufw-r1` iPhone build installed and launched with
   the three options. User QA confirmed head-turn and expression attachment, but
   the brow was too faint, especially `soft_brow`; the masks were too centered
   and slightly below the real brow line; color choices were still lip colors.
 - Local post-QA tuning now raises brow visibility, adds brow-specific colors,
-  and shifts the three selected masks outward/upward. This post-QA tuning is not
-  installed on the iPhone yet.
+  and shifts the three selected masks outward/upward.
+- The latest approved rebuild installed and launched this post-QA tuning on
+  `CloudsiPhone (26.5)`. User visual QA for this rebuilt app is pending.
 
 ## Brow Parameter Tuning Guide
 
@@ -204,21 +241,31 @@ Build context:
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
 - UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes,
-  `TIMESTAMP=eyebrow-20260627-ufw-r3`
-- Latest Unity batchmode compile before the pending rebuild: pass,
+  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`
+- Latest Unity batchmode compile before the rebuild: pass,
   `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log`
+- UnityFramework rebuild/sync: pass,
+  `evidence/logs/m3-repro-xcodebuild-unityframework-eyebrow-rebuild-20260627-ufw-r1.log`
+- RN/Xcode rebuild: pass on retry,
+  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`
+- Install/launch: pass,
+  `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log`,
+  `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`
 
 Minimum observations:
 
 | Scenario | Question | User observation | Pass / Needs tuning |
 | --- | --- | --- | --- |
-| Frontal neutral | Are both brows close to the natural brow line, without forehead or eyelid bleed? | Near eyebrow line, but `^ ^`; center too high; far too thick and sticker-like on the installed build | Needs tuning |
-| Left head turn | Does the near/far brow stay attached, or does either side float? | Tracks well on the installed build | Pass |
-| Right head turn | Does the near/far brow stay attached, or does either side float? | Tracks well on the installed build | Pass |
-| Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? | Stays attached on the installed build | Pass for attachment; shape needs tuning |
-| `natural_brow` preset | Does it read as soft makeup rather than a sticker? | Control works, but visual is too thick/sticker-like on the installed build | Needs tuning |
-| `soft_brow` preset | Is the lighter preset still visible but natural? | Control works on the installed build | Recheck after tuning |
-| Opacity/intensity change | Do changes apply immediately without AR restart? | Works on the installed build | Pass |
+| Frontal neutral | Are both brows close to the natural brow line, without forehead or eyelid bleed? |  |  |
+| Left head turn | Does the near/far brow stay attached, or does either side float? |  |  |
+| Right head turn | Does the near/far brow stay attached, or does either side float? |  |  |
+| Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? |  |  |
+| `natural_brow` preset | Does it read as soft makeup rather than a sticker? |  |  |
+| `soft_brow` preset | Is the lighter preset still visible but natural? |  |  |
+| Brow mask options | Which of `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1` should be the default? |  |  |
+| `Warmth` / `Depth` | Do color changes apply immediately and stay natural? |  |  |
+| `Brow Spread` / `Brow Y` | Do placement changes apply immediately and improve centering/height? |  |  |
+| Opacity/intensity change | Do changes apply immediately without AR restart? |  |  |
 | Temporary tracking loss | Does the brow hide/fade and recover without stale placement? |  |  |
 | Existing regions smoke test | Do lip, cheek, and eye still toggle/render? |  |  |
 
