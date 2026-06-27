@@ -60,6 +60,7 @@ evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/*
 !evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/projected_mesh_overlay.png
 
 # React Native generated/dependency state
+node_modules/
 rn/MakeupARValidation/node_modules/
 rn/MakeupARValidation/ios/Pods/
 rn/MakeupARValidation/ios/build/
@@ -68,13 +69,61 @@ rn/MakeupARValidation/ios/.xcode.env.local
 rn/MakeupARValidation/vendor/
 web/*/node_modules/
 web/*/dist/
+web/*/.next/
+web/*/coverage/
+packages/*/node_modules/
+twinit-crawler/node_modules/
+twinit-crawler/.cache/
+twinit-crawler/.playwright/
 
 # Python generated state
+.venv/
+venv/
+env/
 __pycache__/
 *.pyc
+.pytest_cache/
+.mypy_cache/
 
 # Android is out of this iPhone-only validation scope.
 rn/MakeupARValidation/android/
+
+# Local datasets, crawl output, labels, and capture batches
+local-data/
+local_data/
+datasets/
+dataset/
+data/raw/
+data/crawl*/
+data/crawling*/
+data/labels*/
+data/labeling*/
+data/annotations*/
+data/captures*/
+data/raw-frames*/
+crawling-data/
+face-labeling/
+face-labeling-sets/
+face-datasets/
+labeling/
+labels/
+annotations/
+captures/
+raw-frames/
+twinit-crawler/data/
+
+# Local caches and downloaded model/checkpoint binaries
+.cache/
+*.onnx
+*.pt
+*.pth
+*.safetensors
+*.h5
+*.tflite
+*.mlmodel
+*.mlpackage/
+*.task
+!rn/MakeupARValidation/ios/MakeupARValidation/E7Models/face_landmarker.task
 
 # Local media/log artifacts
 *.log
@@ -82,10 +131,12 @@ rn/MakeupARValidation/android/
 *.mov
 output/
 .playwright-mcp/
+coverage/
 
 # Local secrets/signing material
 .env
 .env.*
+!.env.example
 *.mobileprovision
 *.provisionprofile
 *.p12

@@ -65,10 +65,15 @@ Keep these by default because they either contain milestone evidence or avoid ex
 ## Share Cleanup Removes
 
 - `evidence/derived-data/`
+- `.cache/`
+- `.venv/`, `venv/`, `env/`
+- `evidence/e7-lip-m1-models/`
+- `evidence/e7-lip-missing-scenario-captures/`
 - `evidence/logs/`
 - `evidence/recovered/`
 - `evidence/screen-recordings/`
 - `unity-builds/`
+- `packages/lip-generate-core/node_modules/`
 - `rn/MakeupARValidation/unity/`
 - `rn/MakeupARValidation/ios/build/`
 - `rn/MakeupARValidation/ios/Pods/`
@@ -77,9 +82,17 @@ Keep these by default because they either contain milestone evidence or avoid ex
 - `rn/MakeupARValidation/node_modules/`
 - `rn/MakeupARValidation/vendor/`
 - `rn/MakeupARValidation/android/`
+- `twinit-crawler/data/`
+- `twinit-crawler/node_modules/`
+- `twinit-crawler/.cache/`
+- `twinit-crawler/.playwright/`
 - `unity/MakeupARUnityValidation/Library/`
 - `unity/MakeupARUnityValidation/Logs/`
 - `unity/MakeupARUnityValidation/UserSettings/`
+- `web/lip-generate-beta/node_modules/`
+- `web/lip-generate-beta/dist/`
+- `web/lip-generate-beta/.next/`
+- `web/lip-generate-beta/coverage/`
 - repository-local `.DS_Store` files
 
 Use `share` only after raw evidence has been absorbed into `TECH_VALIDATION_RESULT.md`, curated `evidence/evolution/`, or another team-readable doc. It intentionally makes the next run slower because teammates must reinstall dependencies, reimport Unity packages, and regenerate UnityFramework.
@@ -120,5 +133,7 @@ After `share`, the next session must afford:
 
 - npm install time
 - CocoaPods install time
+- local Python virtualenv setup time
 - Unity asset/package reimport time
+- local-only crawler/model/evidence regeneration or handoff time
 - reapplying or making durable any package-local bridge caveat such as `RNUnityView.mm`

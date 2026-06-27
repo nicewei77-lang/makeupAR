@@ -1,0 +1,4 @@
+# Optional local MediaPipe comparison tooling.
+# Keep the task model itself local at .cache/mediapipe/face_landmarker.task.
+
+mediapipe==0.10.35

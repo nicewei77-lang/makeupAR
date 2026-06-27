@@ -64,11 +64,18 @@ balanced_targets=(
 )
 
 share_targets=(
+  ".cache"
+  ".venv"
+  "venv"
+  "env"
   "evidence/derived-data"
+  "evidence/e7-lip-m1-models"
+  "evidence/e7-lip-missing-scenario-captures"
   "evidence/logs"
   "evidence/recovered"
   "evidence/screen-recordings"
   "unity-builds"
+  "packages/lip-generate-core/node_modules"
   "rn/MakeupARValidation/unity"
   "rn/MakeupARValidation/ios/build"
   "rn/MakeupARValidation/ios/Pods"
@@ -77,9 +84,17 @@ share_targets=(
   "rn/MakeupARValidation/node_modules"
   "rn/MakeupARValidation/vendor"
   "rn/MakeupARValidation/android"
+  "twinit-crawler/data"
+  "twinit-crawler/node_modules"
+  "twinit-crawler/.cache"
+  "twinit-crawler/.playwright"
   "unity/MakeupARUnityValidation/Library"
   "unity/MakeupARUnityValidation/Logs"
   "unity/MakeupARUnityValidation/UserSettings"
+  "web/lip-generate-beta/node_modules"
+  "web/lip-generate-beta/dist"
+  "web/lip-generate-beta/.next"
+  "web/lip-generate-beta/coverage"
 )
 
 if [[ "$PROFILE" == "share" ]]; then
