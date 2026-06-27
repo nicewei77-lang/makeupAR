@@ -65,9 +65,11 @@ First-loop presets use natural brow colors rather than lip colors:
 - Brow color is also parameterized in the RN HUD with `Warmth` and `Depth`.
   The selected swatch remains the base color, and RN sends the computed final
   hex through the existing Unity `color` field.
-- Brow placement is parameterized with `Brow X` and `Brow Y` controls. These
-  shift the UV mask sampling position in Unity without regenerating PNG masks,
-  so the next iPhone QA can correct small centered/low placement errors live.
+- Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.
+  `Brow Spread` symmetrically expands/contracts the two brow masks around the
+  UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
+  QA can correct small centered/low placement errors live without regenerating
+  PNG masks.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -147,9 +149,9 @@ or bridge rewrite.
 - 2026-06-27: Added brow `Warmth` and `Depth` color parameters in the RN HUD.
   This keeps Unity's recipe contract stable while allowing real-device QA to
   tune ash/warm and light/dark brow color without adding more fixed swatches.
-- 2026-06-27: Added brow `Brow X` and `Brow Y` placement parameters through the
-  RN recipe, Unity bridge, overlay material, and smooth mask shader. This local
-  tuning is not yet installed on-device.
+- 2026-06-27: Added brow `Brow Spread` and `Brow Y` placement parameters
+  through the RN recipe, Unity bridge, overlay material, and smooth mask shader.
+  This local tuning is not yet installed on-device.
 
 ## Local Verification
 
@@ -184,8 +186,9 @@ product quality is not accepted yet because the latest installed build is too
 faint, too centered, and slightly low, with lip-color choices still showing in
 the brow HUD. The current local branch fixes those issues by increasing brow
 visibility, adding brow-specific colors, shifting the selected masks outward and
-upward, and adding live `Brow X/Y` mask-position controls. This post-QA tuning
-requires a fresh UnityFramework/RN device build before the next iPhone QA pass.
+upward, and adding live `Brow Spread`/`Brow Y` mask-position controls. This
+post-QA tuning requires a fresh UnityFramework/RN device build before the next
+iPhone QA pass.
 
 ## Risks
 

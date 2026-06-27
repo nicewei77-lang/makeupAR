@@ -37,7 +37,7 @@ public sealed class RNBridge : MonoBehaviour
         public string blendMode;
         public string rendererMode;
         public float coverage;
-        public float maskOffsetX;
+        public float maskSpreadX;
         public float maskOffsetY;
         public string finish;
         public float textureAmount;
@@ -84,7 +84,7 @@ public sealed class RNBridge : MonoBehaviour
         public string rendererMode;
         public bool enabled;
         public float coverage;
-        public float maskOffsetX;
+        public float maskSpreadX;
         public float maskOffsetY;
         public string finish;
         public float textureAmount;
@@ -171,7 +171,7 @@ public sealed class RNBridge : MonoBehaviour
         public string RendererMode;
         public bool Enabled;
         public float Coverage;
-        public float MaskOffsetX;
+        public float MaskSpreadX;
         public float MaskOffsetY;
         public string Finish;
         public float TextureAmount;
@@ -216,7 +216,7 @@ public sealed class RNBridge : MonoBehaviour
         public string RendererMode = "smooth-region-mask";
         public string RegionRendererId = "none";
         public float Coverage;
-        public float MaskOffsetX;
+        public float MaskSpreadX;
         public float MaskOffsetY;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
@@ -996,7 +996,7 @@ public sealed class RNBridge : MonoBehaviour
             layer.SecondaryColorHex,
             layer.SecondaryColor,
             layer.Coverage,
-            layer.MaskOffsetX,
+            layer.MaskSpreadX,
             layer.MaskOffsetY,
             layer.Finish,
             layer.Roughness,
@@ -1035,7 +1035,7 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = result.RendererMode,
             RegionRendererId = result.RegionRendererId,
             Coverage = layer.Coverage,
-            MaskOffsetX = result.MaskOffsetX,
+            MaskSpreadX = result.MaskSpreadX,
             MaskOffsetY = result.MaskOffsetY,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
@@ -1982,7 +1982,7 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode, region),
             Enabled = layer.enabled,
             Coverage = Mathf.Max(0.0f, layer.coverage),
-            MaskOffsetX = NormalizeMaskOffset(layer.maskOffsetX),
+            MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX),
             MaskOffsetY = NormalizeMaskOffset(layer.maskOffsetY),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
             TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
@@ -2205,6 +2205,11 @@ public sealed class RNBridge : MonoBehaviour
     private static float NormalizeMaskOffset(float maskOffset)
     {
         return Mathf.Clamp(maskOffset, -0.08f, 0.08f);
+    }
+
+    private static float NormalizeMaskSpread(float maskSpread)
+    {
+        return Mathf.Clamp(maskSpread, -0.16f, 0.16f);
     }
 
     private static string NormalizeBlendMode(string blendMode, string textureSample)

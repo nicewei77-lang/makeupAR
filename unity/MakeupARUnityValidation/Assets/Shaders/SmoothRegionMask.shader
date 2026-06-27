@@ -12,6 +12,7 @@ Shader "MakeupAR/SmoothRegionMask"
         _VisibilityAlpha ("Visibility Alpha", Range(0, 1)) = 1
         _Coverage ("Coverage", Range(0, 1)) = 0.62
         _MaskOffset ("Mask UV Offset", Vector) = (0, 0, 0, 0)
+        _MaskSpreadX ("Mask Spread X", Float) = 0
         _Roughness ("Roughness", Range(0, 1)) = 0.88
         _Specular ("Specular", Range(0, 1)) = 0.04
         _SpecularPower ("Specular Power", Range(1, 64)) = 8
@@ -65,6 +66,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _VisibilityAlpha;
             float _Coverage;
             float4 _MaskOffset;
+            float _MaskSpreadX;
             float _Roughness;
             float _Specular;
             float _SpecularPower;
@@ -182,7 +184,8 @@ Shader "MakeupAR/SmoothRegionMask"
                     float2 ndc = input.clipPos.xy / max(input.clipPos.w, 0.00001);
                     maskUv = saturate(ndc * 0.5 + 0.5);
                 }
-                maskUv = saturate(maskUv - _MaskOffset.xy);
+                maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));
+                maskUv.y = saturate(maskUv.y - _MaskOffset.y);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);
@@ -322,6 +325,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _VisibilityAlpha;
             float _Coverage;
             float4 _MaskOffset;
+            float _MaskSpreadX;
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
@@ -438,7 +442,8 @@ Shader "MakeupAR/SmoothRegionMask"
                     float2 ndc = input.clipPos.xy / max(input.clipPos.w, 0.00001);
                     maskUv = saturate(ndc * 0.5 + 0.5);
                 }
-                maskUv = saturate(maskUv - _MaskOffset.xy);
+                maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));
+                maskUv.y = saturate(maskUv.y - _MaskOffset.y);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);

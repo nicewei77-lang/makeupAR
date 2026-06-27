@@ -38,7 +38,7 @@ Fresh local checks recorded on 2026-06-27:
 | `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 25 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
-| Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-mask-offset-unity-batchmode-20260627.log` |
+| Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-mask-spread-unity-batchmode-20260627.log` |
 | `scripts/build_m3_unityframework.sh` | Passed after Swift compatibility link fix, `TIMESTAMP=eyebrow-20260627-ufw-r3` |
 | RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-20260627.log` |
 | `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-20260627.log` |
@@ -73,10 +73,11 @@ Post-QA tuning notes:
   compute the final RN hex color before sending Unity's existing `color` field.
   This color tuning has not yet been regenerated into UnityFramework or
   reinstalled on the iPhone.
-- Local placement-parameter tuning adds brow `Brow X` and `Brow Y` controls
-  that send `maskOffsetX` and `maskOffsetY` through RNBridge into the Unity
-  smooth-mask shader. This placement tuning has not yet been regenerated into
-  UnityFramework or reinstalled on the iPhone.
+- Local placement-parameter tuning adds brow `Brow Spread` and `Brow Y`
+  controls that send `maskSpreadX` and `maskOffsetY` through RNBridge into the
+  Unity smooth-mask shader. `Brow Spread` adjusts the two brows symmetrically
+  outward/inward from center; this placement tuning has not yet been
+  regenerated into UnityFramework or reinstalled on the iPhone.
 
 Build notes:
 
@@ -102,8 +103,8 @@ Build notes:
 | Natural brow presets | `natural_brow`, `soft_brow`, the three selected brow mask options, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; defaults were raised after the latest QA because the installed build was too faint | Locally verified; device rebuild pending |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
-| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds; RN/Unity now expose `Brow X/Y` mask offsets for live fine tuning | Locally verified; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Warmth`/`Depth` color parameters, `Brow X/Y` placement offsets, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
+| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds; RN/Unity now expose `Brow Spread`/`Brow Y` live fine tuning | Locally verified; device rebuild pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Warmth`/`Depth` color parameters, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning now includes flatter shape plus subtle density variation, but it is not device-verified | Needs re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
@@ -127,7 +128,7 @@ QA after applying the local tuning to a fresh device build:
 4. Compare `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
    `brow-slim-tail-fine-hair-v1` on device and choose the best default.
 5. Collect user visual observations for frontal neutral, left/right head turns,
-   expression change, color/Warmth/Depth/Brow X/Brow Y/intensity update,
+   expression change, color/Warmth/Depth/Brow Spread/Brow Y/intensity update,
    tracking recovery, and existing
    lip/cheek/eye smoke behavior using the observation template in
    `docs/runbooks/eyebrow-makeup-qa-runbook.md`.

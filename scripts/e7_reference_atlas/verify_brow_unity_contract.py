@@ -145,8 +145,8 @@ def main() -> None:
         )
     require_contains(
         rn_bridge,
-        "public float maskOffsetX;",
-        "RNBridge recipe layer payload must accept maskOffsetX.",
+        "public float maskSpreadX;",
+        "RNBridge recipe layer payload must accept maskSpreadX.",
     )
     require_contains(
         rn_bridge,
@@ -155,8 +155,8 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
-        "MaskOffsetX = NormalizeMaskOffset(layer.maskOffsetX)",
-        "RNBridge must normalize layer maskOffsetX into parsed layers.",
+        "MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX)",
+        "RNBridge must normalize layer maskSpreadX into parsed layers.",
     )
     require_contains(
         rn_bridge,
@@ -235,8 +235,8 @@ def main() -> None:
     )
     require_contains(
         overlay,
-        "public float MaskOffsetX;",
-        "E3RegionMaskOverlay result must expose mask offset X.",
+        "public float MaskSpreadX;",
+        "E3RegionMaskOverlay result must expose mask spread X.",
     )
     require_contains(
         overlay,
@@ -245,8 +245,8 @@ def main() -> None:
     )
     require_contains(
         overlay,
-        "MaskOffsetX = Mathf.Clamp(maskOffsetX, -0.08f, 0.08f)",
-        "E3RegionMaskOverlay must clamp mask offset X.",
+        "MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.16f, 0.16f)",
+        "E3RegionMaskOverlay must clamp mask spread X.",
     )
     require_contains(
         overlay,
@@ -257,6 +257,11 @@ def main() -> None:
         overlay,
         'material.SetVector("_MaskOffset"',
         "E3RegionMaskOverlay must pass mask offset to the shader.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_MaskSpreadX", recipe.MaskSpreadX)',
+        "E3RegionMaskOverlay must pass symmetric mask spread to the shader.",
     )
     require_contains(
         shader,
@@ -270,8 +275,23 @@ def main() -> None:
     )
     require_contains(
         shader,
-        "maskUv = saturate(maskUv - _MaskOffset.xy);",
-        "SmoothRegionMask shader must apply mask offset before sampling.",
+        '_MaskSpreadX ("Mask Spread X", Float) = 0',
+        "SmoothRegionMask shader must define a symmetric mask spread property.",
+    )
+    require_contains(
+        shader,
+        "float _MaskSpreadX;",
+        "SmoothRegionMask shader must expose _MaskSpreadX to shader code.",
+    )
+    require_contains(
+        shader,
+        "maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));",
+        "SmoothRegionMask shader must spread eyebrow mask sampling around the centerline.",
+    )
+    require_contains(
+        shader,
+        "maskUv.y = saturate(maskUv.y - _MaskOffset.y);",
+        "SmoothRegionMask shader must still apply vertical mask offset before sampling.",
     )
 
     print("brow_unity_contract_ok")

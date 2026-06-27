@@ -563,7 +563,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
         ...DEFAULT_REGION_TUNING.brow,
         feather: browSample!.feather,
         coverage: browSample!.coverage,
-        maskOffsetX: 0,
+        maskSpreadX: 0,
         maskOffsetY: 0,
         roughness: browSample!.roughness,
         specular: browSample!.specular,
@@ -591,14 +591,14 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.intensity).toBe(0.68);
   expect(browLayer.feather).toBe(0.48);
   expect(browLayer.coverage).toBe(0.62);
-  expect(browLayer.maskOffsetX).toBe(0);
+  expect(browLayer.maskSpreadX).toBe(0);
   expect(browLayer.maskOffsetY).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
 
-test('passes eyebrow placement offset parameters to payload', () => {
+test('passes eyebrow symmetric spread and vertical offset parameters to payload', () => {
   const payload = buildValidationRecipeBatchPayload(
     DEFAULT_REGION_RECIPES,
     {
@@ -612,7 +612,7 @@ test('passes eyebrow placement offset parameters to payload', () => {
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        maskOffsetX: 0.018,
+        maskSpreadX: 0.12,
         maskOffsetY: 0.024,
       },
     },
@@ -621,9 +621,9 @@ test('passes eyebrow placement offset parameters to payload', () => {
 
   const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
-  expect(payload.maskOffsetX).toBe(0.018);
+  expect(payload.maskSpreadX).toBe(0.12);
   expect(payload.maskOffsetY).toBe(0.024);
-  expect(browLayer.maskOffsetX).toBe(0.018);
+  expect(browLayer.maskSpreadX).toBe(0.12);
   expect(browLayer.maskOffsetY).toBe(0.024);
 });
 
@@ -1131,7 +1131,8 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).not.toContain('red');
   expect(text).toContain('Warmth');
   expect(text).toContain('Depth');
-  expect(text).toContain('Brow X');
+  expect(text).toContain('Brow Spread');
+  expect(text).not.toContain('Brow X');
   expect(text).toContain('Brow Y');
   expect(text).toContain('Soft arch fine');
   expect(text).toContain('Back arch soft');

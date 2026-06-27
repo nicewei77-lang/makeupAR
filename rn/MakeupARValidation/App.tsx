@@ -78,6 +78,7 @@ export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
+const BROW_MASK_SPREAD_RANGE = 0.16;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
@@ -432,7 +433,7 @@ export type ActiveRegionMap = Record<RecipeRegion, boolean>;
 export type RegionTuningParameters = {
   feather: number;
   coverage: number;
-  maskOffsetX: number;
+  maskSpreadX: number;
   maskOffsetY: number;
   roughness: number;
   specular: number;
@@ -635,7 +636,7 @@ function buildDefaultRegionTuningForSample(
   return {
     feather: textureSample.feather,
     coverage: textureSample.coverage,
-    maskOffsetX: 0,
+    maskSpreadX: 0,
     maskOffsetY: 0,
     roughness: textureSample.roughness,
     specular: textureSample.specular,
@@ -681,6 +682,23 @@ function sliderValueToMaskOffset(value: number) {
     2;
 
   return Number(offset.toFixed(4));
+}
+
+function maskSpreadToSliderValue(spread: number | undefined) {
+  const normalizedSpread = Math.max(
+    -BROW_MASK_SPREAD_RANGE,
+    Math.min(BROW_MASK_SPREAD_RANGE, spread ?? 0),
+  );
+
+  return 0.5 + normalizedSpread / (BROW_MASK_SPREAD_RANGE * 2);
+}
+
+function sliderValueToMaskSpread(value: number) {
+  const spread = (Math.max(0, Math.min(1, value)) - 0.5) *
+    BROW_MASK_SPREAD_RANGE *
+    2;
+
+  return Number(spread.toFixed(4));
 }
 
 function parseHexColor(hexColor: string) {
@@ -796,7 +814,7 @@ export function buildValidationRecipeBatchPayload(
       blendMode: sample.blendMode,
       enabled: enabledRegions[region],
       coverage: tuning.coverage,
-      maskOffsetX: tuning.maskOffsetX,
+      maskSpreadX: tuning.maskSpreadX,
       maskOffsetY: tuning.maskOffsetY,
       finish: sample.finish,
       textureAmount: layerIntensity,
@@ -849,7 +867,7 @@ export function buildValidationRecipeBatchPayload(
     color: focusColor,
     secondaryColor: focusSample.secondaryColor,
     coverage: focusTuning.coverage,
-    maskOffsetX: focusTuning.maskOffsetX,
+    maskSpreadX: focusTuning.maskSpreadX,
     maskOffsetY: focusTuning.maskOffsetY,
     finish: focusSample.finish,
     textureAmount: focusIntensity,
@@ -1899,12 +1917,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const updateFocusedMaskOffset = useCallback(
-    (key: 'maskOffsetX' | 'maskOffsetY', sliderValue: number) => {
+    (key: 'maskSpreadX' | 'maskOffsetY', sliderValue: number) => {
       const nextTuning = {
         ...regionTuning,
         [focusedRegion]: {
           ...regionTuning[focusedRegion],
-          [key]: sliderValueToMaskOffset(sliderValue),
+          [key]: key === 'maskSpreadX'
+            ? sliderValueToMaskSpread(sliderValue)
+            : sliderValueToMaskOffset(sliderValue),
         },
       };
 
@@ -2722,13 +2742,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                     />
 
                     <ValueSlider
-                      label="Brow X"
-                      value={maskOffsetToSliderValue(focusedTuning.maskOffsetX)}
+                      label="Brow Spread"
+                      value={maskSpreadToSliderValue(focusedTuning.maskSpreadX)}
                       width={sliderWidth}
                       fillColor="#BAE6FD"
                       onLayoutWidth={setSliderWidth}
                       onChange={value =>
-                        updateFocusedMaskOffset('maskOffsetX', value)
+                        updateFocusedMaskOffset('maskSpreadX', value)
                       }
                     />
 
@@ -2865,7 +2885,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}% / x ${focusedTuning.maskOffsetX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
+                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(

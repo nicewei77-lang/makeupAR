@@ -361,3 +361,19 @@ Remaining:
     contract, renderer routes, and Unity batchmode import/compile passed with
     `evidence/logs/eyebrow-mask-offset-unity-batchmode-20260627.log`. This
     local placement-parameter tuning is not yet installed on-device.
+- 2026-06-27: Corrected brow horizontal placement semantics before reinstall.
+  - RED: focused Jest failed because `maskSpreadX` was absent from the payload
+    and the HUD still showed `Brow X`; `verify_brow_unity_contract.py` failed
+    because Unity did not accept or apply `maskSpreadX`.
+  - RN update changes the horizontal control to `Brow Spread`, sending signed
+    `maskSpreadX` for symmetric inward/outward tuning while keeping `Brow Y` as
+    vertical `maskOffsetY`.
+  - Unity update parses `maskSpreadX`, stores `MaskSpreadX`, sends it to the
+    shader as `_MaskSpreadX`, and samples the mask around the UV centerline so
+    positive spread moves the left and right brows apart instead of translating
+    the whole mask sideways.
+  - GREEN: focused Jest passed with 25 tests; lint, TypeScript, brow Unity
+    contract, renderer routes, UnityFramework build contract, and Unity
+    `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-mask-spread-unity-batchmode-20260627.log`. This
+    local spread correction is not yet installed on-device.
