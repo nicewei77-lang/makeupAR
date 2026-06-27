@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: PNG brow hair texture loop implemented locally; rebuild pending
+Status: PNG/bright brow build installed on iPhone; user visual QA pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -189,7 +189,7 @@ or bridge rewrite.
   picker, raises brow opacity/intensity to `0.75`, widens `Brow Spread` to
   `±0.34`, starts brow spread at `0.20`, strengthens Unity brow alpha response,
   and shows `Renderer ...` as its own compact HUD row. This follow-up tuning is
-  not installed on-device yet.
+  included in the later PNG/bright brow install.
 - 2026-06-27: User provided self-authored brow PNGs. The local branch now adds
   four PNG-derived candidates (`Daily hair`, `Natural hair`, `Narrow hair`,
   `Light brown`) plus a brow-only `Texture Detail` slider. The implementation
@@ -198,7 +198,14 @@ or bridge rewrite.
 - 2026-06-27: Local bright-brow tuning now routes `light_brown` plus PNG brow
   hair masks through normal alpha composition, while retaining `detailAmount`
   for extracted hair strokes. Darker PNG brow colors remain on multiply.
-  This is not installed on device yet.
+  This was then rebuilt, installed, and launched on device for visual QA.
+- 2026-06-27: User chose to install the current PNG/bright brow build before
+  starting the next auto-placement loop. Regenerated and synced
+  `UnityFramework.framework` with
+  `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`, rebuilt the RN Debug app
+  after correcting stale generated CocoaPods Hermes paths, installed it on
+  `CloudsiPhone (26.5)`, and launched `com.celeste.makeupar.validation`.
+  User visual QA on this exact build is pending.
 
 ## Local Verification
 
@@ -233,23 +240,22 @@ or bridge rewrite.
   before compile during Licensing Client IPC initialization. Logs:
   `evidence/logs/eyebrow-followup-unity-batchmode-20260627.log` and
   `evidence/logs/eyebrow-followup-unity-batchmode-20260627-r2.log`.
-- UnityFramework regeneration/sync passed for the prior installed tuning with
-  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
+- UnityFramework regeneration/sync passed for the latest PNG/bright brow build
+  with `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`.
 - RN/Xcode Debug build first failed because ignored CocoaPods files still
-  referenced an old Dropbox `React-VFS.yaml` path. `pod install --no-repo-update`
-  regenerated local Pod support files, then the RN Debug build passed with
-  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`.
+  referenced an old Dropbox `HERMES_CLI_PATH`. Correcting only generated local
+  Pod support paths let the RN Debug build pass with
+  `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log`.
 - `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
-  `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log` and
-  `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`.
+  `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log` and
+  `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`.
 
 ## QA Status
 
-The latest installed iPhone build is launchable and confirmed `spread=`/`y=`
-delivery, but user QA still rejected the visual as too faint, too centered, and
-too upward/angry. The local branch now contains a stronger, flatter follow-up
-tuning pass. Product quality is still not accepted until this new local tuning
-is rebuilt, installed, and visually checked on the iPhone.
+The latest iPhone build is launchable and includes the stronger, flatter brow
+tuning, PNG hair candidates, `Texture Detail`, and the bright-brow composition
+split. Product quality is still not accepted until the user visually checks this
+installed build for visibility, placement, shape, color, and tracking recovery.
 
 ## Risks
 

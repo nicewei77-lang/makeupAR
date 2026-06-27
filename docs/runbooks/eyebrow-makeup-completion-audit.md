@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: Follow-up brow and bright PNG brow tuning implemented locally; rebuild pending
+Status: PNG/bright brow build installed on iPhone; user visual QA pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -39,10 +39,10 @@ Fresh local checks recorded on 2026-06-27:
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
 | Unity `6000.3.18f1` batchmode import/compile | Latest PNG hair loop compile passed: `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log` |
-| `scripts/build_m3_unityframework.sh` | Passed for latest tuning, `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1` |
-| RN/Xcode real-device Debug build | First attempt failed from stale ignored CocoaPods VFS paths; passed on retry after `pod install --no-repo-update`, `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log` |
-| `devicectl` install | Passed for `com.celeste.makeupar.validation` on retry, `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log` |
-| `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log` |
+| `scripts/build_m3_unityframework.sh` | Passed for latest PNG/bright brow build, `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1` |
+| RN/Xcode real-device Debug build | First attempt failed from stale ignored CocoaPods Hermes path; passed on retry after local generated Pod support path correction, `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log` |
+| `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log` |
+| `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log` |
 
 Post-QA tuning notes:
 
@@ -89,10 +89,11 @@ Post-QA tuning notes:
   `maskSpreadX` at `0.20`, widens spread clamp to `±0.34`, labels the visible
   color sliders as `Temperature` and `Depth`, strengthens Unity brow alpha
   response, and shows `Renderer ...` as its own compact HUD row. This follow-up
-  tuning is not rebuilt or installed yet.
+  tuning is included in the latest installed iPhone build.
 - Local bright-brow tuning now emits `blendMode="normal"` for `light_brown`
   with PNG-derived brow hair masks while keeping `detailAmount` active; darker
-  PNG brow colors remain on `multiply`. This is not rebuilt or installed yet.
+  PNG brow colors remain on `multiply`. This is included in the latest
+  installed iPhone build.
 
 Build notes:
 
@@ -103,17 +104,17 @@ Build notes:
 - The Unity iOS postprocess now adds the Xcode iPhoneOS Swift library path and
   Swift compatibility link flags. The build script now detects Unity export
   failure strings even when Unity exits `0`.
-- The latest UnityFramework artifact verification recorded a `119M`
-  `UnityFramework.framework` and `23M` `Data` folder in both RN and
+- The latest UnityFramework artifact verification recorded a `123M`
+  `UnityFramework.framework` and `27M` `Data` folder in both RN and
   package-local framework paths.
-- The first latest-tuning RN/Xcode build failed with a stale absolute
-  CocoaPods VFS path:
-  `/Users/hi/Library/CloudStorage/Dropbox/Mac/Desktop 2/Jungle/makeupAR/.../React-VFS.yaml`.
-  Running `pod install --no-repo-update` refreshed ignored local Pod support
-  files under the current checkout, then the RN/Xcode rebuild passed.
+- The first latest PNG/bright RN/Xcode build failed with a stale absolute
+  CocoaPods Hermes path:
+  `/Users/hi/Library/CloudStorage/Dropbox/Mac/Desktop 2/Jungle/makeupAR/.../node_modules/hermes-compiler/.../hermesc`.
+  Correcting only generated/ignored local Pod support paths under the current
+  checkout allowed the RN/Xcode rebuild to pass.
 - The successful rebuilt RN app bundle is signed with TeamIdentifier
-  `X5C5U3T6B4`, is `198M`, includes `119M` `UnityFramework.framework` with
-  `23M` `Data`, and was installed and launched as
+  `X5C5U3T6B4`, is `202M`, includes `123M` `UnityFramework.framework` with
+  `27M` `Data`, and was installed and launched as
   `com.celeste.makeupar.validation`.
 
 ## Requirement Audit
@@ -123,24 +124,24 @@ Build notes:
 | Implement only the eyebrow makeup module inside the existing app | Product docs keep camera/photo/video/backend/AI/Android/payment out of scope; code changes are limited to RN recipe/UI, Unity bridge/rendering, mask asset, verifiers, and docs | Satisfied for current loop |
 | Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` | Build/install proven; visual QA pending |
 | React Native minimal UI, events, presets | RN focused tests cover brow as fourth region, brow HUD controls, and four-layer recipe dispatch | Locally verified |
-| Natural brow presets | `natural_brow`, `soft_brow`, the two user-facing brow mask options, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; the latest local defaults are raised to `0.75/0.75` | Locally retuned; device rebuild pending |
+| Natural brow presets | `natural_brow`, `soft_brow`, the user-facing brow mask options, PNG hair candidates, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; the latest defaults are raised to `0.75/0.75` and installed on iPhone | Build/install proven; visual QA pending |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
-| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, tightened top-edge arch height, and overlap thresholds; RN/Unity now expose a wider `Brow Spread` range and default outward spread | Locally retuned; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth` color parameters, bright PNG brow normal composition, darker PNG brow multiply composition, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
+| Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, tightened top-edge arch height, and overlap thresholds; RN/Unity now expose a wider `Brow Spread` range and default outward spread in the installed build | Build/install proven; visual QA pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth` color parameters, bright PNG brow normal composition, darker PNG brow multiply composition, `Texture Detail`, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Build/install proven; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
-| Natural appearance under lighting and expression change | User reported earlier builds were too arched, too thick, sticker-like, too faint, too centered, slightly low, and then still too upward/angry; the local follow-up tuning switches to the flatter mask and stronger alpha response | Needs rebuild and user re-QA |
+| Natural appearance under lighting and expression change | User reported earlier builds were too arched, too thick, sticker-like, too faint, too centered, slightly low, and then still too upward/angry; the installed PNG/bright build switches to the flatter mask and stronger alpha response | Needs user re-QA |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
 | Left/right asymmetry correction is possible | The current first loop supports symmetric procedural brow masks and shared tuning; explicit left/right asymmetry controls are not implemented | Incomplete |
 | Existing lip/cheek/eye behavior is not regressed | RN tests, static route checks, Unity compile, UnityFramework build, RN build, install, and launch passed; no manual region smoke observation yet | Partially proven |
 | Product/technical/development/QA docs updated | Product, architecture, development log, QA runbook, and this audit are present and updated for the latest rebuild evidence | Satisfied for current loop |
-| Meaningful checkpoint commits and push | Branch `feature/brow-0626` has pushed implementation and pre-build verification checkpoints; the latest rebuild evidence is pending checkpoint commit | In progress |
-| Real-device iPhone build and user quality feedback | Build, install, and launch passed on `CloudsiPhone (26.5)`; user feedback from that build drove a local follow-up tuning pass that has not been rebuilt yet | Feedback collected; rebuild pending |
+| Meaningful checkpoint commits and push | Branch `feature/brow-0626` has pushed implementation checkpoints; latest install evidence is being recorded as a follow-up checkpoint | In progress |
+| Real-device iPhone build and user quality feedback | Latest PNG/bright brow build, including the follow-up tuning pass, built, installed, and launched on `CloudsiPhone (26.5)`; user visual QA for this build is pending | Installed; feedback pending |
 
 ## Remaining QA Items
 
-The latest build approval gate has been executed for the prior build. Remaining
-work is to rebuild and visually QA the follow-up local tuning:
+The latest PNG/bright brow build is installed and launched on the iPhone.
+Remaining work is to visually QA this installed build:
 
 1. On the iPhone, open the AR screen and select `brow`.
 2. Confirm the compact HUD eventually reports
@@ -160,17 +161,17 @@ work is to rebuild and visually QA the follow-up local tuning:
 
 ## Current Conclusion
 
-The current codebase has a locally verified follow-up tuning pass for the
-first-loop eyebrow makeup module. Earlier iPhone QA confirmed
+The current codebase has a built, installed, and launched PNG/bright brow build
+for the first-loop eyebrow makeup module. Earlier iPhone QA confirmed
 attachment/control behavior and exposed the remaining product-quality issues:
-too faint, too centered, and too upward/angry. The local branch now includes a
-flatter default mask, stronger alpha response, clearer color labels, wider
-spread control, explicit compact HUD renderer display, and a bright PNG brow
-composition split. The full objective is not complete because this follow-up
-tuning still needs a real-device rebuild and user QA. Completion still needs:
+too faint, too centered, and too upward/angry. The installed build now includes
+a flatter default mask, stronger alpha response, clearer color labels, wider
+spread control, explicit compact HUD renderer display, PNG hair candidates,
+`Texture Detail`, and a bright PNG brow composition split. The full objective is
+not complete because this exact installed build still needs user visual QA.
+Completion still needs:
 
-- UnityFramework/RN device rebuild with the follow-up brow tuning.
 - User visual QA confirming product-quality visibility, placement, shape, and
-  thickness on the rebuilt iPhone app.
+  thickness on the installed iPhone app.
 - A decision on whether explicit left/right asymmetry correction must be added
   before calling the eyebrow module complete.

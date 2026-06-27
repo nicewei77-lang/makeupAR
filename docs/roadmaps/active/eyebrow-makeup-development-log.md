@@ -462,8 +462,9 @@ Remaining:
     `^ ^`/angry read, and separates user-facing mask options from compatibility
     mask resources.
   - GREEN: focused RN Jest passed with 26 tests; brow Unity contract, brow mask
-    texture verifier, and region renderer route verifier passed locally. This
-    follow-up tuning is not yet rebuilt or installed on the iPhone.
+    texture verifier, and region renderer route verifier passed locally. That
+    checkpoint happened before the later PNG/bright brow install, which now
+    includes this follow-up tuning.
   - Unity `6000.3.18f1` batchmode import/compile was attempted twice after
     confirming no Unity Editor/Hub/Licensing process was active. Both attempts
     failed before compile at Licensing Client IPC initialization:
@@ -536,3 +537,31 @@ Remaining:
     `npm run lint`, `verify_brow_unity_contract.py`, and
     `verify_brow_png_hair_textures.py`.
   - No UnityFramework/iPhone build was run in this loop.
+- 2026-06-27: User chose to install the current PNG/bright brow build on the
+  iPhone before starting the next auto-placement loop, then approved the
+  real-device build/install.
+  - Pre-build checks passed: full RN Jest (`28` tests), TypeScript, RN lint,
+    `verify_brow_unity_contract.py`, `verify_brow_png_hair_textures.py`, and
+    `verify_brow_mask_texture.py`.
+  - UnityFramework regeneration/sync passed with
+    `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`.
+  - Artifact verification recorded `123M` UnityFramework copies and `27M`
+    `Data` folders in both RN and package-local locations:
+    `evidence/logs/m3-repro-artifact-verification-eyebrow-png-bright-20260627-ufw-r1.log`.
+  - RN/Xcode Debug build attempt 1 failed with exit `65` because generated
+    CocoaPods support files still pointed `HERMES_CLI_PATH` at an old Dropbox
+    checkout.
+  - The generated/ignored Pod support files were corrected locally to the
+    current checkout, then RN/Xcode Debug build attempt 2 passed:
+    `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log`.
+  - Built app bundle:
+    `unity-builds/xcode-derived-data/RNDevice-eyebrow-png-bright-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+    `202M`, including `123M` `UnityFramework.framework` and `27M`
+    `UnityFramework.framework/Data`.
+  - `devicectl` installed and launched `com.celeste.makeupar.validation` on
+    `CloudsiPhone (26.5)`:
+    `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log` and
+    `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`.
+  - No face screenshots, recordings, or raw camera frames were captured.
+  - Next gate: user iPhone visual QA on the installed PNG/bright brow build.
+    Any quality feedback starts a new agreement proposal before implementation.

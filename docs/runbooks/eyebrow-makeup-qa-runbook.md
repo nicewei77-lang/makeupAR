@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Follow-up brow QA tuning implemented locally; rebuild pending
+Status: PNG/bright brow build installed on iPhone; user visual QA pending
 Date: 2026-06-27
 
 ## Scope
@@ -131,6 +131,43 @@ Latest approved post-QA tuning rebuild:
 
 No face screenshots, recordings, or raw frames were captured by default.
 
+## 2026-06-27 PNG/Bright Brow Build Evidence
+
+Latest approved build before the next visual QA loop:
+
+- Branch/commit: `feature/brow-0626` / `b875be0`.
+- Device: `CloudsiPhone (26.5)`.
+- Bundle id: `com.celeste.makeupar.validation`.
+- Signing team: `X5C5U3T6B4`.
+- UnityFramework regenerated and synced:
+  `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`.
+- UnityFramework artifact verification:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-png-bright-20260627-ufw-r1.log`;
+  RN/package frameworks were `123M`, with `27M` `Data` folders.
+- Pre-build checks passed: full RN Jest (`28` tests), TypeScript, RN lint,
+  brow Unity contract verifier, PNG brow hair verifier, and brow mask verifier.
+- RN/Xcode device build attempt 1:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627.log`,
+  failed because ignored CocoaPods support files still pointed
+  `HERMES_CLI_PATH` at an old Dropbox checkout.
+- Local Pod support patch:
+  refreshed only generated/ignored Pod support paths to the current checkout.
+- RN/Xcode device build attempt 2:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log`,
+  `** BUILD SUCCEEDED **`.
+- Built app bundle:
+  `unity-builds/xcode-derived-data/RNDevice-eyebrow-png-bright-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+  `202M`, including `123M` `UnityFramework.framework` and `27M`
+  `UnityFramework.framework/Data`.
+- Install:
+  `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log`,
+  installed `com.celeste.makeupar.validation`.
+- Launch:
+  `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`,
+  launched `com.celeste.makeupar.validation`.
+
+No face screenshots, recordings, or raw frames were captured by default.
+
 ## Device QA
 
 Start in HUD mode with `lip` active by default, then select `brow`.
@@ -168,7 +205,11 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   removes high-arch/legacy masks from the user-facing picker, starts opacity and
   intensity at `0.75`, starts `Brow Spread` at `0.20`, widens horizontal spread
   to `±0.34`, and strengthens Unity brow alpha response. This follow-up tuning
-  is not installed on the iPhone yet.
+  is now included in the latest installed PNG/bright brow build.
+- The latest installed PNG/bright brow build also includes user-authored PNG
+  brow hair candidates (`Daily hair`, `Natural hair`, `Narrow hair`,
+  `Light brown`), `Texture Detail`, and the `light_brown` normal-composition
+  split for PNG-derived brow hair. User visual QA is pending.
 
 ## Brow Parameter Tuning Guide
 
@@ -207,6 +248,10 @@ Check:
 - `Soft flat` (`brow-back-arch-soft-mix-v1`) is selected for brow by default.
 - `Slim tail fine` (`brow-slim-tail-fine-hair-v1`) can be selected for visual
   comparison.
+- PNG hair candidates `Daily hair`, `Natural hair`, `Narrow hair`, and
+  `Light brown` can be selected and compared.
+- `Texture Detail` changes the visible PNG hair detail without replacing the
+  selected brow color layer.
 - `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains
   attached.
 - The compact AR Status HUD shows `Renderer brow-smooth-region-mask-renderer`
@@ -248,20 +293,21 @@ recordings unless the user explicitly approves storing them.
 Build context:
 
 - Branch/commit: `feature/brow-0626`
+- Commit: `b875be0`
 - Device: `CloudsiPhone`
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
 - UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes,
-  `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`
-- Latest Unity batchmode compile before the rebuild: pass,
-  `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log`
+  `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`
+- Latest relevant Unity batchmode compile before this rebuild: pass,
+  `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
 - UnityFramework rebuild/sync: pass,
-  `evidence/logs/m3-repro-xcodebuild-unityframework-eyebrow-rebuild-20260627-ufw-r1.log`
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-png-bright-20260627-ufw-r1.log`
 - RN/Xcode rebuild: pass on retry,
-  `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log`
+  `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log`
 - Install/launch: pass,
-  `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log`,
-  `evidence/logs/eyebrow-rn-devicectl-launch-rebuild-20260627.log`
+  `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log`,
+  `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`
 
 Minimum observations:
 
