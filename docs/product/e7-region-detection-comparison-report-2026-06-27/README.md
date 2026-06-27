@@ -7,9 +7,9 @@
 
 ## 1. 한 줄 결론
 
-이번 캡처는 정상적으로 들어왔고 ARFace 기반 비교 이미지는 생성됐다. 다만 이번 Mac 로컬 실험에서 직접 자동 인식까지 성공한 후보는 아직 없고, 실제로 볼 수 있는 결과는 `ARFace 기반 추론`과 `색 기반 추론`이다. Apple Vision, face parsing, MediaPipe는 각각 현재 실행 환경 문제로 막혔기 때문에, iPhone 앱 안의 native provider 결과를 다시 저장해서 비교해야 한다.
+이번 캡처는 정상적으로 들어왔고, 로컬에서 ARFace / Apple Vision / MediaPipe / 색 기반 비교 이미지를 생성했다. Apple Vision과 MediaPipe는 눈과 눈썹 landmark를 실제로 만들었고, 피부는 둘 다 semantic skin이 아니라 face contour 또는 face oval 기반의 approximate mask로 생성했다. Face parsing만 현재 Python 환경의 `torch` 부재로 blocked다.
 
-2026-06-27 추가 체크포인트: iOS native provider가 `vision_face_landmarks.json` / `mediapipe_face_landmarks.json`을 capture pair 폴더에 저장하는 경로는 구현됐고, `xcodebuild` generic iPhoneOS build는 통과했다. 아직 실제 iPhone에서 provider를 실행해 JSON을 가져오지는 않았으므로 Vision/MediaPipe 샘플은 계속 `blocked`로 표시한다.
+2026-06-27 추가 체크포인트: Apple Vision은 sandbox 안에서는 Vision/ANE 리소스 접근 문제로 실패했지만, sandbox 밖 local Swift 실행에서는 `vision_face_landmarks.json`을 생성했다. MediaPipe는 Codex shell에서는 macOS GL/Metal helper 문제로 abort됐지만, GUI-capable Terminal 세션에서는 `mediapipe_face_landmarks.json`을 생성했다. 따라서 이번 보고서는 iPhone 앱 실행 없이 local-only 생성 결과를 기준으로 정리한다.
 
 ## 2. 왜 이 실험을 했나
 
@@ -22,10 +22,10 @@
 | 후보 | 이번 실험에서 하려던 역할 | 이번 결과 |
 | --- | --- | --- |
 | ARFace / ARKit | 얼굴 mesh와 UV 좌표를 이용한 안정적인 위치 기준 | 실행됨. 단, 직접 인식이 아니라 geometry 기반 추론 |
-| Apple Vision | 눈, 눈썹 landmark 직접 추출 | Mac Swift/Vision request 실패로 blocked |
+| Apple Vision | 눈, 눈썹 landmark 직접 추출 | 실행됨. 눈/눈썹 available, 피부는 face contour 기반 approximate |
 | Face parsing | 피부, 눈, 눈썹 semantic label 추출 | 현재 Python 환경에 `torch`가 없어 blocked |
 | 색 / 밝기 / gradient | 피부색, 눈 흰자/어두운 눈, 눈썹 털 보조 추출 | 실행됨. 단, 보조 신호 수준 |
-| MediaPipe | face landmark로 눈/눈썹/face oval 추출 | macOS GL/Metal helper native abort로 blocked |
+| MediaPipe | face landmark로 눈/눈썹/face oval 추출 | GUI Terminal 우회로 실행됨. 눈/눈썹 available, 피부는 face oval 기반 approximate |
 
 ## 3. 입력 사진
 
@@ -60,7 +60,7 @@
 | `approximate` | 직접 인식이 아니라 geometry, UV prior, 색 등의 추론 결과 |
 | `blocked` | 현재 로컬 실행 환경에서 실행 실패 또는 필수 dependency 없음 |
 
-이번 결과는 `available`이 없다. 즉, 현재 보고서에서 볼 수 있는 마스크는 모두 제품용 자동 인식 결과가 아니라 실험용 추론 결과다.
+이번 결과에서 `available`은 Vision eye/brow, MediaPipe eye/brow다. 단, 피부는 Vision/MediaPipe 모두 true skin semantic label이 아니라 얼굴 윤곽 기반 approximate다. 이 결과는 제품 품질 승인이나 iPhone runtime 증거가 아니라, 로컬 단일 프레임 비교용이다.
 
 ## 5. 후보별 상세 결과
 
@@ -120,7 +120,7 @@ ARFace는 runtime substrate로는 계속 유리하다. 다만 눈썹/아이라�
 
 ### 5.3 Apple Vision
 
-Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 있다. 하지만 이번 Mac buildless Swift 실행에서는 `VNDetectFaceLandmarksRequest`가 모든 orientation에서 실패했다.
+Apple Vision은 눈과 눈썹 landmark를 직접 제공한다. sandbox 안의 Mac buildless Swift 실행에서는 `VNDetectFaceLandmarksRequest`가 모든 orientation에서 실패했지만, sandbox 밖 local Swift 실행에서는 같은 입력 사진에서 face contour, eye, eyebrow, nose, lip landmark를 생성했다.
 
 <table>
   <tr>
@@ -129,13 +129,21 @@ Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 �
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/eye_overlay.png" width="220" alt="vision eye blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/skin_overlay.png" width="220" alt="vision skin blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/brow_overlay.png" width="220" alt="vision brow blocked panel"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/eye_overlay.png" width="220" alt="vision eye overlay"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/skin_overlay.png" width="220" alt="vision skin overlay"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/brow_overlay.png" width="220" alt="vision brow overlay"></td>
   </tr>
 </table>
 
-로컬 doctor 결과:
+직접 실행 결과:
+
+- `vision_face_landmarks.json` 생성 완료
+- face confidence: `1.0`
+- `leftEye/rightEye`: 각 6점
+- `leftEyebrow/rightEyebrow`: 각 6점
+- `faceContour`: 17점
+
+sandbox doctor 결과:
 
 - `VNDetectFaceRectanglesRequest`: 모든 orientation에서 ANE model load 오류로 실패
 - `VNDetectFaceLandmarksRequest`: 모든 orientation에서 `Unspecified error`
@@ -144,13 +152,14 @@ Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 �
 중요한 해석:
 
 - 이것은 "Apple Vision이 이 얼굴을 못 찾는다"는 증거가 아니다.
-- 현재 Mac Swift/Vision 실행 환경에서 request가 실패했다는 증거다.
-- iPhone 앱 안의 native Vision provider는 별도로 검증해야 한다.
+- sandbox 환경에서 Vision/ANE 리소스 접근이 실패했다는 증거에 가깝다.
+- sandbox 밖 local Swift 실행은 성공했으므로, Vision은 이번 부위 비교에서 실제 샘플을 만들 수 있는 후보로 복구됐다.
 
-다음 액션:
+관찰:
 
-- 앱에서 native Vision 결과를 JSON으로 저장하고, 같은 비교 스크립트가 그 결과를 읽게 만드는 것이 가장 빠르다.
-- 특히 눈/눈썹은 Vision이 성공하면 ARFace/color보다 훨씬 좋은 기준점이 될 가능성이 있다.
+- 눈: 실제 눈 opening에 매우 가까운 작은 mask를 만든다. ARFace eye prior보다 훨씬 좁고 직접적이다.
+- 피부: Vision은 true skin label을 주지 않으므로 faceContour를 ARFace face surface로 clip한 approximate다. 이마 위쪽은 덜 잡히고, 볼/하관 중심이다.
+- 눈썹: eyebrow landmark stroke가 실제 눈썹 위치와 대체로 잘 맞는다. 다만 털 두께/농도는 알지 못한다.
 
 ### 5.4 Face parsing
 
@@ -175,7 +184,7 @@ Face parsing은 runtime primary로 쓰기보다는 offline silver reference나 �
 
 ### 5.5 MediaPipe
 
-MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval의 geometric 기준으로 유리하다. 하지만 이번 Mac 로컬 Python 실행에서는 FaceLandmarker native graph가 macOS GL/Metal helper service를 열지 못해 abort됐다. 기존 retry script로 여러 variant를 돌렸지만 모두 실패했다.
+MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval의 geometric 기준으로 유리하다. Codex shell의 Python 실행에서는 FaceLandmarker native graph가 macOS GL/Metal helper service를 열지 못해 abort됐지만, 같은 `.venv`와 같은 model을 GUI-capable Terminal 세션에서 실행하자 full-face landmark 478개가 생성됐다.
 
 <table>
   <tr>
@@ -184,17 +193,21 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/eye_overlay.png" width="220" alt="mediapipe eye blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/skin_overlay.png" width="220" alt="mediapipe skin blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/brow_overlay.png" width="220" alt="mediapipe brow blocked panel"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/eye_overlay.png" width="220" alt="mediapipe eye overlay"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/skin_overlay.png" width="220" alt="mediapipe skin overlay"></td>
+    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/brow_overlay.png" width="220" alt="mediapipe brow overlay"></td>
   </tr>
 </table>
 
-판단:
+직접 실행 결과:
 
-이 실패는 Mac 로컬 실험 환경 문제에 가깝다. iOS 앱에는 이미 native MediaPipe provider 준비가 들어가 있으므로, 다음 비교는 앱이 저장한 native MediaPipe landmark 결과를 직접 가져오는 편이 더 현실적이다.
+- `mediapipe_face_landmarks.json` 생성 완료
+- full-face landmark count: `478`
+- `leftEye/rightEye`: 각 16점
+- `leftEyebrow/rightEyebrow`: 각 10점
+- `faceOval`: 36점
 
-로컬 doctor 결과:
+Codex shell doctor 결과:
 
 - MediaPipe Python import: 성공
 - 설치 버전: `0.10.35`
@@ -202,15 +215,27 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
 - Tasks Vision API: import 가능
 - Tasks FaceLandmarker retry: exit code `1`, macOS native helper 문제로 usable landmark 생성 실패
 
+중요한 해석:
+
+- MediaPipe 후보 자체가 실패한 것이 아니라, Codex shell이 GL/Metal helper를 만들지 못한 것이다.
+- GUI Terminal에서는 같은 로컬 사진과 같은 model로 성공했다.
+- 따라서 현재 로컬 실험에서는 MediaPipe eye/brow/face oval 샘플을 비교 후보로 사용할 수 있다.
+
+관찰:
+
+- 눈: Vision과 비슷하게 좁은 eye opening mask를 만든다. 눈 위치는 잘 맞는다.
+- 피부: face oval polygon이라 얼굴 전체 표면 substrate로는 유용하지만, 눈/입/눈썹 제외 semantic skin은 아니다.
+- 눈썹: Vision보다 점이 많아 arc가 조금 더 안정적으로 보인다. 실제 털 경계는 색 refine이 필요하다.
+
 ## 6. 숫자로 본 이번 결과
 
 | 후보 | 눈 pixel | 피부 pixel | 눈썹 pixel | 상태 요약 |
 | --- | ---: | ---: | ---: | --- |
 | ARFace | 31,479 | 733,128 | 9,562 | 전부 approximate |
-| Apple Vision | 0 | 0 | 0 | Mac Swift/Vision 실행 blocked |
+| Apple Vision | 11,404 | 473,674 | 21,150 | eye/brow available, skin approximate |
 | Face parsing | 0 | 0 | 0 | `torch` 없음 |
 | 색 기반 | 41,604 | 684,685 | 23,127 | 전부 approximate |
-| MediaPipe | 0 | 0 | 0 | macOS native graph abort |
+| MediaPipe | 12,389 | 722,579 | 21,584 | eye/brow available, skin approximate |
 
 숫자는 품질 점수가 아니다. 어떤 후보가 어느 정도 면적을 잡았는지 보는 참고값이다.
 
@@ -222,10 +247,10 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
 
 - 눈은 "눈 주변 영역" 정도는 잡았지만, 아이라인이나 아이섀도우 경계에 필요한 눈꺼풀/속눈썹 라인은 아니다.
 - 피부는 얼굴 표면이나 피부색 영역을 크게 잡았을 뿐, 볼/블러셔 영역처럼 의도된 cosmetic placement가 아니다.
-- 눈썹은 색 기반 결과가 가장 그럴듯하지만, 조명과 털 색에 의존한다.
-- Vision, MediaPipe, face parsing의 직접 신호가 이번 로컬 비교에서 살아 있지 않아 최종 조합 판단이 아직 불완전하다.
+- 눈썹은 Vision/MediaPipe landmark가 위치 기준으로 가장 안정적이고, 색 기반은 실제 털 영역 refine에 유용하다.
+- Face parsing semantic label은 아직 없어 피부/눈/눈썹을 semantic mask 기준으로 평가하지는 못했다.
 
-그래도 이 실험은 쓸모가 있다. ARFace는 위치 고정용, 색 기반은 실제 털/피부색 refine용이라는 역할이 분명해졌고, blocked된 후보들은 "버릴 후보"가 아니라 "다음에는 앱 native output으로 가져와야 하는 후보"로 정리됐다.
+이번 실험의 핵심 인사이트는 역할 분리다. Vision/MediaPipe는 눈과 눈썹의 직접 landmark 기준으로 유리하고, ARFace는 runtime 고정/face surface substrate로 유리하며, 색 기반은 실제 털/피부색 refine에 유용하다. 피부/볼은 아직 "피부 전체 인식"보다 "ARFace substrate 위 cheek placement" 문제로 보는 편이 맞다.
 
 ## 8. 부위별 유력 조합 가설
 
@@ -234,7 +259,7 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
 현재 최선 가설:
 
 ```txt
-native Vision 또는 native MediaPipe eye landmarks
+Vision 또는 MediaPipe eye landmarks
 + ARFace UV/mesh로 runtime 고정
 + 색 기반 dark/white pixel 보조
 + 사용자 조정: 위아래 위치, 두께, 눈꼬리, 부드러움
@@ -261,7 +286,7 @@ ARFace face surface
 현재 최선 가설:
 
 ```txt
-native Vision 또는 MediaPipe eyebrow landmarks
+Vision 또는 MediaPipe eyebrow landmarks
 + 색 기반 dark-hair refine
 + ARFace로 얼굴 움직임에 고정
 + 사용자 조정: 높이, arch, tail 길이, 두께, 좌우 밸런스
@@ -271,16 +296,15 @@ native Vision 또는 MediaPipe eyebrow landmarks
 
 ## 9. 다음 작업 제안
 
-가장 중요한 다음 단계는 Mac 로컬 provider 실패를 붙잡는 것보다, 앱이 이미 찍은 capture pair 흐름 안에서 native provider 결과를 저장하게 만드는 것이다.
+가장 중요한 다음 단계는 로컬 단일 프레임 결과를 바탕으로 부위별 조합을 좁히는 것이다. iPhone runtime 검증은 나중에 필요하지만, 지금 질문의 답은 local-only 사진 생성과 비교이므로 앱 실행은 이번 보고서의 필수 조건이 아니다.
 
 우선순위:
 
-1. iPhone 앱에서 native Vision 결과를 capture pair 폴더에 저장한다.
-2. iPhone 앱에서 native MediaPipe 결과를 capture pair 폴더에 저장한다.
-3. `devicectl copy from`으로 앱 Documents의 capture pair 폴더를 가져온다.
-4. 이 보고서의 비교 스크립트가 그 JSON을 읽어 같은 contact sheet를 다시 만든다.
-5. face parsing은 local research 기준으로 필요할 때만 `torch` 환경을 복구한다.
-6. 다음 비교는 `neutral` 한 장이 아니라 `neutral / smile / blink / yaw`까지 포함해 안정성을 본다.
+1. 눈: Vision vs MediaPipe eye opening 중 어느 쪽이 아이라인/아이섀도우 seed로 더 좋은지 crop 기준으로 비교한다.
+2. 눈썹: Vision/MediaPipe brow landmark를 색 기반 dark-hair refine과 결합해 실제 털 두께에 가까운 후보를 만든다.
+3. 피부/볼: ARFace face surface를 substrate로 두고, cheek placement는 parametric/UV prior로 따로 만든다.
+4. Face parsing은 local research 기준으로 필요할 때만 `torch` 환경을 복구해 semantic reference로 쓴다.
+5. 다음 비교는 `neutral` 한 장이 아니라 `neutral / smile / blink / yaw`까지 포함해 안정성을 본다.
 
 ## 10. 남은 한계
 
@@ -300,6 +324,10 @@ native Vision 또는 MediaPipe eyebrow landmarks
 | 비교 생성 스크립트 | `scripts/e7_region_detection_compare/build_capture_pair_region_masks.py` |
 | iPhone capture pair pull helper | `scripts/e7_region_detection_compare/pull_ios_capture_pair_and_rebuild.py` |
 | Apple Vision helper | `scripts/e7_region_detection_compare/extract_apple_vision_face_landmarks.swift` |
+| Apple Vision local landmark JSON | `evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/vision_face_landmarks.json` |
+| MediaPipe local full-face helper | `scripts/e7_region_detection_compare/run_mediapipe_full_face_landmarker.py` |
+| MediaPipe GUI Terminal helper | `scripts/e7_region_detection_compare/run_mediapipe_full_face_gui_terminal.sh` |
+| MediaPipe local landmark JSON | `evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/mediapipe_face_landmarks.json` |
 | Apple Vision local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/local_doctor/vision_local_doctor.json` |
 | MediaPipe local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/local_doctor/mediapipe_local_doctor.md` |
 | iOS native provider source | `rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift` |
@@ -312,6 +340,8 @@ native Vision 또는 MediaPipe eyebrow landmarks
 
 - ARFace는 얼굴에 붙이는 기준으로 계속 필요하다.
 - 색 기반은 눈썹과 피부 refine에 도움이 되지만 단독 primary는 아니다.
-- Vision과 MediaPipe는 버릴 후보가 아니라, Mac 로컬이 아니라 iPhone native output으로 다시 비교해야 하는 후보이다.
+- Vision과 MediaPipe는 눈/눈썹 landmark 기준으로 실제 샘플을 만들 수 있다.
+- MediaPipe는 Codex shell에서는 막히지만 GUI Terminal local run으로 샘플 생성이 가능하다.
+- Vision은 sandbox 안에서는 막히지만 sandbox 밖 local Swift run으로 샘플 생성이 가능하다.
 - Face parsing은 runtime 후보보다 offline silver reference/평가 기준으로 살리는 편이 좋다.
 - 제품 흐름에서는 자동 인식 후 사용자 조정축이 반드시 필요하다.
