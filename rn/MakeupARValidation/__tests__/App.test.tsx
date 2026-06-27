@@ -202,6 +202,25 @@ function emitUnityReferenceCapture(
   });
 }
 
+function emitUnityFaceTracking(renderer: ReactTestRenderer.ReactTestRenderer) {
+  const unityView = renderer.root.findByProps({ testID: 'unity-view' });
+
+  ReactTestRenderer.act(() => {
+    unityView.props.onUnityMessage({
+      nativeEvent: {
+        message: JSON.stringify({
+          type: 'face_lifecycle',
+          status: 'tracking',
+          tracked: true,
+          faceDetected: true,
+          faceCount: 1,
+          trackingState: 'Tracking',
+        }),
+      },
+    });
+  });
+}
+
 test('renders personalized Generate home instead of old validation entry', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -246,18 +265,23 @@ test('keeps later steps locked until previous gates are reached', async () => {
   enterGenerateWizard(renderer!);
 
   expect(
-    renderer!.root.findByProps({ testID: 'e7-wizard-step-compare' }).props
+    renderer!.root.findByProps({ testID: 'e7-wizard-step-blend' }).props
       .disabled,
   ).toBe(true);
 
   pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
 
   expect(
     renderer!.root.findByProps({ testID: 'e7-wizard-step-capture' }).props
       .disabled,
+  ).toBe(true);
+  expect(
+    renderer!.root.findByProps({ testID: 'e7-wizard-align-next' }).props
+      .disabled,
   ).toBe(false);
   expect(
-    renderer!.root.findByProps({ testID: 'e7-wizard-step-compare' }).props
+    renderer!.root.findByProps({ testID: 'e7-wizard-step-blend' }).props
       .disabled,
   ).toBe(true);
 });
@@ -270,8 +294,9 @@ test('posts Unity capture request for a wizard neutral shot', async () => {
   });
   enterGenerateWizard(renderer!);
   pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
   pressByTestID(renderer!, 'e7-wizard-align-next');
-  pressByTestID(renderer!, 'e7-capture-shot-neutral');
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
 
   const captureCall = mockUnityPostMessage.mock.calls.find(
     call =>
@@ -293,8 +318,9 @@ test('blocks current-frame generation when native module is unavailable', async 
   });
   enterGenerateWizard(renderer!);
   pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
   pressByTestID(renderer!, 'e7-wizard-align-next');
-  pressByTestID(renderer!, 'e7-capture-shot-neutral');
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
 
   const captureCall = mockUnityPostMessage.mock.calls.find(
     call =>
@@ -303,7 +329,26 @@ test('blocks current-frame generation when native module is unavailable', async 
   const request = JSON.parse(String(captureCall?.[2]));
   emitUnityReferenceCapture(renderer!, request.capturePairId);
 
-  pressByTestID(renderer!, 'e7-wizard-capture-next');
+  for (let index = 1; index < 6; index += 1) {
+    const captureCallForShot = mockUnityPostMessage.mock.calls
+      .filter(
+        call =>
+          call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
+      )
+      .at(-1);
+    const previousRequest = JSON.parse(String(captureCallForShot?.[2]));
+    emitUnityReferenceCapture(renderer!, previousRequest.capturePairId);
+    pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  }
+  const finalCaptureCall = mockUnityPostMessage.mock.calls
+    .filter(
+      call =>
+        call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
+    )
+    .at(-1);
+  const finalRequest = JSON.parse(String(finalCaptureCall?.[2]));
+  emitUnityReferenceCapture(renderer!, finalRequest.capturePairId);
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
   await ReactTestRenderer.act(async () => {
     renderer!.root
       .findByProps({ testID: 'e7-wizard-generate-candidates' })
@@ -313,6 +358,6 @@ test('blocks current-frame generation when native module is unavailable', async 
   const text = collectText(renderer!);
 
   expect(text).toContain('native_boundary_module_unavailable');
-  expect(text).toContain('vision / off');
-  expect(text).not.toContain('mediapipe / off');
+  expect(text).toContain('기본 블렌딩');
+  expect(text).not.toContain('MediaPipe · blocked');
 });

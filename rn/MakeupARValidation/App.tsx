@@ -20,6 +20,7 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
+import type { DimensionValue, ViewStyle } from 'react-native';
 import UnityView from '@azesmway/react-native-unity';
 import {
   SafeAreaProvider,
@@ -265,31 +266,29 @@ const LIP_GENERATE_EXPRESSION_OPTIONS: Array<{
   name: GeneratedExpressionAssistMode;
   label: string;
 }> = [
-  { name: 'uvOnly', label: 'UV Only' },
-  { name: 'blendshapeAssist', label: 'Assist' },
+  { name: 'uvOnly', label: '기본 블렌딩' },
+  { name: 'blendshapeAssist', label: '표정 보정' },
 ];
 const E7_WIZARD_STEPS = [
   'start',
   'align',
   'capture',
   'extract',
-  'compare',
+  'blend',
   'adjust',
-  'save',
-  'runtime',
+  'apply',
 ] as const;
 const E7_CAPTURE_SHOT_OPTIONS: Array<{
   kind: E7CaptureShotKind;
   label: string;
   guidance: string;
 }> = [
-  { kind: 'neutral', label: '정면', guidance: '입을 편하게 닫기' },
-  { kind: 'mouthOpen', label: '벌림', guidance: '입술 경계 확인' },
-  { kind: 'mouthClosed', label: '닫음', guidance: '입술 안쪽 제외' },
-  { kind: 'smile', label: '미소', guidance: '입꼬리 범위' },
-  { kind: 'pucker', label: '오므림', guidance: '볼륨 변화' },
-  { kind: 'yawLeft', label: '왼쪽', guidance: '측면 안정성' },
-  { kind: 'yawRight', label: '오른쪽', guidance: '반대 측면' },
+  { kind: 'neutral', label: '정면 기준', guidance: '입에 힘 빼고 정면' },
+  { kind: 'mouthOpen', label: '살짝 벌림', guidance: '입 안쪽 분리 확인' },
+  { kind: 'smile', label: '미소', guidance: '입꼬리 확장 확인' },
+  { kind: 'pucker', label: '오므림', guidance: '중앙 압축 확인' },
+  { kind: 'yawLeft', label: '왼쪽 각도', guidance: '가림/투영 안정성' },
+  { kind: 'yawRight', label: '오른쪽 각도', guidance: '가림/투영 안정성' },
 ];
 const GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64 =
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAA////////////////////////////////AAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
@@ -420,6 +419,19 @@ type E7SavedPackageRecord = {
   packagePath?: string;
   metadataPath?: string;
   status?: string;
+};
+type E7GeneratedApplyState =
+  | 'idle'
+  | 'saving'
+  | 'posting'
+  | 'waitingAck'
+  | 'applied'
+  | 'blocked';
+type E7AlignmentGateState = 'waiting' | 'ready' | 'blocked';
+type E7AlignmentGate = {
+  label: string;
+  value: string;
+  state: E7AlignmentGateState;
 };
 type RegionRecipe = {
   color: RecipeColor;
@@ -795,7 +807,7 @@ function HomeScreen({
         <Text style={styles.title}>맞춤 Generate</Text>
         <Text style={styles.statusLabel}>로컬 생성 준비</Text>
         <Text style={styles.statusText}>
-          {`Entry #${nextEntryCount}. 얼굴 정렬, 촬영, 후보 비교, 조정, 저장을 순서대로 진행합니다. Completed exits ${completedCycles}/3.`}
+          {`Entry #${nextEntryCount}. 얼굴 정렬, 촬영, 블렌딩 선택, 조정, 저장하고 AR 실행을 순서대로 진행합니다. Completed exits ${completedCycles}/3.`}
         </Text>
       </View>
 
@@ -889,6 +901,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     useState(false);
   const [savedGeneratedPackage, setSavedGeneratedPackage] =
     useState<E7SavedPackageRecord | null>(null);
+  const [generatedApplyState, setGeneratedApplyState] =
+    useState<E7GeneratedApplyState>('idle');
+  const [pendingGeneratedMaskId, setPendingGeneratedMaskId] =
+    useState<string | null>(null);
   const [wizardNotice, setWizardNotice] = useState(
     '촬영부터 시작하는 맞춤 Generate flow입니다.',
   );
@@ -1569,8 +1585,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       setGeneratedCandidatesStale(false);
       setSavedGeneratedPackage(null);
+      setGeneratedApplyState('idle');
+      setPendingGeneratedMaskId(null);
       if (!options?.stayOnStep) {
-        setWizardStep('compare');
+        setWizardStep('blend');
       }
       setWizardNotice(
         candidates.some(candidate => candidate.package)
@@ -1578,7 +1596,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? '조정값이 현재 후보에 자동 반영되었습니다.'
             : `${formatProviderLabel(
                 lipGenerateProvider,
-              )} 후보 생성 완료. 비교 후 조정/저장하세요.`
+              )} 후보 생성 완료. 블렌딩 선택 후 조정하세요.`
           : '후보 생성이 막혔습니다. provider blockedReason을 확인하세요.',
       );
     } catch (error) {
@@ -1598,7 +1616,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const saveSelectedGeneratedPackage = useCallback(async () => {
     if (isSavingGeneratedPackage || generatedCandidatesStale) {
-      setWizardNotice('조정값 변경 후에는 다시 생성해야 저장할 수 있습니다.');
+      setWizardNotice('조정값은 현재 후보에 즉시 반영되어야 합니다. 후보를 다시 확인하세요.');
       return;
     }
     const selectedCandidate = generatedCandidates.find(
@@ -1610,6 +1628,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }
 
     setIsSavingGeneratedPackage(true);
+    setGeneratedApplyState('saving');
+    setPendingGeneratedMaskId(selectedCandidate.package.generatedMaskId);
     try {
       const packageJson = JSON.stringify(selectedCandidate.package);
       const recordJson =
@@ -1630,16 +1650,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `${selectedCandidate.provider}/${selectedCandidate.expressionMode} saved`,
       );
       setActiveRegions(regions => ({ ...regions, lip: true }));
+      setGeneratedApplyState('posting');
       unityRef.current?.postMessage(
         'RNBridge',
         'ApplyGeneratedLipMaskJson',
         unityMessageJson,
       );
-      setWizardStep('runtime');
-      setWizardNotice('저장 완료. Unity runtime apply payload를 보냈습니다.');
+      setGeneratedApplyState('waitingAck');
+      setWizardStep('apply');
+      setWizardNotice('저장 완료. Unity generated_lip_mask_applied ack를 기다립니다.');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unknown_save_error';
+      setGeneratedApplyState('blocked');
       setWizardNotice(`저장 실패: ${message}`);
     } finally {
       setIsSavingGeneratedPackage(false);
@@ -1685,6 +1708,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             logE7RecipeLatency(parsed, receivedAtMs);
           }
           postRecipeAck(parsed, receivedAtMs);
+        }
+
+        if (parsed.type === 'generated_lip_mask_applied') {
+          const generatedMaskId =
+            typeof parsed.generatedMaskId === 'string'
+              ? parsed.generatedMaskId
+              : '';
+          const status = String(parsed.status ?? 'unknown');
+          const isMatchingPendingMask =
+            !pendingGeneratedMaskId ||
+            !generatedMaskId ||
+            generatedMaskId === pendingGeneratedMaskId;
+          const isApplied =
+            isMatchingPendingMask &&
+            status !== 'blocked' &&
+            parsed.applied === true &&
+            parsed.uvAvailable === true &&
+            (readNumber(parsed.maskTriangles) ?? 0) > 0;
+
+          if (isApplied) {
+            setGeneratedApplyState('applied');
+            setPendingGeneratedMaskId(null);
+            setWizardNotice(
+              'Unity 적용 ack 확인. Generate UI를 접고 AR 립 화면에서 확인합니다.',
+            );
+          } else {
+            setGeneratedApplyState('blocked');
+            setWizardNotice(
+              `Unity 적용 실패 또는 미확인: ${String(
+                parsed.error ?? parsed.status ?? 'unknown',
+              )}`,
+            );
+          }
         }
 
         if (parsed.type === 'e7_reference_capture') {
@@ -1794,7 +1850,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         );
       }
     },
-    [pendingCaptureShotKind, postRecipeAck, validationViewMode],
+    [pendingCaptureShotKind, pendingGeneratedMaskId, postRecipeAck, validationViewMode],
   );
 
   useEffect(() => {
@@ -1871,19 +1927,59 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
   const showFullDebug = validationViewMode === 'full';
   const capturedShotCount = countCapturedShots(captureShots);
+  const faceAlignmentTracked =
+    latestLifecycle?.tracked === true ||
+    latestLifecycle?.faceDetected === true ||
+    (readNumber(latestLifecycle?.faceCount) ?? 0) > 0 ||
+    String(latestLifecycle?.trackingState ?? '').toLowerCase() === 'tracking';
+  const faceAlignmentReady =
+    Boolean(latestLifecycle) && faceAlignmentTracked;
+  const alignmentGates: E7AlignmentGate[] = [
+    {
+      label: '얼굴 추적',
+      value: latestLifecycle
+        ? faceAlignmentTracked
+          ? 'tracking'
+          : 'not found'
+        : '측정 대기',
+      state: latestLifecycle
+        ? faceAlignmentTracked
+          ? 'ready'
+          : 'blocked'
+        : 'waiting',
+    },
+    {
+      label: '정면',
+      value: latestLifecycle ? 'tracked 기준' : '측정 대기',
+      state: latestLifecycle ? (faceAlignmentTracked ? 'ready' : 'blocked') : 'waiting',
+    },
+    {
+      label: '밝기',
+      value: latestMetric ? 'metric 수신' : '측정 대기',
+      state: latestMetric ? 'ready' : 'waiting',
+    },
+    {
+      label: '흔들림',
+      value: latestMetric ? 'frame 안정' : '측정 대기',
+      state: latestMetric ? 'ready' : 'waiting',
+    },
+  ];
   const selectedGeneratedCandidate =
     generatedCandidates.find(
       candidate => candidate.candidateKey === selectedGeneratedCandidateKey,
     ) ?? generatedCandidates[0];
   const selectedNativeProviderResult = nativeProviderResults[lipGenerateProvider];
   const selectedFramePreviewUri = selectedNativeProviderResult?.framePreviewUri;
-  const canGenerateCandidates = isCapturedShot(captureShots.neutral);
+  const canGenerateCandidates =
+    isCapturedShot(captureShots.neutral) &&
+    capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length;
   const canSaveGeneratedPackage = Boolean(
     selectedGeneratedCandidate?.package && !generatedCandidatesStale,
   );
   const wizardStepIndex = getWizardStepIndex(wizardStep);
+  const hasGeneratedMaskApplied = generatedApplyState === 'applied';
   const isUsingCapturedFrameReview =
-    wizardStepIndex >= getWizardStepIndex('extract');
+    wizardStepIndex >= getWizardStepIndex('extract') && !hasGeneratedMaskApplied;
   const showCompactControls = false;
 
   const toggleRegion = useCallback(
@@ -2150,60 +2246,70 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           </View>
         </View>
 
-        <E7GenerateWizard
-          activeStep={wizardStep}
-          activeStepIndex={wizardStepIndex}
-          captureSetId={captureSetId}
-          captureShots={captureShots}
-          capturedShotCount={capturedShotCount}
-          generatedCandidates={generatedCandidates}
-          generatedCandidatesStale={generatedCandidatesStale}
-          isGeneratingCandidates={isGeneratingCandidates}
-          isSavingGeneratedPackage={isSavingGeneratedPackage}
-          nativeProviderResults={nativeProviderResults}
-          notice={wizardNotice}
-          canGenerateCandidates={canGenerateCandidates}
-          canSaveGeneratedPackage={canSaveGeneratedPackage}
-          savedGeneratedPackage={savedGeneratedPackage}
-          selectedProvider={lipGenerateProvider}
-          selectedFramePreviewUri={selectedFramePreviewUri}
-          selectedCandidateKey={selectedGeneratedCandidateKey}
-          selectedLipSample={selectedLipSample}
-          lipUserAdjustment={lipUserAdjustment}
-          activeLipAdjustment={activeLipAdjustment}
-          activeLipAdjustmentField={activeLipAdjustmentField}
-          onStepRequest={step => {
-            const requestedIndex = getWizardStepIndex(step);
-            if (requestedIndex <= wizardStepIndex + 1) {
-              setWizardStep(step);
-            } else {
-              setWizardNotice('이전 단계를 먼저 통과해야 합니다.');
-            }
-          }}
-          onBack={() => {
-            const previousStep = E7_WIZARD_STEPS[wizardStepIndex - 1];
-            if (previousStep) {
-              setWizardStep(previousStep);
-            }
-          }}
-          onCaptureShot={postWizardCaptureShot}
-          onSelectProvider={provider => {
-            setLipGenerateProvider(provider);
-            setNativeProviderResults({});
-            setGeneratedCandidates([]);
-            setSavedGeneratedPackage(null);
-            setGeneratedCandidatesStale(false);
-            setSelectedGeneratedCandidateKey(`${provider}/uvOnly`);
-            setWizardNotice(
-              `${formatProviderLabel(provider)} 추출 방식이 선택되었습니다.`,
-            );
-          }}
-          onGenerateCandidates={generateWizardCandidates}
-          onSelectCandidate={setSelectedGeneratedCandidateKey}
-          onSelectAdjustmentField={setActiveLipAdjustmentField}
-          onAdjustLip={updateLipUserAdjustment}
-          onSave={saveSelectedGeneratedPackage}
-        />
+        {hasGeneratedMaskApplied ? (
+          <GeneratedRuntimeAppliedBanner notice={wizardNotice} />
+        ) : (
+          <E7GenerateWizard
+            activeStep={wizardStep}
+            activeStepIndex={wizardStepIndex}
+            captureSetId={captureSetId}
+            captureShots={captureShots}
+            capturedShotCount={capturedShotCount}
+            alignmentGates={alignmentGates}
+            generatedCandidates={generatedCandidates}
+            generatedCandidatesStale={generatedCandidatesStale}
+            generatedApplyState={generatedApplyState}
+            isGeneratingCandidates={isGeneratingCandidates}
+            isSavingGeneratedPackage={isSavingGeneratedPackage}
+            nativeProviderResults={nativeProviderResults}
+            notice={wizardNotice}
+            canProceedFromAlign={faceAlignmentReady}
+            canGenerateCandidates={canGenerateCandidates}
+            canSaveGeneratedPackage={canSaveGeneratedPackage}
+            savedGeneratedPackage={savedGeneratedPackage}
+            selectedProvider={lipGenerateProvider}
+            selectedFramePreviewUri={selectedFramePreviewUri}
+            selectedCandidate={selectedGeneratedCandidate}
+            selectedCandidateKey={selectedGeneratedCandidateKey}
+            selectedLipSample={selectedLipSample}
+            lipUserAdjustment={lipUserAdjustment}
+            activeLipAdjustment={activeLipAdjustment}
+            activeLipAdjustmentField={activeLipAdjustmentField}
+            onStepRequest={step => {
+              const requestedIndex = getWizardStepIndex(step);
+              if (requestedIndex <= wizardStepIndex + 1) {
+                setWizardStep(step);
+              } else {
+                setWizardNotice('이전 단계를 먼저 통과해야 합니다.');
+              }
+            }}
+            onBack={() => {
+              const previousStep = E7_WIZARD_STEPS[wizardStepIndex - 1];
+              if (previousStep) {
+                setWizardStep(previousStep);
+              }
+            }}
+            onCaptureShot={postWizardCaptureShot}
+            onSelectProvider={provider => {
+              setLipGenerateProvider(provider);
+              setNativeProviderResults({});
+              setGeneratedCandidates([]);
+              setSavedGeneratedPackage(null);
+              setGeneratedApplyState('idle');
+              setPendingGeneratedMaskId(null);
+              setGeneratedCandidatesStale(false);
+              setSelectedGeneratedCandidateKey(`${provider}/uvOnly`);
+              setWizardNotice(
+                `${formatProviderLabel(provider)} 추출 방식이 선택되었습니다.`,
+              );
+            }}
+            onGenerateCandidates={generateWizardCandidates}
+            onSelectCandidate={setSelectedGeneratedCandidateKey}
+            onSelectAdjustmentField={setActiveLipAdjustmentField}
+            onAdjustLip={updateLipUserAdjustment}
+            onSave={saveSelectedGeneratedPackage}
+          />
+        )}
 
         {showFullDebug && (
           <View style={styles.debugPanel}>
@@ -2689,19 +2795,23 @@ type E7GenerateWizardProps = {
   captureSetId: string;
   captureShots: Record<E7CaptureShotKind, E7CaptureShotState>;
   capturedShotCount: number;
+  alignmentGates: E7AlignmentGate[];
   generatedCandidates: E7GeneratedCandidate[];
   generatedCandidatesStale: boolean;
+  generatedApplyState: E7GeneratedApplyState;
   isGeneratingCandidates: boolean;
   isSavingGeneratedPackage: boolean;
   nativeProviderResults: Partial<
     Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>
   >;
   notice: string;
+  canProceedFromAlign: boolean;
   canGenerateCandidates: boolean;
   canSaveGeneratedPackage: boolean;
   savedGeneratedPackage: E7SavedPackageRecord | null;
   selectedProvider: GeneratedLipMaskProvider;
   selectedFramePreviewUri?: string;
+  selectedCandidate?: E7GeneratedCandidate;
   selectedCandidateKey: string;
   selectedLipSample: LipSample;
   lipUserAdjustment: LipUserAdjustment;
@@ -2724,17 +2834,21 @@ function E7GenerateWizard({
   captureSetId,
   captureShots,
   capturedShotCount,
+  alignmentGates,
   generatedCandidates,
   generatedCandidatesStale,
+  generatedApplyState,
   isGeneratingCandidates,
   isSavingGeneratedPackage,
   nativeProviderResults,
   notice,
+  canProceedFromAlign,
   canGenerateCandidates,
   canSaveGeneratedPackage,
   savedGeneratedPackage,
   selectedProvider,
   selectedFramePreviewUri,
+  selectedCandidate,
   selectedCandidateKey,
   selectedLipSample,
   lipUserAdjustment,
@@ -2750,9 +2864,17 @@ function E7GenerateWizard({
   onAdjustLip,
   onSave,
 }: E7GenerateWizardProps) {
-  const selectedCandidate = generatedCandidates.find(
-    candidate => candidate.candidateKey === selectedCandidateKey,
+  const selectedGeneratedCandidate =
+    selectedCandidate ??
+    generatedCandidates.find(
+      candidate => candidate.candidateKey === selectedCandidateKey,
+    );
+  const nextCaptureShot = E7_CAPTURE_SHOT_OPTIONS.find(
+    shot => !isCapturedShot(captureShots[shot.kind]),
   );
+  const isNextCaptureInProgress = nextCaptureShot
+    ? captureShots[nextCaptureShot.kind].status === 'capturing'
+    : false;
   const visionStatus = nativeProviderResults.vision?.status ?? 'pending';
   const mediapipeStatus = nativeProviderResults.mediapipe?.status ?? 'pending';
 
@@ -2771,7 +2893,7 @@ function E7GenerateWizard({
         >
           {E7_WIZARD_STEPS.map((step, index) => {
             const isActive = step === activeStep;
-            const isLocked = index > activeStepIndex + 1;
+            const isLocked = index > activeStepIndex;
 
             return (
               <Pressable
@@ -2850,20 +2972,26 @@ function E7GenerateWizard({
         {activeStep === 'align' && (
           <View style={styles.generateWizardBody}>
             <View style={styles.generateWizardCheckGrid}>
-              {['얼굴 추적', '정면', '밝기', '흔들림'].map(item => (
-                <View style={styles.generateWizardCheckItem} key={item}>
-                  <Text style={styles.generateWizardCheckMark}>✓</Text>
-                  <Text style={styles.generateWizardCheckText}>{item}</Text>
-                </View>
+              {alignmentGates.map(gate => (
+                <AlignmentGatePill gate={gate} key={gate.label} />
               ))}
             </View>
+            <Text style={styles.generateWizardBodyText}>
+              얼굴 추적 신호가 없으면 통과 체크를 표시하지 않습니다.
+            </Text>
             <Pressable
               accessibilityRole="button"
+              disabled={!canProceedFromAlign}
               testID="e7-wizard-align-next"
-              style={styles.generateWizardPrimaryButton}
+              style={[
+                styles.generateWizardPrimaryButton,
+                !canProceedFromAlign && styles.generateWizardButtonDisabled,
+              ]}
               onPress={() => onStepRequest('capture')}
             >
-              <Text style={styles.generateWizardPrimaryText}>촬영으로 이동</Text>
+              <Text style={styles.generateWizardPrimaryText}>
+                {canProceedFromAlign ? '촬영으로 이동' : '얼굴 측정 대기'}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -2872,50 +3000,66 @@ function E7GenerateWizard({
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
               {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length} 컷 완료.
-              neutral은 native 추출 필수 입력입니다.
+              버튼 하나로 필요한 표정 큐를 순서대로 저장합니다.
             </Text>
             <View style={styles.generateWizardShotGrid}>
               {E7_CAPTURE_SHOT_OPTIONS.map(shot => {
                 const state = captureShots[shot.kind];
                 const isDone = state.status === 'captured';
                 const isCapturing = state.status === 'capturing';
+                const isNext = nextCaptureShot?.kind === shot.kind;
 
                 return (
-                  <Pressable
-                    accessibilityRole="button"
+                  <View
                     key={shot.kind}
                     testID={`e7-capture-shot-${shot.kind}`}
-                    disabled={isCapturing}
-                    style={({ pressed }) => [
+                    style={[
                       styles.generateWizardShotButton,
+                      isNext && styles.generateWizardShotButtonNext,
                       isDone && styles.generateWizardShotButtonDone,
                       state.status === 'blocked' &&
                         styles.generateWizardShotButtonBlocked,
-                      pressed && styles.colorButtonPressed,
                     ]}
-                    onPress={() => onCaptureShot(shot.kind)}
                   >
                     <Text style={styles.generateWizardShotLabel}>
                       {shot.label}
                     </Text>
                     <Text style={styles.generateWizardShotMeta}>
-                      {isCapturing ? '촬영 중' : isDone ? '완료' : shot.guidance}
+                      {isCapturing
+                        ? '촬영 중'
+                        : isDone
+                          ? '완료'
+                          : isNext
+                            ? shot.guidance
+                            : '대기'}
                     </Text>
-                  </Pressable>
+                  </View>
                 );
               })}
             </View>
             <Pressable
               accessibilityRole="button"
-              disabled={!canGenerateCandidates}
-              testID="e7-wizard-capture-next"
+              disabled={isNextCaptureInProgress}
+              testID="e7-wizard-capture-primary"
               style={[
                 styles.generateWizardPrimaryButton,
-                !canGenerateCandidates && styles.generateWizardButtonDisabled,
+                isNextCaptureInProgress && styles.generateWizardButtonDisabled,
               ]}
-              onPress={() => onStepRequest('extract')}
+              onPress={() => {
+                if (nextCaptureShot) {
+                  onCaptureShot(nextCaptureShot.kind);
+                } else {
+                  onStepRequest('extract');
+                }
+              }}
             >
-              <Text style={styles.generateWizardPrimaryText}>추출 단계로 이동</Text>
+              <Text style={styles.generateWizardPrimaryText}>
+                {nextCaptureShot
+                  ? isNextCaptureInProgress
+                    ? '촬영 중'
+                    : `${nextCaptureShot.label} 촬영`
+                  : '추출 단계로 이동'}
+              </Text>
             </Pressable>
           </View>
         )}
@@ -2960,7 +3104,7 @@ function E7GenerateWizard({
           </View>
         )}
 
-        {activeStep === 'compare' && (
+        {activeStep === 'blend' && (
           <View style={styles.generateWizardBody}>
             <View style={styles.generateWizardCandidateGrid}>
               {generatedCandidates.map(candidate => {
@@ -2982,10 +3126,10 @@ function E7GenerateWizard({
                     onPress={() => onSelectCandidate(candidate.candidateKey)}
                   >
                     <Text style={styles.generateWizardCandidateTitle}>
-                      {candidate.title}
+                      {formatGeneratedCandidateTitle(candidate)}
                     </Text>
                     <Text style={styles.generateWizardCandidateMeta}>
-                      {candidate.status}
+                      {formatProviderLabel(candidate.provider)} · {candidate.status}
                     </Text>
                     <Text
                       style={styles.generateWizardCandidateReason}
@@ -3001,11 +3145,11 @@ function E7GenerateWizard({
             </View>
             <Pressable
               accessibilityRole="button"
-              disabled={!selectedCandidate?.package}
-              testID="e7-wizard-compare-next"
+              disabled={!selectedGeneratedCandidate?.package}
+              testID="e7-wizard-blend-next"
               style={[
                 styles.generateWizardPrimaryButton,
-                !selectedCandidate?.package &&
+                !selectedGeneratedCandidate?.package &&
                   styles.generateWizardButtonDisabled,
               ]}
               onPress={() => onStepRequest('adjust')}
@@ -3017,28 +3161,11 @@ function E7GenerateWizard({
 
         {activeStep === 'adjust' && (
           <View style={styles.generateWizardBody}>
-            <View style={styles.generatedAdjustmentPreview}>
-              {selectedFramePreviewUri ? (
-                <Image
-                  source={{ uri: selectedFramePreviewUri }}
-                  style={styles.generatedAdjustmentPreviewImage}
-                />
-              ) : (
-                <View style={styles.generatedAdjustmentPreviewEmpty}>
-                  <Text style={styles.generatedAdjustmentPreviewTitle}>
-                    캡처 프레임 프리뷰 대기
-                  </Text>
-                  <Text style={styles.generatedAdjustmentPreviewText}>
-                    Xcode gate에서 file:// frame preview 렌더를 확인합니다.
-                  </Text>
-                </View>
-              )}
-              <View style={styles.generatedAdjustmentMaskBadge}>
-                <Text style={styles.generatedAdjustmentMaskBadgeText}>
-                  {selectedCandidateKey}
-                </Text>
-              </View>
-            </View>
+            <GeneratedAdjustmentPreview
+              candidate={selectedGeneratedCandidate}
+              framePreviewUri={selectedFramePreviewUri}
+              selectedCandidateKey={selectedCandidateKey}
+            />
             <View style={styles.adjustmentFieldButtonRow}>
               {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
                 const isSelected = fieldOption.name === activeLipAdjustmentField;
@@ -3093,53 +3220,65 @@ function E7GenerateWizard({
               <Pressable
                 accessibilityRole="button"
                 disabled={!canSaveGeneratedPackage}
-                testID="e7-wizard-adjust-next"
+                testID="e7-wizard-save-and-run"
                 style={[
                   styles.generateWizardPrimaryButton,
                   !canSaveGeneratedPackage && styles.generateWizardButtonDisabled,
                 ]}
-                onPress={() => onStepRequest('save')}
+                onPress={onSave}
               >
-                <Text style={styles.generateWizardPrimaryText}>저장 단계</Text>
+                <Text style={styles.generateWizardPrimaryText}>
+                  {isSavingGeneratedPackage ? '저장 중' : '저장하고 AR 실행'}
+                </Text>
               </Pressable>
             </View>
           </View>
         )}
 
-        {activeStep === 'save' && (
+        {activeStep === 'apply' && (
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
-              저장은 local-only package와 Unity runtime payload를 함께 고정합니다.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={!canSaveGeneratedPackage || isSavingGeneratedPackage}
-              testID="e7-wizard-save-package"
-              style={[
-                styles.generateWizardPrimaryButton,
-                (!canSaveGeneratedPackage || isSavingGeneratedPackage) &&
-                  styles.generateWizardButtonDisabled,
-              ]}
-              onPress={onSave}
-            >
-              <Text style={styles.generateWizardPrimaryText}>
-                {isSavingGeneratedPackage ? '저장 중' : '마스크 저장'}
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
-        {activeStep === 'runtime' && (
-          <View style={styles.generateWizardBody}>
-            <Text style={styles.generateWizardBodyText}>
-              saved: {savedGeneratedPackage?.status ?? 'pending'}
+              saved: {savedGeneratedPackage?.status ?? 'pending'} / apply:{' '}
+              {generatedApplyState}
             </Text>
             <Text style={styles.generateWizardBodyText} numberOfLines={2}>
               {savedGeneratedPackage?.packagePath ??
-                'Xcode build 전 runtime apply evidence 대기'}
+                'saveGeneratedPackage -> ApplyGeneratedLipMaskJson 대기'}
             </Text>
+            <View style={styles.generateWizardApplyGateGrid}>
+              <ApplyGatePill
+                label="save"
+                value={savedGeneratedPackage ? '완료' : '대기'}
+                ready={Boolean(savedGeneratedPackage)}
+              />
+              <ApplyGatePill
+                label="payload"
+                value={
+                  generatedApplyState === 'posting' ||
+                  generatedApplyState === 'waitingAck' ||
+                  generatedApplyState === 'applied'
+                    ? '전송'
+                    : '대기'
+                }
+                ready={
+                  generatedApplyState === 'waitingAck' ||
+                  generatedApplyState === 'applied'
+                }
+              />
+              <ApplyGatePill
+                label="Unity ack"
+                value={
+                  generatedApplyState === 'applied'
+                    ? '확인'
+                    : generatedApplyState === 'blocked'
+                      ? '차단'
+                      : '대기'
+                }
+                ready={generatedApplyState === 'applied'}
+              />
+            </View>
             <Text style={styles.generateWizardBodyText}>
-              다음 gate: Xcode build/install/run + 실기기 visual evidence.
+              ack 성공 전에는 적용 완료로 표시하지 않습니다.
             </Text>
           </View>
         )}
@@ -3199,11 +3338,172 @@ function ProviderStatusPill({
   );
 }
 
+function GeneratedRuntimeAppliedBanner({ notice }: { notice: string }) {
+  return (
+    <View pointerEvents="none" style={styles.generateAppliedBanner}>
+      <Text style={styles.generateAppliedBannerTitle}>AR 립 적용 중</Text>
+      <Text style={styles.generateAppliedBannerText} numberOfLines={2}>
+        {notice}
+      </Text>
+    </View>
+  );
+}
+
+function AlignmentGatePill({ gate }: { gate: E7AlignmentGate }) {
+  const mark =
+    gate.state === 'ready' ? '✓' : gate.state === 'blocked' ? '!' : '…';
+
+  return (
+    <View
+      style={[
+        styles.generateWizardCheckItem,
+        gate.state === 'ready' && styles.generateWizardCheckItemReady,
+        gate.state === 'blocked' && styles.generateWizardCheckItemBlocked,
+      ]}
+    >
+      <Text style={styles.generateWizardCheckMark}>{mark}</Text>
+      <Text style={styles.generateWizardCheckText}>{gate.label}</Text>
+      <Text style={styles.generateWizardCheckMeta}>{gate.value}</Text>
+    </View>
+  );
+}
+
+function ApplyGatePill({
+  label,
+  value,
+  ready,
+}: {
+  label: string;
+  value: string;
+  ready: boolean;
+}) {
+  return (
+    <View
+      style={[
+        styles.generateWizardApplyGate,
+        ready && styles.generateWizardApplyGateReady,
+      ]}
+    >
+      <Text style={styles.generateWizardApplyGateLabel}>{label}</Text>
+      <Text style={styles.generateWizardApplyGateValue}>{value}</Text>
+    </View>
+  );
+}
+
+function GeneratedAdjustmentPreview({
+  candidate,
+  framePreviewUri,
+  selectedCandidateKey,
+}: {
+  candidate?: E7GeneratedCandidate;
+  framePreviewUri?: string;
+  selectedCandidateKey: string;
+}) {
+  const overlayStyle = buildGeneratedMaskPreviewStyle(candidate?.package);
+
+  return (
+    <View style={styles.generatedAdjustmentPreview}>
+      {framePreviewUri ? (
+        <Image
+          source={{ uri: framePreviewUri }}
+          style={styles.generatedAdjustmentPreviewImage}
+        />
+      ) : (
+        <View style={styles.generatedAdjustmentPreviewEmpty}>
+          <Text style={styles.generatedAdjustmentPreviewTitle}>
+            캡처 프레임 프리뷰 대기
+          </Text>
+          <Text style={styles.generatedAdjustmentPreviewText}>
+            Xcode gate에서 file:// frame preview 렌더를 확인합니다.
+          </Text>
+        </View>
+      )}
+      {overlayStyle ? (
+        <View
+          pointerEvents="none"
+          style={[styles.generatedAdjustmentMaskOverlay, overlayStyle]}
+        />
+      ) : null}
+      <View style={styles.generatedAdjustmentMaskBadge}>
+        <Text style={styles.generatedAdjustmentMaskBadgeText}>
+          {selectedCandidateKey}
+        </Text>
+      </View>
+      <Text style={styles.generatedAdjustmentPreviewCaption}>
+        전체 얼굴 기준 mask overlay
+      </Text>
+    </View>
+  );
+}
+
+function buildGeneratedMaskPreviewStyle(
+  packageData?: LipGeneratePackage,
+): ViewStyle | null {
+  const boundary = packageData?.lipBoundary2D;
+  const frameWidth = packageData?.sourceFrameMetadata?.frameWidth;
+  const frameHeight = packageData?.sourceFrameMetadata?.frameHeight;
+  if (
+    !boundary ||
+    !frameWidth ||
+    !frameHeight ||
+    frameWidth <= 0 ||
+    frameHeight <= 0 ||
+    boundary.outerPoints.length < 3
+  ) {
+    return null;
+  }
+
+  const bounds = boundary.outerPoints.reduce(
+    (acc, point) => ({
+      minX: Math.min(acc.minX, point.x),
+      minY: Math.min(acc.minY, point.y),
+      maxX: Math.max(acc.maxX, point.x),
+      maxY: Math.max(acc.maxY, point.y),
+    }),
+    {
+      minX: Number.POSITIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    },
+  );
+  const centerX = ((bounds.minX + bounds.maxX) / 2 / frameWidth) * 100;
+  const centerY = ((bounds.minY + bounds.maxY) / 2 / frameHeight) * 100;
+  const widthPct = Math.max(
+    12,
+    Math.min(42, ((bounds.maxX - bounds.minX) / frameWidth) * 118),
+  );
+  const heightPct = Math.max(
+    4,
+    Math.min(18, ((bounds.maxY - bounds.minY) / frameHeight) * 132),
+  );
+  const leftPct = clampPercent(centerX - widthPct / 2, 0, 100 - widthPct);
+  const topPct = clampPercent(centerY - heightPct / 2, 0, 100 - heightPct);
+
+  return {
+    left: `${leftPct}%` as DimensionValue,
+    top: `${topPct}%` as DimensionValue,
+    width: `${widthPct}%` as DimensionValue,
+    height: `${heightPct}%` as DimensionValue,
+  };
+}
+
+function clampPercent(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
 function formatProviderLabel(provider: GeneratedLipMaskProvider) {
   return (
     LIP_GENERATE_PROVIDER_OPTIONS.find(option => option.name === provider)
       ?.label ?? provider
   );
+}
+
+function formatGeneratedCandidateTitle(candidate: E7GeneratedCandidate) {
+  if (candidate.expressionMode === 'blendshapeAssist') {
+    return '표정 보정';
+  }
+  return '기본 블렌딩';
 }
 
 function formatWizardStepLabel(step: E7WizardStep) {
@@ -3216,13 +3516,11 @@ function formatWizardStepLabel(step: E7WizardStep) {
       return '촬영';
     case 'extract':
       return '추출';
-    case 'compare':
-      return '비교';
+    case 'blend':
+      return '블렌딩';
     case 'adjust':
       return '조정';
-    case 'save':
-      return '저장';
-    case 'runtime':
+    case 'apply':
       return '적용';
   }
 }
@@ -3237,14 +3535,12 @@ function formatWizardStepTitle(step: E7WizardStep) {
       return '표정별 촬영';
     case 'extract':
       return 'native 경계 추출';
-    case 'compare':
-      return '후보 비교';
+    case 'blend':
+      return '블렌딩 선택';
     case 'adjust':
       return '입술 미세 조정';
-    case 'save':
-      return '마스크 저장';
-    case 'runtime':
-      return 'AR 적용 준비';
+    case 'apply':
+      return '저장하고 AR 실행';
   }
 }
 
@@ -4519,6 +4815,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 4,
   },
+  generateWizardShotButtonNext: {
+    backgroundColor: 'rgba(234, 179, 8, 0.26)',
+    borderColor: '#FDE68A',
+  },
   generateWizardShotButtonDone: {
     backgroundColor: 'rgba(16, 185, 129, 0.34)',
     borderColor: '#A7F3D0',
@@ -4697,11 +4997,66 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: 'rgba(217, 75, 116, 0.86)',
   },
+  generatedAdjustmentMaskOverlay: {
+    position: 'absolute',
+    borderRadius: 999,
+    backgroundColor: 'rgba(217, 75, 116, 0.72)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.88)',
+  },
   generatedAdjustmentMaskBadgeText: {
     color: '#FFFFFF',
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0,
+  },
+  generatedAdjustmentPreviewCaption: {
+    position: 'absolute',
+    right: 10,
+    top: 10,
+    overflow: 'hidden',
+    borderRadius: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  generateWizardApplyGateGrid: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  generateWizardApplyGate: {
+    flex: 1,
+    minHeight: 54,
+    borderRadius: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  generateWizardApplyGateReady: {
+    backgroundColor: 'rgba(16, 185, 129, 0.32)',
+    borderColor: '#A7F3D0',
+  },
+  generateWizardApplyGateLabel: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  generateWizardApplyGateValue: {
+    color: '#CBD5E1',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0,
+    textAlign: 'center',
+    marginTop: 2,
   },
   captureDock: {
     alignSelf: 'stretch',
@@ -4807,10 +5162,10 @@ const styles = StyleSheet.create({
   },
   debugPanel: {
     position: 'absolute',
+    left: 16,
     right: 16,
-    top: 112,
-    width: '56%',
-    maxHeight: 260,
+    bottom: 16,
+    maxHeight: 220,
     borderRadius: 8,
     backgroundColor: 'rgba(0, 0, 0, 0.68)',
     paddingHorizontal: 10,
@@ -4839,6 +5194,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0,
+  },
+  generateWizardCheckItemReady: {
+    backgroundColor: 'rgba(22, 101, 52, 0.48)',
+    borderColor: 'rgba(187, 247, 208, 0.64)',
+  },
+  generateWizardCheckItemBlocked: {
+    backgroundColor: 'rgba(127, 29, 29, 0.38)',
+    borderColor: 'rgba(254, 202, 202, 0.58)',
+  },
+  generateWizardCheckMeta: {
+    color: '#D1D5DB',
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
+    marginTop: 2,
   },
   faceStatePanel: {
     borderTopWidth: 1,
@@ -5080,6 +5451,33 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0,
     textTransform: 'uppercase',
+  },
+  generateAppliedBanner: {
+    position: 'absolute',
+    left: 24,
+    right: 24,
+    bottom: 24,
+    borderRadius: 8,
+    backgroundColor: 'rgba(15, 23, 42, 0.74)',
+    borderWidth: 1,
+    borderColor: 'rgba(187, 247, 208, 0.52)',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    zIndex: 2,
+  },
+  generateAppliedBannerTitle: {
+    color: '#D1FAE5',
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  generateAppliedBannerText: {
+    marginTop: 3,
+    color: '#F9FAFB',
+    fontSize: 11,
+    lineHeight: 15,
+    fontWeight: '700',
+    letterSpacing: 0,
   },
   regionButtonRow: {
     flexDirection: 'row',

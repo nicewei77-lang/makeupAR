@@ -682,12 +682,11 @@ pre {
 }
 
 .phone-device[data-step="adjust"] .wizard-sheet {
-  min-height: 250px;
+  min-height: 318px;
 }
 
 .phone-device[data-step="adjust"] .face-guide,
-.phone-device[data-step="save"] .face-guide,
-.phone-device[data-step="runtime"] .face-guide {
+.phone-device[data-step="apply"] .face-guide {
   display: none;
 }
 
@@ -970,16 +969,40 @@ pre {
   font-size: 11px;
 }
 
-.capture-shot[data-state="ready"] {
+.capture-shot[data-state="captured"] {
   border-color: rgba(130, 224, 170, 0.5);
+  background: rgba(8, 127, 122, 0.28);
 }
 
-.capture-shot[data-state="active"] {
+.capture-shot[data-state="next"] {
   border-color: rgba(255, 215, 130, 0.6);
 }
 
-.capture-shot[data-state="blocked"] {
+.capture-shot[data-state="pending"] {
   opacity: 0.72;
+}
+
+.capture-feedback {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  border: 1px solid rgba(130, 224, 170, 0.52);
+  border-radius: 8px;
+  background: rgba(8, 127, 122, 0.22);
+  padding: 7px 9px;
+}
+
+.capture-feedback strong {
+  color: #ffffff;
+  font-size: 12px;
+}
+
+.capture-feedback span {
+  color: rgba(248, 251, 247, 0.78);
+  font-size: 11px;
 }
 
 .candidate-strip {
@@ -993,6 +1016,14 @@ pre {
   border: 1px solid rgba(255, 255, 255, 0.18);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.1);
+  color: inherit;
+  padding: 0;
+  text-align: left;
+}
+
+.candidate-tile[data-selected="true"] {
+  border-color: #dff6eb;
+  background: rgba(223, 246, 235, 0.2);
 }
 
 .candidate-tile img {

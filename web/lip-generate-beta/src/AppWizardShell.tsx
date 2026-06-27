@@ -5,12 +5,11 @@ type WizardStepId =
   | 'align'
   | 'capture'
   | 'extract'
-  | 'compare'
+  | 'blend'
   | 'adjust'
-  | 'save'
-  | 'runtime';
+  | 'apply';
 
-type CaptureShotState = 'ready' | 'active' | 'blocked';
+type CaptureShotState = 'pending' | 'next' | 'captured';
 
 type WizardStep = {
   id: WizardStepId;
@@ -29,6 +28,12 @@ type CandidatePreview = {
 };
 
 type ExtractionProvider = 'vision' | 'mediapipe';
+
+type RequiredCaptureShot = {
+  id: string;
+  label: string;
+  guidance: string;
+};
 
 const FACE_FRAME_URL = new URL(
   '../../../evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/frame.png',
@@ -89,11 +94,11 @@ const steps: WizardStep[] = [
     state: 'locked',
   },
   {
-    id: 'compare',
+    id: 'blend',
     index: 4,
-    title: '비교',
-    subtitle: '4가지 후보 확인',
-    gate: 'Vision/MediaPipe x assist off/on',
+    title: '블렌딩 선택',
+    subtitle: '기본 / 표정 보정 선택',
+    gate: 'assist off/on candidates',
     state: 'locked',
   },
   {
@@ -105,34 +110,46 @@ const steps: WizardStep[] = [
     state: 'locked',
   },
   {
-    id: 'save',
+    id: 'apply',
     index: 6,
-    title: '저장',
-    subtitle: 'stale 결과 차단',
-    gate: 'package metadata complete',
-    state: 'locked',
-  },
-  {
-    id: 'runtime',
-    index: 7,
-    title: 'AR 준비',
-    subtitle: 'Unity 적용 smoke',
-    gate: 'Xcode build pending',
+    title: 'AR 실행',
+    subtitle: '저장하고 Unity 적용',
+    gate: 'save / payload / ack',
     state: 'locked',
   },
 ];
 
-const captureShots: Array<{
-  label: string;
-  detail: string;
-  state: CaptureShotState;
-}> = [
-  { label: 'Neutral', detail: '기준 얼굴', state: 'ready' },
-  { label: 'Mouth open', detail: 'inner-mouth guard', state: 'ready' },
-  { label: 'Mouth closed', detail: 'closed-lip baseline', state: 'ready' },
-  { label: 'Smile', detail: 'corner stretch', state: 'active' },
-  { label: 'Pucker', detail: 'projection stress', state: 'blocked' },
-  { label: 'Yaw L/R', detail: 'visibility guard', state: 'blocked' },
+const requiredCaptureShots: RequiredCaptureShot[] = [
+  {
+    id: 'neutral',
+    label: '정면 기준',
+    guidance: '입에 힘 빼고 정면',
+  },
+  {
+    id: 'mouth-open',
+    label: '살짝 벌림',
+    guidance: '입 안쪽 분리 확인',
+  },
+  {
+    id: 'smile',
+    label: '미소',
+    guidance: '입꼬리 확장 확인',
+  },
+  {
+    id: 'pucker',
+    label: '오므림',
+    guidance: '중앙 압축 확인',
+  },
+  {
+    id: 'yaw-left',
+    label: '왼쪽 각도',
+    guidance: '가림/투영 안정성',
+  },
+  {
+    id: 'yaw-right',
+    label: '오른쪽 각도',
+    guidance: '가림/투영 안정성',
+  },
 ];
 
 const providerLabels: Record<ExtractionProvider, string> = {
@@ -151,26 +168,26 @@ function buildCandidates(provider: ExtractionProvider): CandidatePreview[] {
   return [
     {
       id: `${provider}-off`,
-      title: `${providerLabel} / 기본`,
-      status: 'blendshape assist off',
+      title: '기본 블렌딩',
+      status: `${providerLabel} · assist off`,
       src,
     },
     {
       id: `${provider}-blend`,
-      title: `${providerLabel} / 보정`,
-      status: 'blendshape assist on',
+      title: '표정 보정',
+      status: `${providerLabel} · assist on`,
       src,
     },
     {
       id: `${provider}-soft`,
-      title: `${providerLabel} / 부드럽게`,
-      status: 'edge feather preview',
+      title: '부드럽게',
+      status: `${providerLabel} · edge feather`,
       src,
     },
     {
       id: `${provider}-safe`,
-      title: `${providerLabel} / 안전`,
-      status: 'spill-check preview',
+      title: '번짐 안전',
+      status: `${providerLabel} · spill guard`,
       src,
     },
   ];
@@ -187,6 +204,11 @@ export function AppWizardShell({
   const [maxUnlockedIndex, setMaxUnlockedIndex] = useState(0);
   const [selectedProvider, setSelectedProvider] =
     useState<ExtractionProvider>('vision');
+  const [capturedShotCount, setCapturedShotCount] = useState(0);
+  const [selectedCandidateId, setSelectedCandidateId] = useState('vision-off');
+  const [applyState, setApplyState] = useState<'idle' | 'saving' | 'ack-wait'>(
+    'idle',
+  );
   const stepViews = useMemo(
     () =>
       steps.map(step => {
@@ -213,6 +235,7 @@ export function AppWizardShell({
     () => buildCandidates(selectedProvider),
     [selectedProvider],
   );
+  const isCapturedFrameReview = selectedStep.index >= 3 || capturedShotCount > 0;
   const goToStep = (stepId: WizardStepId) => {
     const requestedStep = steps.find(step => step.id === stepId);
     if (!requestedStep || requestedStep.index > maxUnlockedIndex) {
@@ -235,6 +258,24 @@ export function AppWizardShell({
     if (previousStep) {
       setSelectedStepId(previousStep.id);
     }
+  };
+  const capturePrimaryAction = () => {
+    if (capturedShotCount < requiredCaptureShots.length) {
+      setCapturedShotCount(current =>
+        Math.min(requiredCaptureShots.length, current + 1),
+      );
+      return;
+    }
+
+    goNext();
+  };
+  const startApply = () => {
+    setApplyState('saving');
+    window.setTimeout(() => {
+      setApplyState('ack-wait');
+      setMaxUnlockedIndex(current => Math.max(current, steps.length - 1));
+      setSelectedStepId('apply');
+    }, 350);
   };
 
   return (
@@ -283,11 +324,13 @@ export function AppWizardShell({
             </div>
             <div
               className="camera-scene"
-              data-mode={selectedStep.index >= 3 ? 'captured' : 'live'}
+              data-mode={isCapturedFrameReview ? 'captured' : 'live'}
             >
               <img src={FACE_FRAME_URL} alt="capture reference frame" />
-              {selectedStep.index >= 3 && (
-                <div className="camera-state-badge">캡처 프레임</div>
+              {isCapturedFrameReview && (
+                <div className="camera-state-badge">
+                  저장된 캡처 프레임
+                </div>
               )}
               <div className="face-guide" data-step={selectedStep.id}>
                 <span />
@@ -299,10 +342,16 @@ export function AppWizardShell({
                 step={selectedStep}
                 selectedProvider={selectedProvider}
                 candidates={candidates}
+                selectedCandidateId={selectedCandidateId}
+                capturedShotCount={capturedShotCount}
+                applyState={applyState}
                 canBack={selectedStep.index > 0}
                 onBack={goBack}
                 onNext={goNext}
+                onCapturePrimary={capturePrimaryAction}
                 onSelectProvider={setSelectedProvider}
+                onSelectCandidate={setSelectedCandidateId}
+                onApply={startApply}
               />
             </div>
           </div>
@@ -324,7 +373,7 @@ export function AppWizardShell({
             </div>
             <div>
               <span>blendshapeAssist</span>
-              <strong>off / on 비교</strong>
+              <strong>블렌딩 선택에서 off / on 결정</strong>
             </div>
             <div>
               <span>privacy</span>
@@ -332,7 +381,7 @@ export function AppWizardShell({
             </div>
             <div>
               <span>build</span>
-              <strong>Xcode pending</strong>
+              <strong>Xcode build pending</strong>
             </div>
           </div>
         </aside>
@@ -366,7 +415,7 @@ function RuntimeOverlay({
     );
   }
 
-  if (stepId === 'compare' || stepId === 'save') {
+  if (stepId === 'blend') {
     return (
       <div className="lip-preview-mark">
         <img src={previewUrl} alt="generated lip preview" />
@@ -374,7 +423,7 @@ function RuntimeOverlay({
     );
   }
 
-  if (stepId === 'runtime') {
+  if (stepId === 'apply') {
     return (
       <div className="lip-preview-mark runtime">
         <img src={ROUND_TRIP_URL} alt="round trip preview" />
@@ -389,18 +438,30 @@ function StepContent({
   step,
   selectedProvider,
   candidates,
+  selectedCandidateId,
+  capturedShotCount,
+  applyState,
   canBack,
   onBack,
   onNext,
+  onCapturePrimary,
   onSelectProvider,
+  onSelectCandidate,
+  onApply,
 }: {
   step: WizardStep;
   selectedProvider: ExtractionProvider;
   candidates: CandidatePreview[];
+  selectedCandidateId: string;
+  capturedShotCount: number;
+  applyState: 'idle' | 'saving' | 'ack-wait';
   canBack: boolean;
   onBack: () => void;
   onNext: () => void;
+  onCapturePrimary: () => void;
   onSelectProvider: (provider: ExtractionProvider) => void;
+  onSelectCandidate: (candidateId: string) => void;
+  onApply: () => void;
 }) {
   switch (step.id) {
     case 'start':
@@ -408,7 +469,15 @@ function StepContent({
     case 'align':
       return <AlignStep step={step} canBack={canBack} onBack={onBack} onNext={onNext} />;
     case 'capture':
-      return <CaptureStep step={step} canBack={canBack} onBack={onBack} onNext={onNext} />;
+      return (
+        <CaptureStep
+          step={step}
+          capturedShotCount={capturedShotCount}
+          canBack={canBack}
+          onBack={onBack}
+          onPrimary={onCapturePrimary}
+        />
+      );
     case 'extract':
       return (
         <ExtractStep
@@ -420,23 +489,37 @@ function StepContent({
           onSelectProvider={onSelectProvider}
         />
       );
-    case 'compare':
+    case 'blend':
       return (
-        <CompareStep
+        <BlendStep
           step={step}
           candidates={candidates}
+          selectedCandidateId={selectedCandidateId}
           selectedProvider={selectedProvider}
           canBack={canBack}
           onBack={onBack}
           onNext={onNext}
+          onSelectCandidate={onSelectCandidate}
         />
       );
     case 'adjust':
-      return <AdjustStep step={step} canBack={canBack} onBack={onBack} onNext={onNext} />;
-    case 'save':
-      return <SaveStep step={step} canBack={canBack} onBack={onBack} onNext={onNext} />;
-    case 'runtime':
-      return <RuntimeStep step={step} canBack={canBack} onBack={onBack} />;
+      return (
+        <AdjustStep
+          step={step}
+          canBack={canBack}
+          onBack={onBack}
+          onApply={onApply}
+        />
+      );
+    case 'apply':
+      return (
+        <ApplyStep
+          step={step}
+          applyState={applyState}
+          canBack={canBack}
+          onBack={onBack}
+        />
+      );
     default:
       return null;
   }
@@ -520,30 +603,60 @@ function AlignStep({
 
 function CaptureStep({
   step,
+  capturedShotCount,
   canBack,
   onBack,
-  onNext,
+  onPrimary,
 }: {
   step: WizardStep;
+  capturedShotCount: number;
   canBack: boolean;
   onBack: () => void;
-  onNext: () => void;
+  onPrimary: () => void;
 }) {
+  const isComplete = capturedShotCount >= requiredCaptureShots.length;
+  const nextShot = requiredCaptureShots[capturedShotCount];
+
   return (
     <>
       <SheetHeader step={step} canBack={canBack} onBack={onBack} />
+      <p className="sheet-note">
+        촬영 버튼은 하나만 둡니다. 앱이 필요한 표정 큐를 순서대로 안내하고,
+        완료된 순간 저장된 frame review로 넘어갑니다.
+      </p>
       <div className="capture-progress">
-        {captureShots.map(shot => (
-          <div className="capture-shot" data-state={shot.state} key={shot.label}>
+        {requiredCaptureShots.map((shot, index) => {
+          const state: CaptureShotState =
+            index < capturedShotCount
+              ? 'captured'
+              : index === capturedShotCount
+                ? 'next'
+                : 'pending';
+
+          return (
+          <div className="capture-shot" data-state={state} key={shot.id}>
             <strong>{shot.label}</strong>
-            <span>{shot.detail}</span>
+            <span>
+              {state === 'captured'
+                ? '촬영됨'
+                : state === 'next'
+                  ? shot.guidance
+                  : '대기'}
+            </span>
           </div>
-        ))}
+          );
+        })}
       </div>
+      {capturedShotCount > 0 && (
+        <div className="capture-feedback">
+          <strong>촬영 저장됨</strong>
+          <span>{capturedShotCount}/{requiredCaptureShots.length} 컷 완료</span>
+        </div>
+      )}
       <div className="sheet-actions">
         <button type="button" onClick={onBack}>이전</button>
-        <button type="button" className="primary" onClick={onNext}>
-          촬영 완료
+        <button type="button" className="primary" onClick={onPrimary}>
+          {isComplete ? '추출 단계로 이동' : `${nextShot?.label ?? '다음'} 촬영`}
         </button>
       </div>
     </>
@@ -595,34 +708,45 @@ function ExtractStep({
   );
 }
 
-function CompareStep({
+function BlendStep({
   step,
   candidates,
+  selectedCandidateId,
   selectedProvider,
   canBack,
   onBack,
   onNext,
+  onSelectCandidate,
 }: {
   step: WizardStep;
   candidates: CandidatePreview[];
+  selectedCandidateId: string;
   selectedProvider: ExtractionProvider;
   canBack: boolean;
   onBack: () => void;
   onNext: () => void;
+  onSelectCandidate: (candidateId: string) => void;
 }) {
   return (
     <>
       <SheetHeader step={step} canBack={canBack} onBack={onBack} />
       <p className="sheet-note">
-        추출 방식: {providerLabels[selectedProvider]}. 같은 경계에서 assist/off와 edge 후보를 비교합니다.
+        추출 방식은 {providerLabels[selectedProvider]} 하나입니다. 여기서는 같은
+        경계에서 기본/표정 보정/부드러운 경계 후보를 고릅니다.
       </p>
       <div className="candidate-strip">
         {candidates.map(candidate => (
-          <article className="candidate-tile" key={candidate.id}>
+          <button
+            type="button"
+            className="candidate-tile"
+            data-selected={candidate.id === selectedCandidateId}
+            key={candidate.id}
+            onClick={() => onSelectCandidate(candidate.id)}
+          >
             <img src={candidate.src} alt={candidate.title} />
             <strong>{candidate.title}</strong>
             <span>{candidate.status}</span>
-          </article>
+          </button>
         ))}
       </div>
       <div className="sheet-actions">
@@ -639,18 +763,19 @@ function AdjustStep({
   step,
   canBack,
   onBack,
-  onNext,
+  onApply,
 }: {
   step: WizardStep;
   canBack: boolean;
   onBack: () => void;
-  onNext: () => void;
+  onApply: () => void;
 }) {
   return (
     <>
       <SheetHeader step={step} canBack={canBack} onBack={onBack} />
       <p className="sheet-note">
-        위 캡처 프레임에 마스크를 크게 올려 보고 조정합니다. live camera 판단 화면이 아닙니다.
+        입술만 잘라 보지 않습니다. 전체 얼굴 캡처 위에서 현재 마스크가 보이는
+        상태로 조정하고, 변경값은 즉시 package preview에 반영됩니다.
       </p>
       <div className="adjust-chip-grid">
         <button type="button">입꼬리 더 포함</button>
@@ -664,53 +789,25 @@ function AdjustStep({
         <AdjustMeter label="아랫입술" value="0.15" />
         <AdjustMeter label="세로 위치" value="-0.10" />
       </div>
-      <div className="stale-badge">변경 후 다시 생성 필요</div>
+      <div className="stale-badge">변경 즉시 현재 후보에 반영</div>
       <div className="sheet-actions">
         <button type="button" onClick={onBack}>이전</button>
-        <button type="button" className="primary" onClick={onNext}>
-          저장으로
+        <button type="button" className="primary" onClick={onApply}>
+          저장하고 AR 실행
         </button>
       </div>
     </>
   );
 }
 
-function SaveStep({
+function ApplyStep({
   step,
-  canBack,
-  onBack,
-  onNext,
-}: {
-  step: WizardStep;
-  canBack: boolean;
-  onBack: () => void;
-  onNext: () => void;
-}) {
-  return (
-    <>
-      <SheetHeader step={step} canBack={canBack} onBack={onBack} />
-      <div className="package-summary">
-        <GatePill label="captureSetId" value="포함" />
-        <GatePill label="providerResults" value="포함" />
-        <GatePill label="adjustment" value="포함" />
-        <GatePill label="privacy" value="local-only" />
-      </div>
-      <div className="sheet-actions">
-        <button type="button" onClick={onBack}>다시 조정</button>
-        <button type="button" className="primary" onClick={onNext}>
-          저장
-        </button>
-      </div>
-    </>
-  );
-}
-
-function RuntimeStep({
-  step,
+  applyState,
   canBack,
   onBack,
 }: {
   step: WizardStep;
+  applyState: 'idle' | 'saving' | 'ack-wait';
   canBack: boolean;
   onBack: () => void;
 }) {
@@ -718,13 +815,27 @@ function RuntimeStep({
     <>
       <SheetHeader step={step} canBack={canBack} onBack={onBack} />
       <div className="runtime-ready-panel">
-        <strong>Unity package smoke 준비</strong>
-        <span>dynamic texture register / saved package parse / assist payload</span>
+        <strong>
+          {applyState === 'saving'
+            ? 'local-only 저장 중'
+            : applyState === 'ack-wait'
+              ? 'Unity 적용 ack 대기'
+              : '저장하고 AR 실행 준비'}
+        </strong>
+        <span>
+          saveGeneratedPackage {'->'} ApplyGeneratedLipMaskJson {'->'} generated_lip_mask_applied
+        </span>
+      </div>
+      <div className="package-summary">
+        <GatePill label="save" value={applyState === 'idle' ? '대기' : '완료'} />
+        <GatePill label="payload" value={applyState === 'idle' ? '대기' : '전송'} />
+        <GatePill label="Unity ack" value={applyState === 'ack-wait' ? '대기 중' : '필수'} />
+        <GatePill label="AR 화면" value="ack 후 전환" />
       </div>
       <div className="sheet-actions">
         <button type="button" onClick={onBack}>이전</button>
-        <button type="button" className="primary">
-          AR로 보기
+        <button type="button" className="primary" disabled>
+          Xcode 빌드에서 확인
         </button>
       </div>
     </>

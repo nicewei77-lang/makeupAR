@@ -2706,6 +2706,85 @@ Every original user complaint is marked fixed, still failing, or deferred with r
 No Green/product-quality-ready claim until visual/runtime acceptance exists.
 ```
 
+#### 13.8.7a 2026-06-27 source/buildless execution checkpoint
+
+Status: `fix-build-candidate-prepared`, not `device-accepted`.
+
+이번 체크포인트는 다음 Xcode build/install/run 전에 막아야 했던 flow/state/UI/apply-evidence 결함을 source/buildless 단계에서 닫는 작업이다.
+새 실기기 실행은 하지 않았고, 다음 build gate에서 반드시 실제 카메라/현재 프레임/Unity ack/AR 화면 전환을 확인해야 한다.
+
+Implemented:
+
+```txt
+Web beta shell:
+  forced step flow: Start -> Align -> Capture -> Extract -> Blending Select -> Adjust -> Save and Run AR
+  one capture primary CTA
+  neutral/mouthClosed duplication removed from required queue
+  captured-frame review state
+  selected-provider blending candidate UI
+  full-face adjustment surface
+  save -> payload -> Unity ack gate mock
+  in-browser smoke verified
+
+RN app:
+  future step jump blocked
+  measured/waiting alignment gates replace hardcoded green checks
+  capture page uses one primary capture button
+  required shot queue is neutral/open/smile/pucker/yaw-left/yaw-right
+  Compare renamed to 블렌딩 선택
+  provider extraction remains single-select; blending candidates are selected within that provider
+  Adjust renders full captured-face preview with visible generated-mask overlay
+  "저장하고 AR 실행" performs saveGeneratedPackage -> ApplyGeneratedLipMaskJson -> ack wait
+  applied state requires generated_lip_mask_applied with applied=true, uvAvailable=true, maskTriangles>0
+  success collapses wizard to AR runtime banner instead of staying on a save page
+  debug panel moves to bottom drawer so face review is not covered
+
+Unity:
+  generated_lip_mask_applied event is persisted to:
+    Documents/e7-runtime-events/generated_lip_mask_applied.latest.json
+    Documents/e7-runtime-events/generated_lip_mask_applied.jsonl
+  event is still sent to RN after persistence
+```
+
+Buildless verification:
+
+```txt
+web/lip-generate-beta:
+  npm run typecheck
+  npm run lint
+  npm run build
+  browser flow smoke through capture/blending/adjust/apply gate
+
+rn/MakeupARValidation:
+  ./node_modules/.bin/tsc --noEmit
+  npm test -- --runInBand --watchman=false
+  npm run lint
+
+packages/lip-generate-core:
+  npm run typecheck
+  npm test
+
+repo:
+  git diff --check
+```
+
+Blocked/remaining before success claim:
+
+```txt
+Unity batchmode generated-mask smoke was attempted, but local Unity licensing initialization blocked the run.
+This is an environment/licensing blocker, not runtime proof.
+
+Next user-approved iPhone pass must still verify:
+  real capture feedback on device
+  current-frame Vision extraction
+  current-frame MediaPipe ready or concrete blockedReason
+  full-face adjustment preview on the phone
+  saved package adjustment values
+  persisted generated_lip_mask_applied.latest.json/jsonl
+  AR lip runtime visual change after ack
+  debug/log not covering face review
+```
+
 #### 13.8.8 Original complaint mapping
 
 | User complaint | Root cause found | Fix |

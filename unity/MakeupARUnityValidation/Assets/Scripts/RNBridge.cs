@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Collections;
+using System.IO;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.XR.ARFoundation;
@@ -512,7 +513,7 @@ public sealed class RNBridge : MonoBehaviour
                 "[E7] generated_lip_mask_apply_failed"
                 + " payloadBytes=" + (json == null ? 0 : json.Length).ToString(CultureInfo.InvariantCulture)
                 + " error=" + exception.Message);
-            SendUnityEvent(
+            SendAndPersistGeneratedLipMaskAppliedEvent(
                 "{\"type\":\"generated_lip_mask_applied\",\"status\":\"blocked\",\"error\":\""
                 + EscapeJsonString(exception.Message)
                 + "\"}");
@@ -1013,7 +1014,7 @@ public sealed class RNBridge : MonoBehaviour
             && result.UvAvailable
             && result.MaskTriangleCount > 0;
         string status = hasRuntimeTexture ? "partial" : "blocked";
-        SendUnityEvent(
+        string eventJson =
             "{\"type\":\"generated_lip_mask_applied\",\"status\":\"" + status + "\""
             + ",\"provider\":\"" + EscapeJsonString(payload.provider) + "\""
             + ",\"expressionMode\":\"" + EscapeJsonString(payload.expressionMode) + "\""
@@ -1032,7 +1033,35 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"verticalOffset\":" + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"appliedAtMs\":" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
             + ",\"appliedFrame\":" + appliedFrame.ToString(CultureInfo.InvariantCulture)
-            + "}");
+            + "}";
+        SendAndPersistGeneratedLipMaskAppliedEvent(eventJson);
+    }
+
+    private void SendAndPersistGeneratedLipMaskAppliedEvent(string eventJson)
+    {
+        PersistGeneratedLipMaskAppliedEvent(eventJson);
+        SendUnityEvent(eventJson);
+    }
+
+    private void PersistGeneratedLipMaskAppliedEvent(string eventJson)
+    {
+        try
+        {
+            string directory = Path.Combine(Application.persistentDataPath, "e7-runtime-events");
+            Directory.CreateDirectory(directory);
+            File.WriteAllText(
+                Path.Combine(directory, "generated_lip_mask_applied.latest.json"),
+                eventJson);
+            File.AppendAllText(
+                Path.Combine(directory, "generated_lip_mask_applied.jsonl"),
+                eventJson + Environment.NewLine);
+        }
+        catch (Exception exception)
+        {
+            Debug.LogWarning(
+                "[E7] generated_lip_mask_applied_persist_failed error="
+                + exception.Message);
+        }
     }
 
     private E3RegionMaskOverlay.RegionApplyResult ApplyRegionLayer(ParsedRecipeLayer layer)
