@@ -1,0 +1,40 @@
+{
+  "schemaVersion": "e7-eyeliner-anchor-to-band-input-manifest-v0",
+  "createdAt": "2026-06-27T15:19:15.452812Z",
+  "status": "input_frozen",
+  "capturePair": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06",
+  "frame": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/frame.png",
+  "mediapipeLandmarks": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/mediapipe_face_landmarks.json",
+  "arfaceExport": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/arface_export.json",
+  "bestReference": {
+    "path": "/tmp/codex-remote-attachments/019f0551-bf7f-7ee1-8fbb-e023dd51f124/017A56B8-DB3B-4D83-823A-BFE9AB4928F2/1-사진-1.jpg",
+    "usage": "shape_taxonomy_only",
+    "committedAsAsset": false,
+    "runtimeAssetUsage": "forbidden",
+    "families": [
+      "cat",
+      "puppy",
+      "sexy",
+      "winged",
+      "colored",
+      "doll"
+    ]
+  },
+  "candidateCountTarget": 144,
+  "familyCounts": {
+    "cat": 24,
+    "puppy": 18,
+    "sexy": 24,
+    "winged": 30,
+    "colored": 18,
+    "doll": 18,
+    "balanced_reference": 6,
+    "tail_only_safe": 6
+  },
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "externalReferenceCopied": false,
+    "longTermRawCameraStorageAdded": false
+  }
+}
