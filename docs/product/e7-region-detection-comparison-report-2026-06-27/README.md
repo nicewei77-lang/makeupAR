@@ -31,7 +31,7 @@
 
 아래 사진은 앱의 `CAPTURE PAIR` 흐름으로 저장된 clean frame이다. HUD가 없는 상태로 저장되어 마스크 비교 기준으로 쓰기 적합하다.
 
-<img src="../../../evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/frame.png" width="260" alt="capture pair clean frame">
+<img src="assets/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/frame.png" width="260" alt="capture pair clean frame">
 
 기본 메타데이터:
 
@@ -50,7 +50,7 @@
 
 아래 이미지는 모든 후보를 같은 행렬로 본 것이다. 행은 후보, 열은 눈 / 피부 / 눈썹이다.
 
-<img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/contact_sheet_eye_skin_brow.png" width="780" alt="eye skin brow detector contact sheet">
+<img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/contact_sheet_eye_skin_brow.png" width="780" alt="eye skin brow detector contact sheet">
 
 표기 의미:
 
@@ -75,9 +75,9 @@ ARFace는 얼굴 mesh와 UV 좌표를 안정적으로 준다. 하지만 "눈", "
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/eye_overlay.png" width="220" alt="arface eye overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/skin_overlay.png" width="220" alt="arface skin overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/brow_overlay.png" width="220" alt="arface brow overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/eye_overlay.png" width="220" alt="arface eye overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/skin_overlay.png" width="220" alt="arface skin overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/arface/brow_overlay.png" width="220" alt="arface brow overlay"></td>
   </tr>
 </table>
 
@@ -102,9 +102,9 @@ ARFace는 runtime substrate로는 계속 유리하다. 다만 눈썹/아이라�
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/eye_overlay.png" width="220" alt="color eye overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/skin_overlay.png" width="220" alt="color skin overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/brow_overlay.png" width="220" alt="color brow overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/eye_overlay.png" width="220" alt="color eye overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/skin_overlay.png" width="220" alt="color skin overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/color/brow_overlay.png" width="220" alt="color brow overlay"></td>
   </tr>
 </table>
 
@@ -129,9 +129,9 @@ Apple Vision은 눈과 눈썹 landmark를 직접 제공한다. sandbox 안의 Ma
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/eye_overlay.png" width="220" alt="vision eye overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/skin_overlay.png" width="220" alt="vision skin overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/brow_overlay.png" width="220" alt="vision brow overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/eye_overlay.png" width="220" alt="vision eye overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/skin_overlay.png" width="220" alt="vision skin overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/brow_overlay.png" width="220" alt="vision brow overlay"></td>
   </tr>
 </table>
 
@@ -172,9 +172,9 @@ Face parsing은 피부, 눈, 눈썹 같은 semantic label을 직접 줄 수 있�
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/eye_overlay.png" width="220" alt="parsing eye blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/skin_overlay.png" width="220" alt="parsing skin blocked panel"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/brow_overlay.png" width="220" alt="parsing brow blocked panel"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/eye_overlay.png" width="220" alt="parsing eye blocked panel"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/skin_overlay.png" width="220" alt="parsing skin blocked panel"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/brow_overlay.png" width="220" alt="parsing brow blocked panel"></td>
   </tr>
 </table>
 
@@ -193,9 +193,9 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/eye_overlay.png" width="220" alt="mediapipe eye overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/skin_overlay.png" width="220" alt="mediapipe skin overlay"></td>
-    <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/brow_overlay.png" width="220" alt="mediapipe brow overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/eye_overlay.png" width="220" alt="mediapipe eye overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/skin_overlay.png" width="220" alt="mediapipe skin overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/brow_overlay.png" width="220" alt="mediapipe brow overlay"></td>
   </tr>
 </table>
 
