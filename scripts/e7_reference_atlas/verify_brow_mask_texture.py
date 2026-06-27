@@ -232,8 +232,8 @@ def main() -> None:
     require(0.009 <= coverage <= 0.03, f"Unexpected active coverage: {coverage:.6f}.")
     require(105 <= bounds["left"] <= 130, f"Brow bbox left is off: {bounds}.")
     require(382 <= bounds["right"] <= 410, f"Brow bbox right is off: {bounds}.")
-    require(92 <= bounds["top"] <= 112, f"Brow bbox top is off: {bounds}.")
-    require(122 <= bounds["bottom"] <= 138, f"Brow bbox bottom is off: {bounds}.")
+    require(92 <= bounds["top"] <= 100, f"Brow bbox top is too low: {bounds}.")
+    require(114 <= bounds["bottom"] <= 132, f"Brow bbox bottom is off: {bounds}.")
     require(260 <= bounds["width"] <= 310, f"Brow bbox width is off: {bounds}.")
     require(18 <= bounds["height"] <= 42, f"Brow bbox height is too thick/sticker-like: {bounds}.")
 
@@ -244,8 +244,8 @@ def main() -> None:
     require(len(components) == 2, f"Expected two brow components, got {components}.")
 
     left, right = components
-    require(120 <= left["centerX"] <= 220, f"Left brow center is off: {left}.")
-    require(292 <= right["centerX"] <= 392, f"Right brow center is off: {right}.")
+    require(145 <= left["centerX"] <= 176, f"Left brow center is too centered: {left}.")
+    require(336 <= right["centerX"] <= 366, f"Right brow center is too centered: {right}.")
     require(850 <= left["pixelCount"] <= 3300, f"Left brow density is off: {left}.")
     require(850 <= right["pixelCount"] <= 3300, f"Right brow density is off: {right}.")
     require(left["bbox"]["height"] <= 36, f"Left brow is too thick: {left}.")

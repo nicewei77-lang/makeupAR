@@ -306,3 +306,31 @@ Remaining:
     with zero eye/cheek/lip overlap.
   - This candidate-selection loop is local only; no UnityFramework/RN device
     build was started.
+- 2026-06-27: User connected `CloudsiPhone`; after approval, the three-candidate
+  build was regenerated, installed, and launched.
+  - UnityFramework build: `eyebrow-options-20260627-ufw-r1`, passed.
+  - RN Debug build, `devicectl` install, and launch passed for
+    `com.celeste.makeupar.validation`.
+  - Build product inspection confirmed the RN bundle includes
+    `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
+    `brow-slim-tail-fine-hair-v1`.
+- 2026-06-27: User QA on that installed build confirmed attachment quality but
+  found visual/color issues.
+  - Passed: left/right head turns and expression changes stay attached.
+  - Needs tuning: brow is too faint, especially `soft_brow`.
+  - Needs placement tuning: brows are too centered and slightly below the real
+    eyebrow line.
+  - Needs UI tuning: brow color choices still use lip colors.
+- 2026-06-27: Local post-QA tuning response.
+  - RED: focused Jest failed because brow still used lip colors and low
+    `0.48` default intensity/opacity; mask verifier failed because default
+    candidate bbox top was `102`, below the new placement guard.
+  - RN update adds brow-specific color options (`ash_brown`, `neutral_brown`,
+    `dark_brown`, `soft_black`) and raises default `natural_brow` to opacity
+    `0.68`, intensity `0.68`, and coverage `0.62`; `soft_brow` intensity is
+    raised to `0.56`.
+  - Mask update shifts the three selected candidates `10px` outward per side and
+    `7px` upward without increasing thickness.
+  - GREEN: focused Jest passed with 23 tests; all three selected masks passed
+    placement/overlap verification. This post-QA local tuning is not yet
+    installed on-device.

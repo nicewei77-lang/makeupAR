@@ -34,9 +34,17 @@ export const RECIPE_COLOR_OPTIONS = [
   { name: 'berry', color: '#A8325F' },
   { name: 'red', color: '#C21F3A' },
 ] as const;
+export const BROW_COLOR_OPTIONS = [
+  { name: 'ash_brown', color: '#3F352F' },
+  { name: 'neutral_brown', color: '#4A342B' },
+  { name: 'dark_brown', color: '#2F241F' },
+  { name: 'soft_black', color: '#1F1B18' },
+] as const;
 
 const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye', 'brow'] as const;
-export type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
+export type RecipeColor =
+  | (typeof RECIPE_COLOR_OPTIONS)[number]
+  | (typeof BROW_COLOR_OPTIONS)[number];
 export type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 export type RecipeTextureSampleName =
   | 'matte_lip'
@@ -220,10 +228,10 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     region: 'brow',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#8A5A44',
-    intensity: 0.48,
+    secondaryColor: '#4A342B',
+    intensity: 0.68,
     feather: 0.48,
-    coverage: 0.54,
+    coverage: 0.62,
     finish: 'powder-brow',
     roughness: 1,
     specular: 0,
@@ -238,10 +246,10 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     region: 'brow',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#A7795D',
-    intensity: 0.34,
+    secondaryColor: '#5A4034',
+    intensity: 0.56,
     feather: 0.48,
-    coverage: 0.5,
+    coverage: 0.58,
     finish: 'soft-powder-brow',
     roughness: 1,
     specular: 0,
@@ -261,6 +269,15 @@ const MASK_DEBUG_VIEW_MODE_OPTIONS = [
   { id: 'raw', label: 'Raw' },
   { id: 'processed', label: 'Processed' },
 ] as const;
+const COLOR_OPTIONS_BY_REGION: Record<
+  RecipeRegion,
+  readonly RecipeColor[]
+> = {
+  lip: RECIPE_COLOR_OPTIONS,
+  cheek: RECIPE_COLOR_OPTIONS,
+  eye: RECIPE_COLOR_OPTIONS,
+  brow: BROW_COLOR_OPTIONS,
+};
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'lip-makeup-validation-v1';
 const E7_LIP_LOOK_ID = 'lip_makeup_validation_v1';
@@ -472,8 +489,8 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
   brow: {
-    color: RECIPE_COLOR_OPTIONS[2],
-    opacity: 0.48,
+    color: BROW_COLOR_OPTIONS[1],
+    opacity: 0.68,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
   },
@@ -1512,6 +1529,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const focusedTuning = regionTuning[focusedRegion];
   const selectedColor = focusedRecipe.color;
   const selectedTextureSample = focusedRecipe.textureSample;
+  const colorOptionsForFocusedRegion = COLOR_OPTIONS_BY_REGION[focusedRegion];
   const textureOptionsForFocusedRegion = RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
     textureSample => textureSample.region === focusedRegion,
   );
@@ -2350,7 +2368,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 contentContainerStyle={styles.tuningScrollContent}
               >
                 <View style={styles.colorButtonRow}>
-                  {RECIPE_COLOR_OPTIONS.map(colorOption => {
+                  {colorOptionsForFocusedRegion.map(colorOption => {
                     const isSelected = colorOption.name === selectedColor.name;
 
                     return (

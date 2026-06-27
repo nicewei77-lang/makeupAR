@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: First iPhone QA tuning in progress; rebuild pending
+Status: Post-three-option iPhone QA tuning in progress; rebuild pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -59,8 +59,16 @@ Post-QA tuning notes:
   about `4.3px`, and texture peak range `51/43`.
 - The latest local app now defaults to `brow-soft-arch-fine-hair-v1` and also
   exposes `brow-back-arch-soft-mix-v1` and `brow-slim-tail-fine-hair-v1` for QA
-  comparison. These selected local mask options and softer RN defaults have not
-  yet been regenerated into UnityFramework or reinstalled on the iPhone.
+  comparison.
+- The three-option iPhone build was installed and launched. User QA confirmed
+  attachment under head turns and expression changes, but the brow was too
+  faint, especially `soft_brow`; the selected masks were too centered and
+  slightly below the real brow line; brow color controls still showed lip
+  colors.
+- Local post-QA tuning now raises `natural_brow` to opacity/intensity/coverage
+  `0.68/0.68/0.62`, adds brow-specific colors, and shifts the three selected
+  mask PNGs 10px outward and 7px upward. This latest tuning has not yet been
+  regenerated into UnityFramework or reinstalled on the iPhone.
 
 Build notes:
 
@@ -83,11 +91,11 @@ Build notes:
 | Implement only the eyebrow makeup module inside the existing app | Product docs keep camera/photo/video/backend/AI/Android/payment out of scope; code changes are limited to RN recipe/UI, Unity bridge/rendering, mask asset, verifiers, and docs | Satisfied for current loop |
 | Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` | Build/install proven; visual QA pending |
 | React Native minimal UI, events, presets | RN focused tests cover brow as fourth region, brow HUD controls, and four-layer recipe dispatch | Locally verified |
-| Natural brow presets | `natural_brow`, `soft_brow`, the three selected brow mask options, brow color/material cases, and brow-specific mask threshold/feather are covered by static verifiers; defaults were softened after first QA | Locally verified; device rebuild pending |
+| Natural brow presets | `natural_brow`, `soft_brow`, the three selected brow mask options, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; defaults were raised after the latest QA because the installed build was too faint | Locally verified; device rebuild pending |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds | Locally verified; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest and static contract verifiers cover the payload and acceptance path | Locally verified; visual quality pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning now includes flatter shape plus subtle density variation, but it is not device-verified | Needs re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
@@ -105,9 +113,9 @@ QA after applying the local tuning to a fresh device build:
 1. On the iPhone, open the AR screen and select `brow`.
 2. Confirm the HUD eventually reports
    `renderer=brow-smooth-region-mask-renderer` after Unity applies the recipe.
-3. Confirm the tuned brow no longer appears as `^ ^`, no longer has the center
-   as the obvious highest point, no longer reads as a thick sticker, and does
-   not appear as one uniform grey strip.
+3. Confirm the tuned brow is more visible, no longer appears too centered or
+   below the real brow line, no longer reads as a thick sticker, and does not
+   appear as one uniform grey strip.
 4. Compare `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
    `brow-slim-tail-fine-hair-v1` on device and choose the best default.
 5. Collect user visual observations for frontal neutral, left/right head turns,
@@ -120,13 +128,14 @@ QA after applying the local tuning to a fresh device build:
 ## Current Conclusion
 
 The current codebase has a locally verified and device-installed first-loop
-eyebrow makeup module, and the first iPhone QA confirmed attachment/control
-behavior. The full objective is not complete because visual quality failed on
-shape and thickness. Completion still needs:
+eyebrow makeup module, and iPhone QA confirmed attachment/control behavior. The
+full objective is not complete because visual quality still needs a rebuild and
+re-QA after the latest visibility, color, and placement tuning. Completion still
+needs:
 
-- UnityFramework/RN device rebuild with the selected three local brow mask
-  candidates and softer default brow presets.
-- User visual QA confirming product-quality shape and thickness on the rebuilt
-  iPhone build.
+- UnityFramework/RN device rebuild with the post-QA visibility, color, and mask
+  placement tuning.
+- User visual QA confirming product-quality visibility, placement, shape, and
+  thickness on the rebuilt iPhone build.
 - A decision on whether explicit left/right asymmetry correction must be added
   before calling the eyebrow module complete.

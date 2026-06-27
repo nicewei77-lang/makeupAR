@@ -103,6 +103,11 @@ with soft mix texture, and slim tail with fine hair. The first is the RN/Unity
 default for the next QA build; the old `brow-drawn-mask-v1` remains available
 for comparison.
 
+The first three-option device QA confirmed tracking and expression attachment,
+but the brows were too faint, too centered, and slightly below the real brow
+line. The current local post-QA candidate masks are shifted `10px` outward per
+side and `7px` upward without increasing thickness.
+
 Current local verifier result for `brow-drawn-mask-v1.png`:
 
 - Size: `512x512`
@@ -120,9 +125,9 @@ Selected local candidate verifier results:
 
 | Mask | Active pixels | Bbox height | Center rise summary | Texture summary |
 | --- | ---: | ---: | --- | --- |
-| `brow-soft-arch-fine-hair-v1` | `3072` | `23` | left `3.44px`, right `2.61px` | peak range `32/43`, mean step `3.84/3.88` |
-| `brow-back-arch-soft-mix-v1` | `3384` | `26` | left `0.16px`, right `-0.75px` | peak range `13/16`, mean step `1.25/1.17` |
-| `brow-slim-tail-fine-hair-v1` | `2569` | `20` | left `0.13px`, right `-0.64px` | peak range `68/61`, mean step `4.29/4.72` |
+| `brow-soft-arch-fine-hair-v1` | `3072` | `23` | bbox `left=106,top=95,right=406,bottom=117`; centers `169/340` | peak range `32/43`, mean step `3.84/3.88` |
+| `brow-back-arch-soft-mix-v1` | `3384` | `26` | bbox `left=105,top=94,right=406,bottom=119`; centers `171/340` | peak range `13/16`, mean step `1.25/1.17` |
+| `brow-slim-tail-fine-hair-v1` | `2569` | `20` | bbox `left=105,top=97,right=406,bottom=116`; centers `173/337` | peak range `68/61`, mean step `4.29/4.72` |
 
 The mask remains a single-channel soft alpha texture, but no longer uses a
 fully uniform central ridge. If later device QA still shows poor fit, later
@@ -142,9 +147,11 @@ moderate feather, and multiply or normal alpha behavior depending on which looks
 more natural on device. Brow now has its own mask policy inside the shared
 smooth-mask backend: threshold `0.035`, default feather `0.42`, and recipe
 feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
-`brow-soft-arch-fine-hair-v1` at opacity `0.48`, intensity `0.48`, and coverage
-`0.54` so the first visible result is less sticker-like while still allowing
-the user to raise opacity and intensity during QA.
+`brow-soft-arch-fine-hair-v1` at opacity `0.68`, intensity `0.68`, and coverage
+`0.62` with `neutral_brown` (`#4A342B`). The brow color palette is now separate
+from lip colors: `ash_brown`, `neutral_brown`, `dark_brown`, and `soft_black`.
+For QA, raise opacity first, intensity second, and coverage last to improve
+visibility without immediately making the brow sticker-like.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in

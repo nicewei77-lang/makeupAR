@@ -110,6 +110,28 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   variation sheet: `brow-soft-arch-fine-hair-v1` as default,
   `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1`. These are
   not installed on the iPhone yet.
+- The `eyebrow-options-20260627-ufw-r1` iPhone build installed and launched with
+  the three options. User QA confirmed head-turn and expression attachment, but
+  the brow was too faint, especially `soft_brow`; the masks were too centered
+  and slightly below the real brow line; color choices were still lip colors.
+- Local post-QA tuning now raises brow visibility, adds brow-specific colors,
+  and shifts the three selected masks outward/upward. This post-QA tuning is not
+  installed on the iPhone yet.
+
+## Brow Parameter Tuning Guide
+
+Use `neutral_brown` as the first color for natural dark brows. Start with
+opacity `0.68`, intensity `0.68`, coverage `0.62`, feather `0.48`.
+
+If the brow is too faint, raise opacity first to `0.74..0.80`. If it is still
+too faint, raise intensity to `0.74..0.82`. Adjust coverage last, usually no
+higher than `0.68`, because too much coverage can make the brow read as a
+sticker.
+
+If the brow looks too solid, lower intensity before lowering opacity. If the
+edge looks sticker-like, lower coverage slightly (`0.56..0.60`) or raise feather
+within the current clamp. Use `dark_brown` or `soft_black` only after opacity and
+intensity feel right; otherwise the color change can hide shape problems.
 
 Check:
 

@@ -5,6 +5,7 @@
 import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App, {
+  BROW_COLOR_OPTIONS,
   BROW_TEXTURE_STYLE_OPTIONS,
   buildValidationRecipeBatchPayload,
   DEFAULT_ACTIVE_REGIONS,
@@ -532,17 +533,18 @@ test('posts eyebrow as a fourth independent region layer', () => {
   );
 
   expect(browSample).toBeTruthy();
-  expect(browSample!.intensity).toBe(0.48);
+  expect(browSample!.intensity).toBe(0.68);
   expect(browSample!.feather).toBe(0.48);
-  expect(browSample!.coverage).toBe(0.54);
+  expect(browSample!.coverage).toBe(0.62);
   expect(browSample!.specular).toBe(0);
-  expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.48);
+  expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.68);
+  expect(DEFAULT_REGION_RECIPES.brow.color).toBe(BROW_COLOR_OPTIONS[1]);
 
   const payload = buildValidationRecipeBatchPayload(
     {
       ...DEFAULT_REGION_RECIPES,
       brow: {
-        color: RECIPE_COLOR_OPTIONS[2],
+        color: BROW_COLOR_OPTIONS[1],
         opacity: DEFAULT_REGION_RECIPES.brow.opacity,
         intensity: browSample!.intensity,
         textureSample: browSample!,
@@ -582,10 +584,11 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.texture).toBe('natural_brow');
   expect(browLayer.sample).toBe('natural_brow');
   expect(browLayer.maskTextureId).toBe('brow-soft-arch-fine-hair-v1');
-  expect(browLayer.opacity).toBe(0.48);
-  expect(browLayer.intensity).toBe(0.48);
+  expect(browLayer.color).toBe('#4A342B');
+  expect(browLayer.opacity).toBe(0.68);
+  expect(browLayer.intensity).toBe(0.68);
   expect(browLayer.feather).toBe(0.48);
-  expect(browLayer.coverage).toBe(0.54);
+  expect(browLayer.coverage).toBe(0.62);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
@@ -1060,6 +1063,12 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('focus brow');
   expect(text).toContain('natural_brow');
   expect(text).toContain('soft_brow');
+  expect(text).toContain('ash_brown');
+  expect(text).toContain('neutral_brown');
+  expect(text).toContain('dark_brown');
+  expect(text).toContain('soft_black');
+  expect(text).not.toContain('rose');
+  expect(text).not.toContain('red');
   expect(text).toContain('Soft arch fine');
   expect(text).toContain('Back arch soft');
   expect(text).toContain('Slim tail fine');

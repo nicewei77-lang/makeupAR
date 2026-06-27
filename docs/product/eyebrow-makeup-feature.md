@@ -53,13 +53,15 @@ Important quality questions for device QA:
 
 ## Presets
 
-First-loop presets are conservative:
+First-loop presets use natural brow colors rather than lip colors:
 
-- `natural_brow`: soft neutral brown, multiply blend, opacity `0.48`,
-  intensity `0.48`, feather `0.48`, coverage `0.54`, roughness `1`,
+- `natural_brow`: neutral brown, multiply blend, opacity `0.68`,
+  intensity `0.68`, feather `0.48`, coverage `0.62`, roughness `1`,
   specular `0`, gloss boost `0`.
-- `soft_brow`: lighter brown, lower intensity, feather `0.48`,
-  coverage `0.50`, roughness `1`, specular `0`, gloss boost `0`.
+- `soft_brow`: lighter brown, lower intensity `0.56`, feather `0.48`,
+  coverage `0.58`, roughness `1`, specular `0`, gloss boost `0`.
+- Brow color choices are separate from lip colors: `ash_brown`,
+  `neutral_brown`, `dark_brown`, and `soft_black`.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -129,6 +131,13 @@ or bridge rewrite.
   `brow-slim-tail-fine-hair-v1` for comparison. `brow-drawn-mask-v1` remains
   as a legacy comparison option. This is local only and has not been rebuilt
   to the iPhone.
+- 2026-06-27: The three-option build was installed and launched on
+  `CloudsiPhone`. User QA confirmed tracking and expression attachment, but the
+  brow was too faint, especially `soft_brow`; the masks were too centered and
+  slightly below the real brow line; color choices were still lip colors.
+- 2026-06-27: Local post-QA tuning raises `natural_brow` visibility, adds the
+  brow-specific color palette, and shifts the three selected mask PNGs outward
+  and upward. This post-QA tuning has not yet been installed on-device.
 
 ## Local Verification
 
@@ -157,14 +166,14 @@ or bridge rewrite.
 
 ## QA Status
 
-The feature is installed and launchable on the approved iPhone build. First QA
-confirmed attachment and control response, but visual product quality is not
-accepted yet because the installed build's brow mask was too arched and too
-thick. The flatter/thinner tuning requires a fresh UnityFramework/RN device
-build before the next iPhone QA pass. The current local branch intentionally
-continues beyond that intermediate device build and now includes three
-candidate brow mask options from the generated variation sheet. These selected
-local options have not been installed on-device.
+The feature is installed and launchable on the approved iPhone builds. Device QA
+has confirmed attachment, expression stability, and control response. Visual
+product quality is not accepted yet because the latest installed build is too
+faint, too centered, and slightly low, with lip-color choices still showing in
+the brow HUD. The current local branch fixes those issues by increasing brow
+visibility, adding brow-specific colors, and shifting the selected masks outward
+and upward. This post-QA tuning requires a fresh UnityFramework/RN device build
+before the next iPhone QA pass.
 
 ## Risks
 
