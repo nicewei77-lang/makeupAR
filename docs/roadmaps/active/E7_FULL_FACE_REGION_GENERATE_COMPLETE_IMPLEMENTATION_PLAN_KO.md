@@ -3959,3 +3959,37 @@ Still not proven:
 - No new Xcode build/install/run after this audit.
 - No user-visible AR validation control proof after this audit.
 - No final visual acceptance for boundary smoothness, adjustment visibility, blending difference, or AR runtime opacity/color/ON-OFF controls.
+
+### 17.7 User-flow truth audit: n-shot capture must feed generation
+
+Status: **source/buildless gate passed, device visual acceptance still pending**.
+
+실제 사용자 관점으로 flow를 다시 보면 `촬영` step은 여러 표정을 요구하지만, 이전 구현은 생성 시 `neutral` 한 장만 native provider에 넘겼다. 즉 UI는 n회 촬영과 blendshape assist를 제품 핵심처럼 보여주지만, 실제 후보 package와 preview는 대부분 neutral 단일 frame에서 만들어지는 구조였다.
+
+#### 17.7.1 Fixed before next build
+
+| Risk | Fix | Gate |
+| --- | --- | --- |
+| n-shot capture가 실제 generation 입력이 아니라 UI gate처럼 동작함 | `generateWizardCandidates`가 captured shot 전체(`neutral`, `mouthOpen`, `smile`, `pucker`, `yawLeft`, `yawRight`)를 provider에 요청한다. `neutral`은 boundary anchor로 유지하고, 나머지 shot은 expression/blendshape summary에 사용한다. | RN Jest test `uses the full capture set when generating blendshape-assisted candidates` |
+| blendshape assist가 neutral 단일 frame 값만 보고 package evidence가 부족함 | generated package에 `captureSetShotResults`, `sourceFaceState.captureSetShotCount`, `sourceFaceState.blendshapeSummaryKind`, `blendshapeAssist.values["<shot>.<signal>"]`, `blendshapeAssist.values["max.<signal>"]`를 저장한다. | `v2.capture_set_used_for_blendshape_assist` prebuild gate |
+| Retake 후 이전 capture set evidence가 섞일 수 있음 | 다시 촬영 시 `captureSetId`, native provider result, per-shot provider result, candidates, saved/apply state를 clear한다. | existing retake stale-state gates + source check |
+
+#### 17.7.2 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `15 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd packages/lip-generate-core && npm run typecheck`
+- `cd packages/lip-generate-core && npm test`
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full`
+  - result: `31 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Still not proven:
+
+- No new iPhone/Xcode build after this audit.
+- The runtime cost of calling native provider for every captured shot is not measured on device.
+- Device visual acceptance is still required for boundary smoothness, live adjustment reflection, blending difference, save/apply ack, AR transition, and AR validation controls.

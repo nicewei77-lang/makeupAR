@@ -976,7 +976,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     string | null
   >(null);
   const [wizardStep, setWizardStep] = useState<E7WizardStep>('start');
-  const [captureSetId] = useState(() => createCaptureSetId(entryCount));
+  const [captureSetId, setCaptureSetId] = useState(() =>
+    createCaptureSetId(entryCount),
+  );
   const [captureShots, setCaptureShots] = useState(
     createInitialCaptureShots,
   );
@@ -984,6 +986,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     useState<E7CaptureShotKind | null>(null);
   const [nativeProviderResults, setNativeProviderResults] = useState<
     Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>
+  >({});
+  const [nativeProviderShotResults, setNativeProviderShotResults] = useState<
+    Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult[]>>
   >({});
   const [generatedCandidates, setGeneratedCandidates] = useState<
     E7GeneratedCandidateWithPreview[]
@@ -1589,30 +1594,31 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const invokeNativeBoundaryProvider = useCallback(
     async (
       provider: GeneratedLipMaskProvider,
+      shotKind: E7CaptureShotKind = 'neutral',
     ): Promise<E7NativeBoundaryResult> => {
-      const neutralShot = captureShots.neutral;
-      if (!isCapturedShot(neutralShot)) {
+      const captureShot = captureShots[shotKind];
+      if (!isCapturedShot(captureShot)) {
         return {
           status: 'blocked',
           provider,
           captureSetId,
-          capturePairId: neutralShot.capturePairId ?? 'neutral_missing',
-          captureShotKind: 'neutral',
+          capturePairId: captureShot.capturePairId ?? `${shotKind}_missing`,
+          captureShotKind: shotKind,
           framePath: '',
           arFaceExportPath: '',
           frameWidth: 0,
           frameHeight: 0,
-          warnings: ['neutral_capture_required_before_native_extract'],
-          blockedReason: 'neutral_capture_missing',
+          warnings: [`${shotKind}_capture_required_before_native_extract`],
+          blockedReason: `${shotKind}_capture_missing`,
         };
       }
 
-      const captureDirectory = neutralShot.relativeDirectory ?? '';
+      const captureDirectory = captureShot.relativeDirectory ?? '';
       const requestJson = JSON.stringify({
         provider,
         captureSetId,
-        capturePairId: neutralShot.capturePairId,
-        captureShotKind: 'neutral',
+        capturePairId: captureShot.capturePairId,
+        captureShotKind: shotKind,
         framePath: `${captureDirectory}/frame.png`,
         arFaceExportPath: `${captureDirectory}/arface_export.json`,
         orientation: 'up',
@@ -1629,8 +1635,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           status: 'blocked',
           provider,
           captureSetId,
-          capturePairId: neutralShot.capturePairId ?? 'neutral_missing',
-          captureShotKind: 'neutral',
+          capturePairId: captureShot.capturePairId ?? `${shotKind}_missing`,
+          captureShotKind: shotKind,
           framePath: `${captureDirectory}/frame.png`,
           arFaceExportPath: `${captureDirectory}/arface_export.json`,
           frameWidth: 0,
@@ -1644,7 +1650,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         await E7_NATIVE_BOUNDARY_MODULE.extractLipBoundary(requestJson);
       return JSON.parse(responseJson) as E7NativeBoundaryResult;
     },
-    [captureSetId, captureShots.neutral, lipUserAdjustment],
+    [captureSetId, captureShots, lipUserAdjustment],
   );
 
   const renderGeneratedCandidatePreviews = useCallback(
@@ -1720,20 +1726,30 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     );
 
     try {
-      const results = [await invokeNativeBoundaryProvider(lipGenerateProvider)];
-      const resultMap = results.reduce((map, result) => {
+      const capturedShotKinds = E7_CAPTURE_SHOT_OPTIONS.filter(option =>
+        isCapturedShot(captureShots[option.kind]),
+      ).map(option => option.kind);
+      const results = await Promise.all(
+        capturedShotKinds.map(shotKind =>
+          invokeNativeBoundaryProvider(lipGenerateProvider, shotKind),
+        ),
+      );
+      const neutralResult =
+        results.find(result => result.captureShotKind === 'neutral') ??
+        results[0] ??
+        (await invokeNativeBoundaryProvider(lipGenerateProvider, 'neutral'));
+      const resultMap = [neutralResult].reduce((map, result) => {
         map[result.provider] = result;
         return map;
       }, {} as Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>);
-      const candidates = results.flatMap(result =>
-        LIP_GENERATE_EXPRESSION_OPTIONS.map(expressionOption =>
+      const candidates = LIP_GENERATE_EXPRESSION_OPTIONS.map(
+        expressionOption =>
           buildGeneratedLipPackage({
-            nativeResult: result,
-            providerResults: results,
+            nativeResult: neutralResult,
+            providerResults: results.length ? results : [neutralResult],
             expressionMode: expressionOption.name,
             adjustment: lipUserAdjustment,
           }),
-        ),
       );
       const candidatesWithPreviews =
         await renderGeneratedCandidatePreviews(candidates);
@@ -1753,6 +1769,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ) && options?.stayOnStep;
 
       setNativeProviderResults(resultMap);
+      setNativeProviderShotResults(currentResults => ({
+        ...currentResults,
+        [lipGenerateProvider]: results.length ? results : [neutralResult],
+      }));
       setGeneratedCandidates(candidatesWithPreviews);
       setSelectedGeneratedCandidateKey(
         keepSelectedCandidate ? selectedGeneratedCandidateKey : firstUsable,
@@ -1780,6 +1800,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       setIsGeneratingCandidates(false);
     }
   }, [
+    captureShots,
     invokeNativeBoundaryProvider,
     isGeneratingCandidates,
     lipGenerateProvider,
@@ -2427,6 +2448,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       };
       const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
       const providerResult = nativeProviderResults[lipGenerateProvider];
+      const providerShotResults =
+        nativeProviderShotResults[lipGenerateProvider] ??
+        (providerResult ? [providerResult] : []);
 
       setLipUserAdjustment(nextAdjustment);
       setSavedGeneratedPackage(null);
@@ -2436,7 +2460,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           expressionOption =>
             buildGeneratedLipPackage({
               nativeResult: providerResult,
-              providerResults: [providerResult],
+              providerResults: providerShotResults.length
+                ? providerShotResults
+                : [providerResult],
               expressionMode: expressionOption.name,
               adjustment: nextAdjustment,
             }),
@@ -2479,6 +2505,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       lipUserAdjustment,
       lipGenerateProvider,
       nativeProviderResults,
+      nativeProviderShotResults,
       postRecipeBatch,
       regionRecipes,
       renderGeneratedCandidatePreviews,
@@ -2633,6 +2660,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             onSelectProvider={provider => {
               setLipGenerateProvider(provider);
               setNativeProviderResults({});
+              setNativeProviderShotResults({});
               setGeneratedCandidates([]);
               setSavedGeneratedPackage(null);
               resetGeneratedApplyFlow(`select_provider_${provider}`);
@@ -2649,10 +2677,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               })
             }
             onRetakeCapture={() => {
+              setCaptureSetId(createCaptureSetId(entryCount));
               setCaptureShots(createInitialCaptureShots());
               setPendingCapturePairId(null);
               setPendingCaptureShotKind(null);
               setNativeProviderResults({});
+              setNativeProviderShotResults({});
               setGeneratedCandidates([]);
               setSavedGeneratedPackage(null);
               setGeneratedCandidatesStale(false);

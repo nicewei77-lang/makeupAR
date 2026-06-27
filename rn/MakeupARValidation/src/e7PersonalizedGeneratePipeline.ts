@@ -119,6 +119,55 @@ type E7UvCoverageMetadataWithDiagnostics = NonNullable<
   smoothedPointCount: number;
 };
 
+function summarizeNativeProviderResult(result: E7NativeBoundaryResult) {
+  return {
+    status: result.status,
+    provider: result.provider,
+    capturePairId: result.capturePairId,
+    captureShotKind: result.captureShotKind,
+    frameWidth: result.frameWidth,
+    frameHeight: result.frameHeight,
+    outerPointCount: result.boundary?.outerPoints.length ?? 0,
+    innerPointCount: result.boundary?.innerPoints.length ?? 0,
+    generationMethod: result.boundary?.generationMethod,
+    fullFaceLandmarksPath: result.fullFaceLandmarksPath,
+    blockedReason: result.blockedReason,
+    warnings: result.warnings ?? [],
+  };
+}
+
+function summarizeCaptureSetBlendShapes(
+  results: E7NativeBoundaryResult[],
+): Record<string, number> | undefined {
+  const values: Record<string, number> = {};
+  const maxValues: Record<string, number> = {};
+
+  for (const result of results) {
+    const keySignals = result.blendShapes?.keySignals;
+    if (!keySignals) {
+      continue;
+    }
+
+    for (const [name, value] of Object.entries(keySignals)) {
+      if (typeof value !== 'number' || !Number.isFinite(value)) {
+        continue;
+      }
+
+      values[`${result.captureShotKind}.${name}`] = value;
+      maxValues[name] =
+        maxValues[name] === undefined
+          ? value
+          : Math.max(maxValues[name], value);
+    }
+  }
+
+  for (const [name, value] of Object.entries(maxValues)) {
+    values[`max.${name}`] = value;
+  }
+
+  return Object.keys(values).length ? values : undefined;
+}
+
 export function encodeBase64(bytes: Uint8Array): string {
   let output = '';
   let index = 0;
@@ -644,8 +693,11 @@ export function buildGeneratedLipPackage(input: {
       'same_frame_round_trip_pending_in_app_preview',
       'boundary_smoothing_curve_densified_v1',
       'adjustment_applied_before_uv_projection',
+      `capture_set_shots_used_${(input.providerResults ?? [nativeResult]).length}`,
       expressionMode === 'blendshapeAssist'
-        ? 'blendshape_assist_metadata_included'
+        ? `blendshape_assist_capture_set_summary_${
+            (input.providerResults ?? [nativeResult]).length
+          }_shots`
         : 'blendshape_assist_off',
     ]),
   );
@@ -663,24 +715,19 @@ export function buildGeneratedLipPackage(input: {
     roundTripKind: 'same_frame_self_reconstruction',
   };
   const providerResults = Object.fromEntries(
-    (input.providerResults ?? [nativeResult]).map(result => [
-      result.provider,
-      {
-        status: result.status,
-        provider: result.provider,
-        capturePairId: result.capturePairId,
-        captureShotKind: result.captureShotKind,
-        frameWidth: result.frameWidth,
-        frameHeight: result.frameHeight,
-        outerPointCount: result.boundary?.outerPoints.length ?? 0,
-        innerPointCount: result.boundary?.innerPoints.length ?? 0,
-        generationMethod: result.boundary?.generationMethod,
-        fullFaceLandmarksPath: result.fullFaceLandmarksPath,
-        blockedReason: result.blockedReason,
-        warnings: result.warnings ?? [],
-      },
+    [nativeResult].map(result => [result.provider, summarizeNativeProviderResult(result)]),
+  );
+  const captureSetResults = input.providerResults ?? [nativeResult];
+  const captureSetShotResults = Object.fromEntries(
+    captureSetResults.map(result => [
+      result.captureShotKind,
+      summarizeNativeProviderResult(result),
     ]),
   );
+  const captureSetBlendShapeValues =
+    expressionMode === 'blendshapeAssist'
+      ? summarizeCaptureSetBlendShapes(captureSetResults)
+      : nativeResult.blendShapes?.keySignals;
   const materialFeatherUvNormalized =
     expressionMode === 'blendshapeAssist' ? 0.09 : 0.07;
   const generatedPackage: LipGeneratePackage = {
@@ -689,14 +736,15 @@ export function buildGeneratedLipPackage(input: {
     captureSetId: nativeResult.captureSetId,
     provider: nativeResult.provider,
     providerResults,
+    captureSetShotResults,
     expressionMode,
     blendshapeAssist: {
       mode: expressionMode,
       enabled: expressionMode === 'blendshapeAssist',
       source: 'arface-blendshapes',
       materialFeatherUvNormalized,
-      values: nativeResult.blendShapes?.keySignals,
-      warning: nativeResult.blendShapes?.available
+      values: captureSetBlendShapeValues,
+      warning: captureSetBlendShapeValues
         ? undefined
         : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable',
     },
@@ -710,11 +758,14 @@ export function buildGeneratedLipPackage(input: {
       isMirrored: nativeResult.arFaceExport.display?.isMirrored ?? false,
     },
     sourceFaceState: {
-      blendshapeAvailable: Boolean(nativeResult.blendShapes?.available),
-      warning: nativeResult.blendShapes?.available
+      blendshapeAvailable: Boolean(captureSetBlendShapeValues),
+      warning: captureSetBlendShapeValues
         ? undefined
         : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable',
-      values: nativeResult.blendShapes?.keySignals,
+      values: captureSetBlendShapeValues,
+      captureSetShotCount: captureSetResults.length,
+      blendshapeSummaryKind:
+        captureSetResults.length > 1 ? 'capture-set' : 'single-frame',
     },
     lipBoundary2D: smoothedAdjustedBoundary,
     uvMaskTexture: `${generatedMaskId}.raw-rgba-${uv.width}x${uv.height}`,

@@ -54,6 +54,8 @@ export type LipSourceFaceState = {
   blendshapeAvailable: boolean;
   warning?: string;
   values?: Record<string, number>;
+  captureSetShotCount?: number;
+  blendshapeSummaryKind?: 'single-frame' | 'capture-set';
 };
 
 export type LipUvCoverageMetadata = {
@@ -122,6 +124,7 @@ export type LipGeneratePackage = {
   captureSetId: string;
   provider: LipMaskProvider;
   providerResults: Partial<Record<LipMaskProvider, LipProviderResultSummary>>;
+  captureSetShotResults?: Partial<Record<string, LipProviderResultSummary>>;
   expressionMode: ExpressionAssistMode;
   blendshapeAssist: LipBlendshapeAssistMetadata;
   adjustment: LipAdjustment;

@@ -690,6 +690,24 @@ function runMain() {
     `Regenerate and retake must be separate and clear stale apply state. currentPhotoRegenerate=${hasCurrentPhotoRegenerate ? 'yes' : 'no'} retake=${hasRetake ? 'yes' : 'no'} oldLabelRemoved=${oldRegenerateLabelRemoved ? 'yes' : 'no'} applyStateClear=${hasApplyStateClear ? 'yes' : 'no'} pendingMaskClear=${hasPendingApplyClear ? 'yes' : 'no'}`,
   );
 
+  const hasCaptureSetNativeExtraction = matchesAny(rnAppSource, [
+    /capturedShotKinds[\s\S]{0,400}invokeNativeBoundaryProvider\s*\(\s*lipGenerateProvider\s*,\s*shotKind\s*\)/,
+    /E7_CAPTURE_SHOT_OPTIONS[\s\S]{0,500}extractLipBoundary/,
+  ]);
+  const hasCaptureSetPackageEvidence = matchesAll(rnAppSource, [
+    /nativeProviderShotResults/,
+    /providerShotResults/,
+  ]) && matchesAll(personalizedPipelineSource, [
+    /captureSetShotResults/,
+    /blendshape_assist_capture_set_summary/,
+    /captureSetShotCount/,
+  ]);
+  addCheck(
+    'v2.capture_set_used_for_blendshape_assist',
+    hasCaptureSetNativeExtraction && hasCaptureSetPackageEvidence,
+    `The n-shot capture flow must feed generation, not only gate UI. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'}`,
+  );
+
   const applyStateRequirements = [
     { label: 'idle', pattern: /['"]idle['"]/ },
     { label: 'saving', pattern: /['"]saving['"]/ },

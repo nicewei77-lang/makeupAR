@@ -298,7 +298,17 @@ function emitGeneratedLipMaskApplied(
   });
 }
 
-function makeNativeBoundaryResponse(provider: 'vision' | 'mediapipe') {
+function makeNativeBoundaryResponse(
+  provider: 'vision' | 'mediapipe',
+  patch: Partial<ReturnType<typeof makeBaseNativeBoundaryResponse>> = {},
+) {
+  return {
+    ...makeBaseNativeBoundaryResponse(provider),
+    ...patch,
+  };
+}
+
+function makeBaseNativeBoundaryResponse(provider: 'vision' | 'mediapipe') {
   return {
     status: 'ready',
     provider,
@@ -363,8 +373,34 @@ function makeNativeBoundaryResponse(provider: 'vision' | 'mediapipe') {
 }
 
 function installNativeGenerateSuccessMock(provider: 'vision' | 'mediapipe' = 'vision') {
-  mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(async () =>
-    JSON.stringify(makeNativeBoundaryResponse(provider)),
+  mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(async requestJson => {
+    const request = JSON.parse(String(requestJson));
+    const shotKind = String(request.captureShotKind ?? 'neutral');
+    const shotSignalScale =
+      shotKind === 'pucker'
+        ? 0.42
+        : shotKind === 'smile'
+          ? 0.31
+          : shotKind === 'mouthOpen'
+            ? 0.24
+            : 0.12;
+    return JSON.stringify(
+      makeNativeBoundaryResponse(provider, {
+        captureSetId: request.captureSetId,
+        capturePairId: request.capturePairId,
+        captureShotKind: request.captureShotKind,
+        framePath: request.framePath,
+        arFaceExportPath: request.arFaceExportPath,
+        blendShapes: {
+          available: true,
+          keySignals: {
+            mouthSmileLeft: shotSignalScale,
+            mouthPucker: shotKind === 'pucker' ? 0.58 : 0.03,
+          },
+        },
+      }),
+    );
+  },
   );
   mockE7NativeLipBoundaryProviders.renderLipMaskPreview = jest.fn(
     async (packageJson: string) => {
@@ -615,6 +651,65 @@ test('renders large two-option blending candidate previews from the captured fra
       ),
     ).toBe(true);
   }
+});
+
+test('uses the full capture set when generating blendshape-assisted candidates', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  captureAllWizardShots(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  await pressByTestIDAsync(renderer!, 'e7-wizard-generate-candidates');
+
+  expect(mockE7NativeLipBoundaryProviders.extractLipBoundary).toHaveBeenCalledTimes(6);
+  const requestedShotKinds =
+    mockE7NativeLipBoundaryProviders.extractLipBoundary?.mock.calls.map(call =>
+      JSON.parse(String(call[0])).captureShotKind,
+    );
+  expect(requestedShotKinds).toEqual([
+    'neutral',
+    'mouthOpen',
+    'smile',
+    'pucker',
+    'yawLeft',
+    'yawRight',
+  ]);
+
+  const previewPackages =
+    mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.map(call =>
+      JSON.parse(String(call[0])),
+    ) ?? [];
+  const blendshapePackage = previewPackages.find(
+    generatedPackage => generatedPackage.expressionMode === 'blendshapeAssist',
+  );
+
+  expect(blendshapePackage).toBeTruthy();
+  expect(Object.keys(blendshapePackage.captureSetShotResults)).toEqual([
+    'neutral',
+    'mouthOpen',
+    'smile',
+    'pucker',
+    'yawLeft',
+    'yawRight',
+  ]);
+  expect(blendshapePackage.sourceFaceState.captureSetShotCount).toBe(6);
+  expect(blendshapePackage.sourceFaceState.blendshapeSummaryKind).toBe(
+    'capture-set',
+  );
+  expect(blendshapePackage.blendshapeAssist.values['pucker.mouthPucker']).toBe(
+    0.58,
+  );
+  expect(blendshapePackage.blendshapeAssist.values['max.mouthPucker']).toBe(
+    0.58,
+  );
 });
 
 async function advanceToGeneratedAdjustStep(
