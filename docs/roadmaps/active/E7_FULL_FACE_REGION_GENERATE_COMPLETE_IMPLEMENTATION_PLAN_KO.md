@@ -2758,6 +2758,11 @@ web/lip-generate-beta:
 rn/MakeupARValidation:
   ./node_modules/.bin/tsc --noEmit
   npm test -- --runInBand --watchman=false
+    covers locked steps, one capture CTA, final-capture captured-frame shield,
+    native current-frame success path, full-face mask overlay text,
+    save -> ApplyGeneratedLipMaskJson -> waiting ack,
+    matching generatedMaskId ack success,
+    mismatched generatedMaskId ack rejection
   npm run lint
 
 packages/lip-generate-core:

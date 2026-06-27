@@ -1716,13 +1716,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               ? parsed.generatedMaskId
               : '';
           const status = String(parsed.status ?? 'unknown');
-          const isMatchingPendingMask =
-            !pendingGeneratedMaskId ||
-            !generatedMaskId ||
-            generatedMaskId === pendingGeneratedMaskId;
+          const isMatchingPendingMask = pendingGeneratedMaskId
+            ? generatedMaskId === pendingGeneratedMaskId
+            : Boolean(generatedMaskId);
+          const isRuntimeApplyStatus =
+            status === 'partial' || status === 'ready';
           const isApplied =
             isMatchingPendingMask &&
-            status !== 'blocked' &&
+            isRuntimeApplyStatus &&
             parsed.applied === true &&
             parsed.uvAvailable === true &&
             (readNumber(parsed.maskTriangles) ?? 0) > 0;
@@ -1979,7 +1980,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const wizardStepIndex = getWizardStepIndex(wizardStep);
   const hasGeneratedMaskApplied = generatedApplyState === 'applied';
   const isUsingCapturedFrameReview =
-    wizardStepIndex >= getWizardStepIndex('extract') && !hasGeneratedMaskApplied;
+    (wizardStepIndex >= getWizardStepIndex('extract') ||
+      capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length) &&
+    !hasGeneratedMaskApplied;
   const showCompactControls = false;
 
   const toggleRegion = useCallback(
