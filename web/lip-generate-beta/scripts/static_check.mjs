@@ -42,7 +42,7 @@ for (const token of [
   'Capture',
   '추출',
   '둘 중 하나만 추출',
-  '부드럽게',
+  '기본 블렌딩',
   'fixture replay 금지',
   'Xcode build pending',
 ]) {

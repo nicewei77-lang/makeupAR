@@ -3109,9 +3109,16 @@ function E7GenerateWizard({
 
         {activeStep === 'blend' && (
           <View style={styles.generateWizardBody}>
-            <View style={styles.generateWizardCandidateGrid}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.generateWizardCandidateGrid}
+            >
               {generatedCandidates.map(candidate => {
                 const isSelected = candidate.candidateKey === selectedCandidateKey;
+                const overlayStyle = buildGeneratedMaskPreviewStyle(
+                  candidate.package,
+                );
 
                 return (
                   <Pressable
@@ -3128,24 +3135,50 @@ function E7GenerateWizard({
                     ]}
                     onPress={() => onSelectCandidate(candidate.candidateKey)}
                   >
-                    <Text style={styles.generateWizardCandidateTitle}>
-                      {formatGeneratedCandidateTitle(candidate)}
-                    </Text>
-                    <Text style={styles.generateWizardCandidateMeta}>
-                      {formatProviderLabel(candidate.provider)} · {candidate.status}
-                    </Text>
-                    <Text
-                      style={styles.generateWizardCandidateReason}
-                      numberOfLines={2}
-                    >
-                      {candidate.blockedReason ??
-                        candidate.warnings[0] ??
-                        'generated'}
-                    </Text>
+                    <View style={styles.generateWizardCandidatePreview}>
+                      {selectedFramePreviewUri ? (
+                        <Image
+                          source={{ uri: selectedFramePreviewUri }}
+                          style={styles.generateWizardCandidatePreviewImage}
+                        />
+                      ) : (
+                        <View style={styles.generateWizardCandidatePreviewEmpty}>
+                          <Text style={styles.generateWizardCandidateReason}>
+                            캡처 프레임 대기
+                          </Text>
+                        </View>
+                      )}
+                      {overlayStyle ? (
+                        <View
+                          pointerEvents="none"
+                          style={[
+                            styles.generatedAdjustmentMaskOverlay,
+                            overlayStyle,
+                          ]}
+                        />
+                      ) : null}
+                    </View>
+                    <View style={styles.generateWizardCandidateCopy}>
+                      <Text style={styles.generateWizardCandidateTitle}>
+                        {formatGeneratedCandidateTitle(candidate)}
+                      </Text>
+                      <Text style={styles.generateWizardCandidateMeta}>
+                        {formatProviderLabel(candidate.provider)} ·{' '}
+                        {candidate.status}
+                      </Text>
+                      <Text
+                        style={styles.generateWizardCandidateReason}
+                        numberOfLines={2}
+                      >
+                        {candidate.blockedReason ??
+                          candidate.warnings[0] ??
+                          'generated'}
+                      </Text>
+                    </View>
                   </Pressable>
                 );
               })}
-            </View>
+            </ScrollView>
             <Pressable
               accessibilityRole="button"
               disabled={!selectedGeneratedCandidate?.package}
@@ -4881,17 +4914,17 @@ const styles = StyleSheet.create({
   },
   generateWizardCandidateGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
+    gap: 12,
+    paddingRight: 4,
   },
   generateWizardCandidateCard: {
-    width: '48%',
-    minHeight: 78,
+    width: 218,
+    minHeight: 256,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
-    padding: 8,
+    overflow: 'hidden',
     justifyContent: 'space-between',
   },
   generateWizardCandidateCardSelected: {
@@ -4903,24 +4936,45 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(185, 28, 28, 0.20)',
     borderColor: '#FCA5A5',
   },
+  generateWizardCandidatePreview: {
+    height: 170,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(15, 23, 42, 0.84)',
+  },
+  generateWizardCandidatePreviewImage: {
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  generateWizardCandidatePreviewEmpty: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 12,
+  },
+  generateWizardCandidateCopy: {
+    minHeight: 84,
+    padding: 10,
+    gap: 5,
+  },
   generateWizardCandidateTitle: {
     color: '#F9FAFB',
-    fontSize: 13,
+    fontSize: 17,
     fontWeight: '900',
     letterSpacing: 0,
   },
   generateWizardCandidateMeta: {
     color: '#5EEAD4',
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0,
     textTransform: 'uppercase',
   },
   generateWizardCandidateReason: {
     color: '#CBD5E1',
-    fontSize: 9,
-    lineHeight: 12,
-    fontWeight: '700',
+    fontSize: 12,
+    lineHeight: 15,
+    fontWeight: '800',
     letterSpacing: 0,
   },
   generateWizardActionRow: {

@@ -555,6 +555,52 @@ test('uses one capture CTA and switches to captured-frame review after required 
   expect(text).toContain('저장된 frame.png / arface_export.json 기준');
 });
 
+test('renders large two-option blending candidate previews from the captured frame', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  captureAllWizardShots(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  await pressByTestIDAsync(renderer!, 'e7-wizard-generate-candidates');
+
+  const candidateCards = renderer!.root.findAll(
+    node =>
+      typeof node.props.testID === 'string' &&
+      node.props.testID.startsWith('e7-candidate-'),
+  );
+  const candidateTestIds = [...new Set(candidateCards.map(card => card.props.testID))];
+  const text = collectText(renderer!);
+
+  expect(candidateTestIds).toEqual([
+    'e7-candidate-vision/uvOnly',
+    'e7-candidate-vision/blendshapeAssist',
+  ]);
+  expect(text).toContain('기본 블렌딩');
+  expect(text).toContain('표정 보정');
+  expect(text).not.toContain('부드럽게');
+  expect(text).not.toContain('번짐 안전');
+  for (const testID of candidateTestIds) {
+    const matchingCards = renderer!.root.findAllByProps({ testID });
+    expect(
+      matchingCards.some(
+        card =>
+          card.findAll(
+            node =>
+              node.props.source?.uri === 'file:///tmp/e7-frame-preview.png',
+          ).length > 0,
+      ),
+    ).toBe(true);
+  }
+});
+
 async function advanceToGeneratedAdjustStep(
   renderer: ReactTestRenderer.ReactTestRenderer,
 ) {

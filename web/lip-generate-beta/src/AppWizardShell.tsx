@@ -178,18 +178,6 @@ function buildCandidates(provider: ExtractionProvider): CandidatePreview[] {
       status: `${providerLabel} · assist on`,
       src,
     },
-    {
-      id: `${provider}-soft`,
-      title: '부드럽게',
-      status: `${providerLabel} · edge feather`,
-      src,
-    },
-    {
-      id: `${provider}-safe`,
-      title: '번짐 안전',
-      status: `${providerLabel} · spill guard`,
-      src,
-    },
   ];
 }
 
@@ -732,7 +720,7 @@ function BlendStep({
       <SheetHeader step={step} canBack={canBack} onBack={onBack} />
       <p className="sheet-note">
         추출 방식은 {providerLabels[selectedProvider]} 하나입니다. 여기서는 같은
-        경계에서 기본/표정 보정/부드러운 경계 후보를 고릅니다.
+        경계에서 기본 블렌딩과 표정 보정 중 하나를 고릅니다.
       </p>
       <div className="candidate-strip">
         {candidates.map(candidate => (
