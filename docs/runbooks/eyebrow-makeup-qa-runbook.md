@@ -154,9 +154,10 @@ Check:
 - `brow-soft-arch-fine-hair-v1` is selected for brow by default.
 - `brow-back-arch-soft-mix-v1` and `brow-slim-tail-fine-hair-v1` can be selected
   for visual comparison.
-- `Brow X` and `Brow Y` controls can be adjusted while the brow remains attached.
+- `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains
+  attached.
 - The latest recipe HUD shows `renderer=brow-smooth-region-mask-renderer` for
-  brow after Unity acknowledges the recipe.
+  brow plus applied `spread=`/`y=` values after Unity acknowledges the recipe.
 - Opacity and intensity changes update without restarting AR.
 - Brow color changes stay face-attached during small head motion.
 - Left and right head turns do not cause the brow to float or detach.
