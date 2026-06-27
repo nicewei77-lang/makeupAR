@@ -228,6 +228,136 @@ final class E7NativeLipBoundaryProviders: NSObject {
     }
   }
 
+  @objc(renderLipMaskPreview:resolver:rejecter:)
+  func renderLipMaskPreview(
+    _ packageJson: String,
+    resolver resolve: @escaping RCTPromiseResolveBlock,
+    rejecter reject: @escaping RCTPromiseRejectBlock
+  ) {
+    do {
+      guard let data = packageJson.data(using: .utf8),
+            let package = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+        throw E7NativeProviderError.invalidPackageJson
+      }
+      guard let sourceFrameMetadata = package["sourceFrameMetadata"] as? [String: Any],
+            let framePath = sourceFrameMetadata["framePath"] as? String,
+            !framePath.isEmpty else {
+        throw E7NativeProviderError.missingField("sourceFrameMetadata.framePath")
+      }
+      guard let lipBoundary = package["lipBoundary2D"] as? [String: Any] else {
+        throw E7NativeProviderError.missingField("lipBoundary2D")
+      }
+      let outerPoints = try parsePreviewPoints(
+        lipBoundary["outerPoints"],
+        field: "lipBoundary2D.outerPoints"
+      )
+      let innerPoints = try parsePreviewPoints(
+        lipBoundary["innerPoints"],
+        field: "lipBoundary2D.innerPoints"
+      )
+      guard outerPoints.count >= 3 else {
+        throw E7NativeProviderError.missingField("lipBoundary2D.outerPoints[3+]")
+      }
+
+      let frameUrl = try resolveAppFilePath(framePath)
+      let imageSource = CGImageSourceCreateWithURL(frameUrl as CFURL, nil)
+      guard let imageSource,
+            let cgImage = CGImageSourceCreateImageAtIndex(imageSource, 0, nil) else {
+        throw E7NativeProviderError.invalidFrameImage(framePath)
+      }
+
+      let width = CGFloat(cgImage.width)
+      let height = CGFloat(cgImage.height)
+      let rendererFormat = UIGraphicsImageRendererFormat.default()
+      rendererFormat.scale = 1
+      rendererFormat.opaque = true
+      let renderer = UIGraphicsImageRenderer(
+        size: CGSize(width: width, height: height),
+        format: rendererFormat
+      )
+      let renderedImage = renderer.image { context in
+        let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        UIImage(cgImage: cgImage).draw(in: rect)
+
+        let maskPath = UIBezierPath()
+        append(points: outerPoints, to: maskPath)
+        if innerPoints.count >= 3 {
+          append(points: innerPoints.reversed(), to: maskPath)
+        }
+        maskPath.usesEvenOddFillRule = true
+        UIColor(red: 217.0 / 255.0, green: 75.0 / 255.0, blue: 116.0 / 255.0, alpha: 0.58)
+          .setFill()
+        maskPath.fill(with: .normal, alpha: 0.58)
+
+        let outerStroke = UIBezierPath()
+        append(points: outerPoints, to: outerStroke)
+        UIColor.white.withAlphaComponent(0.92).setStroke()
+        outerStroke.lineWidth = max(4, width * 0.004)
+        outerStroke.lineJoinStyle = .round
+        outerStroke.stroke()
+
+        if innerPoints.count >= 3 {
+          let innerStroke = UIBezierPath()
+          append(points: innerPoints, to: innerStroke)
+          UIColor.white.withAlphaComponent(0.68).setStroke()
+          innerStroke.lineWidth = max(2, width * 0.0025)
+          innerStroke.lineJoinStyle = .round
+          innerStroke.stroke()
+        }
+
+        context.cgContext.setFillColor(UIColor.black.withAlphaComponent(0.52).cgColor)
+        let badgeRect = CGRect(x: 24, y: 24, width: min(width - 48, 560), height: 72)
+        let badgePath = UIBezierPath(roundedRect: badgeRect, cornerRadius: 14)
+        badgePath.fill()
+        let label = "actual generated lip mask preview" as NSString
+        label.draw(
+          in: badgeRect.insetBy(dx: 18, dy: 18),
+          withAttributes: [
+            .font: UIFont.systemFont(ofSize: 26, weight: .bold),
+            .foregroundColor: UIColor.white
+          ]
+        )
+      }
+
+      guard let pngData = renderedImage.pngData() else {
+        throw E7NativeProviderError.invalidFrameImage(framePath)
+      }
+
+      let generatedMaskId = sanitizePathComponent(
+        package["generatedMaskId"] as? String ?? "generated-lip-mask-preview"
+      )
+      let outputRoot = try documentsDirectory()
+        .appendingPathComponent("e7-generated-lip-previews", isDirectory: true)
+      try FileManager.default.createDirectory(
+        at: outputRoot,
+        withIntermediateDirectories: true
+      )
+      let outputUrl = outputRoot.appendingPathComponent("\(generatedMaskId).png")
+      try pngData.write(to: outputUrl, options: .atomic)
+
+      resolve(try jsonString([
+        "status": "ready",
+        "generatedMaskId": generatedMaskId,
+        "previewPath": outputUrl.path,
+        "previewUri": outputUrl.absoluteString,
+        "framePath": frameUrl.path,
+        "outerPointCount": outerPoints.count,
+        "innerPointCount": innerPoints.count,
+        "privacy": [
+          "localOnly": true,
+          "offDeviceUpload": false,
+          "longTermRawFrameStored": false
+        ]
+      ]))
+    } catch {
+      reject(
+        "E7_RENDER_PREVIEW_FAILED",
+        error.localizedDescription,
+        error
+      )
+    }
+  }
+
   private func parseRequest(_ json: String) throws -> E7NativeBoundaryRequest {
     guard let data = json.data(using: .utf8),
           let object = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -271,6 +401,47 @@ final class E7NativeLipBoundaryProviders: NSObject {
       return url
     }
     throw E7NativeProviderError.fileNotFound(value)
+  }
+
+  private func parsePreviewPoints(_ value: Any?, field: String) throws -> [CGPoint] {
+    guard let rawPoints = value as? [[String: Any]] else {
+      throw E7NativeProviderError.missingField(field)
+    }
+    return try rawPoints.map { rawPoint in
+      guard let x = numericValue(rawPoint["x"]),
+            let y = numericValue(rawPoint["y"]) else {
+        throw E7NativeProviderError.missingField("\(field).x/y")
+      }
+      return CGPoint(x: x, y: y)
+    }
+  }
+
+  private func numericValue(_ value: Any?) -> CGFloat? {
+    if let number = value as? NSNumber {
+      return CGFloat(truncating: number)
+    }
+    if let doubleValue = value as? Double {
+      return CGFloat(doubleValue)
+    }
+    if let intValue = value as? Int {
+      return CGFloat(intValue)
+    }
+    return nil
+  }
+
+  private func append<S: Sequence>(points: S, to path: UIBezierPath) where S.Element == CGPoint {
+    var didMove = false
+    for point in points {
+      if didMove {
+        path.addLine(to: point)
+      } else {
+        path.move(to: point)
+        didMove = true
+      }
+    }
+    if didMove {
+      path.close()
+    }
   }
 
   private func documentsDirectory() throws -> URL {

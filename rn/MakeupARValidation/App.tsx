@@ -20,7 +20,6 @@ import {
   useColorScheme,
   View,
 } from 'react-native';
-import type { DimensionValue, ViewStyle } from 'react-native';
 import UnityView from '@azesmway/react-native-unity';
 import {
   SafeAreaProvider,
@@ -413,12 +412,25 @@ type E7CaptureShotState = {
 type E7NativeBoundaryModule = {
   extractLipBoundary?: (requestJson: string) => Promise<string>;
   saveGeneratedPackage?: (packageJson: string) => Promise<string>;
+  renderLipMaskPreview?: (packageJson: string) => Promise<string>;
 };
 type E7SavedPackageRecord = {
   generatedMaskId?: string;
   packagePath?: string;
   metadataPath?: string;
   status?: string;
+};
+type E7GeneratedPreviewState = 'pending' | 'ready' | 'blocked';
+type E7GeneratedPreviewResult = {
+  status?: E7GeneratedPreviewState;
+  previewUri?: string;
+  previewPath?: string;
+  blockedReason?: string;
+};
+type E7GeneratedCandidateWithPreview = E7GeneratedCandidate & {
+  previewUri?: string;
+  previewStatus?: E7GeneratedPreviewState;
+  previewError?: string;
 };
 type E7GeneratedApplyState =
   | 'idle'
@@ -893,7 +905,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>
   >({});
   const [generatedCandidates, setGeneratedCandidates] = useState<
-    E7GeneratedCandidate[]
+    E7GeneratedCandidateWithPreview[]
   >([]);
   const [selectedGeneratedCandidateKey, setSelectedGeneratedCandidateKey] =
     useState('vision/uvOnly');
@@ -1537,6 +1549,64 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [captureSetId, captureShots.neutral, lipUserAdjustment],
   );
 
+  const renderGeneratedCandidatePreviews = useCallback(
+    async (
+      candidates: E7GeneratedCandidate[],
+    ): Promise<E7GeneratedCandidateWithPreview[]> =>
+      Promise.all(
+        candidates.map(async candidate => {
+          if (!candidate.package) {
+            return {
+              ...candidate,
+              previewStatus: 'blocked',
+              previewError:
+                candidate.blockedReason ?? 'generated_package_missing',
+            };
+          }
+
+          if (!E7_NATIVE_BOUNDARY_MODULE?.renderLipMaskPreview) {
+            return {
+              ...candidate,
+              previewStatus: 'blocked',
+              previewError: 'native_preview_module_unavailable',
+            };
+          }
+
+          try {
+            const responseJson =
+              await E7_NATIVE_BOUNDARY_MODULE.renderLipMaskPreview(
+                JSON.stringify(candidate.package),
+              );
+            const result = JSON.parse(responseJson) as E7GeneratedPreviewResult;
+            if (result.status === 'ready' && result.previewUri) {
+              return {
+                ...candidate,
+                previewUri: result.previewUri,
+                previewStatus: 'ready',
+              };
+            }
+
+            return {
+              ...candidate,
+              previewStatus: 'blocked',
+              previewError:
+                result.blockedReason ?? 'native_preview_uri_missing',
+            };
+          } catch (error) {
+            return {
+              ...candidate,
+              previewStatus: 'blocked',
+              previewError:
+                error instanceof Error
+                  ? error.message
+                  : 'native_preview_render_failed',
+            };
+          }
+        }),
+      ),
+    [],
+  );
+
   const generateWizardCandidates = useCallback(async (options?: {
     stayOnStep?: boolean;
     reason?: 'manual' | 'auto-adjustment';
@@ -1567,19 +1637,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           }),
         ),
       );
+      const candidatesWithPreviews =
+        await renderGeneratedCandidatePreviews(candidates);
       const firstUsable =
-        candidates.find(candidate => candidate.package)?.candidateKey ??
-        candidates[0]?.candidateKey ??
+        candidatesWithPreviews.find(
+          candidate => candidate.package && candidate.previewUri,
+        )?.candidateKey ??
+        candidatesWithPreviews.find(candidate => candidate.package)
+          ?.candidateKey ??
+        candidatesWithPreviews[0]?.candidateKey ??
         'vision/uvOnly';
       const keepSelectedCandidate =
-        candidates.some(
+        candidatesWithPreviews.some(
           candidate =>
             candidate.candidateKey === selectedGeneratedCandidateKey &&
             candidate.package,
         ) && options?.stayOnStep;
 
       setNativeProviderResults(resultMap);
-      setGeneratedCandidates(candidates);
+      setGeneratedCandidates(candidatesWithPreviews);
       setSelectedGeneratedCandidateKey(
         keepSelectedCandidate ? selectedGeneratedCandidateKey : firstUsable,
       );
@@ -1591,7 +1667,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         setWizardStep('blend');
       }
       setWizardNotice(
-        candidates.some(candidate => candidate.package)
+        candidatesWithPreviews.some(candidate => candidate.package)
           ? options?.reason === 'auto-adjustment'
             ? '조정값이 현재 후보에 자동 반영되었습니다.'
             : `${formatProviderLabel(
@@ -1611,6 +1687,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     isGeneratingCandidates,
     lipGenerateProvider,
     lipUserAdjustment,
+    renderGeneratedCandidatePreviews,
     selectedGeneratedCandidateKey,
   ]);
 
@@ -1969,8 +2046,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     generatedCandidates.find(
       candidate => candidate.candidateKey === selectedGeneratedCandidateKey,
     ) ?? generatedCandidates[0];
-  const selectedNativeProviderResult = nativeProviderResults[lipGenerateProvider];
-  const selectedFramePreviewUri = selectedNativeProviderResult?.framePreviewUri;
   const canGenerateCandidates =
     isCapturedShot(captureShots.neutral) &&
     capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length;
@@ -2094,7 +2169,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const updateLipUserAdjustment = useCallback(
-    (field: LipAdjustmentField, nextValue: number) => {
+    async (field: LipAdjustmentField, nextValue: number) => {
       const roundedValue = Number(
         Math.max(-1, Math.min(1, nextValue)).toFixed(2),
       );
@@ -2117,17 +2192,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               adjustment: nextAdjustment,
             }),
         );
+        const rebuiltCandidatesWithPreviews =
+          await renderGeneratedCandidatePreviews(rebuiltCandidates);
         const selectedCandidateStillAvailable = rebuiltCandidates.some(
           candidate =>
             candidate.candidateKey === selectedGeneratedCandidateKey &&
             candidate.package,
         );
 
-        setGeneratedCandidates(rebuiltCandidates);
+        setGeneratedCandidates(rebuiltCandidatesWithPreviews);
         setSelectedGeneratedCandidateKey(
           selectedCandidateStillAvailable
             ? selectedGeneratedCandidateKey
-            : rebuiltCandidates.find(candidate => candidate.package)
+            : rebuiltCandidatesWithPreviews.find(candidate => candidate.package)
                 ?.candidateKey ?? `${lipGenerateProvider}/uvOnly`,
         );
         setGeneratedCandidatesStale(false);
@@ -2155,6 +2232,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       nativeProviderResults,
       postRecipeBatch,
       regionRecipes,
+      renderGeneratedCandidatePreviews,
       selectedGeneratedCandidateKey,
       selectedLipSample,
       selectedLipRuntimeCandidate,
@@ -2271,7 +2349,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             canSaveGeneratedPackage={canSaveGeneratedPackage}
             savedGeneratedPackage={savedGeneratedPackage}
             selectedProvider={lipGenerateProvider}
-            selectedFramePreviewUri={selectedFramePreviewUri}
             selectedCandidate={selectedGeneratedCandidate}
             selectedCandidateKey={selectedGeneratedCandidateKey}
             selectedLipSample={selectedLipSample}
@@ -2799,7 +2876,7 @@ type E7GenerateWizardProps = {
   captureShots: Record<E7CaptureShotKind, E7CaptureShotState>;
   capturedShotCount: number;
   alignmentGates: E7AlignmentGate[];
-  generatedCandidates: E7GeneratedCandidate[];
+  generatedCandidates: E7GeneratedCandidateWithPreview[];
   generatedCandidatesStale: boolean;
   generatedApplyState: E7GeneratedApplyState;
   isGeneratingCandidates: boolean;
@@ -2813,8 +2890,7 @@ type E7GenerateWizardProps = {
   canSaveGeneratedPackage: boolean;
   savedGeneratedPackage: E7SavedPackageRecord | null;
   selectedProvider: GeneratedLipMaskProvider;
-  selectedFramePreviewUri?: string;
-  selectedCandidate?: E7GeneratedCandidate;
+  selectedCandidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
   selectedLipSample: LipSample;
   lipUserAdjustment: LipUserAdjustment;
@@ -2850,7 +2926,6 @@ function E7GenerateWizard({
   canSaveGeneratedPackage,
   savedGeneratedPackage,
   selectedProvider,
-  selectedFramePreviewUri,
   selectedCandidate,
   selectedCandidateKey,
   selectedLipSample,
@@ -3116,9 +3191,6 @@ function E7GenerateWizard({
             >
               {generatedCandidates.map(candidate => {
                 const isSelected = candidate.candidateKey === selectedCandidateKey;
-                const overlayStyle = buildGeneratedMaskPreviewStyle(
-                  candidate.package,
-                );
 
                 return (
                   <Pressable
@@ -3136,27 +3208,18 @@ function E7GenerateWizard({
                     onPress={() => onSelectCandidate(candidate.candidateKey)}
                   >
                     <View style={styles.generateWizardCandidatePreview}>
-                      {selectedFramePreviewUri ? (
+                      {candidate.previewUri ? (
                         <Image
-                          source={{ uri: selectedFramePreviewUri }}
+                          source={{ uri: candidate.previewUri }}
                           style={styles.generateWizardCandidatePreviewImage}
                         />
                       ) : (
                         <View style={styles.generateWizardCandidatePreviewEmpty}>
                           <Text style={styles.generateWizardCandidateReason}>
-                            캡처 프레임 대기
+                            {formatCandidatePreviewStatus(candidate)}
                           </Text>
                         </View>
                       )}
-                      {overlayStyle ? (
-                        <View
-                          pointerEvents="none"
-                          style={[
-                            styles.generatedAdjustmentMaskOverlay,
-                            overlayStyle,
-                          ]}
-                        />
-                      ) : null}
                     </View>
                     <View style={styles.generateWizardCandidateCopy}>
                       <Text style={styles.generateWizardCandidateTitle}>
@@ -3199,7 +3262,6 @@ function E7GenerateWizard({
           <View style={styles.generateWizardBody}>
             <GeneratedAdjustmentPreview
               candidate={selectedGeneratedCandidate}
-              framePreviewUri={selectedFramePreviewUri}
               selectedCandidateKey={selectedCandidateKey}
             />
             <View style={styles.adjustmentFieldButtonRow}>
@@ -3428,38 +3490,30 @@ function ApplyGatePill({
 
 function GeneratedAdjustmentPreview({
   candidate,
-  framePreviewUri,
   selectedCandidateKey,
 }: {
-  candidate?: E7GeneratedCandidate;
-  framePreviewUri?: string;
+  candidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
 }) {
-  const overlayStyle = buildGeneratedMaskPreviewStyle(candidate?.package);
-
   return (
     <View style={styles.generatedAdjustmentPreview}>
-      {framePreviewUri ? (
+      {candidate?.previewUri ? (
         <Image
-          source={{ uri: framePreviewUri }}
+          source={{ uri: candidate.previewUri }}
           style={styles.generatedAdjustmentPreviewImage}
         />
       ) : (
         <View style={styles.generatedAdjustmentPreviewEmpty}>
           <Text style={styles.generatedAdjustmentPreviewTitle}>
-            캡처 프레임 프리뷰 대기
+            실제 mask preview 대기
           </Text>
           <Text style={styles.generatedAdjustmentPreviewText}>
-            Xcode gate에서 file:// frame preview 렌더를 확인합니다.
+            {candidate
+              ? formatCandidatePreviewStatus(candidate)
+              : '후보를 먼저 생성하세요.'}
           </Text>
         </View>
       )}
-      {overlayStyle ? (
-        <View
-          pointerEvents="none"
-          style={[styles.generatedAdjustmentMaskOverlay, overlayStyle]}
-        />
-      ) : null}
       <View style={styles.generatedAdjustmentMaskBadge}>
         <Text style={styles.generatedAdjustmentMaskBadgeText}>
           {selectedCandidateKey}
@@ -3470,62 +3524,6 @@ function GeneratedAdjustmentPreview({
       </Text>
     </View>
   );
-}
-
-function buildGeneratedMaskPreviewStyle(
-  packageData?: LipGeneratePackage,
-): ViewStyle | null {
-  const boundary = packageData?.lipBoundary2D;
-  const frameWidth = packageData?.sourceFrameMetadata?.frameWidth;
-  const frameHeight = packageData?.sourceFrameMetadata?.frameHeight;
-  if (
-    !boundary ||
-    !frameWidth ||
-    !frameHeight ||
-    frameWidth <= 0 ||
-    frameHeight <= 0 ||
-    boundary.outerPoints.length < 3
-  ) {
-    return null;
-  }
-
-  const bounds = boundary.outerPoints.reduce(
-    (acc, point) => ({
-      minX: Math.min(acc.minX, point.x),
-      minY: Math.min(acc.minY, point.y),
-      maxX: Math.max(acc.maxX, point.x),
-      maxY: Math.max(acc.maxY, point.y),
-    }),
-    {
-      minX: Number.POSITIVE_INFINITY,
-      minY: Number.POSITIVE_INFINITY,
-      maxX: Number.NEGATIVE_INFINITY,
-      maxY: Number.NEGATIVE_INFINITY,
-    },
-  );
-  const centerX = ((bounds.minX + bounds.maxX) / 2 / frameWidth) * 100;
-  const centerY = ((bounds.minY + bounds.maxY) / 2 / frameHeight) * 100;
-  const widthPct = Math.max(
-    12,
-    Math.min(42, ((bounds.maxX - bounds.minX) / frameWidth) * 118),
-  );
-  const heightPct = Math.max(
-    4,
-    Math.min(18, ((bounds.maxY - bounds.minY) / frameHeight) * 132),
-  );
-  const leftPct = clampPercent(centerX - widthPct / 2, 0, 100 - widthPct);
-  const topPct = clampPercent(centerY - heightPct / 2, 0, 100 - heightPct);
-
-  return {
-    left: `${leftPct}%` as DimensionValue,
-    top: `${topPct}%` as DimensionValue,
-    width: `${widthPct}%` as DimensionValue,
-    height: `${heightPct}%` as DimensionValue,
-  };
-}
-
-function clampPercent(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
 }
 
 function formatProviderLabel(provider: GeneratedLipMaskProvider) {
@@ -3540,6 +3538,18 @@ function formatGeneratedCandidateTitle(candidate: E7GeneratedCandidate) {
     return '표정 보정';
   }
   return '기본 블렌딩';
+}
+
+function formatCandidatePreviewStatus(
+  candidate: E7GeneratedCandidateWithPreview,
+) {
+  if (candidate.previewStatus === 'ready') {
+    return '실제 mask preview 준비';
+  }
+  if (candidate.previewStatus === 'blocked') {
+    return candidate.previewError ?? 'actual mask preview failed';
+  }
+  return 'actual mask preview 생성 중';
 }
 
 function formatWizardStepLabel(step: E7WizardStep) {
@@ -5053,13 +5063,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(217, 75, 116, 0.86)',
-  },
-  generatedAdjustmentMaskOverlay: {
-    position: 'absolute',
-    borderRadius: 999,
-    backgroundColor: 'rgba(217, 75, 116, 0.72)',
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.88)',
   },
   generatedAdjustmentMaskBadgeText: {
     color: '#FFFFFF',

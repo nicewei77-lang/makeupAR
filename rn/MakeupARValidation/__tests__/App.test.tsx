@@ -9,6 +9,7 @@ const mockUnityPostMessage = jest.fn();
 const mockE7NativeLipBoundaryProviders: {
   extractLipBoundary?: jest.Mock;
   saveGeneratedPackage?: jest.Mock;
+  renderLipMaskPreview?: jest.Mock;
 } = {};
 const mockNativeModules: Record<string, any> = {
   E7NativeLipBoundaryProviders: mockE7NativeLipBoundaryProviders,
@@ -112,6 +113,7 @@ beforeEach(() => {
   mockUnityPostMessage.mockClear();
   mockE7NativeLipBoundaryProviders.extractLipBoundary = undefined;
   mockE7NativeLipBoundaryProviders.saveGeneratedPackage = undefined;
+  mockE7NativeLipBoundaryProviders.renderLipMaskPreview = undefined;
   consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
   jest.useFakeTimers();
@@ -364,6 +366,17 @@ function installNativeGenerateSuccessMock(provider: 'vision' | 'mediapipe' = 'vi
   mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(async () =>
     JSON.stringify(makeNativeBoundaryResponse(provider)),
   );
+  mockE7NativeLipBoundaryProviders.renderLipMaskPreview = jest.fn(
+    async (packageJson: string) => {
+      const generatedPackage = JSON.parse(packageJson);
+      return JSON.stringify({
+        status: 'ready',
+        generatedMaskId: generatedPackage.generatedMaskId,
+        previewUri: `file:///tmp/${generatedPackage.generatedMaskId}.preview.png`,
+        previewPath: `/tmp/${generatedPackage.generatedMaskId}.preview.png`,
+      });
+    },
+  );
   mockE7NativeLipBoundaryProviders.saveGeneratedPackage = jest.fn(
     async (packageJson: string) => {
       const generatedPackage = JSON.parse(packageJson);
@@ -587,6 +600,7 @@ test('renders large two-option blending candidate previews from the captured fra
   expect(text).toContain('표정 보정');
   expect(text).not.toContain('부드럽게');
   expect(text).not.toContain('번짐 안전');
+  expect(mockE7NativeLipBoundaryProviders.renderLipMaskPreview).toHaveBeenCalledTimes(2);
   for (const testID of candidateTestIds) {
     const matchingCards = renderer!.root.findAllByProps({ testID });
     expect(
@@ -594,7 +608,9 @@ test('renders large two-option blending candidate previews from the captured fra
         card =>
           card.findAll(
             node =>
-              node.props.source?.uri === 'file:///tmp/e7-frame-preview.png',
+              typeof node.props.source?.uri === 'string' &&
+              node.props.source.uri.startsWith('file:///tmp/e7-generated-lip-') &&
+              node.props.source.uri.endsWith('.preview.png'),
           ).length > 0,
       ),
     ).toBe(true);

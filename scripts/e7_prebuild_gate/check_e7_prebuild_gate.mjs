@@ -1,0 +1,581 @@
+#!/usr/bin/env node
+
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(scriptDir, '..', '..');
+const args = new Set(process.argv.slice(2));
+const runChildChecks = args.has('--run-checks') || args.has('--full');
+const writeReport = !args.has('--no-report');
+
+const fixtureRoot = path.join(
+  repoRoot,
+  'evidence',
+  'logs',
+  'e7-device-pull-20260627-post-user-review',
+);
+const generatedPackagePath = path.join(
+  fixtureRoot,
+  'generated-package',
+  'generated_lip_package.json',
+);
+const savedRecordPath = path.join(
+  fixtureRoot,
+  'generated-package',
+  'saved_record.json',
+);
+const sourceFramePath = path.join(
+  fixtureRoot,
+  'source-pair-111840Z-12',
+  'frame.png',
+);
+const arFaceExportPath = path.join(
+  fixtureRoot,
+  'source-pair-111840Z-12',
+  'arface_export.json',
+);
+const rnAppPath = path.join(repoRoot, 'rn', 'MakeupARValidation', 'App.tsx');
+const rnPackagePath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'package.json',
+);
+const nativeProviderPath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'ios',
+  'MakeupARValidation',
+  'E7NativeLipBoundaryProviders.swift',
+);
+const nativeBridgePath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'ios',
+  'MakeupARValidation',
+  'E7NativeLipBoundaryProvidersBridge.m',
+);
+const rnNativeCheckPath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'scripts',
+  'check-e7-native-generate.js',
+);
+const unityBridgePath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Scripts',
+  'RNBridge.cs',
+);
+const unityFrameworkPath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'node_modules',
+  '@azesmway',
+  'react-native-unity',
+  'ios',
+  'UnityFramework.framework',
+);
+const reportDir = path.join(
+  repoRoot,
+  'evidence',
+  'logs',
+  'e7-prebuild-gate',
+  'latest',
+);
+
+const checks = [];
+
+function addCheck(id, ok, detail, meta = {}) {
+  checks.push({
+    id,
+    status: ok ? 'pass' : 'fail',
+    detail,
+    ...meta,
+  });
+}
+
+function addWarn(id, detail, meta = {}) {
+  checks.push({
+    id,
+    status: 'warn',
+    detail,
+    ...meta,
+  });
+}
+
+function exists(filePath) {
+  return fs.existsSync(filePath);
+}
+
+function readText(filePath) {
+  return fs.readFileSync(filePath, 'utf8');
+}
+
+function readJson(filePath) {
+  return JSON.parse(readText(filePath).replace(/^\uFEFF/, ''));
+}
+
+function safeReadText(filePath) {
+  return exists(filePath) ? readText(filePath) : '';
+}
+
+function bounds(points) {
+  if (!Array.isArray(points) || points.length === 0) {
+    return null;
+  }
+  return points.reduce(
+    (acc, point) => ({
+      minX: Math.min(acc.minX, Number(point.x)),
+      minY: Math.min(acc.minY, Number(point.y)),
+      maxX: Math.max(acc.maxX, Number(point.x)),
+      maxY: Math.max(acc.maxY, Number(point.y)),
+    }),
+    {
+      minX: Number.POSITIVE_INFINITY,
+      minY: Number.POSITIVE_INFINITY,
+      maxX: Number.NEGATIVE_INFINITY,
+      maxY: Number.NEGATIVE_INFINITY,
+    },
+  );
+}
+
+function polygonArea(points) {
+  if (!Array.isArray(points) || points.length < 3) {
+    return 0;
+  }
+  let area = 0;
+  for (let index = 0; index < points.length; index += 1) {
+    const current = points[index];
+    const next = points[(index + 1) % points.length];
+    area += Number(current.x) * Number(next.y) - Number(next.x) * Number(current.y);
+  }
+  return Math.abs(area) * 0.5;
+}
+
+function analyzeRawRgba(payload) {
+  const width = Number(payload?.maskTextureWidth ?? 0);
+  const height = Number(payload?.maskTextureHeight ?? 0);
+  const raw = Buffer.from(String(payload?.maskRawRgbaBase64 ?? ''), 'base64');
+  const expectedBytes = width * height * 4;
+  let nonzeroAlpha = 0;
+  let strongAlpha = 0;
+  let maxAlpha = 0;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  if (width > 0 && height > 0 && raw.length === expectedBytes) {
+    for (let index = 0; index < width * height; index += 1) {
+      const alpha = raw[index * 4 + 3];
+      maxAlpha = Math.max(maxAlpha, alpha);
+      if (alpha > 0) {
+        nonzeroAlpha += 1;
+        const x = index % width;
+        const y = Math.floor(index / width);
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+      if (alpha >= 128) {
+        strongAlpha += 1;
+      }
+    }
+  }
+
+  return {
+    width,
+    height,
+    bytes: raw.length,
+    expectedBytes,
+    nonzeroAlpha,
+    strongAlpha,
+    maxAlpha,
+    bbox: maxX >= minX ? { minX, minY, maxX, maxY } : null,
+  };
+}
+
+function pointsToSvg(points) {
+  return (points ?? [])
+    .map(point => `${Number(point.x).toFixed(2)},${Number(point.y).toFixed(2)}`)
+    .join(' ');
+}
+
+function writePreviewArtifacts(generatedPackage) {
+  const metadata = generatedPackage.sourceFrameMetadata ?? {};
+  const width = Number(metadata.frameWidth ?? 0);
+  const height = Number(metadata.frameHeight ?? 0);
+  const outer = generatedPackage.lipBoundary2D?.outerPoints ?? [];
+  const inner = generatedPackage.lipBoundary2D?.innerPoints ?? [];
+  const frameHref = pathToFileURL(sourceFramePath).href;
+
+  fs.mkdirSync(reportDir, { recursive: true });
+  const svgPath = path.join(reportDir, 'mask-preview.svg');
+  const htmlPath = path.join(reportDir, 'mask-preview.html');
+  const reportStyle = 'font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;';
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    `  <image href="${frameHref}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"/>`,
+    `  <polygon points="${pointsToSvg(outer)}" fill="#db4778" fill-opacity="0.48" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>`,
+    inner.length >= 3
+      ? `  <polygon points="${pointsToSvg(inner)}" fill="#111111" fill-opacity="0.32" stroke="#ffe7f1" stroke-width="4" stroke-linejoin="round"/>`
+      : '',
+    `  <text x="32" y="58" fill="#ffffff" font-size="38" font-family="Helvetica" font-weight="700">E7 prebuild actual package preview</text>`,
+    '</svg>',
+    '',
+  ].join('\n');
+  const html = [
+    '<!doctype html>',
+    '<meta charset="utf-8">',
+    `<title>E7 Prebuild Mask Preview</title>`,
+    `<body style="${reportStyle} margin:0; background:#111; color:white;">`,
+    '<main style="max-width:920px; margin:0 auto; padding:24px;">',
+    '<h1 style="font-size:24px;">E7 Prebuild Mask Preview</h1>',
+    '<p>이 파일은 generated_lip_package.json의 lipBoundary2D를 그대로 그립니다. 앱 preview가 이 형태와 다르면 빌드 금지입니다.</p>',
+    `<img src="${path.basename(svgPath)}" style="width:100%; height:auto; border:1px solid #555;">`,
+    '</main>',
+    '</body>',
+    '',
+  ].join('\n');
+  fs.writeFileSync(svgPath, svg);
+  fs.writeFileSync(htmlPath, html);
+  return { svgPath, htmlPath };
+}
+
+function fileContainsBytes(rootPath, needle) {
+  if (!exists(rootPath)) {
+    return false;
+  }
+  const needleBuffer = Buffer.from(needle);
+  const stack = [rootPath];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stat = fs.statSync(current);
+    if (stat.isDirectory()) {
+      for (const child of fs.readdirSync(current)) {
+        stack.push(path.join(current, child));
+      }
+      continue;
+    }
+    if (!stat.isFile() || stat.size === 0) {
+      continue;
+    }
+    const content = fs.readFileSync(current);
+    if (content.includes(needleBuffer)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function runNodeCheck(label, commandArgs, cwd) {
+  const result = spawnSync(process.execPath, commandArgs, {
+    cwd,
+    encoding: 'utf8',
+  });
+  return {
+    label,
+    ok: result.status === 0,
+    status: result.status,
+    stdout: result.stdout.trim(),
+    stderr: result.stderr.trim(),
+  };
+}
+
+function runMain() {
+  addCheck(
+    'fixture.frame_exists',
+    exists(sourceFramePath),
+    sourceFramePath,
+  );
+  addCheck(
+    'fixture.arface_export_exists',
+    exists(arFaceExportPath),
+    arFaceExportPath,
+  );
+  addCheck(
+    'fixture.generated_package_exists',
+    exists(generatedPackagePath),
+    generatedPackagePath,
+  );
+  addCheck('fixture.saved_record_exists', exists(savedRecordPath), savedRecordPath);
+
+  let generatedPackage = null;
+  let arFaceExport = null;
+  let savedRecord = null;
+  try {
+    generatedPackage = readJson(generatedPackagePath);
+    arFaceExport = readJson(arFaceExportPath);
+    savedRecord = readJson(savedRecordPath);
+  } catch (error) {
+    addCheck('fixture.json_parse', false, error.message);
+  }
+
+  if (generatedPackage && arFaceExport && savedRecord) {
+    const boundary = generatedPackage.lipBoundary2D;
+    const outer = boundary?.outerPoints ?? [];
+    const inner = boundary?.innerPoints ?? [];
+    const outerBounds = bounds(outer);
+    const outerArea = polygonArea(outer);
+    const bboxArea = outerBounds
+      ? Math.max(0, outerBounds.maxX - outerBounds.minX) *
+        Math.max(0, outerBounds.maxY - outerBounds.minY)
+      : 0;
+    const areaRatio = bboxArea > 0 ? outerArea / bboxArea : 0;
+    const uvStats = analyzeRawRgba(generatedPackage.runtimeApplyPayload);
+    const previewPaths = writeReport ? writePreviewArtifacts(generatedPackage) : null;
+
+    addCheck(
+      'package.schema',
+      generatedPackage.schemaVersion === 'e7-personalized-lip-generate-package-v0',
+      `schemaVersion=${generatedPackage.schemaVersion}`,
+    );
+    addCheck(
+      'package.privacy_local_only',
+      generatedPackage.privacyFlags?.localOnly === true &&
+        generatedPackage.privacyFlags?.offDeviceUpload === false &&
+        generatedPackage.privacyFlags?.longTermRawFrameStored === false,
+      JSON.stringify(generatedPackage.privacyFlags),
+    );
+    addCheck(
+      'package.boundary_points',
+      outer.length >= 8 && inner.length >= 3,
+      `outer=${outer.length} inner=${inner.length}`,
+      { outerPointCount: outer.length, innerPointCount: inner.length },
+    );
+    addCheck(
+      'package.boundary_not_bbox_proxy',
+      areaRatio > 0.25 && areaRatio < 0.85,
+      `polygonArea=${outerArea.toFixed(1)} bboxArea=${bboxArea.toFixed(1)} areaRatio=${areaRatio.toFixed(3)}`,
+      { outerBounds, outerArea, bboxArea, areaRatio },
+    );
+    addCheck(
+      'package.runtime_payload_shape',
+      generatedPackage.runtimeApplyPayload?.schemaVersion ===
+        'e7-generated-lip-mask-runtime-payload-v0' &&
+        generatedPackage.runtimeApplyPayload?.maskTextureEncoding ===
+          'raw_rgba_base64' &&
+        generatedPackage.runtimeApplyPayload?.localOnly === true &&
+        generatedPackage.runtimeApplyPayload?.offDeviceUpload === false,
+      `payloadSchema=${generatedPackage.runtimeApplyPayload?.schemaVersion}`,
+    );
+    addCheck(
+      'package.uv_mask_nonempty',
+      uvStats.bytes === uvStats.expectedBytes &&
+        uvStats.nonzeroAlpha > 0 &&
+        uvStats.strongAlpha > 0,
+      `bytes=${uvStats.bytes}/${uvStats.expectedBytes} nonzeroAlpha=${uvStats.nonzeroAlpha} strongAlpha=${uvStats.strongAlpha} maxAlpha=${uvStats.maxAlpha} bbox=${JSON.stringify(uvStats.bbox)}`,
+      { uvStats },
+    );
+    addCheck(
+      'package.saved_record_is_not_apply_proof',
+      savedRecord.status === 'saved_local_only' &&
+        savedRecord.runtimeReady === false,
+      `status=${savedRecord.status} runtimeReady=${savedRecord.runtimeReady}`,
+    );
+    addCheck(
+      'fixture.arface_mesh_uv_ready',
+      Array.isArray(arFaceExport.screenVertices) &&
+        arFaceExport.screenVertices.length >= 1000 &&
+        Array.isArray(arFaceExport.uvs) &&
+        arFaceExport.uvs.length >= 1000 &&
+        Array.isArray(arFaceExport.indices) &&
+        arFaceExport.indices.length >= 3000,
+      `screenVertices=${arFaceExport.screenVertices?.length ?? 0} uvs=${arFaceExport.uvs?.length ?? 0} indices=${arFaceExport.indices?.length ?? 0}`,
+    );
+    if (previewPaths) {
+      addCheck(
+        'report.actual_package_preview_written',
+        exists(previewPaths.svgPath) && exists(previewPaths.htmlPath),
+        `${path.relative(repoRoot, previewPaths.htmlPath)} / ${path.relative(repoRoot, previewPaths.svgPath)}`,
+      );
+    }
+  }
+
+  const rnAppSource = safeReadText(rnAppPath);
+  const nativeProviderSource = safeReadText(nativeProviderPath);
+  const nativeBridgeSource = safeReadText(nativeBridgePath);
+  const unityBridgeSource = safeReadText(unityBridgePath);
+  const rnPackage = exists(rnPackagePath) ? readJson(rnPackagePath) : {};
+
+  const hasFakePreviewHelper = /function\s+buildGeneratedMaskPreviewStyle/.test(
+    rnAppSource,
+  );
+  const hasRoundedRectPreviewStyle =
+    /generatedAdjustmentMaskOverlay\s*:\s*\{[\s\S]*?borderRadius\s*:\s*999/.test(
+      rnAppSource,
+    );
+  addCheck(
+    'rn.preview_no_fake_bbox_overlay',
+    !hasFakePreviewHelper && !hasRoundedRectPreviewStyle,
+    hasFakePreviewHelper || hasRoundedRectPreviewStyle
+      ? 'RN still contains bbox/rounded-rect generated mask preview. Build would show a fake pill instead of the actual lip mask.'
+      : 'No bbox rounded-rect preview helper found.',
+  );
+  addCheck(
+    'rn.preview_native_png_contract',
+    /renderLipMaskPreview/.test(rnAppSource) &&
+      /previewUri|maskPreviewUri|generatedPreviewUri/.test(rnAppSource),
+    'RN must display a preview image generated from generated_lip_package.json, not a hand-drawn bbox View.',
+  );
+  addCheck(
+    'ios.native_preview_method_exported',
+    /@objc\(renderLipMaskPreview:resolver:rejecter:\)/.test(
+      nativeProviderSource,
+    ) &&
+      /RCT_EXTERN_METHOD\(renderLipMaskPreview/.test(nativeBridgeSource),
+    'Native iOS preview helper must render the actual lipBoundary2D to a file:// PNG for RN.',
+  );
+  addCheck(
+    'rn.flow_ack_gate_present',
+    /generated_lip_mask_applied/.test(rnAppSource) &&
+      /maskTriangles/.test(rnAppSource) &&
+      /uvAvailable/.test(rnAppSource) &&
+      /generatedApplyState\s*===\s*'applied'/.test(rnAppSource),
+    'RN apply success must depend on Unity ack with applied=true, uvAvailable=true, maskTriangles>0.',
+  );
+  addCheck(
+    'rn.copy_blending_not_compare',
+    /블렌딩 선택/.test(rnAppSource) && !/Compare/.test(rnAppSource),
+    'Product UI should say 블렌딩 선택, and Compare should stay out of the active flow.',
+  );
+  addCheck(
+    'rn.package_script_registered',
+    Boolean(rnPackage.scripts?.['e7:prebuild']),
+    'rn/MakeupARValidation/package.json should expose npm run e7:prebuild.',
+  );
+
+  addCheck(
+    'unity.source_persists_generated_ack',
+    /e7-runtime-events/.test(unityBridgeSource) &&
+      /generated_lip_mask_applied\.latest\.json/.test(unityBridgeSource) &&
+      /generated_lip_mask_applied\.jsonl/.test(unityBridgeSource),
+    'Unity RNBridge source must persist generated_lip_mask_applied latest/jsonl.',
+  );
+  addCheck(
+    'unity.source_ack_success_contract',
+    /result\.Applied/.test(unityBridgeSource) &&
+      /result\.UvAvailable/.test(unityBridgeSource) &&
+      /result\.MaskTriangleCount\s*>\s*0/.test(unityBridgeSource),
+    'Unity ack success must require Applied, UV, and maskTriangles.',
+  );
+  addCheck(
+    'unity.framework_contains_ack_persistence',
+    fileContainsBytes(unityFrameworkPath, 'e7-runtime-events') &&
+      fileContainsBytes(
+        unityFrameworkPath,
+        'generated_lip_mask_applied.latest.json',
+      ),
+    exists(unityFrameworkPath)
+      ? 'UnityFramework must contain current RNBridge ack persistence strings. If this fails, rebuild/sync UnityFramework before Xcode.'
+      : `missing ${unityFrameworkPath}`,
+  );
+
+  if (runChildChecks) {
+    if (exists(rnNativeCheckPath)) {
+      const child = runNodeCheck(
+        'rn native Generate static checks',
+        [rnNativeCheckPath],
+        path.dirname(rnPackagePath),
+      );
+      addCheck(
+        'child.rn_native_generate_check',
+        child.ok,
+        child.ok ? child.stdout : `${child.stdout}\n${child.stderr}`,
+        { childStatus: child.status },
+      );
+    } else {
+      addWarn('child.rn_native_generate_check', 'script missing');
+    }
+  } else {
+    addWarn(
+      'child.checks_skipped',
+      'Pass --run-checks to also run child static scripts. Default gate stays fast for edit loops.',
+    );
+  }
+
+  const failed = checks.filter(check => check.status === 'fail');
+  const warned = checks.filter(check => check.status === 'warn');
+  const passed = checks.filter(check => check.status === 'pass');
+  const summary = {
+    schemaVersion: 'e7-prebuild-gate-report-v0',
+    createdAt: new Date().toISOString(),
+    repoRoot,
+    fixtureRoot,
+    result: failed.length === 0 ? 'pass' : 'fail',
+    counts: {
+      pass: passed.length,
+      fail: failed.length,
+      warn: warned.length,
+    },
+    checks,
+  };
+
+  if (writeReport) {
+    fs.mkdirSync(reportDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(reportDir, 'gate-report.json'),
+      JSON.stringify(summary, null, 2),
+    );
+    fs.writeFileSync(path.join(reportDir, 'gate-report.md'), renderMarkdown(summary));
+  }
+
+  for (const check of checks) {
+    const mark =
+      check.status === 'pass' ? 'ok' : check.status === 'warn' ? 'WARN' : 'FAIL';
+    console.log(`[e7-prebuild] ${mark} ${check.id} - ${check.detail}`);
+  }
+  console.log(
+    `[e7-prebuild] result=${summary.result} pass=${passed.length} fail=${failed.length} warn=${warned.length}`,
+  );
+  if (writeReport) {
+    console.log(
+      `[e7-prebuild] report=${path.relative(repoRoot, path.join(reportDir, 'gate-report.md'))}`,
+    );
+  }
+  if (failed.length > 0) {
+    process.exit(1);
+  }
+}
+
+function renderMarkdown(summary) {
+  const lines = [
+    '# E7 Prebuild Gate Report',
+    '',
+    `- result: ${summary.result}`,
+    `- createdAt: ${summary.createdAt}`,
+    `- fixture: ${path.relative(repoRoot, summary.fixtureRoot)}`,
+    `- pass/fail/warn: ${summary.counts.pass}/${summary.counts.fail}/${summary.counts.warn}`,
+    '',
+    '## Checks',
+    '',
+    '| Status | Check | Detail |',
+    '| --- | --- | --- |',
+  ];
+  for (const check of summary.checks) {
+    lines.push(
+      `| ${check.status} | ${check.id} | ${String(check.detail).replaceAll('\n', '<br>').replaceAll('|', '\\|')} |`,
+    );
+  }
+  lines.push(
+    '',
+    '## Preview',
+    '',
+    '- `mask-preview.html` renders the actual `generated_lip_package.json` boundary over the captured iPhone frame.',
+    '- If RN shows anything materially different, do not run Xcode build.',
+    '',
+  );
+  return lines.join('\n');
+}
+
+runMain();

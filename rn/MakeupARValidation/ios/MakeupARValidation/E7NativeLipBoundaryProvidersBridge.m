@@ -10,4 +10,8 @@ RCT_EXTERN_METHOD(saveGeneratedPackage:(NSString *)packageJson
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 
+RCT_EXTERN_METHOD(renderLipMaskPreview:(NSString *)packageJson
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+
 @end
