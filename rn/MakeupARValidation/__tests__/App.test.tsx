@@ -220,6 +220,7 @@ function emitUnityReferenceCapture(
           status: 'exported',
           capturePairId,
           relativeDirectory: `Documents/e7-reference-atlas/capture_pairs/${capturePairId}`,
+          framePreviewUri: `file:///tmp/${capturePairId}-frame.png`,
           detail: 'pending_projected_mesh_overlay_review',
           meshVertexCount: 1220,
           meshIndexCount: 6912,
@@ -514,6 +515,30 @@ test('posts Unity capture request for a wizard neutral shot', async () => {
   expect(request.requestedBy).toBe('rn-personalized-generate-wizard');
 });
 
+test('unblocks capture when Unity capture response is missing', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+
+  expect(collectText(renderer!)).toContain('촬영 중');
+
+  ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(7_000);
+  });
+
+  const text = collectText(renderer!);
+  expect(text).toContain('촬영 응답이 늦습니다');
+  expect(text).toContain('다시 촬영');
+  expect(text).toContain('정면 기준 촬영');
+});
+
 test('blocks current-frame generation when native module is unavailable', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -561,9 +586,15 @@ test('blocks current-frame generation when native module is unavailable', async 
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('native_boundary_module_unavailable');
+  expect(text).toContain('후보 생성이 막혔습니다');
+  expect(text).toContain('미리보기를 만들 수 없습니다');
   expect(text).toContain('기본 블렌딩');
+  expect(text).not.toContain('native_boundary_module_unavailable');
+  expect(text).not.toContain('provider blockedReason');
   expect(text).not.toContain('MediaPipe · blocked');
+
+  pressByTestID(renderer!, 'e7-wizard-select-provider-after-blocked');
+  expect(collectText(renderer!)).toContain('둘 중 하나를 선택하면');
 });
 
 test('uses one capture CTA and switches to captured-frame review after required shots', async () => {
@@ -603,6 +634,13 @@ test('uses one capture CTA and switches to captured-frame review after required 
   expect(text).toContain('캡처 프레임 검토');
   expect(text).toContain('저장된 얼굴 프레임');
   expect(text).toContain('모든 컷이 저장되었습니다');
+  expect(
+    renderer!.root.findAll(
+      node =>
+        node.props.source?.uri ===
+        `file:///tmp/${requests[0].capturePairId}-frame.png`,
+    ),
+  ).not.toHaveLength(0);
   expect(text).not.toContain('frame.png');
   expect(text).not.toContain('arface_export.json');
 });
@@ -636,7 +674,7 @@ test('renders large two-option blending candidate previews from the captured fra
     'e7-candidate-vision/blendshapeAssist',
   ]);
   expect(text).toContain('기본 블렌딩');
-  expect(text).toContain('표정 보정');
+  expect(text).toContain('표정 보조');
   expect(text).not.toContain('부드럽게');
   expect(text).not.toContain('번짐 안전');
   expect(mockE7NativeLipBoundaryProviders.renderLipMaskPreview).toHaveBeenCalledTimes(2);
@@ -737,15 +775,19 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   });
   await advanceToGeneratedAdjustStep(renderer!);
 
-  expect(collectText(renderer!)).toContain('전체 얼굴 기준 mask overlay');
+  expect(collectText(renderer!)).toContain('전체 얼굴 기준 마스크 미리보기');
 
   await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
   const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
   expect(applyPayload.generatedMaskId).toContain('e7-generated-lip');
   expect(collectText(renderer!)).toContain('AR 화면에서 적용 여부');
+  expect(collectText(renderer!)).toContain('AR 화면에서 적용 확인을 기다립니다');
   expect(collectText(renderer!)).not.toContain('ApplyGeneratedLipMaskJson');
   expect(collectText(renderer!)).not.toContain('reason:');
   expect(collectText(renderer!)).not.toContain('AR 립 적용 중');
+  expect(collectText(renderer!)).not.toContain('Unity generated_lip_mask_applied ack');
+  expect(collectText(renderer!)).not.toContain('actual mask preview');
+  expect(collectText(renderer!)).not.toContain('provider blockedReason');
 
   emitGeneratedLipMaskApplied(renderer!, {
     generatedMaskId: applyPayload.generatedMaskId,
@@ -827,11 +869,14 @@ test('shows apply timeout and retries from a user-readable blocked state', async
   });
 
   const text = collectText(renderer!);
-  expect(text).toContain('timeout');
+  expect(text).toContain('지연');
   expect(text).toContain('AR 적용 응답이 늦습니다');
   expect(text).toContain('다시 시도하거나 촬영부터 다시 진행');
   expect(text).not.toContain('generated_lip_mask_applied_ack_timeout');
+  expect(text).not.toContain('timeout');
+  expect(text).not.toContain('Debug에서 원인');
   expect(text).toContain('저장/적용 재시도');
+  expect(text).toContain('촬영부터 다시');
 });
 
 test('posts AR validation controls without resending texture after Unity ack', async () => {
@@ -865,6 +910,21 @@ test('posts AR validation controls without resending texture after Unity ack', a
   expect(controlPayload.opacity).toBeCloseTo(0.76);
   expect(controlPayload.maskRawRgbaBase64).toBeUndefined();
   expect(controlPayload.maskPngBase64).toBeUndefined();
+  expect(collectText(renderer!)).toContain('AR 검증 변경을 확인하는 중입니다');
+
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+    provider: 'mediapipe',
+    validationControls: {
+      visible: false,
+      strongMode: true,
+      colorHex: '#FF2D8A',
+      opacity: 0.76,
+      boundaryDebugVisible: false,
+    },
+  });
+
+  expect(collectText(renderer!)).toContain('AR 검증 변경이 반영되었습니다');
 });
 
 test('rejects generated-mask ack when generatedMaskId does not match pending package', async () => {
@@ -882,6 +942,7 @@ test('rejects generated-mask ack when generatedMaskId does not match pending pac
   });
 
   const text = collectText(renderer!);
-  expect(text).toContain('Unity 적용 실패 또는 미확인');
+  expect(text).toContain('이전 마스크 응답이 도착했습니다');
   expect(text).not.toContain('AR 립 적용 중');
+  expect(text).not.toContain('Unity 적용 실패 또는 미확인');
 });

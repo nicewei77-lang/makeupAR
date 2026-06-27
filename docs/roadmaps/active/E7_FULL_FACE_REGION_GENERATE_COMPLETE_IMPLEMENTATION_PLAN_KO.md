@@ -4027,3 +4027,46 @@ Still not proven:
 - No fresh iPhone build/install/run after this UI audit.
 - No real-device visual acceptance for actual camera latency, actual AR transition timing, actual capture feedback feel, or mask visibility under device lighting.
 - The alignment quality gate is still conservative wording around available face/camera signals, not a full yaw/pitch/blur/brightness scoring system.
+
+### 17.9 User-perspective reliability audit: do not feel fake or stuck
+
+Status: **source/buildless reliability gate passed, Unity batchmode blocked by licensing, device visual acceptance still pending**.
+
+이번 감사는 다시 두 명의 UI-sensitive subagent를 현재 소스 상태에 붙여 각각 최소 3회씩 `start -> align -> capture -> extract -> blending -> adjust -> save/apply -> AR validation controls` 흐름을 실제 사용자처럼 훑게 했다. 이번 기준은 "버튼이 있다"가 아니라 사용자가 조금이라도 `촬영이 된 건지 모르겠다`, `기존 걸 재사용하는 것 같다`, `적용에서 멈춘 것 같다`, `컨트롤이 눌렸는지 모르겠다`, `블렌딩이 과장된 이름 같다`고 느낄 지점이었다.
+
+#### 17.9.1 Fixed before next build
+
+| Risk | Fix | Gate |
+| --- | --- | --- |
+| Unity capture event가 오지 않으면 촬영 버튼이 영원히 `촬영 중`처럼 남음 | RN capture timeout을 추가하고 같은 컷을 다시 촬영하라는 사용자 문구로 복구한다. | RN Jest timeout test |
+| 캡처 후 검토 화면이 실제 저장 프레임이 아니라 어두운 카메라 shield처럼 보임 | Unity capture event에 `framePreviewUri`를 싣고 RN이 저장된 `frame.png`를 큰 배경으로 표시한다. | `v2.capture_timeout_and_captured_frame_preview` |
+| provider blocked 상태에서 사용자가 막힌 채로 다음 행동을 못 찾음 | blocked blending 화면에 `다른 방식 선택` 복구 버튼을 추가한다. | RN blocked-provider test |
+| native save bridge가 없는데 JS memory fallback으로 저장 성공처럼 보일 수 있음 | native save module이 없으면 apply blocked로 처리하고 rebuild 필요 문구를 띄운다. | source/static apply gate |
+| AR 검증 컨트롤을 눌러도 Unity가 반영했는지 확인할 수 없음 | ON/OFF, 진하게, 색, 농도 변경 후 matching `generated_lip_mask_applied` ack를 기다리고, 늦으면 지연 문구를 표시한다. | `v2.ar_validation_controls_ack_confirmed` |
+| `표정 보정` copy가 실제 경계 geometry 차이를 크게 바꾸는 것처럼 과장됨 | copy를 `표정 보조`로 낮추고 소재/번짐 안정성 보조로 설명한다. | RN Jest copy assertions |
+| `look`, `finish`, `candidate`, `provider blockedReason`, raw ack 같은 내부 단어가 제품 UI에 남음 | 사용자 화면 문구를 한국어 제품 언어로 정리한다. | `v2.user_facing_ar_copy_no_developer_terms` |
+
+#### 17.9.2 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `16 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full`
+  - result: `35 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Attempted but not completed:
+
+- Unity batchmode generated-mask smoke:
+  - command: `/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath unity/MakeupARUnityValidation -executeMethod E7GeneratedLipMaskSmoke.RunFromCommandLine -logFile evidence/logs/e7-generated-lip-mask-smoke-20260628-user-audit.log`
+  - result: stopped after repeated Unity Licensing Client channel timeouts. Treat this as environment/license blocked, not C# compile proof.
+
+Still not proven:
+
+- No new iPhone/Xcode build after this reliability audit.
+- No real-device capture-frame visual confirmation after the `framePreviewUri` change.
+- No real-device proof that AR validation controls visually change mask ON/OFF, opacity, color, strong mode, or boundary mode.
+- No final human acceptance for Vision/MediaPipe boundary smoothness, adjustment responsiveness, or AR transition timing.

@@ -86,6 +86,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
                 "busy",
                 request,
                 string.Empty,
+                string.Empty,
                 "capture_already_in_progress",
                 0,
                 0,
@@ -105,6 +106,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         SendCaptureEvent(
             "requested",
             request,
+            string.Empty,
             string.Empty,
             "pending_end_of_frame_capture",
             0,
@@ -150,6 +152,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
                 "exported",
                 request,
                 result.RelativeDirectory,
+                result.FramePreviewUri,
                 "pending_projected_mesh_overlay_review",
                 result.VertexCount,
                 result.IndexCount,
@@ -175,6 +178,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
                 "failed",
                 request,
                 result != null ? result.RelativeDirectory : string.Empty,
+                result != null ? result.FramePreviewUri : string.Empty,
                 result != null ? result.Error : "capture_result_missing",
                 result != null ? result.VertexCount : 0,
                 result != null ? result.IndexCount : 0,
@@ -254,6 +258,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
 
             result.Success = true;
             result.ExportDirectory = exportDirectory;
+            result.FramePreviewUri = new Uri(Path.Combine(exportDirectory, "frame.png")).AbsoluteUri;
             result.FrameWidth = frameWidth;
             result.FrameHeight = frameHeight;
             result.VertexCount = GetVertexCount(face);
@@ -1189,6 +1194,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         string status,
         CaptureRequestPayload request,
         string relativeDirectory,
+        string framePreviewUri,
         string detail,
         int vertexCount,
         int indexCount,
@@ -1208,6 +1214,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
             + ",\"captureShotKind\":\"" + EscapeJsonString(request.captureShotKind) + "\""
             + ",\"regions\":[\"lip\",\"eye\",\"cheek\"]"
             + ",\"relativeDirectory\":\"" + EscapeJsonString(relativeDirectory) + "\""
+            + ",\"framePreviewUri\":\"" + EscapeJsonString(framePreviewUri) + "\""
             + ",\"detail\":\"" + EscapeJsonString(detail) + "\""
             + ",\"meshVertexCount\":" + vertexCount.ToString(CultureInfo.InvariantCulture)
             + ",\"meshIndexCount\":" + indexCount.ToString(CultureInfo.InvariantCulture)
@@ -1288,6 +1295,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         public string Error = string.Empty;
         public string ExportDirectory = string.Empty;
         public string RelativeDirectory = string.Empty;
+        public string FramePreviewUri = string.Empty;
         public int FrameWidth;
         public int FrameHeight;
         public int VertexCount;

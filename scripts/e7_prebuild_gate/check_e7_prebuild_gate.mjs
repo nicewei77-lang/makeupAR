@@ -89,6 +89,14 @@ const unityBridgePath = path.join(
   'Scripts',
   'RNBridge.cs',
 );
+const unityCaptureExporterPath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Scripts',
+  'E7SynchronizedCaptureExporter.cs',
+);
 const unityFrameworkPath = path.join(
   repoRoot,
   'rn',
@@ -502,6 +510,7 @@ function runMain() {
   const nativeProviderSource = safeReadText(nativeProviderPath);
   const nativeBridgeSource = safeReadText(nativeBridgePath);
   const unityBridgeSource = safeReadText(unityBridgePath);
+  const unityCaptureExporterSource = safeReadText(unityCaptureExporterPath);
   const rnFocusedProofSource = [
     safeReadText(rnAppTestPath),
     readTextFilesUnder(
@@ -708,6 +717,18 @@ function runMain() {
     `The n-shot capture flow must feed generation, not only gate UI. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'}`,
   );
 
+  const captureTimeoutAndPreviewReady = matchesAll(rnAppSource, [
+    /E7_CAPTURE_ACK_TIMEOUT_MS/,
+    /촬영 응답이 늦습니다/,
+    /framePreviewUri/,
+    /capturedFrameImage/,
+  ]) && /framePreviewUri/.test(unityBridgeSource + unityCaptureExporterSource);
+  addCheck(
+    'v2.capture_timeout_and_captured_frame_preview',
+    captureTimeoutAndPreviewReady,
+    `Capture flow must recover from missing Unity capture events and show the saved captured frame, not only a dark live-camera shield. ready=${captureTimeoutAndPreviewReady ? 'yes' : 'no'}`,
+  );
+
   const applyStateRequirements = [
     { label: 'idle', pattern: /['"]idle['"]/ },
     { label: 'saving', pattern: /['"]saving['"]/ },
@@ -774,6 +795,19 @@ function runMain() {
     `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${hasGeneratedValidationAnchor ? 'yes' : 'no'} nearApplied=${hasControlsNearAppliedState ? 'yes' : 'no'} ${patternPresenceDetail(rnAppSource, generatedValidationControlRequirements)}`,
   );
 
+  const validationControlAckReady = matchesAll(rnAppSource, [
+    /pendingGeneratedControlCheck/,
+    /doesGeneratedControlAckMatch/,
+    /GENERATED_CONTROL_ACK_TIMEOUT_MS/,
+    /AR 검증 변경이 반영되었습니다/,
+    /AR 검증 변경 확인이 늦습니다/,
+  ]);
+  addCheck(
+    'v2.ar_validation_controls_ack_confirmed',
+    validationControlAckReady,
+    `AR validation controls must wait for a matching generated-mask ack or show a delayed confirmation state. ready=${validationControlAckReady ? 'yes' : 'no'}`,
+  );
+
   const userFacingDeveloperCopyRemoved = [
     /fixture replay/,
     /capture directory/,
@@ -783,6 +817,13 @@ function runMain() {
     /입술 미세 조정/,
     /native 경계 추출/,
     /Debug에서 persisted ack/,
+    /Debug에서 원인/,
+    /Unity generated_lip_mask_applied ack/,
+    /Unity 적용 실패 또는 미확인/,
+    /provider blockedReason/,
+    /actual mask preview/,
+    /실제 mask preview/,
+    /전체 얼굴 기준 mask overlay/,
     /새 frame\.png \/ arface_export\.json/,
   ].every(pattern => !pattern.test(rnAppSource));
   const userFacingArCopyPresent = matchesAll(rnAppSource, [
@@ -790,6 +831,8 @@ function runMain() {
     /AR 립 적용됨/,
     /AR 화면입니다/,
     /AR 적용 응답이 늦습니다/,
+    /AR 화면에서 적용 확인을 기다립니다/,
+    /전체 얼굴 기준 마스크 미리보기/,
     /마스크 ON/,
     /진하게 보기/,
     /경계 보기/,
