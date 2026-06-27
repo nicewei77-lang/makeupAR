@@ -11,6 +11,14 @@
   "sameFrameLegacyBaselineCount": 3,
   "selectedCandidateId": "asset-fit-wing-local-style-v0",
   "trackingAnchorCandidateId": "mp-upper-balanced-v0",
+  "secondaryCandidateIds": [
+    "mp-upper-balanced-v0"
+  ],
+  "candidateDisplaySet": [
+    "asset-fit-wing-local-style-v0",
+    "mp-upper-balanced-v0",
+    "mp-tail-only-v0"
+  ],
   "fallbackCandidateId": "mp-tail-only-v0",
   "rankedCandidates": [
     {

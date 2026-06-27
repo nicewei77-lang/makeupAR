@@ -6,6 +6,8 @@ Selected visual candidate: `asset-fit-wing-local-style-v0`
 
 Tracking/reference anchor: `mp-upper-balanced-v0`
 
+Secondary visual candidate: `mp-upper-balanced-v0`
+
 Fallback: `mp-tail-only-v0`
 
 Generated candidates: `8`

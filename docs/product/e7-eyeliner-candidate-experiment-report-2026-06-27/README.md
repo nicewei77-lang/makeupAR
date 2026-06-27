@@ -4,7 +4,7 @@
 
 ## 1. 한 줄 결론
 
-여성 리뷰 피드백을 반영한 최종 추천 조합은 **`asset-fit-wing-local-style-v0`** 이다. 추적 기준은 MediaPipe upper eyelid landmark를 유지하되, 최종 아이라인 모양은 눈꼬리까지 채우는 wing style preset으로 만든다. 기준선/reference는 **`mp-upper-balanced-v0`**, 안전 fallback은 **`mp-tail-only-v0`** 로 둔다.
+여성 리뷰 피드백을 반영한 최종 추천 조합은 **`asset-fit-wing-local-style-v0`** 이다. 추적 기준은 MediaPipe upper eyelid landmark를 유지하되, 최종 아이라인 모양은 눈꼬리까지 채우는 wing style preset으로 만든다. 기준선/reference이자 함께 비교할 자연형 후보는 **`mp-upper-balanced-v0`**, 안전 fallback은 **`mp-tail-only-v0`** 로 둔다.
 
 ## 2. 왜 다시 실험했나
 
@@ -69,13 +69,19 @@
 - 실제 아이라인은 눈꼬리까지 채워져야 하므로, 단순 upper-line보다 wing style이 제품 기대에 더 맞다.
 - eye opening overlap은 `0.0`으로 안전 지표를 통과했다.
 - `tailStartDistanceFromOuterCornerPx=2.571`로 눈꼬리 시작점이 outer corner에 잘 붙는다.
-- `mp-upper-balanced-v0`는 최종 화장 모양이라기보다 tracking anchor/reference로 쓰는 편이 맞다.
+- `mp-upper-balanced-v0`는 tracking anchor/reference이면서, 더 자연스러운 balanced 후보로 나중에 함께 비교한다.
 
 ## 8. Fallback
 
 Fallback은 `mp-tail-only-v0` 이다.
 
 이 후보는 전체 라인을 그리지 않고 바깥쪽을 중심으로 잡는다. 눈 안쪽이 불안정하거나 full-line이 어색한 사람에게 안전한 대안이다.
+
+함께 볼 후보:
+
+- `asset-fit-wing-local-style-v0`: 여성 리뷰 기준 기본 visual preset
+- `mp-upper-balanced-v0`: 자연형/균형형 비교 후보이자 추적 기준선 reference
+- `mp-tail-only-v0`: full-line이 불안정할 때의 안전 fallback
 
 ## 9. Score 요약
 
@@ -105,7 +111,7 @@ Human review 해석:
 - 기술 점수만 보면 `mp-upper-balanced-v0`가 가장 높다.
 - 하지만 이 후보는 "아이라인 완성형"이라기보다 깔끔한 기준선에 가깝다.
 - 여성 리뷰에서는 눈꼬리까지 채우는 `asset-fit-wing-local-style-v0`가 더 아이라인처럼 보인다는 판단이 나왔다.
-- 따라서 앱 구현의 기본 visual preset은 `asset-fit-wing-local-style-v0` 방향으로 잡고, `mp-upper-balanced-v0`는 기준선/reference로 사용한다.
+- 따라서 앱 구현의 기본 visual preset은 `asset-fit-wing-local-style-v0` 방향으로 잡고, `mp-upper-balanced-v0`는 기준선/reference이자 자연형 후보로 함께 노출한다.
 
 ## 10. 앱 구현으로 넘길 결정
 
@@ -113,6 +119,7 @@ Human review 해석:
 primary tracker: MediaPipe upper eyelid landmark
 tracking/reference anchor: mp-upper-balanced-v0
 selected visual preset: asset-fit-wing-local-style-v0
+secondary visual candidate: mp-upper-balanced-v0
 shape model: parametric eyeliner curve
 style preset: wing/default, natural as conservative option
 runtime substrate: ARFace UV
@@ -172,4 +179,4 @@ blinkFade
 
 ## 13. 최종 판정
 
-아이라인 앱 구현은 진행 가능하다. 최종 구현 전략은 **MediaPipe upper eyelid anchor + asset-fit wing style preset + tail-only fallback + 사용자 조정**으로 갱신한다. `mp-upper-balanced-v0`는 최종 아이라인 자체가 아니라 추적 기준선/reference로 두고, 기존 eye-prior/dark-pixel 방식은 baseline 또는 보조 참고로만 둔다.
+아이라인 앱 구현은 진행 가능하다. 최종 구현 전략은 **MediaPipe upper eyelid anchor + asset-fit wing style preset + balanced 자연형 후보 + tail-only fallback + 사용자 조정**으로 갱신한다. `mp-upper-balanced-v0`는 추적 기준선/reference이면서 나중에 함께 볼 자연형 후보로 유지하고, 기존 eye-prior/dark-pixel 방식은 baseline 또는 보조 참고로만 둔다.

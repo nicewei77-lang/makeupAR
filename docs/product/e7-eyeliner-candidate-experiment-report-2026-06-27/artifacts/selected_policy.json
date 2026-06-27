@@ -4,13 +4,21 @@
   "decision": "buildless_selected_for_app_implementation",
   "selectedCandidateId": "asset-fit-wing-local-style-v0",
   "selectedPolicy": "asset-fit-wing",
+  "secondaryCandidateIds": [
+    "mp-upper-balanced-v0"
+  ],
+  "candidateDisplaySet": [
+    "asset-fit-wing-local-style-v0",
+    "mp-upper-balanced-v0",
+    "mp-tail-only-v0"
+  ],
   "fallbackCandidateId": "mp-tail-only-v0",
   "fallbackPolicy": "mp-tail-only",
   "trackingAnchorCandidateId": "mp-upper-balanced-v0",
   "primaryTracker": "MediaPipe upper eyelid landmarks",
   "shapeModel": "parametric eyeliner curve with wing style preset",
   "runtimeSubstrate": "ARFace UV",
-  "reason": "Human visual review preferred asset-fit-wing because product eyeliner should fill through the outer corner. MediaPipe upper eyelid remains the tracking anchor, mp-upper-balanced remains the clean reference line, and tail-only is retained as the safety fallback.",
+  "reason": "Human visual review preferred asset-fit-wing because product eyeliner should fill through the outer corner. MediaPipe upper eyelid remains the tracking anchor, mp-upper-balanced remains both the clean reference line and a natural/balanced comparison candidate, and tail-only is retained as the safety fallback.",
   "requiresHumanReview": true,
   "humanReviewStatus": "reviewed_preferred_asset_fit_wing",
   "iphoneEvidenceRequiredForGreen": true
