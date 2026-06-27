@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: Flat-fill/soft-brow local retune verified; iPhone rebuild pending
+Status: Flat non-filled PNG retune verified locally; iPhone rebuild pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -34,19 +34,18 @@ Fresh local checks recorded on 2026-06-27:
 | Check | Status |
 | --- | --- |
 | `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py` | Passed |
-| `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py` | Passed for filled daily-flat and existing PNG hair candidates |
+| `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py` | Passed for non-filled daily-flat and existing PNG hair candidates |
 | `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py` | Passed for compatibility procedural mask `brow-back-arch-soft-mix-v1` |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
 | `npm test -- --runInBand` | Passed, 30 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
-| Unity `6000.3.18f1` batchmode import/compile | Passed for the flat-fill/soft-brow local retune with `Tundra build success`, `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log` |
-| `scripts/build_m3_unityframework.sh` | Passed for daily-flat with `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`, artifact log `evidence/logs/m3-repro-artifact-verification-eyebrow-dailyflat-20260627-ufw-r1.log` |
-| RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-dailyflat-20260627-r1.log` |
-| `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-dailyflat-20260627-r1.log` |
-| `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-dailyflat-20260627-r1.log` |
-| Flat-fill/soft-brow iPhone rebuild/install | Not run yet; requires explicit user build approval |
+| Unity `6000.3.18f1` batchmode import/compile | Passed for the flat non-filled local retune with `Tundra build success`, `evidence/logs/eyebrow-flat-nonfilled-pipeline-unity6000-batchmode-20260627.log` |
+| `scripts/build_m3_unityframework.sh` | Passed for flat-fill/soft-brow with `TIMESTAMP=eyebrow-flatfill-softbrow-20260627-ufw-r1`, artifact log `evidence/logs/m3-repro-artifact-verification-eyebrow-flatfill-softbrow-20260627-ufw-r1.log` |
+| RN/Xcode real-device Debug build | Passed, `evidence/logs/eyebrow-rn-xcodebuild-device-flatfill-softbrow-20260627-r1.log` |
+| `devicectl` install | Passed for `com.celeste.makeupar.validation`, `evidence/logs/eyebrow-rn-devicectl-install-flatfill-softbrow-20260627-r1.log` |
+| `devicectl` launch | Passed, `evidence/logs/eyebrow-rn-devicectl-launch-flatfill-softbrow-20260627-r1.log` |
 
 Post-QA tuning notes:
 
@@ -110,8 +109,15 @@ Post-QA tuning notes:
   visibly appearing. The local follow-up fills the flat alpha silhouette,
   widens the flat targets and default `maskSpreadX` to `0.24`, preserves mask
   selection while switching `natural_brow`/`soft_brow`, and raises `soft_brow`
-  visibility. This follow-up has passed local verification but is not installed
-  on the iPhone yet.
+  visibility. This follow-up has passed local verification and is now installed
+  and launched on the iPhone.
+- User QA on that installed flat-fill/soft-brow build found the FLAT candidates
+  still hollow, while the non-flat PNG hair candidates render. The current local
+  follow-up removes the FLAT-only vertical-fill path, regenerates FLAT through
+  the same non-filled alpha/detail extraction family as `Daily hair`,
+  `Natural hair`, and `Narrow hair`, moves the FLAT targets outward, and raises
+  default `maskSpreadX` to `0.28`. This follow-up has passed local verification
+  but is not installed on the iPhone yet.
 
 Build notes:
 
@@ -125,42 +131,42 @@ Build notes:
 - The latest UnityFramework artifact verification recorded a `126M`
   `UnityFramework.framework` and `30M` `Data` folder in both RN and
   package-local framework paths for
-  `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`.
+  `TIMESTAMP=eyebrow-flatfill-softbrow-20260627-ufw-r1`.
 - The first latest PNG/bright RN/Xcode build failed with a stale absolute
   CocoaPods Hermes path:
   `/Users/hi/Library/CloudStorage/Dropbox/Mac/Desktop 2/Jungle/makeupAR/.../node_modules/hermes-compiler/.../hermesc`.
   Correcting only generated/ignored local Pod support paths under the current
   checkout allowed the RN/Xcode rebuild to pass.
-- The successful rebuilt RN app bundle is signed with TeamIdentifier
-  `X5C5U3T6B4`, is `205M`, includes `126M` `UnityFramework.framework` with
-  `30M` `Data`, and was installed and launched as
-  `com.celeste.makeupar.validation`.
+- The successful flat-fill/soft-brow RN app bundle is signed with
+  TeamIdentifier `X5C5U3T6B4`, is `205M`, includes `126M`
+  `UnityFramework.framework` with `30M` `Data`, and was installed and launched
+  as `com.celeste.makeupar.validation`.
 
 ## Requirement Audit
 
 | Requirement | Current Evidence | Status |
 | --- | --- | --- |
 | Implement only the eyebrow makeup module inside the existing app | Product docs keep camera/photo/video/backend/AI/Android/payment out of scope; code changes are limited to RN recipe/UI, Unity bridge/rendering, mask asset, verifiers, and docs | Satisfied for current loop |
-| Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` with the daily-flat A/B build. The newer flat-fill/soft-brow retune has only local Unity batchmode verification so far | Previous build/install proven; retune rebuild pending |
+| Unity / AR Foundation / ARKit based eyebrow rendering | Brow is accepted by `RNBridge`, routed by `MakeupRegionRendererRoutes`, rendered by `E3RegionMaskOverlay`, packaged into `UnityFramework.framework`, installed, and launched on `CloudsiPhone (26.5)` with the flat-fill/soft-brow build. The newer non-filled FLAT retune has local Unity batchmode verification only | Previous build/install proven; retune rebuild pending |
 | React Native minimal UI, events, presets | RN focused tests cover brow as fourth region, brow HUD controls, and four-layer recipe dispatch | Locally verified |
-| Natural brow presets | `natural_brow`, `soft_brow`, the user-facing brow mask options, daily-flat PNG candidates, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; local tests now guard that switching presets preserves the selected brow mask | Locally verified; retune visual QA pending |
+| Natural brow presets | `natural_brow`, `soft_brow`, the user-facing brow mask options, daily-flat PNG candidates, brow-specific colors/material cases, and brow-specific mask threshold/feather are covered by static verifiers; local tests guard that switching presets preserves the selected brow mask | Previous build installed; non-filled FLAT retune visual QA pending |
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
-| Brow placement avoids obvious eye/cheek/lip mask overlap | PNG verifier checks active pixels, bbox, two components, daily-flat thinness, detail channel variance, low-alpha stray artifact rejection, non-hollow daily-flat fill, and a minimum daily-flat center gap. RN/Unity still expose `Brow Spread` and `Brow Y` | Locally verified; retune visual QA pending |
+| Brow placement avoids obvious eye/cheek/lip mask overlap | PNG verifier checks active pixels, bbox, two components, daily-flat thinness, detail channel variance, low-alpha stray artifact rejection, non-filled daily-flat generation contract, and a minimum daily-flat center gap. RN/Unity still expose `Brow Spread` and `Brow Y`; the local default spread is now `0.28` | Locally verified; retune visual QA pending |
 | Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth`, bright PNG normal composition, darker PNG multiply composition, explicit `Flat multiply`, `Texture Detail`, `Brow Spread`/`Brow Y`, and static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported earlier builds were too arched, too thick, sticker-like, too faint, too centered, slightly low, still too upward/angry, then too thick per hair strand, and then hollow on flat candidates. The local retune fills the flat alpha silhouette and widens the brow gap, but real-device appearance is not proven | Needs user re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
 | Left/right asymmetry correction is possible | The current first loop supports symmetric procedural brow masks and shared tuning; explicit left/right asymmetry controls are not implemented | Incomplete |
-| Existing lip/cheek/eye behavior is not regressed | RN tests, TypeScript, lint, static route checks, and Unity batchmode compile passed for the flat-fill/soft-brow local retune; no manual region smoke observation has been done for the retune build | Partially proven |
+| Existing lip/cheek/eye behavior is not regressed | RN tests, TypeScript, lint, static route checks, Unity batchmode compile, UnityFramework build, and RN/Xcode build passed for the flat-fill/soft-brow retune; no manual region smoke observation has been done for the installed build | Partially proven |
 | Product/technical/development/QA docs updated | Product, architecture, development log, QA runbook, and this audit are present and updated for the latest rebuild evidence | Satisfied for current loop |
 | Meaningful checkpoint commits and push | Branch `feature/brow-0626` has pushed implementation checkpoints; latest install evidence is being recorded as a follow-up checkpoint | In progress |
-| Real-device iPhone build and user quality feedback | Daily-flat A/B brow build installed and launched on `CloudsiPhone (26.5)`; user feedback on that build produced the current flat-fill/soft-brow local retune | Retune build pending |
+| Real-device iPhone build and user quality feedback | Flat-fill/soft-brow brow build installed and launched on `CloudsiPhone (26.5)`; user feedback on that build produced the current non-filled FLAT local retune | Retune build pending |
 
 ## Remaining QA Items
 
-The installed iPhone build is still the older daily-flat A/B build. The newer
-flat-fill/soft-brow retune needs an approved iPhone rebuild before visual QA.
+The installed iPhone build is still the flat-fill/soft-brow build. The newer
+flat non-filled PNG retune needs an approved iPhone rebuild before visual QA.
 After that rebuild, visually QA this candidate:
 
 1. On the iPhone, open the AR screen and select `brow`.
@@ -181,15 +187,16 @@ After that rebuild, visually QA this candidate:
 
 ## Current Conclusion
 
-The current codebase has an installed daily-flat PNG A/B pass plus a newer
-local flat-fill/soft-brow retune for the first-loop eyebrow makeup module.
+The current codebase has an installed flat-fill/soft-brow pass plus a newer
+local flat non-filled PNG retune for the first-loop eyebrow makeup module.
 Earlier iPhone QA confirmed attachment/control behavior and exposed the
 remaining product-quality issues: too faint, too centered, too upward/angry,
 too thick or paint-like per hair strand, hollow flat candidates, too-narrow brow
-gap, preset reset, and invisible `soft_brow`. The local retune addresses the
-hollow fill, default gap, preset reset, and `soft_brow` visibility in code and
-static/local Unity checks. The full objective is not complete because this
-retune still needs an approved iPhone rebuild and user visual QA.
+gap, preset reset, invisible `soft_brow`, and a later finding that only FLAT
+candidates remain hollow while non-flat PNG hair candidates render. The current
+local retune addresses the FLAT-specific generation path and a wider default
+gap in code and static/local Unity checks. The full objective is not complete
+because this retune still needs an approved iPhone rebuild and user visual QA.
 Completion still needs:
 
 - User visual QA confirming product-quality visibility, placement, shape,

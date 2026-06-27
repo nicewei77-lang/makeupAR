@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from collections import deque
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,7 @@ MASK_TEXTURE_IDS = (
     "brow-png-narrow-hair-v1",
     "brow-png-lightbrown-hair-v1",
 )
+GENERATOR_PATH = Path("scripts/e7_reference_atlas/generate_brow_png_hair_textures.py")
 
 
 def parse_args() -> argparse.Namespace:
@@ -133,6 +135,37 @@ def component_fill_metrics(active: np.ndarray, component: dict[str, Any]) -> dic
     }
 
 
+def config_block(generator_source: str, key: str) -> str:
+    marker = f'"{key}": BrowTextureConfig('
+    start = generator_source.find(marker)
+    require(start >= 0, f"Missing generator config for {key}")
+    next_marker = generator_source.find('\n    "', start + len(marker))
+    end = next_marker if next_marker >= 0 else generator_source.find("\n}", start)
+    require(end >= 0, f"Could not find end of generator config for {key}")
+    return generator_source[start:end]
+
+
+def verify_dailyflat_generation_contract(repo: Path) -> None:
+    generator = repo / GENERATOR_PATH
+    require(generator.exists(), f"Missing brow PNG generator: {generator}")
+    source = generator.read_text(encoding="utf-8")
+
+    for key in ("dailyflat", "dailyflatsharp", "dailyflatmultiply"):
+        block = config_block(source, key)
+        require(
+            "fill_vertical_gaps=True" not in block,
+            f"{key} must use the same non-filled PNG hair pipeline as the visible non-flat candidates.",
+        )
+
+        match = re.search(r"shape_filter_size\s*=\s*(\d+)", block)
+        if match is not None:
+            shape_filter_size = int(match.group(1))
+            require(
+                shape_filter_size <= 5,
+                f"{key} shape_filter_size must stay close to the non-flat PNG hair pipeline: {shape_filter_size}",
+            )
+
+
 def verify_texture(path: Path, resolution: int, threshold: int, component_threshold: int, min_component_pixels: int) -> str:
     require(path.exists(), f"Missing PNG brow hair texture: {path}")
     image = Image.open(path).convert("RGBA")
@@ -149,8 +182,8 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     coverage = active_count / float(resolution * resolution)
     require(1600 <= active_count <= 12500, f"{path.name} active pixels off: {active_count}")
     require(0.006 <= coverage <= 0.048, f"{path.name} coverage off: {coverage:.6f}")
-    require(84 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
-    require(398 <= bounds["right"] <= 430, f"{path.name} right bbox off: {bounds}")
+    require(78 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
+    require(398 <= bounds["right"] <= 436, f"{path.name} right bbox off: {bounds}")
     require(92 <= bounds["top"] <= 104, f"{path.name} top bbox off: {bounds}")
     require(126 <= bounds["bottom"] <= 138, f"{path.name} bottom bbox off: {bounds}")
     require(24 <= bounds["height"] <= 48, f"{path.name} height off: {bounds}")
@@ -163,7 +196,7 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     require(left["bbox"]["right"] < 246, f"{path.name} left brow crosses center: {left}")
     require(right["bbox"]["left"] > 266, f"{path.name} right brow crosses center: {right}")
     center_gap = right["bbox"]["left"] - left["bbox"]["right"] - 1
-    min_center_gap = 44 if "dailyflat" in path.name else 30
+    min_center_gap = 56 if "dailyflat" in path.name else 30
     require(
         center_gap >= min_center_gap,
         f"{path.name} center gap too narrow: {center_gap}px components={components}",
@@ -180,12 +213,12 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
         left_fill = component_fill_metrics(active, left)
         right_fill = component_fill_metrics(active, right)
         require(
-            left_fill["innerFill"] >= 0.72,
-            f"{path.name} left brow interior is hollow: {left_fill}",
+            left_fill["innerFill"] <= 0.68,
+            f"{path.name} left brow is using the old solid-fill pipeline instead of PNG hair extraction: {left_fill}",
         )
         require(
-            right_fill["innerFill"] >= 0.72,
-            f"{path.name} right brow interior is hollow: {right_fill}",
+            right_fill["innerFill"] <= 0.68,
+            f"{path.name} right brow is using the old solid-fill pipeline instead of PNG hair extraction: {right_fill}",
         )
 
     corner_alpha = int(
@@ -213,6 +246,7 @@ def main() -> None:
     args = parse_args()
     repo = args.repo_root.resolve()
     mask_dir = resolve(repo, args.mask_dir)
+    verify_dailyflat_generation_contract(repo)
     summaries = [
         verify_texture(
             mask_dir / f"{mask_texture_id}.png",

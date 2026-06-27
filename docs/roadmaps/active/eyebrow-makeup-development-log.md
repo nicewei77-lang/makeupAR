@@ -653,6 +653,61 @@ Remaining:
     `verify_unityframework_build_contract.py` passed.
   - Unity `6000.3.18f1` batchmode import/compile passed with
     `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log`.
+  - At this checkpoint the follow-up was local only. No UnityFramework
+    regeneration, RN/Xcode device build, install, launch, screenshots,
+    recordings, or raw camera frames were run before the separate build approval
+    below.
+- 2026-06-27: User approved the flat-fill/soft-brow iPhone build/install.
+  - Pre-build checks passed: PNG brow hair verifier, brow Unity contract
+    verifier, and UnityFramework build contract verifier.
+  - Device check found `CloudsiPhone` connected as
+    `FD44CD30-B236-5594-BE61-3C5D408A6851`.
+  - UnityFramework regeneration/sync passed with
+    `TIMESTAMP=eyebrow-flatfill-softbrow-20260627-ufw-r1`.
+  - Artifact verification recorded `126M` UnityFramework copies and `30M`
+    `Data` folders in both RN and package-local locations:
+    `evidence/logs/m3-repro-artifact-verification-eyebrow-flatfill-softbrow-20260627-ufw-r1.log`.
+  - RN/Xcode Debug build passed:
+    `evidence/logs/eyebrow-rn-xcodebuild-device-flatfill-softbrow-20260627-r1.log`.
+  - Built app bundle:
+    `unity-builds/xcode-derived-data/RNDevice-eyebrow-flatfill-softbrow-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+    `205M`, including `126M` `UnityFramework.framework` and `30M`
+    `UnityFramework.framework/Data`.
+  - `devicectl` installed and launched `com.celeste.makeupar.validation` on
+    `CloudsiPhone (26.5)`:
+    `evidence/logs/eyebrow-rn-devicectl-install-flatfill-softbrow-20260627-r1.log`
+    and
+    `evidence/logs/eyebrow-rn-devicectl-launch-flatfill-softbrow-20260627-r1.log`.
+  - No face screenshots, recordings, raw camera frames, or Slack messages were
+    captured/sent.
+  - Next gate: user iPhone visual QA on the installed flat-fill/soft-brow
+    build. Any quality feedback starts a new agreement proposal before
+    implementation.
+- 2026-06-27: Flat non-filled PNG retune after flat-fill iPhone QA.
+  - User QA on the installed flat-fill/soft-brow build found the FLAT candidates
+    still hollow inside. The important new clue is that `Daily hair`,
+    `Natural hair`, and `Narrow hair` render, so the likely root cause is the
+    FLAT-only generation pipeline rather than the shared shader path.
+  - User also confirmed the brow gap is still too narrow.
+  - RED: focused RN Jest failed because default `maskSpreadX` was still `0.24`
+    instead of the wider `0.28`. `verify_brow_png_hair_textures.py` failed
+    because the daily-flat generator still used `fill_vertical_gaps=True`, the
+    FLAT-only solid-fill path.
+  - Generator update removes the FLAT-only vertical fill and lowers FLAT
+    `shape_filter_size` back to the same non-filled alpha/detail extraction
+    family used by the visible non-flat PNG hair candidates. The FLAT target
+    boxes were also moved outward.
+  - RN update raises default brow `maskSpreadX` from `0.24` to `0.28`.
+  - GREEN: focused RN Jest passed, then full RN Jest passed with `30` tests.
+    TypeScript, RN lint, `verify_brow_png_hair_textures.py`,
+    `verify_brow_unity_contract.py`, `verify_brow_mask_texture.py`,
+    `verify_region_renderer_routes.py`, and
+    `verify_unityframework_build_contract.py` passed.
+  - The updated PNG verifier records `brow-png-dailyflat-sharp-v1` with
+    `4187` active pixels, bbox `left=85,right=427,height=34`, and detailStd
+    `72.75`.
+  - Unity `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-flat-nonfilled-pipeline-unity6000-batchmode-20260627.log`.
   - This follow-up is local only. No UnityFramework regeneration, RN/Xcode
-    device build, install, launch, screenshots, recordings, or raw camera frames
-    were run in this loop.
+    device build, install, launch, screenshots, recordings, raw camera frames,
+    or Slack messages were run/sent in this loop.

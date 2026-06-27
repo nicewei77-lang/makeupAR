@@ -567,7 +567,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
     'brow-png-dailyflat-sharp-v1',
   );
   expect(DEFAULT_REGION_TUNING.brow.detailAmount).toBe(0.68);
-  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.24);
+  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.28);
 
   const payload = buildValidationRecipeBatchPayload(
     {
@@ -621,7 +621,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.detailAmount).toBe(0.68);
   expect(browLayer.feather).toBe(0.48);
   expect(browLayer.coverage).toBe(0.62);
-  expect(browLayer.maskSpreadX).toBe(0.24);
+  expect(browLayer.maskSpreadX).toBe(0.28);
   expect(browLayer.maskOffsetY).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
