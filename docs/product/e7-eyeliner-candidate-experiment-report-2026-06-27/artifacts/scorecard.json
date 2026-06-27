@@ -9,7 +9,8 @@
   "candidateCount": 11,
   "generatedMediaPipeCandidateCount": 8,
   "sameFrameLegacyBaselineCount": 3,
-  "selectedCandidateId": "mp-upper-balanced-v0",
+  "selectedCandidateId": "asset-fit-wing-local-style-v0",
+  "trackingAnchorCandidateId": "mp-upper-balanced-v0",
   "fallbackCandidateId": "mp-tail-only-v0",
   "rankedCandidates": [
     {

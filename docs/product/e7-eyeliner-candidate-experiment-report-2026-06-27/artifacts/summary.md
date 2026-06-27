@@ -2,7 +2,9 @@
 
 Status: `complete_buildless_local_only`
 
-Selected: `mp-upper-balanced-v0`
+Selected visual candidate: `asset-fit-wing-local-style-v0`
+
+Tracking/reference anchor: `mp-upper-balanced-v0`
 
 Fallback: `mp-tail-only-v0`
 

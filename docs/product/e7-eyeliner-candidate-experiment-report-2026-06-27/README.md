@@ -4,7 +4,7 @@
 
 ## 1. 한 줄 결론
 
-이번 실험의 추천 조합은 **`mp-upper-balanced-v0`** 이다. 추적 기준은 MediaPipe upper eyelid landmark이고, 모양은 parametric eyeliner curve로 만든다. fallback은 **`mp-tail-only-v0`** 로 둔다.
+여성 리뷰 피드백을 반영한 최종 추천 조합은 **`asset-fit-wing-local-style-v0`** 이다. 추적 기준은 MediaPipe upper eyelid landmark를 유지하되, 최종 아이라인 모양은 눈꼬리까지 채우는 wing style preset으로 만든다. 기준선/reference는 **`mp-upper-balanced-v0`**, 안전 fallback은 **`mp-tail-only-v0`** 로 둔다.
 
 ## 2. 왜 다시 실험했나
 
@@ -28,6 +28,7 @@
 | Parametric curve | landmark를 그대로 칠하지 않고, 두께/꼬리/부드러움을 가진 곡선으로 다시 만든 마스크 |
 | Eye opening overlap | 눈동자/눈 안쪽으로 침범했는지 보는 안전 지표. 이번 표에서는 boundary가 아니라 안쪽 safety zone 기준 |
 | Legacy baseline | 기존 eye prior + dark pixel 방식. 같은 frame에서 다시 생성해 비교 |
+| Human-review selected | 숫자 점수보다 실제 화장처럼 보이는지를 우선해 사람이 고른 후보 |
 
 ## 4. Geometry 확인
 
@@ -59,16 +60,16 @@
 
 <figure>
   <img src="assets/05-selected-candidate-eye-crop.png" width="760" alt="Selected eyeliner crop">
-  <figcaption>그림 5. 선택 후보 `mp-upper-balanced-v0`. MediaPipe upper eyelid를 직접 따라가며, 앱 기본값으로 쓰기 좋은 균형형 형태다.</figcaption>
+  <figcaption>그림 5. 선택 후보 `asset-fit-wing-local-style-v0`. MediaPipe upper eyelid 기준선을 쓰되, 눈꼬리까지 채우는 wing style로 확장한 형태다.</figcaption>
 </figure>
 
 선택 이유:
 
-- eye opening overlap이 낮다.
-- inner corner를 약간 비워 실제 앱에서 어색한 번짐을 줄인다.
-- wing을 기본값으로 강제하지 않아 사용자 조정으로 확장하기 쉽다.
-- legacy eye-prior baseline보다 추적 기준 설명이 명확하다.
-- UV round-trip에서 thin-line 특유의 손실은 있지만, 앱 구현용 source policy로는 충분히 명확하다.
+- 여성 리뷰에서 `asset-fit-wing`이 가장 아이라인처럼 보인다는 피드백이 나왔다.
+- 실제 아이라인은 눈꼬리까지 채워져야 하므로, 단순 upper-line보다 wing style이 제품 기대에 더 맞다.
+- eye opening overlap은 `0.0`으로 안전 지표를 통과했다.
+- `tailStartDistanceFromOuterCornerPx=2.571`로 눈꼬리 시작점이 outer corner에 잘 붙는다.
+- `mp-upper-balanced-v0`는 최종 화장 모양이라기보다 tracking anchor/reference로 쓰는 편이 맞다.
 
 ## 8. Fallback
 
@@ -99,12 +100,21 @@ Legacy baseline 해석:
 - UV IoU만 보면 높아 보이는 후보가 있지만, eye opening overlap과 upper lid distance가 훨씬 나쁘다.
 - 따라서 기존 방식은 앱 기본 tracking으로 쓰지 않고, 비교용 baseline 또는 보조 참고로만 둔다.
 
+Human review 해석:
+
+- 기술 점수만 보면 `mp-upper-balanced-v0`가 가장 높다.
+- 하지만 이 후보는 "아이라인 완성형"이라기보다 깔끔한 기준선에 가깝다.
+- 여성 리뷰에서는 눈꼬리까지 채우는 `asset-fit-wing-local-style-v0`가 더 아이라인처럼 보인다는 판단이 나왔다.
+- 따라서 앱 구현의 기본 visual preset은 `asset-fit-wing-local-style-v0` 방향으로 잡고, `mp-upper-balanced-v0`는 기준선/reference로 사용한다.
+
 ## 10. 앱 구현으로 넘길 결정
 
 ```txt
 primary tracker: MediaPipe upper eyelid landmark
+tracking/reference anchor: mp-upper-balanced-v0
+selected visual preset: asset-fit-wing-local-style-v0
 shape model: parametric eyeliner curve
-style preset: natural/minimal first, wing as user preset
+style preset: wing/default, natural as conservative option
 runtime substrate: ARFace UV
 fallback: tail-only or soft lashline
 color/edge: optional snap helper only
@@ -147,7 +157,7 @@ blinkFade
 - 이 결과는 static buildless frame 기준이다.
 - blink/yaw/squint 안정성은 iPhone AR 화면에서 따로 봐야 한다.
 - UV round-trip은 얇은 선 특성상 IoU가 낮을 수 있으므로, runtime에서는 실제 렌더링 crop으로 판단해야 한다.
-- authored wing preset은 제품적으로 가능성이 있지만 기본값으로는 보수적으로 숨기는 편이 맞다.
+- authored wing preset은 여성 리뷰 기준 가장 좋아 보였지만, blink/yaw에서 튀는지는 iPhone에서 확인해야 한다.
 
 ## 12. 산출물 위치
 
@@ -162,4 +172,4 @@ blinkFade
 
 ## 13. 최종 판정
 
-아이라인 앱 구현은 진행 가능하다. 단, 최종 구현 전략은 **MediaPipe upper eyelid + parametric natural preset + tail-only fallback + 사용자 조정**으로 제한한다. 기존 eye-prior/dark-pixel 방식은 baseline 또는 보조 참고로만 둔다.
+아이라인 앱 구현은 진행 가능하다. 최종 구현 전략은 **MediaPipe upper eyelid anchor + asset-fit wing style preset + tail-only fallback + 사용자 조정**으로 갱신한다. `mp-upper-balanced-v0`는 최종 아이라인 자체가 아니라 추적 기준선/reference로 두고, 기존 eye-prior/dark-pixel 방식은 baseline 또는 보조 참고로만 둔다.
