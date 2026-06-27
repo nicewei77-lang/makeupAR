@@ -347,3 +347,17 @@ Remaining:
   - GREEN: focused Jest passed with 24 tests; lint, TypeScript, brow Unity
     contract, renderer routes, and UnityFramework build contract passed. This
     local color-parameter tuning is not yet installed on-device.
+- 2026-06-27: Local brow placement parameter loop.
+  - RED: focused Jest failed because brow `maskOffsetX`/`maskOffsetY` were not
+    present in the outgoing payload and the HUD had no `Brow X`/`Brow Y`
+    controls; `verify_brow_unity_contract.py` failed because Unity did not
+    accept or apply mask offsets.
+  - RN update adds brow placement controls and sends signed mask offsets with
+    each region layer. Default offset is `0/0`, with the HUD centered at `0.50`.
+  - Unity update adds `maskOffsetX`/`maskOffsetY` to the bridge parser,
+    `E3RegionMaskOverlay` recipe/result state, and the smooth mask shader's
+    `_MaskOffset` UV sampling property.
+  - GREEN: focused Jest passed with 25 tests; lint, TypeScript, brow Unity
+    contract, renderer routes, and Unity batchmode import/compile passed with
+    `evidence/logs/eyebrow-mask-offset-unity-batchmode-20260627.log`. This
+    local placement-parameter tuning is not yet installed on-device.

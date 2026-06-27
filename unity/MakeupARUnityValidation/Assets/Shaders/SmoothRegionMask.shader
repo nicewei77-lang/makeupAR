@@ -11,6 +11,7 @@ Shader "MakeupAR/SmoothRegionMask"
         _Feather ("Feather", Range(0, 1)) = 0.5
         _VisibilityAlpha ("Visibility Alpha", Range(0, 1)) = 1
         _Coverage ("Coverage", Range(0, 1)) = 0.62
+        _MaskOffset ("Mask UV Offset", Vector) = (0, 0, 0, 0)
         _Roughness ("Roughness", Range(0, 1)) = 0.88
         _Specular ("Specular", Range(0, 1)) = 0.04
         _SpecularPower ("Specular Power", Range(1, 64)) = 8
@@ -63,6 +64,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Feather;
             float _VisibilityAlpha;
             float _Coverage;
+            float4 _MaskOffset;
             float _Roughness;
             float _Specular;
             float _SpecularPower;
@@ -180,6 +182,7 @@ Shader "MakeupAR/SmoothRegionMask"
                     float2 ndc = input.clipPos.xy / max(input.clipPos.w, 0.00001);
                     maskUv = saturate(ndc * 0.5 + 0.5);
                 }
+                maskUv = saturate(maskUv - _MaskOffset.xy);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);
@@ -318,6 +321,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Feather;
             float _VisibilityAlpha;
             float _Coverage;
+            float4 _MaskOffset;
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
@@ -434,6 +438,7 @@ Shader "MakeupAR/SmoothRegionMask"
                     float2 ndc = input.clipPos.xy / max(input.clipPos.w, 0.00001);
                     maskUv = saturate(ndc * 0.5 + 0.5);
                 }
+                maskUv = saturate(maskUv - _MaskOffset.xy);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);

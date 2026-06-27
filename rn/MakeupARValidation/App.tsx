@@ -78,6 +78,7 @@ export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
+const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
   id: LipFinishType;
@@ -431,6 +432,8 @@ export type ActiveRegionMap = Record<RecipeRegion, boolean>;
 export type RegionTuningParameters = {
   feather: number;
   coverage: number;
+  maskOffsetX: number;
+  maskOffsetY: number;
   roughness: number;
   specular: number;
   specularPower: number;
@@ -632,6 +635,8 @@ function buildDefaultRegionTuningForSample(
   return {
     feather: textureSample.feather,
     coverage: textureSample.coverage,
+    maskOffsetX: 0,
+    maskOffsetY: 0,
     roughness: textureSample.roughness,
     specular: textureSample.specular,
     specularPower: textureSample.specularPower,
@@ -659,6 +664,23 @@ function clampChannel(value: number) {
 
 function clampUnitInterval(value: number | undefined) {
   return Math.max(0, Math.min(1, value ?? DEFAULT_COLOR_WARMTH));
+}
+
+function maskOffsetToSliderValue(offset: number | undefined) {
+  const normalizedOffset = Math.max(
+    -BROW_MASK_OFFSET_RANGE_UV,
+    Math.min(BROW_MASK_OFFSET_RANGE_UV, offset ?? 0),
+  );
+
+  return 0.5 + normalizedOffset / (BROW_MASK_OFFSET_RANGE_UV * 2);
+}
+
+function sliderValueToMaskOffset(value: number) {
+  const offset = (Math.max(0, Math.min(1, value)) - 0.5) *
+    BROW_MASK_OFFSET_RANGE_UV *
+    2;
+
+  return Number(offset.toFixed(4));
 }
 
 function parseHexColor(hexColor: string) {
@@ -774,6 +796,8 @@ export function buildValidationRecipeBatchPayload(
       blendMode: sample.blendMode,
       enabled: enabledRegions[region],
       coverage: tuning.coverage,
+      maskOffsetX: tuning.maskOffsetX,
+      maskOffsetY: tuning.maskOffsetY,
       finish: sample.finish,
       textureAmount: layerIntensity,
       roughness: tuning.roughness,
@@ -825,6 +849,8 @@ export function buildValidationRecipeBatchPayload(
     color: focusColor,
     secondaryColor: focusSample.secondaryColor,
     coverage: focusTuning.coverage,
+    maskOffsetX: focusTuning.maskOffsetX,
+    maskOffsetY: focusTuning.maskOffsetY,
     finish: focusSample.finish,
     textureAmount: focusIntensity,
     roughness: focusTuning.roughness,
@@ -1872,6 +1898,35 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     ],
   );
 
+  const updateFocusedMaskOffset = useCallback(
+    (key: 'maskOffsetX' | 'maskOffsetY', sliderValue: number) => {
+      const nextTuning = {
+        ...regionTuning,
+        [focusedRegion]: {
+          ...regionTuning[focusedRegion],
+          [key]: sliderValueToMaskOffset(sliderValue),
+        },
+      };
+
+      setRegionTuning(nextTuning);
+      postRecipeBatch(
+        regionRecipes,
+        activeRegions,
+        focusedRegion,
+        selectedRendererMode,
+        nextTuning,
+      );
+    },
+    [
+      activeRegions,
+      focusedRegion,
+      postRecipeBatch,
+      regionRecipes,
+      regionTuning,
+      selectedRendererMode,
+    ],
+  );
+
   const updateFocusedMaskTexture = useCallback(
     (maskTextureId: MaskTextureId) => {
       const resolvedMaskTextureId = resolveMaskTextureIdForUiOption(
@@ -2665,6 +2720,28 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                         updateFocusedColorParameter('colorDepth', value)
                       }
                     />
+
+                    <ValueSlider
+                      label="Brow X"
+                      value={maskOffsetToSliderValue(focusedTuning.maskOffsetX)}
+                      width={sliderWidth}
+                      fillColor="#BAE6FD"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedMaskOffset('maskOffsetX', value)
+                      }
+                    />
+
+                    <ValueSlider
+                      label="Brow Y"
+                      value={maskOffsetToSliderValue(focusedTuning.maskOffsetY)}
+                      width={sliderWidth}
+                      fillColor="#BAE6FD"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedMaskOffset('maskOffsetY', value)
+                      }
+                    />
                   </>
                 )}
 
@@ -2788,7 +2865,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}%`
+                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}% / x ${focusedTuning.maskOffsetX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(

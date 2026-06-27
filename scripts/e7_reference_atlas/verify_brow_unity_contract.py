@@ -13,6 +13,9 @@ DEFAULT_RN_BRIDGE = Path("unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.
 DEFAULT_OVERLAY = Path(
     "unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs"
 )
+DEFAULT_SHADER = Path(
+    "unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionMask.shader"
+)
 DEFAULT_ROUTES = Path(
     "unity/MakeupARUnityValidation/Assets/Scripts/MakeupRegionRendererRoutes.cs"
 )
@@ -34,6 +37,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rn-app", type=Path, default=DEFAULT_RN_APP)
     parser.add_argument("--rn-bridge", type=Path, default=DEFAULT_RN_BRIDGE)
     parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
+    parser.add_argument("--shader", type=Path, default=DEFAULT_SHADER)
     parser.add_argument("--routes", type=Path, default=DEFAULT_ROUTES)
     parser.add_argument("--mask-dir", type=Path, default=DEFAULT_BROW_MASK_DIR)
     parser.add_argument("--mask", type=Path, action="append", default=[])
@@ -68,6 +72,7 @@ def main() -> None:
     rn_app = read_text(resolve(repo, args.rn_app))
     rn_bridge = read_text(resolve(repo, args.rn_bridge))
     overlay = read_text(resolve(repo, args.overlay))
+    shader = read_text(resolve(repo, args.shader))
     routes = read_text(resolve(repo, args.routes))
     mask_dir = resolve(repo, args.mask_dir)
     mask_paths = [
@@ -138,6 +143,26 @@ def main() -> None:
             f'"{mask_id}"',
             f"RNBridge NormalizeMaskTextureId must accept {mask_id}.",
         )
+    require_contains(
+        rn_bridge,
+        "public float maskOffsetX;",
+        "RNBridge recipe layer payload must accept maskOffsetX.",
+    )
+    require_contains(
+        rn_bridge,
+        "public float maskOffsetY;",
+        "RNBridge recipe layer payload must accept maskOffsetY.",
+    )
+    require_contains(
+        rn_bridge,
+        "MaskOffsetX = NormalizeMaskOffset(layer.maskOffsetX)",
+        "RNBridge must normalize layer maskOffsetX into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "MaskOffsetY = NormalizeMaskOffset(layer.maskOffsetY)",
+        "RNBridge must normalize layer maskOffsetY into parsed layers.",
+    )
 
     require_match(
         overlay,
@@ -207,6 +232,46 @@ def main() -> None:
         r"recipe\.Region\s*==\s*\"brow\".*"
         r"BrowMaskRecipeFeatherMax.*BrowMaskRecipeFeatherMin.*recipe\.Feather",
         "E3RegionMaskOverlay ResolveEffectiveFeather must clamp brow recipe feather.",
+    )
+    require_contains(
+        overlay,
+        "public float MaskOffsetX;",
+        "E3RegionMaskOverlay result must expose mask offset X.",
+    )
+    require_contains(
+        overlay,
+        "public float MaskOffsetY;",
+        "E3RegionMaskOverlay result must expose mask offset Y.",
+    )
+    require_contains(
+        overlay,
+        "MaskOffsetX = Mathf.Clamp(maskOffsetX, -0.08f, 0.08f)",
+        "E3RegionMaskOverlay must clamp mask offset X.",
+    )
+    require_contains(
+        overlay,
+        "MaskOffsetY = Mathf.Clamp(maskOffsetY, -0.08f, 0.08f)",
+        "E3RegionMaskOverlay must clamp mask offset Y.",
+    )
+    require_contains(
+        overlay,
+        'material.SetVector("_MaskOffset"',
+        "E3RegionMaskOverlay must pass mask offset to the shader.",
+    )
+    require_contains(
+        shader,
+        '_MaskOffset ("Mask UV Offset", Vector) = (0, 0, 0, 0)',
+        "SmoothRegionMask shader must define a mask UV offset property.",
+    )
+    require_contains(
+        shader,
+        "float4 _MaskOffset;",
+        "SmoothRegionMask shader must expose _MaskOffset to shader code.",
+    )
+    require_contains(
+        shader,
+        "maskUv = saturate(maskUv - _MaskOffset.xy);",
+        "SmoothRegionMask shader must apply mask offset before sampling.",
     )
 
     print("brow_unity_contract_ok")

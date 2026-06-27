@@ -128,6 +128,12 @@ switching to a darker swatch. `Warmth` below `0.50` moves the result toward ash;
 above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
 darkens. Good first QA probes are `Warmth 0.40..0.60` and `Depth 0.55..0.75`.
 
+For placement, leave `Brow X` and `Brow Y` at `0.50` first. If the brows still
+look too centered, move `Brow X` slightly above `0.50`; this shifts both brows
+outward through the Unity mask offset path. If the brows still sit low, move
+`Brow Y` slightly above `0.50`. Use small steps such as `0.55`, then `0.60`,
+and record the best value before changing the mask asset again.
+
 If the brow is too faint, raise opacity first to `0.74..0.80`. If it is still
 too faint, raise intensity to `0.74..0.82`. Adjust coverage last, usually no
 higher than `0.68`, because too much coverage can make the brow read as a
@@ -146,6 +152,7 @@ Check:
 - `brow-soft-arch-fine-hair-v1` is selected for brow by default.
 - `brow-back-arch-soft-mix-v1` and `brow-slim-tail-fine-hair-v1` can be selected
   for visual comparison.
+- `Brow X` and `Brow Y` controls can be adjusted while the brow remains attached.
 - The latest recipe HUD shows `renderer=brow-smooth-region-mask-renderer` for
   brow after Unity acknowledges the recipe.
 - Opacity and intensity changes update without restarting AR.

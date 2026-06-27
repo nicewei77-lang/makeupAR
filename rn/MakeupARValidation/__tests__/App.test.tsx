@@ -563,6 +563,8 @@ test('posts eyebrow as a fourth independent region layer', () => {
         ...DEFAULT_REGION_TUNING.brow,
         feather: browSample!.feather,
         coverage: browSample!.coverage,
+        maskOffsetX: 0,
+        maskOffsetY: 0,
         roughness: browSample!.roughness,
         specular: browSample!.specular,
         glossBoost: 0,
@@ -589,9 +591,40 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.intensity).toBe(0.68);
   expect(browLayer.feather).toBe(0.48);
   expect(browLayer.coverage).toBe(0.62);
+  expect(browLayer.maskOffsetX).toBe(0);
+  expect(browLayer.maskOffsetY).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
+});
+
+test('passes eyebrow placement offset parameters to payload', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24682,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        maskOffsetX: 0.018,
+        maskOffsetY: 0.024,
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(payload.maskOffsetX).toBe(0.018);
+  expect(payload.maskOffsetY).toBe(0.024);
+  expect(browLayer.maskOffsetX).toBe(0.018);
+  expect(browLayer.maskOffsetY).toBe(0.024);
 });
 
 test('applies eyebrow color warmth and depth parameters to payload color', () => {
@@ -1098,6 +1131,8 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).not.toContain('red');
   expect(text).toContain('Warmth');
   expect(text).toContain('Depth');
+  expect(text).toContain('Brow X');
+  expect(text).toContain('Brow Y');
   expect(text).toContain('Soft arch fine');
   expect(text).toContain('Back arch soft');
   expect(text).toContain('Slim tail fine');

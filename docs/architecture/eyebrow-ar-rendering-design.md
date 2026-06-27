@@ -153,9 +153,14 @@ from lip colors: `ash_brown`, `neutral_brown`, `dark_brown`, and `soft_black`.
 RN additionally exposes brow-only `Warmth` and `Depth` sliders. These compute a
 final HTML hex color on the RN side and keep sending it through the existing
 Unity `color` field, so no Unity recipe schema change is required for color QA.
+RN also exposes brow-only `Brow X` and `Brow Y` placement sliders. These become
+signed `maskOffsetX` and `maskOffsetY` recipe values, are clamped in `RNBridge`
+and `E3RegionMaskOverlay`, and are applied in `SmoothRegionMask.shader` through
+the `_MaskOffset` UV sampling property.
 For QA, raise opacity first, intensity second, and coverage last to improve
 visibility without immediately making the brow sticker-like; use `Warmth` and
-`Depth` to fine-tune color after visibility is readable.
+`Depth` to fine-tune color after visibility is readable, then use `Brow X/Y` for
+small placement errors before generating another mask texture.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in

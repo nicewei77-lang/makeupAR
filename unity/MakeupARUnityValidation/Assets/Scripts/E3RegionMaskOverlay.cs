@@ -38,6 +38,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string BlendMode;
         public string SecondaryColorHex;
         public float Coverage;
+        public float MaskOffsetX;
+        public float MaskOffsetY;
         public string Finish;
         public float Roughness;
         public float Specular;
@@ -92,6 +94,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string BlendMode = "normal";
         public string MaskTextureId = LipDrawnStyleAtlasMaskId;
         public float Coverage = 0.62f;
+        public float MaskOffsetX;
+        public float MaskOffsetY;
         public string Finish = "matte";
         public float Roughness = 0.88f;
         public float Specular = 0.04f;
@@ -325,6 +329,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string secondaryColorHex,
         Color secondaryColor,
         float coverage,
+        float maskOffsetX,
+        float maskOffsetY,
         string finish,
         float roughness,
         float specular,
@@ -354,6 +360,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 : secondaryColorHex.Trim(),
             SecondaryColor = secondaryColor,
             Coverage = Mathf.Clamp01(coverage),
+            MaskOffsetX = Mathf.Clamp(maskOffsetX, -0.08f, 0.08f),
+            MaskOffsetY = Mathf.Clamp(maskOffsetY, -0.08f, 0.08f),
             Finish = NormalizeOptional(finish),
             Roughness = Mathf.Clamp01(roughness),
             Specular = Mathf.Clamp01(specular),
@@ -562,6 +570,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.BlendMode = recipe.BlendMode;
         result.SecondaryColorHex = recipe.SecondaryColorHex;
         result.Coverage = recipe.Coverage;
+        result.MaskOffsetX = recipe.MaskOffsetX;
+        result.MaskOffsetY = recipe.MaskOffsetY;
         result.Finish = recipe.Finish;
         result.Roughness = recipe.Roughness;
         result.Specular = recipe.Specular;
@@ -2605,6 +2615,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (material.HasProperty("_Coverage"))
         {
             material.SetFloat("_Coverage", recipe.Coverage);
+        }
+
+        if (material.HasProperty("_MaskOffset"))
+        {
+            material.SetVector("_MaskOffset", new Vector4(recipe.MaskOffsetX, recipe.MaskOffsetY, 0.0f, 0.0f));
         }
 
         if (material.HasProperty("_Roughness"))
