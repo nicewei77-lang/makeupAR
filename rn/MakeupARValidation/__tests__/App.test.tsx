@@ -657,6 +657,107 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   expect(text).not.toContain('저장하고 AR 실행');
 });
 
+test('updates generated package after adjustment and separates regenerate from retake', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+
+  const renderCallsBeforeAdjustment =
+    mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.length ??
+    0;
+  const beforeAdjustmentPackage = JSON.parse(
+    String(
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(-1)?.[0],
+    ),
+  );
+  expect(beforeAdjustmentPackage.generatedMaskId).toContain('adj-p0-p0-p0-p0');
+  expect(collectText(renderer!)).toContain('현재 사진으로 다시 생성');
+  expect(collectText(renderer!)).toContain('다시 촬영');
+  expect(collectText(renderer!)).not.toContain('경계 다시 추출');
+
+  await pressByTestIDAsync(renderer!, 'lip-adjustment-step-corner-up');
+
+  expect(
+    mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.length,
+  ).toBeGreaterThan(renderCallsBeforeAdjustment);
+  const afterAdjustmentPackage = JSON.parse(
+    String(
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(-1)?.[0],
+    ),
+  );
+  expect(afterAdjustmentPackage.generatedMaskId).toContain('adj-p1e-p0-p0-p0');
+  expect(afterAdjustmentPackage.generatedMaskId).not.toBe(
+    beforeAdjustmentPackage.generatedMaskId,
+  );
+  expect(afterAdjustmentPackage.adjustment.cornerReach).toBe(0.05);
+  expect(getLastUnityPostPayload('ApplyRecipeJson').cornerReach).toBe(0.05);
+  expect(collectText(renderer!)).toContain('즉시 반영 중');
+
+  pressByTestID(renderer!, 'e7-wizard-retake-after-adjust');
+
+  const textAfterRetake = collectText(renderer!);
+  expect(textAfterRetake).toContain('다시 촬영합니다');
+  expect(textAfterRetake).toContain('표정별 촬영');
+  expect(textAfterRetake).not.toContain('Unity 적용 실패 또는 미확인');
+});
+
+test('shows apply timeout and retries from a user-readable blocked state', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+  await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
+
+  ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(10_000);
+  });
+
+  const text = collectText(renderer!);
+  expect(text).toContain('timeout');
+  expect(text).toContain('generated_lip_mask_applied_ack_timeout');
+  expect(text).toContain('저장/적용 재시도');
+});
+
+test('posts AR validation controls without resending texture after Unity ack', async () => {
+  installNativeGenerateSuccessMock('mediapipe');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+  await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
+
+  const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
+  expect(applyPayload.maskRawRgbaBase64).toBeTruthy();
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+    provider: 'mediapipe',
+  });
+
+  expect(collectText(renderer!)).toContain('AR 립 적용 중');
+  pressByTestID(renderer!, 'generated-mask-toggle');
+  pressByTestID(renderer!, 'generated-mask-color-hot');
+  pressByTestID(renderer!, 'generated-mask-opacity-minus');
+
+  const controlPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
+  expect(controlPayload.generatedMaskId).toBe(applyPayload.generatedMaskId);
+  expect(controlPayload.maskVisible).toBe(false);
+  expect(controlPayload.visible).toBe(false);
+  expect(controlPayload.colorHex).toBe('#FF2D8A');
+  expect(controlPayload.validationColor).toBe('#FF2D8A');
+  expect(controlPayload.opacity).toBeCloseTo(0.76);
+  expect(controlPayload.maskRawRgbaBase64).toBeUndefined();
+  expect(controlPayload.maskPngBase64).toBeUndefined();
+});
+
 test('rejects generated-mask ack when generatedMaskId does not match pending package', async () => {
   installNativeGenerateSuccessMock('vision');
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;

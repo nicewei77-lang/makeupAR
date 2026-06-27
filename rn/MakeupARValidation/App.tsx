@@ -356,6 +356,19 @@ const E7_FULL_FACE_REGION_RUNTIME_LAYERS = [
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 const LIP_ADJUSTMENT_STEP = 0.05;
+const GENERATED_APPLY_ACK_TIMEOUT_MS = 10_000;
+const GENERATED_MASK_VALIDATION_COLORS = [
+  { name: 'rose', color: '#D94B74' },
+  { name: 'hot', color: '#FF2D8A' },
+  { name: 'gold', color: '#F2B84B' },
+] as const;
+const DEFAULT_GENERATED_MASK_VALIDATION_CONTROLS = {
+  maskVisible: true,
+  strongMode: true,
+  colorHex: '#D94B74',
+  opacity: 0.86,
+  boundaryDebugVisible: false,
+};
 
 type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
@@ -432,13 +445,31 @@ type E7GeneratedCandidateWithPreview = E7GeneratedCandidate & {
   previewStatus?: E7GeneratedPreviewState;
   previewError?: string;
 };
-type E7GeneratedApplyState =
+type E7GeneratedApplyStatus =
   | 'idle'
   | 'saving'
   | 'posting'
   | 'waitingAck'
   | 'applied'
-  | 'blocked';
+  | 'blocked'
+  | 'timeout';
+type E7GeneratedApplyState = {
+  status: E7GeneratedApplyStatus;
+  generatedMaskId?: string;
+  startedAtMs?: number;
+  updatedAtMs: number;
+  elapsedMs?: number;
+  blockedReason?: string;
+  error?: string;
+  ack?: UnityEventPayload;
+};
+type GeneratedMaskValidationControls = {
+  maskVisible: boolean;
+  strongMode: boolean;
+  colorHex: string;
+  opacity: number;
+  boundaryDebugVisible: boolean;
+};
 type E7AlignmentGateState = 'waiting' | 'ready' | 'blocked';
 type E7AlignmentGate = {
   label: string;
@@ -541,6 +572,56 @@ function createInitialCaptureShots(): Record<
 
 function createCaptureSetId(entryCount: number) {
   return `e7-capture-set-${entryCount}-${Date.now()}`;
+}
+
+function createGeneratedApplyState(
+  status: E7GeneratedApplyStatus,
+  patch: Partial<Omit<E7GeneratedApplyState, 'status' | 'updatedAtMs'>> = {},
+): E7GeneratedApplyState {
+  return {
+    status,
+    updatedAtMs: Date.now(),
+    ...patch,
+  };
+}
+
+function buildGeneratedMaskUnityMessage(
+  generatedPackage: LipGeneratePackage,
+  controls: GeneratedMaskValidationControls,
+  options: { includeTexture: boolean },
+) {
+  const message: Record<string, unknown> = {
+    ...buildUnityMessageFromPackage(generatedPackage),
+    visible: controls.maskVisible,
+    maskVisible: controls.maskVisible,
+    validationVisible: controls.maskVisible,
+    enabled: controls.maskVisible,
+    strongValidationMode: controls.strongMode,
+    validationStrongMode: controls.strongMode,
+    validationStrong: controls.strongMode,
+    strongMode: controls.strongMode,
+    validationMode: controls.strongMode ? 'strong' : 'standard',
+    validationViewMode: controls.strongMode ? 'strong' : 'standard',
+    color: controls.colorHex,
+    colorHex: controls.colorHex,
+    validationColor: controls.colorHex,
+    validationColorHex: controls.colorHex,
+    opacity: controls.opacity,
+    maskOpacity: controls.opacity,
+    validationOpacity: controls.opacity,
+    boundaryDebugVisible: controls.boundaryDebugVisible,
+    boundaryDebug: controls.boundaryDebugVisible,
+    debugBoundary: controls.boundaryDebugVisible,
+    showBoundary: controls.boundaryDebugVisible,
+    debugOverlayVisible: controls.boundaryDebugVisible,
+  };
+
+  if (!options.includeTexture) {
+    delete message.maskPngBase64;
+    delete message.maskRawRgbaBase64;
+  }
+
+  return message;
 }
 
 function getWizardStepIndex(step: E7WizardStep) {
@@ -914,9 +995,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [savedGeneratedPackage, setSavedGeneratedPackage] =
     useState<E7SavedPackageRecord | null>(null);
   const [generatedApplyState, setGeneratedApplyState] =
-    useState<E7GeneratedApplyState>('idle');
+    useState<E7GeneratedApplyState>(() => createGeneratedApplyState('idle'));
   const [pendingGeneratedMaskId, setPendingGeneratedMaskId] =
     useState<string | null>(null);
+  const [pendingGeneratedPackage, setPendingGeneratedPackage] =
+    useState<LipGeneratePackage | null>(null);
+  const [appliedGeneratedPackage, setAppliedGeneratedPackage] =
+    useState<LipGeneratePackage | null>(null);
+  const [generatedValidationControls, setGeneratedValidationControls] =
+    useState<GeneratedMaskValidationControls>({
+      ...DEFAULT_GENERATED_MASK_VALIDATION_CONTROLS,
+    });
   const [wizardNotice, setWizardNotice] = useState(
     '촬영부터 시작하는 맞춤 Generate flow입니다.',
   );
@@ -929,6 +1018,15 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     LIP_RUNTIME_CANDIDATE_OPTIONS.find(
       candidate => candidate.candidateId === selectedLipRuntimeCandidateId,
     ) ?? DEFAULT_LIP_RUNTIME_CANDIDATE;
+
+  const resetGeneratedApplyFlow = useCallback((reason: string) => {
+    setGeneratedApplyState(createGeneratedApplyState('idle'));
+    setPendingGeneratedMaskId(null);
+    setPendingGeneratedPackage(null);
+    setAppliedGeneratedPackage(null);
+    console.log('[E7] generated_apply_state_reset', reason);
+  }, []);
+
   useEffect(() => {
     console.log(
       '[E7] unity_screen_mounted',
@@ -1661,8 +1759,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       setGeneratedCandidatesStale(false);
       setSavedGeneratedPackage(null);
-      setGeneratedApplyState('idle');
-      setPendingGeneratedMaskId(null);
+      resetGeneratedApplyFlow('generate_candidates');
       if (!options?.stayOnStep) {
         setWizardStep('blend');
       }
@@ -1688,6 +1785,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     lipGenerateProvider,
     lipUserAdjustment,
     renderGeneratedCandidatePreviews,
+    resetGeneratedApplyFlow,
     selectedGeneratedCandidateKey,
   ]);
 
@@ -1705,8 +1803,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }
 
     setIsSavingGeneratedPackage(true);
-    setGeneratedApplyState('saving');
+    setGeneratedApplyState(
+      createGeneratedApplyState('saving', {
+        generatedMaskId: selectedCandidate.package.generatedMaskId,
+        startedAtMs: Date.now(),
+        blockedReason: 'saving_local_generated_package',
+      }),
+    );
     setPendingGeneratedMaskId(selectedCandidate.package.generatedMaskId);
+    setPendingGeneratedPackage(selectedCandidate.package);
+    setAppliedGeneratedPackage(null);
     try {
       const packageJson = JSON.stringify(selectedCandidate.package);
       const recordJson =
@@ -1719,7 +1825,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             });
       const record = JSON.parse(recordJson) as E7SavedPackageRecord;
       const unityMessageJson = JSON.stringify(
-        buildUnityMessageFromPackage(selectedCandidate.package),
+        buildGeneratedMaskUnityMessage(
+          selectedCandidate.package,
+          generatedValidationControls,
+          { includeTexture: true },
+        ),
       );
 
       setSavedGeneratedPackage(record);
@@ -1727,19 +1837,37 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `${selectedCandidate.provider}/${selectedCandidate.expressionMode} saved`,
       );
       setActiveRegions(regions => ({ ...regions, lip: true }));
-      setGeneratedApplyState('posting');
+      setGeneratedApplyState(
+        createGeneratedApplyState('posting', {
+          generatedMaskId: selectedCandidate.package.generatedMaskId,
+          startedAtMs: Date.now(),
+          blockedReason: 'posting_apply_payload_to_unity',
+        }),
+      );
       unityRef.current?.postMessage(
         'RNBridge',
         'ApplyGeneratedLipMaskJson',
         unityMessageJson,
       );
-      setGeneratedApplyState('waitingAck');
+      setGeneratedApplyState(
+        createGeneratedApplyState('waitingAck', {
+          generatedMaskId: selectedCandidate.package.generatedMaskId,
+          startedAtMs: Date.now(),
+          blockedReason: 'waiting_for_generated_lip_mask_applied_ack',
+        }),
+      );
       setWizardStep('apply');
       setWizardNotice('저장 완료. Unity generated_lip_mask_applied ack를 기다립니다.');
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unknown_save_error';
-      setGeneratedApplyState('blocked');
+      setGeneratedApplyState(
+        createGeneratedApplyState('blocked', {
+          generatedMaskId: selectedCandidate.package.generatedMaskId,
+          blockedReason: 'save_or_post_failed',
+          error: message,
+        }),
+      );
       setWizardNotice(`저장 실패: ${message}`);
     } finally {
       setIsSavingGeneratedPackage(false);
@@ -1747,9 +1875,56 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   }, [
     generatedCandidates,
     generatedCandidatesStale,
+    generatedValidationControls,
     isSavingGeneratedPackage,
     selectedGeneratedCandidateKey,
   ]);
+
+  const updateGeneratedMaskValidationControls = useCallback(
+    (patch: Partial<GeneratedMaskValidationControls>) => {
+      const nextControls: GeneratedMaskValidationControls = {
+        ...generatedValidationControls,
+        ...patch,
+        opacity: Number(
+          Math.max(
+            0,
+            Math.min(1, patch.opacity ?? generatedValidationControls.opacity),
+          ).toFixed(2),
+        ),
+      };
+      setGeneratedValidationControls(nextControls);
+
+      const packageForUpdate =
+        appliedGeneratedPackage ?? pendingGeneratedPackage;
+      if (!packageForUpdate) {
+        setWizardNotice('적용된 generated mask가 없어 검증 컨트롤을 보낼 수 없습니다.');
+        return;
+      }
+
+      const unityMessageJson = JSON.stringify(
+        buildGeneratedMaskUnityMessage(packageForUpdate, nextControls, {
+          includeTexture: false,
+        }),
+      );
+      unityRef.current?.postMessage(
+        'RNBridge',
+        'ApplyGeneratedLipMaskJson',
+        unityMessageJson,
+      );
+      setWizardNotice(
+        `AR 검증 컨트롤 전송: ${
+          nextControls.maskVisible ? 'ON' : 'OFF'
+        } / ${nextControls.strongMode ? '진하게' : '기본'} / ${
+          nextControls.colorHex
+        } / opacity ${nextControls.opacity.toFixed(2)}`,
+      );
+    },
+    [
+      appliedGeneratedPackage,
+      generatedValidationControls,
+      pendingGeneratedPackage,
+    ],
+  );
 
   const handleUnityMessage = useCallback(
     (event: UnityMessageEvent) => {
@@ -1804,19 +1979,48 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             parsed.applied === true &&
             parsed.uvAvailable === true &&
             (readNumber(parsed.maskTriangles) ?? 0) > 0;
+          const blockedReason = !isMatchingPendingMask
+            ? 'generatedMaskId_mismatch'
+            : String(
+                parsed.blockedReason ??
+                  parsed.error ??
+                  parsed.status ??
+                  'unity_apply_unknown',
+              );
 
           if (isApplied) {
-            setGeneratedApplyState('applied');
+            setGeneratedApplyState(
+              createGeneratedApplyState('applied', {
+                generatedMaskId,
+                ack: parsed,
+                blockedReason: 'ack_applied_uv_mask_triangles_ready',
+              }),
+            );
+            setAppliedGeneratedPackage(
+              currentPackage =>
+                currentPackage ??
+                pendingGeneratedPackage ??
+                generatedCandidates.find(
+                  candidate =>
+                    candidate.package?.generatedMaskId === generatedMaskId,
+                )?.package ??
+                null,
+            );
             setPendingGeneratedMaskId(null);
             setWizardNotice(
               'Unity 적용 ack 확인. Generate UI를 접고 AR 립 화면에서 확인합니다.',
             );
           } else {
-            setGeneratedApplyState('blocked');
+            setGeneratedApplyState(
+              createGeneratedApplyState('blocked', {
+                generatedMaskId,
+                ack: parsed,
+                blockedReason,
+                error: String(parsed.error ?? ''),
+              }),
+            );
             setWizardNotice(
-              `Unity 적용 실패 또는 미확인: ${String(
-                parsed.error ?? parsed.status ?? 'unknown',
-              )}`,
+              `Unity 적용 실패 또는 미확인: ${blockedReason}`,
             );
           }
         }
@@ -1928,8 +2132,52 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         );
       }
     },
-    [pendingCaptureShotKind, pendingGeneratedMaskId, postRecipeAck, validationViewMode],
+    [
+      generatedCandidates,
+      pendingCaptureShotKind,
+      pendingGeneratedMaskId,
+      pendingGeneratedPackage,
+      postRecipeAck,
+      validationViewMode,
+    ],
   );
+
+  useEffect(() => {
+    if (
+      generatedApplyState.status !== 'waitingAck' ||
+      !generatedApplyState.startedAtMs
+    ) {
+      return undefined;
+    }
+
+    const elapsedMs = Date.now() - generatedApplyState.startedAtMs;
+    const remainingMs = Math.max(
+      0,
+      GENERATED_APPLY_ACK_TIMEOUT_MS - elapsedMs,
+    );
+    const timeout = setTimeout(() => {
+      setGeneratedApplyState(currentState => {
+        if (
+          currentState.status !== 'waitingAck' ||
+          currentState.generatedMaskId !== generatedApplyState.generatedMaskId
+        ) {
+          return currentState;
+        }
+
+        return createGeneratedApplyState('timeout', {
+          generatedMaskId: currentState.generatedMaskId,
+          startedAtMs: currentState.startedAtMs,
+          elapsedMs: Date.now() - (currentState.startedAtMs ?? Date.now()),
+          blockedReason: 'generated_lip_mask_applied_ack_timeout',
+        });
+      });
+      setWizardNotice(
+        'Unity 적용 ack가 10초 안에 오지 않았습니다. 재시도하거나 Debug에서 persisted ack를 확인하세요.',
+      );
+    }, remainingMs);
+
+    return () => clearTimeout(timeout);
+  }, [generatedApplyState.generatedMaskId, generatedApplyState.startedAtMs, generatedApplyState.status]);
 
   useEffect(() => {
     const initialPostTimer = setTimeout(() => {
@@ -2053,7 +2301,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     selectedGeneratedCandidate?.package && !generatedCandidatesStale,
   );
   const wizardStepIndex = getWizardStepIndex(wizardStep);
-  const hasGeneratedMaskApplied = generatedApplyState === 'applied';
+  const hasGeneratedMaskApplied = generatedApplyState.status === 'applied';
   const isUsingCapturedFrameReview =
     (wizardStepIndex >= getWizardStepIndex('extract') ||
       capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length) &&
@@ -2182,6 +2430,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
       setLipUserAdjustment(nextAdjustment);
       setSavedGeneratedPackage(null);
+      resetGeneratedApplyFlow(`lip_adjustment_${field}`);
       if (providerResult?.boundary && providerResult.arFaceExport) {
         const rebuiltCandidates = LIP_GENERATE_EXPRESSION_OPTIONS.map(
           expressionOption =>
@@ -2233,6 +2482,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       postRecipeBatch,
       regionRecipes,
       renderGeneratedCandidatePreviews,
+      resetGeneratedApplyFlow,
       selectedGeneratedCandidateKey,
       selectedLipSample,
       selectedLipRuntimeCandidate,
@@ -2328,7 +2578,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         </View>
 
         {hasGeneratedMaskApplied ? (
-          <GeneratedRuntimeAppliedBanner notice={wizardNotice} />
+          <GeneratedRuntimeAppliedBanner
+            notice={wizardNotice}
+            applyState={generatedApplyState}
+            controls={generatedValidationControls}
+            onChangeControls={updateGeneratedMaskValidationControls}
+            onReopenGenerate={() => {
+              resetGeneratedApplyFlow('reopen_generate_after_apply');
+              setWizardStep('adjust');
+              setWizardNotice('Generate 조정 화면을 다시 열었습니다.');
+            }}
+          />
         ) : (
           <E7GenerateWizard
             activeStep={wizardStep}
@@ -2375,16 +2635,37 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               setNativeProviderResults({});
               setGeneratedCandidates([]);
               setSavedGeneratedPackage(null);
-              setGeneratedApplyState('idle');
-              setPendingGeneratedMaskId(null);
+              resetGeneratedApplyFlow(`select_provider_${provider}`);
               setGeneratedCandidatesStale(false);
               setSelectedGeneratedCandidateKey(`${provider}/uvOnly`);
               setWizardNotice(
                 `${formatProviderLabel(provider)} 추출 방식이 선택되었습니다.`,
               );
             }}
-            onGenerateCandidates={generateWizardCandidates}
-            onSelectCandidate={setSelectedGeneratedCandidateKey}
+            onGenerateCandidates={() =>
+              generateWizardCandidates({
+                stayOnStep: wizardStep === 'adjust',
+                reason: wizardStep === 'adjust' ? 'manual' : undefined,
+              })
+            }
+            onRetakeCapture={() => {
+              setCaptureShots(createInitialCaptureShots());
+              setPendingCapturePairId(null);
+              setPendingCaptureShotKind(null);
+              setNativeProviderResults({});
+              setGeneratedCandidates([]);
+              setSavedGeneratedPackage(null);
+              setGeneratedCandidatesStale(false);
+              setSelectedGeneratedCandidateKey(`${lipGenerateProvider}/uvOnly`);
+              resetGeneratedApplyFlow('retake_capture');
+              setWizardStep('capture');
+              setWizardNotice('다시 촬영합니다. 새 frame.png / arface_export.json을 만든 뒤 추출하세요.');
+            }}
+            onSelectCandidate={candidateKey => {
+              setSelectedGeneratedCandidateKey(candidateKey);
+              resetGeneratedApplyFlow(`select_candidate_${candidateKey}`);
+              setSavedGeneratedPackage(null);
+            }}
             onSelectAdjustmentField={setActiveLipAdjustmentField}
             onAdjustLip={updateLipUserAdjustment}
             onSave={saveSelectedGeneratedPackage}
@@ -2899,6 +3180,7 @@ type E7GenerateWizardProps = {
   onStepRequest: (step: E7WizardStep) => void;
   onBack: () => void;
   onCaptureShot: (shotKind: E7CaptureShotKind) => void;
+  onRetakeCapture: () => void;
   onSelectProvider: (provider: GeneratedLipMaskProvider) => void;
   onGenerateCandidates: () => void;
   onSelectCandidate: (candidateKey: string) => void;
@@ -2935,6 +3217,7 @@ function E7GenerateWizard({
   onStepRequest,
   onBack,
   onCaptureShot,
+  onRetakeCapture,
   onSelectProvider,
   onGenerateCandidates,
   onSelectCandidate,
@@ -3313,8 +3596,18 @@ function E7GenerateWizard({
                 style={styles.generateWizardSecondaryButton}
                 onPress={onGenerateCandidates}
               >
-                <Text style={styles.generateWizardSecondaryText}>경계 다시 추출</Text>
+                <Text style={styles.generateWizardSecondaryText}>현재 사진으로 다시 생성</Text>
               </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                testID="e7-wizard-retake-after-adjust"
+                style={styles.generateWizardSecondaryButton}
+                onPress={onRetakeCapture}
+              >
+                <Text style={styles.generateWizardSecondaryText}>다시 촬영</Text>
+              </Pressable>
+            </View>
+            <View style={styles.generateWizardActionRow}>
               <Pressable
                 accessibilityRole="button"
                 disabled={!canSaveGeneratedPackage}
@@ -3337,11 +3630,14 @@ function E7GenerateWizard({
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
               saved: {savedGeneratedPackage?.status ?? 'pending'} / apply:{' '}
-              {generatedApplyState}
+              {formatGeneratedApplyStatusLabel(generatedApplyState)}
             </Text>
             <Text style={styles.generateWizardBodyText} numberOfLines={2}>
               {savedGeneratedPackage?.packagePath ??
                 'saveGeneratedPackage -> ApplyGeneratedLipMaskJson 대기'}
+            </Text>
+            <Text style={styles.generateWizardBodyText} numberOfLines={2}>
+              reason: {generatedApplyState.blockedReason ?? 'waiting'}
             </Text>
             <View style={styles.generateWizardApplyGateGrid}>
               <ApplyGatePill
@@ -3352,29 +3648,46 @@ function E7GenerateWizard({
               <ApplyGatePill
                 label="payload"
                 value={
-                  generatedApplyState === 'posting' ||
-                  generatedApplyState === 'waitingAck' ||
-                  generatedApplyState === 'applied'
+                  generatedApplyState.status === 'posting' ||
+                  generatedApplyState.status === 'waitingAck' ||
+                  generatedApplyState.status === 'applied'
                     ? '전송'
                     : '대기'
                 }
                 ready={
-                  generatedApplyState === 'waitingAck' ||
-                  generatedApplyState === 'applied'
+                  generatedApplyState.status === 'waitingAck' ||
+                  generatedApplyState.status === 'applied'
                 }
               />
               <ApplyGatePill
                 label="Unity ack"
                 value={
-                  generatedApplyState === 'applied'
+                  generatedApplyState.status === 'applied'
                     ? '확인'
-                    : generatedApplyState === 'blocked'
+                    : generatedApplyState.status === 'blocked'
                       ? '차단'
+                      : generatedApplyState.status === 'timeout'
+                        ? 'timeout'
                       : '대기'
                 }
-                ready={generatedApplyState === 'applied'}
+                ready={generatedApplyState.status === 'applied'}
               />
             </View>
+            {(generatedApplyState.status === 'blocked' ||
+              generatedApplyState.status === 'timeout') && (
+              <Pressable
+                accessibilityRole="button"
+                disabled={isSavingGeneratedPackage}
+                testID="e7-wizard-apply-retry"
+                style={[
+                  styles.generateWizardPrimaryButton,
+                  isSavingGeneratedPackage && styles.generateWizardButtonDisabled,
+                ]}
+                onPress={onSave}
+              >
+                <Text style={styles.generateWizardPrimaryText}>저장/적용 재시도</Text>
+              </Pressable>
+            )}
             <Text style={styles.generateWizardBodyText}>
               ack 성공 전에는 적용 완료로 표시하지 않습니다.
             </Text>
@@ -3436,13 +3749,132 @@ function ProviderStatusPill({
   );
 }
 
-function GeneratedRuntimeAppliedBanner({ notice }: { notice: string }) {
+function GeneratedRuntimeAppliedBanner({
+  notice,
+  applyState,
+  controls,
+  onChangeControls,
+  onReopenGenerate,
+}: {
+  notice: string;
+  applyState: E7GeneratedApplyState;
+  controls: GeneratedMaskValidationControls;
+  onChangeControls: (patch: Partial<GeneratedMaskValidationControls>) => void;
+  onReopenGenerate: () => void;
+}) {
   return (
-    <View pointerEvents="none" style={styles.generateAppliedBanner}>
-      <Text style={styles.generateAppliedBannerTitle}>AR 립 적용 중</Text>
-      <Text style={styles.generateAppliedBannerText} numberOfLines={2}>
-        {notice}
+    <View
+      style={styles.generateAppliedBanner}
+      testID="e7-generated-ar-validation-controls"
+    >
+      <View style={styles.generateAppliedHeader}>
+        <View>
+          <Text style={styles.generateAppliedBannerTitle}>AR 립 적용 중</Text>
+          <Text style={styles.generateAppliedBannerText} numberOfLines={2}>
+            {notice}
+          </Text>
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          testID="e7-generated-reopen-generate"
+          style={styles.generateAppliedSmallButton}
+          onPress={onReopenGenerate}
+        >
+          <Text style={styles.generateAppliedSmallButtonText}>Generate</Text>
+        </Pressable>
+      </View>
+      <Text style={styles.generateAppliedBannerText} numberOfLines={1}>
+        mask {applyState.generatedMaskId ?? 'unknown'} /{' '}
+        {applyState.ack
+          ? `triangles=${String(applyState.ack.maskTriangles ?? 'n/a')} uv=${String(
+              applyState.ack.uvAvailable ?? 'n/a',
+            )}`
+          : 'ack ready'}
       </Text>
+      <View style={styles.generateAppliedControlRow}>
+        <Pressable
+          accessibilityRole="button"
+          testID="generated-mask-toggle"
+          style={[
+            styles.generateAppliedControlButton,
+            controls.maskVisible && styles.generateAppliedControlButtonActive,
+          ]}
+          onPress={() =>
+            onChangeControls({ maskVisible: !controls.maskVisible })
+          }
+        >
+          <Text style={styles.generateAppliedControlText}>
+            {controls.maskVisible ? 'ON' : 'OFF'}
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID="generated-mask-strong"
+          style={[
+            styles.generateAppliedControlButton,
+            controls.strongMode && styles.generateAppliedControlButtonActive,
+          ]}
+          onPress={() => onChangeControls({ strongMode: !controls.strongMode })}
+        >
+          <Text style={styles.generateAppliedControlText}>진하게</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID="generated-mask-boundary"
+          style={[
+            styles.generateAppliedControlButton,
+            controls.boundaryDebugVisible &&
+              styles.generateAppliedControlButtonActive,
+          ]}
+          onPress={() =>
+            onChangeControls({
+              boundaryDebugVisible: !controls.boundaryDebugVisible,
+            })
+          }
+        >
+          <Text style={styles.generateAppliedControlText}>boundary</Text>
+        </Pressable>
+      </View>
+      <View style={styles.generateAppliedColorRow}>
+        {GENERATED_MASK_VALIDATION_COLORS.map(color => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: controls.colorHex === color.color }}
+            key={color.name}
+            testID={`generated-mask-color-${color.name}`}
+            style={[
+              styles.generateAppliedColorButton,
+              { backgroundColor: color.color },
+              controls.colorHex === color.color &&
+                styles.generateAppliedColorButtonSelected,
+            ]}
+            onPress={() => onChangeControls({ colorHex: color.color })}
+          >
+            <Text style={styles.generateAppliedColorText}>{color.name}</Text>
+          </Pressable>
+        ))}
+      </View>
+      <View style={styles.generateAppliedControlRow}>
+        <Pressable
+          accessibilityRole="button"
+          testID="generated-mask-opacity-minus"
+          style={styles.generateAppliedControlButton}
+          onPress={() => onChangeControls({ opacity: controls.opacity - 0.1 })}
+        >
+          <Text style={styles.generateAppliedControlText}>-</Text>
+        </Pressable>
+        <Text style={styles.generateAppliedOpacityText}>
+          opacity {controls.opacity.toFixed(2)}
+        </Text>
+        <Pressable
+          accessibilityRole="button"
+          testID="generated-mask-opacity-plus"
+          style={styles.generateAppliedControlButton}
+          onPress={() => onChangeControls({ opacity: controls.opacity + 0.1 })}
+        >
+          <Text style={styles.generateAppliedControlText}>+</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -3486,6 +3918,25 @@ function ApplyGatePill({
       <Text style={styles.generateWizardApplyGateValue}>{value}</Text>
     </View>
   );
+}
+
+function formatGeneratedApplyStatusLabel(state: E7GeneratedApplyState) {
+  switch (state.status) {
+    case 'idle':
+      return 'idle';
+    case 'saving':
+      return '저장 중';
+    case 'posting':
+      return 'Unity 전송 중';
+    case 'waitingAck':
+      return 'Unity ack 대기';
+    case 'applied':
+      return '적용 확인';
+    case 'blocked':
+      return `blocked${state.blockedReason ? `:${state.blockedReason}` : ''}`;
+    case 'timeout':
+      return `timeout${state.elapsedMs ? `:${Math.round(state.elapsedMs)}ms` : ''}`;
+  }
 }
 
 function GeneratedAdjustmentPreview({
@@ -5525,6 +5976,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     zIndex: 2,
   },
+  generateAppliedHeader: {
+    minHeight: 40,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
   generateAppliedBannerTitle: {
     color: '#D1FAE5',
     fontSize: 12,
@@ -5538,6 +5996,95 @@ const styles = StyleSheet.create({
     lineHeight: 15,
     fontWeight: '700',
     letterSpacing: 0,
+  },
+  generateAppliedSmallButton: {
+    minHeight: 34,
+    minWidth: 78,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(209, 250, 229, 0.72)',
+    backgroundColor: 'rgba(209, 250, 229, 0.18)',
+    paddingHorizontal: 10,
+  },
+  generateAppliedSmallButtonText: {
+    color: '#D1FAE5',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  generateAppliedControlRow: {
+    marginTop: 8,
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  generateAppliedControlButton: {
+    flex: 1,
+    minHeight: 34,
+    minWidth: 0,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.24)',
+    backgroundColor: 'rgba(255, 255, 255, 0.08)',
+    paddingHorizontal: 8,
+  },
+  generateAppliedControlButtonActive: {
+    borderColor: '#D1FAE5',
+    backgroundColor: 'rgba(209, 250, 229, 0.24)',
+  },
+  generateAppliedControlText: {
+    color: '#F9FAFB',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  generateAppliedColorRow: {
+    marginTop: 8,
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  generateAppliedColorButton: {
+    flex: 1,
+    minHeight: 34,
+    minWidth: 0,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.22)',
+    paddingHorizontal: 8,
+  },
+  generateAppliedColorButtonSelected: {
+    borderColor: '#FFFFFF',
+    borderWidth: 2,
+  },
+  generateAppliedColorText: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+  },
+  generateAppliedOpacityText: {
+    flex: 1.35,
+    minHeight: 34,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.06)',
+    color: '#F9FAFB',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+    lineHeight: 34,
+    textAlign: 'center',
   },
   regionButtonRow: {
     flexDirection: 'row',

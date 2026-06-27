@@ -19,6 +19,16 @@ export type E7Point2D = {
   y: number;
 };
 
+export type E7LipBoundarySmoothingAlgorithm = 'curve_densified_v1';
+
+export type E7LipBoundarySmoothingDiagnostics = {
+  samplesPerSegment: number;
+  originalOuterPointCount: number;
+  originalInnerPointCount: number;
+  smoothedOuterPointCount: number;
+  smoothedInnerPointCount: number;
+};
+
 export type E7NativeBoundaryResult = {
   status: 'ready' | 'partial' | 'blocked';
   provider: LipMaskProvider;
@@ -40,6 +50,10 @@ export type E7NativeBoundaryResult = {
     innerPoints: E7Point2D[];
     source: LipMaskProvider;
     generationMethod: string;
+    boundarySmoothing?: E7LipBoundarySmoothingAlgorithm;
+    originalPointCount?: number;
+    smoothedPointCount?: number;
+    smoothingDiagnostics?: E7LipBoundarySmoothingDiagnostics;
   };
   arFaceExport?: E7ArFaceExport;
   blendShapes?: E7BlendShapeState;
@@ -78,6 +92,32 @@ export type E7GeneratedCandidate = {
 
 const BASE64_ALPHABET =
   'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+const CURVE_DENSIFIED_ALGORITHM: E7LipBoundarySmoothingAlgorithm =
+  'curve_densified_v1';
+const CURVE_DENSIFIED_SAMPLES_PER_SEGMENT = 6;
+const ADJUSTMENT_CORNER_REACH_SCALE = 0.46;
+const ADJUSTMENT_VERTICAL_OFFSET_SCALE = 0.72;
+const ADJUSTMENT_LIP_TIGHTNESS_SCALE = 0.48;
+const UV_ALPHA_CHECKSUM_MOD = 2147483647;
+
+type E7UvAlphaBoundingBox = {
+  minColumn: number;
+  minRow: number;
+  maxColumn: number;
+  maxRow: number;
+};
+
+type E7UvCoverageMetadataWithDiagnostics = NonNullable<
+  LipGeneratePackage['uvCoverageMetadata']
+> & {
+  positiveTexels: number;
+  alphaSum: number;
+  alphaChecksum: number;
+  alphaBoundingBoxTexels?: E7UvAlphaBoundingBox;
+  boundarySmoothing: E7LipBoundarySmoothingAlgorithm;
+  originalPointCount: number;
+  smoothedPointCount: number;
+};
 
 export function encodeBase64(bytes: Uint8Array): string {
   let output = '';
@@ -165,6 +205,100 @@ function adjustNativeLipBoundary(
   };
 }
 
+export function smoothLipBoundaryCurveDensified(
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>,
+  frameSize: { width: number; height: number },
+): NonNullable<E7NativeBoundaryResult['boundary']> {
+  const outerPoints = densifyClosedCurve(
+    boundary.outerPoints,
+    frameSize,
+    CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
+  );
+  const innerPoints = densifyClosedCurve(
+    boundary.innerPoints,
+    frameSize,
+    CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
+  );
+  const originalPointCount =
+    boundary.outerPoints.length + boundary.innerPoints.length;
+  const smoothedPointCount = outerPoints.length + innerPoints.length;
+
+  return {
+    ...boundary,
+    outerPoints,
+    innerPoints,
+    generationMethod: `${boundary.generationMethod}+${CURVE_DENSIFIED_ALGORITHM}`,
+    boundarySmoothing: CURVE_DENSIFIED_ALGORITHM,
+    originalPointCount,
+    smoothedPointCount,
+    smoothingDiagnostics: {
+      samplesPerSegment: CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
+      originalOuterPointCount: boundary.outerPoints.length,
+      originalInnerPointCount: boundary.innerPoints.length,
+      smoothedOuterPointCount: outerPoints.length,
+      smoothedInnerPointCount: innerPoints.length,
+    },
+  };
+}
+
+function densifyClosedCurve(
+  points: E7Point2D[],
+  frameSize: { width: number; height: number },
+  samplesPerSegment: number,
+): E7Point2D[] {
+  if (points.length < 3) {
+    return points.map(point => ({
+      x: clamp(point.x, 0, Math.max(0, frameSize.width - 1)),
+      y: clamp(point.y, 0, Math.max(0, frameSize.height - 1)),
+    }));
+  }
+
+  const densified: E7Point2D[] = [];
+  const count = points.length;
+  for (let index = 0; index < count; index++) {
+    const previous = points[(index - 1 + count) % count];
+    const current = points[index];
+    const next = points[(index + 1) % count];
+    const afterNext = points[(index + 2) % count];
+
+    for (let sample = 0; sample < samplesPerSegment; sample++) {
+      const t = sample / samplesPerSegment;
+      const point = catmullRomPoint(previous, current, next, afterNext, t);
+      densified.push({
+        x: clamp(point.x, 0, Math.max(0, frameSize.width - 1)),
+        y: clamp(point.y, 0, Math.max(0, frameSize.height - 1)),
+      });
+    }
+  }
+
+  return densified;
+}
+
+function catmullRomPoint(
+  p0: E7Point2D,
+  p1: E7Point2D,
+  p2: E7Point2D,
+  p3: E7Point2D,
+  t: number,
+): E7Point2D {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return {
+    x:
+      0.5 *
+      (2 * p1.x +
+        (-p0.x + p2.x) * t +
+        (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 +
+        (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
+    y:
+      0.5 *
+      (2 * p1.y +
+        (-p0.y + p2.y) * t +
+        (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 +
+        (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+  };
+}
+
 function applyLipAdjustmentToPoints(
   points: E7Point2D[],
   adjustment: LipAdjustment,
@@ -191,23 +325,25 @@ function applyLipAdjustmentToPoints(
       dx *
         (1 +
           adjustment.cornerReach *
-            0.22 *
+            ADJUSTMENT_CORNER_REACH_SCALE *
             cornerWeight *
             cornerScale);
-    let y = point.y + adjustment.verticalOffset * height * 0.38;
+    let y =
+      point.y +
+      adjustment.verticalOffset * height * ADJUSTMENT_VERTICAL_OFFSET_SCALE;
 
     if (dy < 0) {
       y +=
         adjustment.upperLipTightness *
         height *
-        0.24 *
+        ADJUSTMENT_LIP_TIGHTNESS_SCALE *
         verticalWeight *
         tightnessScale;
     } else if (dy > 0) {
       y -=
         adjustment.lowerLipTightness *
         height *
-        0.24 *
+        ADJUSTMENT_LIP_TIGHTNESS_SCALE *
         verticalWeight *
         tightnessScale;
     }
@@ -375,6 +511,12 @@ export function buildUvMaskRawRgba(input: {
   const raw = new Uint8Array(texelCount * 4);
   let coverageTexels = 0;
   let positiveTexels = 0;
+  let alphaSum = 0;
+  let alphaChecksum = 0;
+  let minColumn = resolution;
+  let minRow = resolution;
+  let maxColumn = -1;
+  let maxRow = -1;
   for (let texelIndex = 0; texelIndex < texelCount; texelIndex++) {
     const total = totalVotes[texelIndex];
     const probability = total > 0 ? positiveVotes[texelIndex] / total : 0;
@@ -387,8 +529,18 @@ export function buildUvMaskRawRgba(input: {
     if (total > 0) {
       coverageTexels += 1;
     }
+    alphaSum += alpha;
+    alphaChecksum =
+      (alphaChecksum + ((texelIndex + 1) * alpha) % UV_ALPHA_CHECKSUM_MOD) %
+      UV_ALPHA_CHECKSUM_MOD;
     if (alpha > 8) {
       positiveTexels += 1;
+      const row = Math.floor(texelIndex / resolution);
+      const column = texelIndex % resolution;
+      minColumn = Math.min(minColumn, column);
+      minRow = Math.min(minRow, row);
+      maxColumn = Math.max(maxColumn, column);
+      maxRow = Math.max(maxRow, row);
     }
   }
 
@@ -399,7 +551,27 @@ export function buildUvMaskRawRgba(input: {
     coverageTexels,
     positiveTexels,
     unknownTexels: texelCount - coverageTexels,
+    alphaSum,
+    alphaChecksum,
+    alphaBoundingBoxTexels:
+      positiveTexels > 0
+        ? { minColumn, minRow, maxColumn, maxRow }
+        : undefined,
   };
+}
+
+function formatAdjustmentHash(adjustment: LipAdjustment): string {
+  const scaled = [
+    adjustment.cornerReach,
+    adjustment.upperLipTightness,
+    adjustment.lowerLipTightness,
+    adjustment.verticalOffset,
+  ].map(value => {
+    const rounded = Math.round(value * 1000);
+    const prefix = rounded < 0 ? 'm' : 'p';
+    return `${prefix}${Math.abs(rounded).toString(36)}`;
+  });
+  return `adj-${scaled.join('-')}`;
 }
 
 export function buildGeneratedLipPackage(input: {
@@ -443,8 +615,15 @@ export function buildGeneratedLipPackage(input: {
       height: nativeResult.frameHeight,
     },
   );
+  const smoothedAdjustedBoundary = smoothLipBoundaryCurveDensified(
+    adjustedBoundary,
+    {
+      width: nativeResult.frameWidth,
+      height: nativeResult.frameHeight,
+    },
+  );
   const uv = buildUvMaskRawRgba({
-    boundary: adjustedBoundary,
+    boundary: smoothedAdjustedBoundary,
     arFaceExport: nativeResult.arFaceExport,
   });
   const generatedMaskId = [
@@ -452,6 +631,7 @@ export function buildGeneratedLipPackage(input: {
     nativeResult.captureSetId,
     nativeResult.provider,
     expressionMode,
+    formatAdjustmentHash(adjustment),
     Math.round(generatedAtMs),
   ].join('-');
   const packageStatus =
@@ -462,11 +642,26 @@ export function buildGeneratedLipPackage(input: {
       'native_current_frame_generated',
       'runtimeReady_false_until_real_iPhone_apply_evidence',
       'same_frame_round_trip_pending_in_app_preview',
+      'boundary_smoothing_curve_densified_v1',
+      'adjustment_applied_before_uv_projection',
       expressionMode === 'blendshapeAssist'
         ? 'blendshape_assist_metadata_included'
         : 'blendshape_assist_off',
     ]),
   );
+  const uvCoverageMetadata: E7UvCoverageMetadataWithDiagnostics = {
+    uvResolution: uv.width,
+    coverageTexels: uv.coverageTexels,
+    positiveTexels: uv.positiveTexels,
+    unknownTexels: uv.unknownTexels,
+    alphaSum: uv.alphaSum,
+    alphaChecksum: uv.alphaChecksum,
+    alphaBoundingBoxTexels: uv.alphaBoundingBoxTexels,
+    boundarySmoothing: CURVE_DENSIFIED_ALGORITHM,
+    originalPointCount: smoothedAdjustedBoundary.originalPointCount ?? 0,
+    smoothedPointCount: smoothedAdjustedBoundary.smoothedPointCount ?? 0,
+    roundTripKind: 'same_frame_self_reconstruction',
+  };
   const providerResults = Object.fromEntries(
     (input.providerResults ?? [nativeResult]).map(result => [
       result.provider,
@@ -521,14 +716,9 @@ export function buildGeneratedLipPackage(input: {
         : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable',
       values: nativeResult.blendShapes?.keySignals,
     },
-    lipBoundary2D: adjustedBoundary,
+    lipBoundary2D: smoothedAdjustedBoundary,
     uvMaskTexture: `${generatedMaskId}.raw-rgba-${uv.width}x${uv.height}`,
-    uvCoverageMetadata: {
-      uvResolution: uv.width,
-      coverageTexels: uv.coverageTexels,
-      unknownTexels: uv.unknownTexels,
-      roundTripKind: 'same_frame_self_reconstruction',
-    },
+    uvCoverageMetadata,
     roundTripPreview: 'in_app_round_trip_preview_pending',
     runtimeApplyPayload: {
       schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0',

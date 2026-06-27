@@ -280,9 +280,9 @@ final class E7NativeLipBoundaryProviders: NSObject {
         UIImage(cgImage: cgImage).draw(in: rect)
 
         let maskPath = UIBezierPath()
-        append(points: outerPoints, to: maskPath)
+        appendSmoothClosedCurve(points: outerPoints, to: maskPath)
         if innerPoints.count >= 3 {
-          append(points: innerPoints.reversed(), to: maskPath)
+          appendSmoothClosedCurve(points: innerPoints.reversed(), to: maskPath)
         }
         maskPath.usesEvenOddFillRule = true
         UIColor(red: 217.0 / 255.0, green: 75.0 / 255.0, blue: 116.0 / 255.0, alpha: 0.58)
@@ -290,18 +290,20 @@ final class E7NativeLipBoundaryProviders: NSObject {
         maskPath.fill(with: .normal, alpha: 0.58)
 
         let outerStroke = UIBezierPath()
-        append(points: outerPoints, to: outerStroke)
+        appendSmoothClosedCurve(points: outerPoints, to: outerStroke)
         UIColor.white.withAlphaComponent(0.92).setStroke()
         outerStroke.lineWidth = max(4, width * 0.004)
         outerStroke.lineJoinStyle = .round
+        outerStroke.lineCapStyle = .round
         outerStroke.stroke()
 
         if innerPoints.count >= 3 {
           let innerStroke = UIBezierPath()
-          append(points: innerPoints, to: innerStroke)
+          appendSmoothClosedCurve(points: innerPoints, to: innerStroke)
           UIColor.white.withAlphaComponent(0.68).setStroke()
           innerStroke.lineWidth = max(2, width * 0.0025)
           innerStroke.lineJoinStyle = .round
+          innerStroke.lineCapStyle = .round
           innerStroke.stroke()
         }
 
@@ -429,7 +431,10 @@ final class E7NativeLipBoundaryProviders: NSObject {
     return nil
   }
 
-  private func append<S: Sequence>(points: S, to path: UIBezierPath) where S.Element == CGPoint {
+  private func appendStraightClosedLines(
+    points: [CGPoint],
+    to path: UIBezierPath
+  ) {
     var didMove = false
     for point in points {
       if didMove {
@@ -442,6 +447,42 @@ final class E7NativeLipBoundaryProviders: NSObject {
     if didMove {
       path.close()
     }
+  }
+
+  private func appendSmoothClosedCurve<S: Sequence>(
+    points: S,
+    to path: UIBezierPath
+  ) where S.Element == CGPoint {
+    let pointList = Array(points)
+    guard !pointList.isEmpty else {
+      return
+    }
+    guard pointList.count >= 4 else {
+      appendStraightClosedLines(points: pointList, to: path)
+      return
+    }
+
+    path.move(to: pointList[0])
+    for index in 0..<pointList.count {
+      let previous = pointList[(index - 1 + pointList.count) % pointList.count]
+      let current = pointList[index]
+      let next = pointList[(index + 1) % pointList.count]
+      let afterNext = pointList[(index + 2) % pointList.count]
+      let controlPoint1 = CGPoint(
+        x: current.x + (next.x - previous.x) / 6,
+        y: current.y + (next.y - previous.y) / 6
+      )
+      let controlPoint2 = CGPoint(
+        x: next.x - (afterNext.x - current.x) / 6,
+        y: next.y - (afterNext.y - current.y) / 6
+      )
+      path.addCurve(
+        to: next,
+        controlPoint1: controlPoint1,
+        controlPoint2: controlPoint2
+      )
+    }
+    path.close()
   }
 
   private func documentsDirectory() throws -> URL {

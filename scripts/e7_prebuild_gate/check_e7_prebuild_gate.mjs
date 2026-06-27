@@ -38,11 +38,25 @@ const arFaceExportPath = path.join(
   'arface_export.json',
 );
 const rnAppPath = path.join(repoRoot, 'rn', 'MakeupARValidation', 'App.tsx');
+const rnAppTestPath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  '__tests__',
+  'App.test.tsx',
+);
 const rnPackagePath = path.join(
   repoRoot,
   'rn',
   'MakeupARValidation',
   'package.json',
+);
+const personalizedPipelinePath = path.join(
+  repoRoot,
+  'rn',
+  'MakeupARValidation',
+  'src',
+  'e7PersonalizedGeneratePipeline.ts',
 );
 const nativeProviderPath = path.join(
   repoRoot,
@@ -127,6 +141,87 @@ function readJson(filePath) {
 
 function safeReadText(filePath) {
   return exists(filePath) ? readText(filePath) : '';
+}
+
+function readTextFilesUnder(rootPath) {
+  if (!exists(rootPath)) {
+    return '';
+  }
+  const stack = [rootPath];
+  const chunks = [];
+  const textExtensions = new Set([
+    '.cjs',
+    '.js',
+    '.jsx',
+    '.mjs',
+    '.ts',
+    '.tsx',
+  ]);
+  while (stack.length > 0) {
+    const current = stack.pop();
+    const stat = fs.statSync(current);
+    if (stat.isDirectory()) {
+      if (
+        ['.git', 'build', 'coverage', 'node_modules', 'Pods'].includes(
+          path.basename(current),
+        )
+      ) {
+        continue;
+      }
+      for (const child of fs.readdirSync(current)) {
+        stack.push(path.join(current, child));
+      }
+      continue;
+    }
+    if (stat.isFile() && textExtensions.has(path.extname(current))) {
+      chunks.push(readText(current));
+    }
+  }
+  return chunks.join('\n');
+}
+
+function matchesAll(source, patterns) {
+  return patterns.every(pattern => pattern.test(source));
+}
+
+function matchesAny(source, patterns) {
+  return patterns.some(pattern => pattern.test(source));
+}
+
+function sourceWindows(source, anchorPatterns, radius = 1600) {
+  const windows = [];
+  for (const pattern of anchorPatterns) {
+    const flags = pattern.flags.includes('g')
+      ? pattern.flags
+      : `${pattern.flags}g`;
+    const globalPattern = new RegExp(pattern.source, flags);
+    let match = globalPattern.exec(source);
+    while (match) {
+      windows.push(
+        source.slice(
+          Math.max(0, match.index - radius),
+          Math.min(source.length, match.index + match[0].length + radius),
+        ),
+      );
+      if (match[0].length === 0) {
+        globalPattern.lastIndex += 1;
+      }
+      match = globalPattern.exec(source);
+    }
+  }
+  return windows;
+}
+
+function anyWindowMatchesAll(source, anchorPatterns, requiredPatterns, radius) {
+  return sourceWindows(source, anchorPatterns, radius).some(window =>
+    matchesAll(window, requiredPatterns),
+  );
+}
+
+function patternPresenceDetail(source, requirements) {
+  return requirements
+    .map(({ label, pattern }) => `${label}=${pattern.test(source) ? 'yes' : 'no'}`)
+    .join(' ');
 }
 
 function bounds(points) {
@@ -403,9 +498,19 @@ function runMain() {
   }
 
   const rnAppSource = safeReadText(rnAppPath);
+  const personalizedPipelineSource = safeReadText(personalizedPipelinePath);
   const nativeProviderSource = safeReadText(nativeProviderPath);
   const nativeBridgeSource = safeReadText(nativeBridgePath);
   const unityBridgeSource = safeReadText(unityBridgePath);
+  const rnFocusedProofSource = [
+    safeReadText(rnAppTestPath),
+    readTextFilesUnder(
+      path.join(repoRoot, 'rn', 'MakeupARValidation', '__tests__'),
+    ),
+    readTextFilesUnder(
+      path.join(repoRoot, 'rn', 'MakeupARValidation', 'scripts'),
+    ),
+  ].join('\n');
   const rnPackage = exists(rnPackagePath) ? readJson(rnPackagePath) : {};
 
   const hasFakePreviewHelper = /function\s+buildGeneratedMaskPreviewStyle/.test(
@@ -441,7 +546,9 @@ function runMain() {
     /generated_lip_mask_applied/.test(rnAppSource) &&
       /maskTriangles/.test(rnAppSource) &&
       /uvAvailable/.test(rnAppSource) &&
-      /generatedApplyState\s*===\s*'applied'/.test(rnAppSource),
+      /(generatedApplyState\s*===\s*['"]applied['"]|generatedApplyState\.status\s*===\s*['"]applied['"])/.test(
+        rnAppSource,
+      ),
     'RN apply success must depend on Unity ack with applied=true, uvAvailable=true, maskTriangles>0.',
   );
   addCheck(
@@ -453,6 +560,200 @@ function runMain() {
     'rn.package_script_registered',
     Boolean(rnPackage.scripts?.['e7:prebuild']),
     'rn/MakeupARValidation/package.json should expose npm run e7:prebuild.',
+  );
+
+  const smoothingContractRequirements = [
+    { label: 'curve_densified_v1', pattern: /curve_densified_v1/ },
+    { label: 'originalPointCount', pattern: /originalPointCount/ },
+    { label: 'smoothedPointCount', pattern: /smoothedPointCount/ },
+    {
+      label: 'packageBoundary',
+      pattern:
+        /lipBoundary2D\s*:\s*smoothedAdjustedBoundary|lipBoundary2D[\s\S]{0,300}(curve_densified_v1|boundarySmoothing|smoothedPointCount)/,
+    },
+    {
+      label: 'uvDiagnostics',
+      pattern:
+        /uvCoverageMetadata[\s\S]{0,700}(boundarySmoothing|smoothedPointCount|originalPointCount|alphaChecksum)/,
+    },
+  ];
+  const smoothingCountProofSource = [
+    personalizedPipelineSource,
+    rnFocusedProofSource,
+  ].join('\n');
+  const hasSmoothingPointGrowthProof = matchesAny(smoothingCountProofSource, [
+    /smoothedPointCount[\s\S]{0,180}>[\s\S]{0,120}originalPointCount/,
+    /originalPointCount[\s\S]{0,180}<[\s\S]{0,120}smoothedPointCount/,
+    /expect\([\s\S]{0,120}smoothedPointCount[\s\S]{0,120}\)\.toBeGreaterThan\([\s\S]{0,120}originalPointCount[\s\S]{0,20}\)/,
+    /smoothedPointCount[\s\S]{0,180}toBeGreaterThan\([\s\S]{0,120}originalPointCount/,
+  ]);
+  addCheck(
+    'v2.boundary_smoothing_ts_contract',
+    matchesAll(
+      personalizedPipelineSource,
+      smoothingContractRequirements.map(item => item.pattern),
+    ) && hasSmoothingPointGrowthProof,
+    `TS package path must record curve_densified_v1, carry smoothing metadata into lipBoundary2D/UV diagnostics, and prove smoothedPointCount > originalPointCount. ${patternPresenceDetail(personalizedPipelineSource, smoothingContractRequirements)} pointGrowthProof=${hasSmoothingPointGrowthProof ? 'yes' : 'no'}`,
+  );
+
+  const renderPreviewUsesSmoothPath =
+    /renderLipMaskPreview[\s\S]{0,5000}(appendSmoothClosedCurve|addCurve\s*\(|addQuadCurve\s*\()/i.test(
+      nativeProviderSource,
+    );
+  const swiftPreviewCurveOk =
+    /@objc\(renderLipMaskPreview:resolver:rejecter:\)/.test(
+      nativeProviderSource,
+    ) &&
+    renderPreviewUsesSmoothPath &&
+    matchesAny(nativeProviderSource, [
+      /addCurve\s*\(/,
+      /addQuadCurve\s*\(/,
+      /CGPath[\s\S]{0,120}curve/i,
+    ]) &&
+    matchesAny(nativeProviderSource, [
+      /smooth/i,
+      /curve/i,
+      /densif/i,
+      /catmull/i,
+    ]);
+  addCheck(
+    'v2.boundary_smoothing_swift_preview_curve',
+    swiftPreviewCurveOk,
+    swiftPreviewCurveOk
+      ? 'Swift renderLipMaskPreview uses a smooth closed curve path for lip boundaries; any addLine helper should remain fallback-only for too few points.'
+      : `Swift renderLipMaskPreview must draw a smooth closed curve for lip boundaries. renderUsesSmooth=${renderPreviewUsesSmoothPath ? 'yes' : 'no'} addCurve=${/(addCurve\s*\(|addQuadCurve\s*\()/.test(nativeProviderSource) ? 'yes' : 'no'}`,
+  );
+
+  const adjustmentProofCorpus = [
+    rnFocusedProofSource,
+    personalizedPipelineSource,
+    nativeProviderSource,
+  ].join('\n');
+  const hasAdjustmentDeltaMarker = matchesAny(adjustmentProofCorpus, [
+    /e7_v2_adjustment_preview_package_uv_delta/i,
+    /adjustment[_-]?preview[_-]?delta/i,
+    /uv[_-]?alpha[_-]?delta/i,
+    /alpha\s+distribution[\s\S]{0,120}change/i,
+    /alpha(?:Checksum|Sum)[\s\S]{0,180}(not\.(?:toEqual|toBe)|!==|diff|delta|change)/i,
+    /maskRawRgbaBase64[\s\S]{0,220}(not\.(?:toEqual|toBe)|!==|diff|delta|change)/i,
+    /(previewUri|preview\s+revision|preview\s+hash)[\s\S]{0,220}(not\.(?:toEqual|toBe)|!==|diff|delta|change)/i,
+  ]);
+  const hasAdjustedPackageRebuildMarker = matchesAny(adjustmentProofCorpus, [
+    /selectedCandidate\.package/i,
+    /selectedGeneratedCandidate[\s\S]{0,180}package/i,
+    /rebuilt\s+adjusted\s+package/i,
+    /adjusted\s+package\s+rebuild/i,
+    /same\s+adjusted\s+boundary/i,
+    /buildGeneratedLipPackage[\s\S]{0,180}adjustment/i,
+  ]);
+  const hasAdjustmentPreviewRevisionMarker = matchesAny(adjustmentProofCorpus, [
+    /formatAdjustmentHash[\s\S]{0,260}generatedMaskId/i,
+    /generatedMaskId[\s\S]{0,260}formatAdjustmentHash/i,
+    /preview(?:Uri|Revision|Hash)[\s\S]{0,220}(adjustment|generatedMaskId|hash)/i,
+    /e7-generated-lip-previews[\s\S]{0,220}generatedMaskId/i,
+  ]);
+  addCheck(
+    'v2.adjustment_preview_package_uv_delta_proof',
+    hasAdjustmentDeltaMarker &&
+      hasAdjustedPackageRebuildMarker &&
+      hasAdjustmentPreviewRevisionMarker,
+    `Need a focused test/check or explicit marker proving adjustment rebuilds the selected package, changes preview/cache identity, and changes UV alpha. rebuildProof=${hasAdjustedPackageRebuildMarker ? 'yes' : 'no'} deltaProof=${hasAdjustmentDeltaMarker ? 'yes' : 'no'} previewRevisionProof=${hasAdjustmentPreviewRevisionMarker ? 'yes' : 'no'}`,
+  );
+
+  const hasCurrentPhotoRegenerate = matchesAny(rnAppSource, [
+    /현재\s*사진으로\s*다시\s*생성/,
+    /regenerate\s+(?:from\s+)?current\s+(?:photo|frame|capture)/i,
+    /same\s+captured\s+frame[\s\S]{0,120}regenerat/i,
+  ]);
+  const hasRetake = matchesAny(rnAppSource, [
+    /다시\s*촬영/,
+    /\bretake\b/i,
+    /new\s+capture/i,
+  ]);
+  const oldRegenerateLabelRemoved = !/경계\s*다시\s*추출/.test(rnAppSource);
+  const hasApplyStateClear = matchesAny(rnAppSource, [
+    /setGeneratedApplyState\s*\(\s*['"]idle['"]\s*\)/,
+    /setGeneratedApplyState\s*\(\s*createGeneratedApplyState\s*\(\s*['"]idle['"]\s*\)/,
+    /setGeneratedApplyState\s*\(\s*\{[\s\S]{0,120}status\s*:\s*['"]idle['"]/,
+  ]);
+  const hasPendingApplyClear = matchesAny(rnAppSource, [
+    /setPendingGeneratedMaskId\s*\(\s*(?:undefined|null|['"]['"])\s*\)/,
+    /pendingGeneratedMaskId[\s\S]{0,160}(?:undefined|null)/,
+  ]);
+  addCheck(
+    'v2.regenerate_retake_clear_state',
+    hasCurrentPhotoRegenerate &&
+      hasRetake &&
+      oldRegenerateLabelRemoved &&
+      hasApplyStateClear &&
+      hasPendingApplyClear,
+    `Regenerate and retake must be separate and clear stale apply state. currentPhotoRegenerate=${hasCurrentPhotoRegenerate ? 'yes' : 'no'} retake=${hasRetake ? 'yes' : 'no'} oldLabelRemoved=${oldRegenerateLabelRemoved ? 'yes' : 'no'} applyStateClear=${hasApplyStateClear ? 'yes' : 'no'} pendingMaskClear=${hasPendingApplyClear ? 'yes' : 'no'}`,
+  );
+
+  const applyStateRequirements = [
+    { label: 'idle', pattern: /['"]idle['"]/ },
+    { label: 'saving', pattern: /['"]saving['"]/ },
+    { label: 'posting', pattern: /['"]posting['"]/ },
+    { label: 'waitingAck', pattern: /['"]waitingAck['"]/ },
+    { label: 'applied', pattern: /['"]applied['"]/ },
+    { label: 'blocked', pattern: /['"]blocked['"]/ },
+    { label: 'timeout', pattern: /['"]timeout['"]/ },
+    { label: 'reason', pattern: /\b(blockedReason|reason|errorReason|timeoutReason)\b/ },
+  ];
+  const hasTimeoutMechanism = matchesAny(rnAppSource, [
+    /setTimeout\s*\(/,
+    /timeoutMs\b/i,
+    /elapsedMs\b/i,
+    /ackTimeout/i,
+  ]);
+  const hasAckMatching = /generated_lip_mask_applied/.test(rnAppSource) &&
+    /generatedMaskId/.test(rnAppSource);
+  addCheck(
+    'v2.apply_loading_timeout_reason_states',
+    matchesAll(rnAppSource, applyStateRequirements.map(item => item.pattern)) &&
+      hasTimeoutMechanism &&
+      hasAckMatching,
+    `Apply state must include loading/posting/waitingAck/applied/blocked/timeout with user-readable reason and generatedMaskId matching. ${patternPresenceDetail(rnAppSource, applyStateRequirements)} timeoutMechanism=${hasTimeoutMechanism ? 'yes' : 'no'} ackMatching=${hasAckMatching ? 'yes' : 'no'}`,
+  );
+
+  const generatedValidationControlRequirements = [
+    {
+      label: 'onOff',
+      pattern: /ON\s*\/\s*OFF|mask\s*(?:on|off)|maskEnabled|generated-mask-toggle|마스크\s*(?:켜기|끄기)/i,
+    },
+    {
+      label: 'strong',
+      pattern: /strong|validationStrong|strongValidation|진하게|강하게/i,
+    },
+    {
+      label: 'color',
+      pattern: /color\s*swatch|generated-mask-color|validationColor|색상|컬러/i,
+    },
+    {
+      label: 'opacity',
+      pattern: /opacity|generated-mask-opacity|불투명|투명도/i,
+    },
+  ];
+  const hasGeneratedValidationAnchor = matchesAny(rnAppSource, [
+    /Generated(?:Mask|Ar|AR)Validation(?:Bar|Controls)/,
+    /e7-generated-ar-validation/i,
+    /generated-mask-(?:toggle|opacity|color|strong)/i,
+  ]);
+  const hasControlsNearAppliedState = anyWindowMatchesAll(
+    rnAppSource,
+    [
+      /generatedApplyState[\s\S]{0,80}['"]applied['"]/,
+      /hasGeneratedMaskApplied/,
+      /GeneratedRuntimeAppliedBanner/,
+    ],
+    generatedValidationControlRequirements.map(item => item.pattern),
+    2200,
+  );
+  addCheck(
+    'v2.ar_validation_controls_present',
+    (hasGeneratedValidationAnchor || hasControlsNearAppliedState) &&
+      matchesAll(rnAppSource, generatedValidationControlRequirements.map(item => item.pattern)),
+    `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${hasGeneratedValidationAnchor ? 'yes' : 'no'} nearApplied=${hasControlsNearAppliedState ? 'yes' : 'no'} ${patternPresenceDetail(rnAppSource, generatedValidationControlRequirements)}`,
   );
 
   addCheck(
@@ -559,6 +860,8 @@ function renderMarkdown(summary) {
     '',
     '## Checks',
     '',
+    'The `v2.*` checks are targeted fix-build v2 blockers. They are buildless/source/fixture checks only: passing them means the next Xcode build is less likely to repeat the known preview/adjust/apply/control failures, not that the mask was accepted on device.',
+    '',
     '| Status | Check | Detail |',
     '| --- | --- | --- |',
   ];
@@ -573,6 +876,7 @@ function renderMarkdown(summary) {
     '',
     '- `mask-preview.html` renders the actual `generated_lip_package.json` boundary over the captured iPhone frame.',
     '- If RN shows anything materially different, do not run Xcode build.',
+    '- v2 still requires later real-device flow evidence for capture, extraction, blending, adjustment, save/apply ack, AR controls, and visual acceptance.',
     '',
   );
   return lines.join('\n');

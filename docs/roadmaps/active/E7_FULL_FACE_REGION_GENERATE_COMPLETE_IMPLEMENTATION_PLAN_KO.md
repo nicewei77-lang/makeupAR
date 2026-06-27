@@ -2856,6 +2856,476 @@ No full face region expansion beyond keeping UI wording compatible.
    if any item is missing, status is partial or blocked, not complete.
 ```
 
+### 13.9 2026-06-28 Fix-build v2 plan after second real-device review
+
+두 번째 iPhone build/install/launch 후 사용자 스크린샷 리뷰에서, 앱은 실행되고 일부 단계는 진행됐지만 "다음 빌드에서 성공"이라고 부를 수 없는 핵심 결함이 다시 확인됐다.
+이번 결론은 다음과 같다.
+
+```txt
+빌드 성공은 의미 있었지만 제품 flow 성공은 아니다.
+현재 문제는 UI polish가 아니라 preview/adjustment/apply/AR validation loop가 서로 다른 진실을 보여주는 구조적 문제다.
+다음 작업 목표는 기능을 더 늘리는 것이 아니라, 한 번의 사용자 flow가 실제로 검증 가능한 상태가 되도록 막힌 지점을 닫는 것이다.
+```
+
+#### 13.9.1 새로 확인된 사용자-visible failures
+
+사용자가 보고한 실패:
+
+```txt
+1. Vision mask boundary가 직선 polygon처럼 보인다. 곡선/부드러운 경계가 아니다.
+2. Adjust에서 값을 바꿔도 화면 preview에 반영되지 않는 것처럼 보인다.
+3. "경계 다시 추출"을 누르면 기존 결과를 다시 쓰는 것처럼 보인다.
+4. "저장하고 AR 실행" 후 AR이 계속 대기/save 상태에 머무른다.
+5. 블렌딩 켬/끔 후보가 화면상 차이가 없다.
+6. AR이 늦게 켜지더라도 적용 여부를 확인할 수 없다. ON/OFF, 색, 강도, boundary/debug visibility control이 없다.
+7. AR 전환 지연이면 loading이어야 하고, 아니면 error/timeout이어야 한다. 현재는 사용자가 알 수 없다.
+```
+
+스크린샷에서 추가로 확인된 문제:
+
+```txt
+Apply blocked 상태 문구가 Extract/Blending/Adjust 단계 위에 계속 남아 다음 작업을 오염시킨다.
+Debug overlay가 여전히 얼굴/후보 판단 영역을 덮는다.
+Captured-frame review 문구가 뒤 화면에 남아 실제 현재 상태를 헷갈리게 한다.
+AR 적용 성공 banner는 보이지만, 실제 makeup layer가 얼마나 적용됐는지 판단할 controls가 없다.
+```
+
+#### 13.9.2 원인 가설과 코드 경로
+
+현재 코드 대조 기준으로 가장 강한 원인 후보:
+
+```txt
+Straight boundary:
+  rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift
+  renderLipMaskPreview -> append(points:) -> UIBezierPath.addLine
+  preview renderer가 점을 직선으로 연결한다.
+
+Adjustment not visible:
+  rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts
+  adjustNativeLipBoundary / applyLipAdjustmentToPoints
+  수식은 있지만 이동량이 작고, preview가 직선 stroke라 체감이 약하다.
+  RN App.tsx updateLipUserAdjustment는 candidate rebuild를 시도하지만,
+  preview URI/cache 갱신과 pixel-level change 검증이 없다.
+
+"Regenerate" ambiguity:
+  rn/MakeupARValidation/App.tsx activeStep adjust
+  "경계 다시 추출"은 현재 captured frame으로 provider를 다시 호출한다.
+  새 사진/현재 live frame을 다시 캡처하는 의미가 아니므로 사용자 기대와 다르다.
+
+Apply waiting / blocked:
+  rn/MakeupARValidation/App.tsx saveSelectedGeneratedPackage / handleUnityMessage
+  unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs ApplyGeneratedLipMaskJson / generated_lip_mask_applied
+  ack 성공 조건은 생겼지만 loading/timeout/block reason UI와 state reset이 부족하다.
+
+Blend candidates same:
+  rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts
+  blendshapeAssist는 현재 대부분 metadata/material feather 차이이고 boundary/preview 차이는 거의 없다.
+
+AR validation missing:
+  RN success 후 GeneratedRuntimeAppliedBanner만 표시된다.
+  runtime validation controls가 없어 적용 여부, 경계 품질, opacity/diagnostic mode를 확인할 수 없다.
+```
+
+#### 13.9.3 Fix-build v2 원칙
+
+```txt
+1. Preview와 UV mask가 같은 smooth boundary를 사용해야 한다.
+   preview만 예쁘게 smoothing하고 runtime mask는 polygon이면 실패다.
+
+2. Adjust는 "값이 저장됨"이 아니라 "눈에 보이는 preview가 변함"으로 검증한다.
+   가능하면 preview PNG pixel diff / UV alpha diff를 buildless gate에 넣는다.
+
+3. "경계 다시 추출"과 "다시 촬영"은 분리한다.
+   같은 captured frame 재생성은 current-frame 재생성이고, 새 입력을 원하면 retake/capture가 필요하다.
+
+4. Save/apply는 async 작업이다.
+   loading, timeout, blocked reason, retry가 없으면 사용자는 실패와 지연을 구분할 수 없다.
+
+5. AR 적용 후에는 product-natural mode와 validation-strong mode를 분리한다.
+   자연스러운 립은 약해도 되지만, boundary 검증은 진하게 보여야 한다.
+
+6. 이전 apply 실패 상태가 새 Extract/Blend/Adjust 화면을 오염시키면 실패다.
+
+7. 다음 빌드는 "예쁜 최종 립"이 아니라 "검증 가능한 Generate loop" 성공을 목표로 한다.
+```
+
+#### 13.9.4 사용자 flow v2
+
+다음 build candidate의 사용자 flow:
+
+```txt
+Start
+  설명 최소화.
+
+Align
+  실제 tracking/faceCount/center/brightness/waiting 상태 표시.
+
+Capture
+  primary CTA 하나: "촬영"
+  capture 완료 시 freeze/captured frame review.
+
+Extract
+  provider 하나 선택: Vision 또는 MediaPipe.
+  CTA: "<provider>로 경계 생성"
+  result: ready/blocked + boundary point count + generatedAt + capturePairId.
+
+Blending Select
+  같은 provider에서 후보 선택.
+  기본 후보:
+    기본
+    표정 보정
+  두 후보가 실질적으로 거의 같으면:
+    UI에서 차이를 과장하지 않고 "검증용 후보" 또는 "표정 보정: 차이 작음"으로 표시.
+  후보 card는 full-face preview를 크게 보여준다.
+
+Adjust
+  full-face captured frame + smooth mask overlay.
+  overlay style:
+    fill alpha visible
+    white boundary optional
+    "진하게 보기" toggle available even before AR.
+  controls:
+    corner
+    upper
+    lower
+    y
+  값 변경 시:
+    preview URI/cache id changes
+    saved package candidate changes
+    UV alpha diagnostic changes or "no visible delta" warning shown.
+  buttons:
+    현재 사진으로 다시 생성
+    다시 촬영
+    저장하고 AR 실행
+
+Apply Loading
+  상태:
+    저장 중
+    Unity에 전송 중
+    Unity 적용 ack 대기
+    적용 완료
+    실패/timeout
+  timeout:
+    8-10초 이상 ack 없음 -> timeout reason 표시 + retry.
+  blocked reason:
+    uvAvailable=false
+    maskTriangles=0
+    faceCount=0
+    payload rejected
+    generatedMaskId mismatch
+
+AR Validation
+  wizard collapses.
+  bottom validation bar:
+    ON/OFF
+    진하게 보기
+    색상 2-3개
+    opacity +/- or slider
+    boundary/debug toggle
+    Generate 다시 열기
+  success text must include:
+    provider
+    candidate
+    generatedMaskId short id
+    ack maskTriangles / uvAvailable
+```
+
+#### 13.9.5 Implementation phases
+
+Phase V2-F0. Evidence pull and failure lock
+
+```txt
+Goal:
+  before changing code, pull or inspect device Documents for the latest run.
+
+Actions:
+  devicectl app container or device file pull if available
+  collect:
+    e7-generated-lip-packages latest generated_lip_package.json
+    saved_record.json
+    e7-runtime-events/generated_lip_mask_applied.latest.json
+    capture_summary.json
+
+Questions to answer:
+  Did Unity ack arrive?
+  If ack arrived, status partial or blocked?
+  maskTriangles?
+  uvAvailable?
+  generatedMaskId matching RN pending id?
+  selected provider/expression?
+  adjustment values at save?
+
+Exit:
+  one short evidence note under evidence/logs/ with exact status.
+```
+
+Phase V2-F1. Shared smooth boundary contract
+
+```txt
+Goal:
+  remove polygon-looking boundary from both preview and runtime package path.
+
+Actions:
+  add shared TS smoother before UV mask build:
+    input: outerPoints / innerPoints
+    output: densified smooth closed curves
+    preserve coordinate space
+    clamp to frame bounds
+  use same smoothed boundary for:
+    lipBoundary2D in package
+    UV raw RGBA mask generation
+    native preview JSON input
+  add Swift preview path helper:
+    draw smooth closed curve, not addLine-only polygon.
+  avoid OpenCV/scikit-image correction.
+  this is geometry interpolation only, not image post-processing.
+
+Acceptance:
+  Vision and MediaPipe previews no longer show obvious straight polygon edges.
+  generated package records smoothing metadata:
+    boundarySmoothing=curve_densified_v1
+    originalPointCount
+    smoothedPointCount
+```
+
+Phase V2-F2. Adjustment feedback must be visible and testable
+
+```txt
+Goal:
+  pressing adjustment controls visibly changes the preview and saved package.
+
+Actions:
+  increase adjustment visual sensitivity enough for validation.
+  include before/after overlay debug values:
+    adjustment
+    boundary bbox
+    preview revision id
+  force preview output filename/cache id to include generatedMaskId + adjustment hash.
+  clear stale preview when regenerating.
+  ensure selectedCandidate.package is the rebuilt adjusted package.
+
+Buildless tests:
+  unit test boundary points changed after each adjustment field.
+  unit test UV alpha bbox or alpha distribution changes for meaningful adjustment.
+  RN test pressing + updates displayed value and selected candidate preview URI/revision.
+  native preview smoke renders two adjusted previews with different file paths or modified mtime.
+
+Acceptance:
+  user can see at least one obvious movement when corner/upper/lower/y is changed.
+  if a field produces too little visual delta, UI shows "변화 작음" instead of pretending success.
+```
+
+Phase V2-F3. Regenerate/retake semantics
+
+```txt
+Goal:
+  remove confusion around "경계 다시 추출".
+
+Actions:
+  rename buttons:
+    "현재 사진으로 다시 생성"
+    "다시 촬영"
+  current-photo regenerate:
+    uses same captured frame and same capturePairId
+    increments generation revision
+    displays "같은 사진 기준 재생성"
+  retake:
+    returns to capture
+    clears provider results/candidates/apply state
+    requires new capturePairId before extraction.
+
+Acceptance:
+  user can tell whether input image changed.
+  no stale previous apply blocked text remains after retake/regenerate.
+```
+
+Phase V2-F4. Apply state, loading, timeout, and reason UI
+
+```txt
+Goal:
+  make save/apply behavior understandable and diagnosable.
+
+Actions:
+  create explicit generatedApplyState object:
+    idle
+    saving
+    posting
+    waitingAck(startedAt)
+    applied(ack)
+    blocked(reason, ack?)
+    timeout(elapsedMs)
+  on new extraction/candidate selection/retake:
+    reset prior apply state
+  on save:
+    show ApplyLoading panel immediately
+  timeout:
+    if no matching generated_lip_mask_applied after 10s, show timeout
+  blocked:
+    surface compact reason and full debug in drawer
+  matching:
+    generatedMaskId must match pending id
+
+Acceptance:
+  user sees progress instead of a frozen save state.
+  old blocked status does not cover Extract/Blend/Adjust.
+  blocked reason is actionable.
+```
+
+Phase V2-F5. AR validation controls
+
+```txt
+Goal:
+  after ack success, user can verify whether generated mask is truly applied.
+
+Actions:
+  add AR validation bar after generated apply success:
+    mask ON/OFF
+    strong validation mode
+    color swatches
+    opacity +/- or slider
+    boundary/debug overlay toggle
+    reopen Generate
+  post runtime recipe updates to Unity using selected generated maskTextureId.
+  Unity layer must keep same generated maskTextureId and update material only.
+
+Acceptance:
+  user can make mask intentionally obvious.
+  ON/OFF toggling clearly changes face.
+  color/opacity changes are visible.
+  validation controls do not cover the mouth.
+```
+
+Phase V2-F6. Blending honesty
+
+```txt
+Goal:
+  avoid showing two candidates that look identical without explanation.
+
+Actions:
+  compute/record candidate diff:
+    boundary diff
+    UV alpha diff
+    material diff
+  if uvOnly vs blendshapeAssist has no boundary/UV diff:
+    label as material/assist-only
+    optionally make validation material visibly different for first QA.
+  if blendshape signals unavailable:
+    show "표정 보정 신호 없음" rather than implying active correction.
+
+Acceptance:
+  user can understand why two cards differ or why they do not.
+```
+
+Phase V2-F7. Prebuild regression gate
+
+```txt
+Goal:
+  this exact class of failure must be caught before the next Xcode build.
+
+Required checks:
+  RN TypeScript
+  RN Jest
+  RN lint
+  shared-core typecheck/test
+  web typecheck/lint/build if web shell touched
+  native Swift compile or xcodebuild build-for-testing if practical
+  Unity generated-mask smoke if licensing allows
+  git diff --check
+
+New targeted gates:
+  boundary_smoothing_present:
+    no addLine-only preview for lip boundary
+    smoothedPointCount > originalPointCount
+  adjustment_preview_delta:
+    preview/UV output changes after adjustment
+  regenerate_retakes_clear_state:
+    old apply blocked state disappears
+  apply_loading_timeout:
+    waitingAck shows loading and timeout
+  ar_validation_controls_present:
+    ON/OFF + strong mode + opacity/color controls exist after applied state
+
+Exit:
+  do not build if any targeted gate fails.
+```
+
+#### 13.9.6 Multi-agent execution model
+
+Use a manager plus focused agents. Keep agent count small enough to avoid coordination drag.
+
+```txt
+Manager / Integrator:
+  owns plan, task order, merge conflicts, final gate.
+  edits cross-cutting state machine only after reading all agent findings.
+
+Agent A - RN Flow/UI:
+  App.tsx wizard state, apply loading/timeout, regenerate/retake semantics,
+  AR validation controls, debug overlay placement.
+
+Agent B - Boundary/Preview:
+  TS smoothing, Swift preview curve drawing, preview cache/revision,
+  adjustment preview delta proof.
+
+Agent C - Unity Apply/Runtime:
+  generated mask material update controls, ON/OFF, strong validation mode,
+  ack payload clarity and persisted runtime evidence.
+
+Agent D - QA/Audit:
+  writes or updates targeted prebuild gates.
+  refuses "complete" if the original seven complaints are not directly tested or explicitly device-only.
+```
+
+Coordination rule:
+
+```txt
+No agent claims product success.
+Each agent returns:
+  files changed
+  behavior changed
+  verification command
+  remaining risk
+  whether user visual judgment is still required
+```
+
+#### 13.9.7 Done / not done definition
+
+Done before next build:
+
+```txt
+1. Smooth preview and smooth UV mask share the same adjusted boundary.
+2. Adjustment visibly changes preview and saved package, with test evidence.
+3. Regenerate vs retake semantics are clear.
+4. Save/apply has loading, timeout, blocked reason, retry.
+5. Old apply state cannot leak into new extraction/blending/adjustment.
+6. AR applied state exposes validation controls: ON/OFF, strong mode, color, opacity, boundary/debug.
+7. Blending cards are honest about whether they differ geometrically or only materially.
+8. Targeted prebuild gates pass.
+9. Roadmap and TECH_VALIDATION_RESULT.md record exact evidence and remaining device-only risks.
+```
+
+Not done / still device-required:
+
+```txt
+Actual camera capture UX feel.
+Native Vision/MediaPipe quality on the user's current face.
+Unity runtime visual makeup quality.
+Face attachment under motion.
+Thermal/FPS/memory.
+Final human visual acceptance.
+```
+
+Next build success means:
+
+```txt
+The user can complete:
+  capture -> provider extraction -> blending candidate -> adjustment -> save/apply -> AR validation controls
+and can intentionally make the generated mask obvious enough to judge boundary quality.
+
+If the mask looks bad, that is a boundary-quality problem to iterate.
+If the app cannot make the mask obvious, cannot show state, or cannot explain blocked apply,
+then the app flow still failed.
+```
+
 ## 14. User-Required Gates
 
 반드시 사용자 도움을 요청해야 하는 경우:
@@ -3238,3 +3708,202 @@ QA 체크:
 - MediaPipe가 current-frame에서 blocked면 blockedReason과 fallback을 먼저 보고한다.
 - 일부만 끝나면 complete라고 하지 말고 partial/blocked를 명시한다.
 ```
+
+### 17.4 현재 Goal Prompt: fix-build v2, preview/adjust/apply/AR validation
+
+```txt
+cwd=/Users/wiseungcheol/Desktop/makeupAR
+
+목표:
+2026-06-28 실기기 스크린샷 리뷰에서 확인된 E7 in-app personalized Generate flow v2 결함을 고친다. 다음 빌드에서 사용자가 capture -> provider extraction -> blending candidate -> adjustment -> save/apply -> AR validation controls까지 통과하고, generated mask를 진하게/ON-OFF/색/opacity로 확인할 수 있어야 한다. 완료 상태는 "다음 사용자 승인 후 한 번의 Xcode build/install/run으로 실제 성공 여부를 판단할 수 있는 fix-build v2 candidate"다. 빌드 성공이나 saved_record만으로 완료라고 하지 않는다.
+
+필수 읽기:
+1. AGENTS.md
+2. TECH_VALIDATION_RESULT.md > Current Session Snapshot
+3. docs/roadmaps/README.md
+4. docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md > 13.9
+5. 관련 코드:
+   - rn/MakeupARValidation/App.tsx
+   - rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts
+   - rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift
+   - unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs
+   - unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs
+
+현 실패:
+1. Vision/MediaPipe preview boundary가 직선 polygon처럼 보인다.
+2. Adjust 값을 바꿔도 preview가 바뀌지 않는 것처럼 보인다.
+3. "경계 다시 추출"이 기존 결과 재사용처럼 보인다.
+4. 저장하고 AR 실행 후 loading/timeout/reason 없이 save/waiting 상태가 지속된다.
+5. 블렌딩 켬/끔 후보가 화면상 차이가 없다.
+6. AR 적용 후 ON/OFF, 진하게 보기, 색상, opacity, boundary/debug control이 없어 적용 여부를 확인하기 어렵다.
+7. AR 전환 지연이면 loading이어야 하고, 실패면 blocked/timeout이어야 하는데 현재 구분이 안 된다.
+8. 이전 apply blocked 상태가 Extract/Blending/Adjust 화면을 오염시킨다.
+
+필수 작업:
+1. Evidence pull / blocked 원인 확인
+   - 가능하면 현재 기기 Documents에서 latest generated package, saved_record, generated_lip_mask_applied.latest.json, capture_summary를 pull/inspect한다.
+   - ack가 왔는지, status/applied/uvAvailable/maskTriangles/generatedMaskId를 확인한다.
+   - 증거 없이 "Unity 문제"라고 단정하지 않는다.
+
+2. Smooth boundary common path
+   - TS package generation 단계에서 outer/inner lip boundary를 curve_densified_v1로 smoothing/densify한다.
+   - smoothed boundary를 package.lipBoundary2D, UV raw RGBA mask generation, native preview input이 모두 공유한다.
+   - Swift preview에서 addLine-only polygon path를 smooth closed curve drawing으로 바꾼다.
+   - OpenCV/scikit-image correction은 쓰지 않는다.
+
+3. Adjustment 즉시 반영
+   - adjustment 수식이 preview에서 눈에 보이도록 sensitivity/cache/revision을 고친다.
+   - 조정 후 selected candidate package, preview URI/hash, UV alpha diagnostics가 갱신돼야 한다.
+   - native provider를 다시 부르지 말고 cached boundary + ARFace export로 rebuild한다.
+   - buildless test로 boundary/UV/preview delta를 증명한다.
+
+4. Regenerate vs retake
+   - "경계 다시 추출"을 제품 UI에서 그대로 쓰지 않는다.
+   - 버튼을 "현재 사진으로 다시 생성"과 "다시 촬영"으로 분리한다.
+   - 현재 사진 재생성은 same capturePairId + new generation revision을 보여준다.
+   - 다시 촬영은 capture로 돌아가고 provider/candidate/apply stale state를 clear한다.
+
+5. Apply state machine
+   - generatedApplyState를 idle/saving/posting/waitingAck/applied/blocked/timeout처럼 명시화한다.
+   - save/apply 클릭 즉시 loading UI를 보여준다.
+   - 8-10초 matching generated_lip_mask_applied ack가 없으면 timeout.
+   - blocked reason은 compact UI에 표시하고 full debug는 drawer로 보낸다.
+   - new extraction/candidate selection/retake 시 이전 blocked/apply state가 화면을 오염시키지 않게 reset한다.
+
+6. AR validation controls
+   - generated ack success 후 wizard를 접고 AR validation bar를 보여준다.
+   - controls:
+     - mask ON/OFF
+     - 진하게 보기 / validation strong mode
+     - color swatches
+     - opacity +/- or slider
+     - boundary/debug overlay toggle
+     - Generate 다시 열기
+   - Unity는 같은 generated maskTextureId를 유지하고 material/visibility만 업데이트해야 한다.
+   - controls는 mouth/face judgment를 가리지 않는다.
+
+7. Blending honesty
+   - uvOnly vs blendshapeAssist의 geometry/UV/material diff를 기록한다.
+   - 차이가 거의 없으면 UI에서 "차이 작음" 또는 "material-only"처럼 솔직히 표시한다.
+   - blendshape signal unavailable이면 "표정 보정 신호 없음"을 표시한다.
+
+8. Targeted prebuild gates
+   - 기존 RN/web/shared-core/Unity/git checks에 더해 다음을 추가하거나 테스트로 증명한다:
+     - boundary smoothing present: smoothedPointCount > originalPointCount
+     - preview no addLine-only polygon path
+     - adjustment preview/package/UV delta
+     - regenerate/retake clears stale apply state
+     - apply loading/timeout/error reason UI
+     - AR validation controls visible after applied state
+   - 이 targeted gate가 실패하면 Xcode build로 가지 않는다.
+
+검증:
+- rn/MakeupARValidation: ./node_modules/.bin/tsc --noEmit
+- rn/MakeupARValidation: npm test -- --runInBand --watchman=false
+- rn/MakeupARValidation: npm run lint
+- packages/lip-generate-core: npm run typecheck
+- packages/lip-generate-core: npm test
+- web/lip-generate-beta checks if touched: npm run typecheck, npm run lint, npm run build
+- Unity generated-mask/editor/batch smoke if licensing allows
+- npm run e7:prebuild:full, updated to include v2 gates if possible
+- git diff --check
+
+멀티 에이전트 역할:
+- Manager/Integrator: 13.9를 기준으로 범위 통제, merge, 최종 verification, docs update.
+- RN Flow/UI agent: App.tsx state machine, loading/timeout, regenerate/retake, AR validation bar, stale state reset.
+- Boundary/Preview agent: TS smoothing, Swift smooth preview, adjustment preview/cache/revision, preview/UV delta tests.
+- Unity Apply/Runtime agent: generated mask ON/OFF, strong mode, color/opacity updates, ack/evidence clarity.
+- QA/Audit agent: original 8 failures가 buildless gate로 잡히는지 감시. "테스트가 못 잡는 성공 주장"을 거부.
+
+완료 조건:
+- original failures 1-8이 fixed/partial/blocked로 표에 매핑된다.
+- smooth preview와 smooth UV mask가 같은 adjusted boundary를 쓴다.
+- 조정 후 preview/package/UV가 바뀌는 증거가 있다.
+- save/apply가 loading/timeout/reason을 보여준다.
+- generated ack 성공 후 AR validation controls가 보인다.
+- 이전 blocked/apply 상태가 새 flow를 오염시키지 않는다.
+- 모든 targeted prebuild gates와 기본 checks가 통과한다.
+- TECH_VALIDATION_RESULT.md와 active roadmap에 evidence/remaining risk가 기록된다.
+- Xcode build/install/run은 사용자 승인 전 실행하지 않는다.
+
+멈춤 조건:
+- Xcode build, iPhone unlock, camera permission, user visual judgment가 필요하면 즉시 사용자에게 요청한다.
+- 새 dependency가 필요하면 대안/영향/검증 비용을 설명하고 승인받는다.
+- Unity licensing 또는 device service가 막히면 우회로와 남은 risk를 명확히 보고한다.
+- 일부만 끝나면 complete라고 하지 말고 partial/blocked를 명시한다.
+```
+
+### 17.5 Fix-build v2 implementation checkpoint before next Xcode build
+
+Status: **pre-Xcode buildless/source gate passed, device visual acceptance pending**.
+
+이번 checkpoint의 목적은 "다음 iPhone 빌드에서 또 같은 핵심 버그를 발견하는" 루프를 줄이는 것이다. 따라서 완료 주장은 앱 빌드 성공이 아니라 아래 buildless/source evidence 기준으로 제한한다.
+
+#### 17.5.1 Failure mapping
+
+| Failure | Current status | Evidence / note |
+| --- | --- | --- |
+| Vision/MediaPipe preview boundary가 직선 polygon처럼 보임 | fixed buildless | TS package path에 `curve_densified_v1` smoothing 추가. Swift `renderLipMaskPreview`는 `addCurve` 기반 smooth closed curve를 사용하고 line path는 fallback-only. |
+| Adjust 값을 바꿔도 preview/package/UV 변화가 눈에 안 보임 | fixed buildless | 조정값이 selected package rebuild, native preview render, generatedMaskId adjustment hash, UV alpha diagnostics/raw mask에 반영된다. Jest가 조정 전후 generatedMaskId/preview render/recipe delta를 검증한다. |
+| "경계 다시 추출"이 기존 결과 재사용처럼 보임 | fixed source/UI | 제품 UI 문구를 "현재 사진으로 다시 생성"과 "다시 촬영"으로 분리. Retake는 capture/provider/candidate/apply stale state를 clear한다. |
+| Save/apply 후 loading/timeout/reason 없이 대기 | fixed source/UI | `generatedApplyState`를 `idle/saving/posting/waitingAck/applied/blocked/timeout` object로 명시화. 10초 ack timeout, retry button, `blockedReason` 표시 추가. |
+| 블렌딩 on/off 후보 차이가 없음 | partial | 후보는 `기본 블렌딩`과 `표정 보정` 두 개로 줄이고 large cards로 표시한다. 차이 자체의 real-device visual judgment는 다음 iPhone flow에서 확인해야 한다. |
+| AR 적용 후 ON/OFF/진하게/색/opacity/boundary control 부재 | fixed source/UI + Unity source | ack 성공 후 `GeneratedRuntimeAppliedBanner`에서 mask ON/OFF, strong mode, color swatches, opacity +/-와 boundary/debug toggle 제공. Unity RNBridge는 controls-only reapply를 raw texture 없이 처리한다. |
+| AR 전환/로딩 시간이 버그처럼 보임 | fixed source/UI | Apply step에 save/payload/Unity ack gate, timeout/reason/retry가 보인다. ack 성공 후에만 AR validation banner로 전환한다. |
+| 이전 apply blocked 상태가 Extract/Blending/Adjust 화면을 오염 | fixed source/UI | provider change, candidate change, adjustment change, regenerate, retake, reopen flow에서 `resetGeneratedApplyFlow`로 pending/applied/generatedMaskId state를 clear한다. |
+
+#### 17.5.2 Implemented source changes
+
+- `rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts`
+  - adjusted boundary -> curve densified smoothing -> package `lipBoundary2D` -> UV raw RGBA mask가 같은 boundary를 공유한다.
+  - `uvCoverageMetadata`에 smoothing/alpha diagnostics를 남긴다.
+  - generatedMaskId에 adjustment hash를 넣어 preview/cache identity가 조정값에 따라 바뀐다.
+- `rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift`
+  - native preview PNG drawing을 smooth closed curve로 변경했다.
+- `rn/MakeupARValidation/App.tsx`
+  - explicit apply state machine, timeout/retry/reason UI, retake/regenerate 분리, stale apply reset, post-ack AR validation controls를 추가했다.
+- `unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs`
+  - generated mask validation controls를 payload로 받는다.
+  - controls-only payload는 기존 `maskTextureId`를 유지하고 visibility/material/color/opacity만 갱신한다.
+  - failure/blocked ack는 raw/base64 payload 없이 sanitized evidence로 남긴다.
+- `scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs`
+  - `v2.*` targeted gates를 추가했다: smoothing contract, Swift smooth preview, adjustment preview/package/UV delta, regenerate/retake stale reset, apply timeout/reason state, AR validation controls.
+
+#### 17.5.3 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `14 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd packages/lip-generate-core && npm run typecheck`
+- `cd packages/lip-generate-core && npm test`
+- `cd rn/MakeupARValidation && npm run e7:prebuild`
+  - result: `28 pass / 0 fail / 1 warn`
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full`
+  - result: `29 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Blocked / not proven:
+
+- Unity generated-mask editor smoke was attempted with:
+  - `/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity -batchmode -quit -projectPath unity/MakeupARUnityValidation -executeMethod E7GeneratedLipMaskSmoke.RunFromCommandLine -logFile evidence/logs/e7-generated-lip-mask-smoke.log`
+  - blocked by Unity licensing client channel timeout: `LicenseClient-wiseungcheol`.
+- No new Xcode build/install/run yet.
+- No new iPhone visual acceptance yet.
+- No proof yet that the user's next real face flow visually accepts the boundary, blending difference, AR validation controls, FPS, latency, memory, or thermal.
+
+#### 17.5.4 Next gate
+
+Run Xcode/iPhone build only after user approval. The next device run must verify the complete scenario:
+
+1. Start -> align.
+2. Capture all required shots with one primary capture CTA.
+3. Extract with selected provider.
+4. Pick large blending card.
+5. Adjust and confirm preview visibly changes.
+6. Save/apply and observe save/payload/Unity ack gates.
+7. After ack, confirm AR validation controls appear.
+8. In AR view, test ON/OFF, strong, color, opacity, and boundary/debug controls.
+9. Pull/check `generated_lip_mask_applied.latest.json` and screenshots before claiming runtime success.
