@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Flat non-filled PNG retune verified locally; iPhone rebuild pending
+Status: Source-2 FLAT fill fix verified locally; iPhone rebuild pending
 Date: 2026-06-27
 
 ## Scope
@@ -258,7 +258,8 @@ sent.
 
 ## 2026-06-27 Flat Non-Filled PNG Local Retune
 
-This follow-up is not installed on the iPhone yet.
+This follow-up was later rebuilt, installed, and launched on `CloudsiPhone (26.5)`;
+user QA still found the FLAT candidates hollow.
 
 - Triggering QA feedback on the installed flat-fill/soft-brow build:
   - `Daily flat`, `Flat sharp`, and `Flat multiply` still showed hollow
@@ -281,8 +282,26 @@ This follow-up is not installed on the iPhone yet.
   - Unity `6000.3.18f1` batchmode import/compile passed:
     `evidence/logs/eyebrow-flat-nonfilled-pipeline-unity6000-batchmode-20260627.log`.
 
+## 2026-06-28 Source-2 FLAT Fill Fix
+
+This follow-up is not installed on the iPhone yet.
+
+- Triggering QA feedback on the installed flat non-filled build:
+  - `Daily flat`, `Flat sharp`, and `Flat multiply` still showed hollow
+    interiors.
+- Local retune:
+  - Uses user-supplied `brow_dailyflat_2.png` as the FLAT source.
+  - Regenerated `Daily flat`, `Flat sharp`, and `Flat multiply`.
+  - Updated the PNG verifier so hollow FLAT interiors fail. `Flat sharp`
+    records inner fill `0.822/0.932` and detailStd `57.63`.
+- Local verification:
+  - PNG hair verifier, brow mask verifier, Unity contract verifier, renderer
+    route verifier, and UnityFramework build contract verifier passed.
+  - Unity `6000.3.18f1` batchmode import/compile passed:
+    `evidence/logs/eyebrow-flat2-filled-texture-unity6000-batchmode-20260628.log`.
+
 An approved UnityFramework/RN iPhone build is required before accepting or
-rejecting the visual result.
+rejecting the source-2 visual result.
 
 ## Device QA
 
@@ -338,8 +357,9 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   launched on `CloudsiPhone (26.5)` for visual QA.
 - User QA on the flat-fill/soft-brow install found the FLAT candidates still
   hollow while the non-flat PNG hair candidates render, and the two brows still
-  look too close. Local non-filled FLAT generation and wider default spread have
-  passed checks but are not installed yet.
+  look too close. The flat non-filled generation and wider default spread were
+  installed, but the user still found the FLAT candidates hollow. The latest
+  source-2 FLAT fill fix has passed local checks but is not installed yet.
 
 ## Brow Parameter Tuning Guide
 
@@ -388,9 +408,8 @@ Check:
 - Compare `Flat sharp` against `Flat multiply` with the same color and
   `Texture Detail` value to judge whether multiply revives texture or makes the
   brow too muddy.
-- `Daily flat`, `Flat sharp`, and `Flat multiply` should now behave like the
-  visible `Daily hair`/`Natural hair`/`Narrow hair` pipeline instead of showing
-  only an outline with a hollow center.
+- `Daily flat`, `Flat sharp`, and `Flat multiply` should no longer show only an
+  outline with a hollow center.
 - `Texture Detail` changes the visible PNG hair detail without replacing the
   selected brow color layer.
 - `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains
@@ -435,14 +454,14 @@ recordings unless the user explicitly approves storing them.
 Build context:
 
 - Branch/commit: `feature/brow-0626`
-- Commit: fill after the next approved flat non-filled PNG build
+- Commit: `cd2c0fd`
 - Device: `CloudsiPhone`
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
 - UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: fill
   after approved build
 - Latest relevant Unity batchmode compile before this rebuild: pass,
-  `evidence/logs/eyebrow-flat-nonfilled-pipeline-unity6000-batchmode-20260627.log`
+  `evidence/logs/eyebrow-flat2-filled-texture-unity6000-batchmode-20260628.log`
 - UnityFramework rebuild/sync: fill after approved build
 - RN/Xcode rebuild: fill after approved build
 - Install/launch: fill after approved build

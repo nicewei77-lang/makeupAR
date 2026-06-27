@@ -711,3 +711,46 @@ Remaining:
   - This follow-up is local only. No UnityFramework regeneration, RN/Xcode
     device build, install, launch, screenshots, recordings, raw camera frames,
     or Slack messages were run/sent in this loop.
+- 2026-06-27: User approved the flat non-filled PNG iPhone build/install.
+  - Pre-build checks passed: PNG brow hair verifier, brow Unity contract
+    verifier, brow mask texture verifier, region renderer route verifier, and
+    UnityFramework build contract verifier.
+  - Device check found `CloudsiPhone` connected as
+    `FD44CD30-B236-5594-BE61-3C5D408A6851`.
+  - UnityFramework regeneration/sync passed with
+    `TIMESTAMP=eyebrow-flatnonfilled-20260627-ufw-r1`.
+  - Artifact verification recorded `126M` UnityFramework copies and `30M`
+    `Data` folders in both RN and package-local locations:
+    `evidence/logs/m3-repro-artifact-verification-eyebrow-flatnonfilled-20260627-ufw-r1.log`.
+  - RN/Xcode Debug build passed:
+    `evidence/logs/eyebrow-rn-xcodebuild-device-flatnonfilled-20260627-r1.log`.
+  - Built app bundle:
+    `unity-builds/xcode-derived-data/RNDevice-eyebrow-flatnonfilled-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+    `205M`, including `126M` `UnityFramework.framework` and `30M`
+    `UnityFramework.framework/Data`.
+  - `devicectl` installed and launched `com.celeste.makeupar.validation` on
+    `CloudsiPhone (26.5)`:
+    `evidence/logs/eyebrow-rn-devicectl-install-flatnonfilled-20260627-r1.log`
+    and
+    `evidence/logs/eyebrow-rn-devicectl-launch-flatnonfilled-20260627-r1.log`.
+  - No face screenshots, recordings, raw camera frames, or Slack messages were
+    captured/sent.
+  - User QA on this installed build still found `Daily flat`, `Flat sharp`, and
+    `Flat multiply` hollow inside.
+- 2026-06-28: Source-2 FLAT fill fix after hollow iPhone QA.
+  - User supplied `brow_dailyflat_2.png`; local diagnostics showed the previous
+    FLAT source generated inner fill around `0.42..0.49`, while source-2
+    generates `Flat sharp` inner fill `0.822/0.932`.
+  - RED: `verify_brow_png_hair_textures.py` failed the old generated FLAT
+    texture with `left brow interior is too hollow for device rendering`.
+  - Regenerated `Daily flat`, `Flat sharp`, and `Flat multiply` from
+    `brow_dailyflat_2.png` and updated the verifier so hollow FLAT interiors
+    cannot pass again.
+  - GREEN: PNG hair verifier, brow Unity contract verifier, brow mask texture
+    verifier, region renderer route verifier, and UnityFramework build contract
+    verifier passed.
+  - Unity `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-flat2-filled-texture-unity6000-batchmode-20260628.log`.
+  - This source-2 fix is local only. No UnityFramework regeneration, RN/Xcode
+    device build, install, launch, screenshots, recordings, raw camera frames,
+    or Slack messages were run/sent in this loop.
