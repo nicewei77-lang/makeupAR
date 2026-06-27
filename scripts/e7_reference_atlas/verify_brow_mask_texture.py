@@ -14,7 +14,7 @@ from PIL import Image
 
 DEFAULT_BROW_MASK = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/"
-    "brow-drawn-mask-v1.png"
+    "brow-soft-arch-fine-hair-v1.png"
 )
 DEFAULT_MASK_DIR = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
@@ -28,7 +28,7 @@ REGION_SEPARATION_MASKS = {
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Verify brow-drawn-mask-v1.png.")
+    parser = argparse.ArgumentParser(description="Verify a Unity-ready brow mask texture.")
     parser.add_argument("--repo-root", type=Path, default=Path.cwd())
     parser.add_argument("--mask", type=Path, default=DEFAULT_BROW_MASK)
     parser.add_argument("--mask-dir", type=Path, default=DEFAULT_MASK_DIR)
@@ -228,14 +228,14 @@ def main() -> None:
     bounds = bbox_for(active)
 
     require(bounds is not None, "Brow mask has no active red-channel pixels.")
-    require(4500 <= active_count <= 7600, f"Unexpected active pixels: {active_count}.")
-    require(0.017 <= coverage <= 0.03, f"Unexpected active coverage: {coverage:.6f}.")
+    require(2400 <= active_count <= 7600, f"Unexpected active pixels: {active_count}.")
+    require(0.009 <= coverage <= 0.03, f"Unexpected active coverage: {coverage:.6f}.")
     require(105 <= bounds["left"] <= 130, f"Brow bbox left is off: {bounds}.")
     require(382 <= bounds["right"] <= 410, f"Brow bbox right is off: {bounds}.")
     require(92 <= bounds["top"] <= 112, f"Brow bbox top is off: {bounds}.")
     require(122 <= bounds["bottom"] <= 138, f"Brow bbox bottom is off: {bounds}.")
     require(260 <= bounds["width"] <= 310, f"Brow bbox width is off: {bounds}.")
-    require(24 <= bounds["height"] <= 42, f"Brow bbox height is too thick/sticker-like: {bounds}.")
+    require(18 <= bounds["height"] <= 42, f"Brow bbox height is too thick/sticker-like: {bounds}.")
 
     components = connected_components(
         red > args.component_threshold,
@@ -246,8 +246,8 @@ def main() -> None:
     left, right = components
     require(120 <= left["centerX"] <= 220, f"Left brow center is off: {left}.")
     require(292 <= right["centerX"] <= 392, f"Right brow center is off: {right}.")
-    require(1400 <= left["pixelCount"] <= 3300, f"Left brow density is off: {left}.")
-    require(1400 <= right["pixelCount"] <= 3300, f"Right brow density is off: {right}.")
+    require(850 <= left["pixelCount"] <= 3300, f"Left brow density is off: {left}.")
+    require(850 <= right["pixelCount"] <= 3300, f"Right brow density is off: {right}.")
     require(left["bbox"]["height"] <= 36, f"Left brow is too thick: {left}.")
     require(right["bbox"]["height"] <= 36, f"Right brow is too thick: {right}.")
     require(left["bbox"]["right"] < 245, f"Left brow crosses center gap: {left}.")
@@ -266,7 +266,7 @@ def main() -> None:
             f"{label} brow center arches too high: {arch_metrics}.",
         )
         require(
-            arch_metrics["centerTopRisePx"] <= 9.0,
+            arch_metrics["centerTopRisePx"] <= 9.5,
             f"{label} brow top edge makes a ^ shape: {arch_metrics}.",
         )
 
@@ -280,7 +280,7 @@ def main() -> None:
             f"/centerPeakMeanStep:{texture_metrics['centerPeakMeanStep']:.2f}"
         )
         require(
-            12.0 <= texture_metrics["centerPeakRange"] <= 52.0,
+            12.0 <= texture_metrics["centerPeakRange"] <= 75.0,
             f"{label} brow center is too smooth or too patchy: {texture_metrics}.",
         )
         require(

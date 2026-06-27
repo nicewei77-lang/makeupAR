@@ -16,9 +16,15 @@ DEFAULT_OVERLAY = Path(
 DEFAULT_ROUTES = Path(
     "unity/MakeupARUnityValidation/Assets/Scripts/MakeupRegionRendererRoutes.cs"
 )
-DEFAULT_BROW_MASK = Path(
-    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/"
-    "brow-drawn-mask-v1.png"
+DEFAULT_BROW_MASK_DIR = Path(
+    "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
+)
+DEFAULT_BROW_MASK_ID = "brow-soft-arch-fine-hair-v1"
+LEGACY_BROW_MASK_ID = "brow-drawn-mask-v1"
+SELECTED_BROW_MASK_IDS = (
+    DEFAULT_BROW_MASK_ID,
+    "brow-back-arch-soft-mix-v1",
+    "brow-slim-tail-fine-hair-v1",
 )
 
 
@@ -29,7 +35,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--rn-bridge", type=Path, default=DEFAULT_RN_BRIDGE)
     parser.add_argument("--overlay", type=Path, default=DEFAULT_OVERLAY)
     parser.add_argument("--routes", type=Path, default=DEFAULT_ROUTES)
-    parser.add_argument("--mask", type=Path, default=DEFAULT_BROW_MASK)
+    parser.add_argument("--mask-dir", type=Path, default=DEFAULT_BROW_MASK_DIR)
+    parser.add_argument("--mask", type=Path, action="append", default=[])
     return parser.parse_args()
 
 
@@ -62,9 +69,15 @@ def main() -> None:
     rn_bridge = read_text(resolve(repo, args.rn_bridge))
     overlay = read_text(resolve(repo, args.overlay))
     routes = read_text(resolve(repo, args.routes))
-    mask_path = resolve(repo, args.mask)
+    mask_dir = resolve(repo, args.mask_dir)
+    mask_paths = [
+        mask_dir / f"{mask_id}.png"
+        for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID)
+    ]
+    mask_paths.extend(resolve(repo, mask) for mask in args.mask)
 
-    require(mask_path.exists(), f"Missing brow mask asset: {mask_path}")
+    for mask_path in mask_paths:
+        require(mask_path.exists(), f"Missing brow mask asset: {mask_path}")
 
     require_contains(
         rn_app,
@@ -81,10 +94,22 @@ def main() -> None:
         "| 'soft_brow'",
         "RN recipe sample names must include soft_brow.",
     )
+    for mask_id in SELECTED_BROW_MASK_IDS:
+        require_contains(
+            rn_app,
+            f"| '{mask_id}'",
+            f"RN mask texture ids must include {mask_id}.",
+        )
+        require_contains(
+            rn_app,
+            f"id: '{mask_id}'",
+            f"RN brow HUD options must include {mask_id}.",
+        )
+
     require_contains(
         rn_app,
-        "| 'brow-drawn-mask-v1'",
-        "RN mask texture ids must include brow-drawn-mask-v1.",
+        f"brow: '{DEFAULT_BROW_MASK_ID}'",
+        f"RN default brow mask must be {DEFAULT_BROW_MASK_ID}.",
     )
 
     require_match(
@@ -104,14 +129,15 @@ def main() -> None:
     )
     require_match(
         rn_bridge,
-        r"case\s+\"brow\"\s*:\s*return\s+\"brow-drawn-mask-v1\"",
-        "RNBridge GetDefaultMaskTextureId must return brow-drawn-mask-v1.",
+        rf"case\s+\"brow\"\s*:\s*return\s+\"{DEFAULT_BROW_MASK_ID}\"",
+        f"RNBridge GetDefaultMaskTextureId must return {DEFAULT_BROW_MASK_ID}.",
     )
-    require_match(
-        rn_bridge,
-        r"region\s*==\s*\"brow\"\s*&&\s*\w+\s*==\s*\"brow-drawn-mask-v1\"",
-        "RNBridge NormalizeMaskTextureId must accept brow-drawn-mask-v1.",
-    )
+    for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID):
+        require_contains(
+            rn_bridge,
+            f'"{mask_id}"',
+            f"RNBridge NormalizeMaskTextureId must accept {mask_id}.",
+        )
 
     require_match(
         overlay,
@@ -125,14 +151,15 @@ def main() -> None:
     )
     require_match(
         overlay,
-        r"case\s+\"brow\"\s*:\s*return\s+\"brow-drawn-mask-v1\"",
-        "E3RegionMaskOverlay GetDefaultMaskTextureId must return brow-drawn-mask-v1.",
+        rf"case\s+\"brow\"\s*:\s*return\s+\"{DEFAULT_BROW_MASK_ID}\"",
+        f"E3RegionMaskOverlay GetDefaultMaskTextureId must return {DEFAULT_BROW_MASK_ID}.",
     )
-    require_match(
-        overlay,
-        r"region\s*==\s*\"brow\"\s*&&\s*\w+\s*==\s*\"brow-drawn-mask-v1\"",
-        "E3RegionMaskOverlay NormalizeMaskTextureId must accept brow-drawn-mask-v1.",
-    )
+    for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID):
+        require_contains(
+            overlay,
+            f'"{mask_id}"',
+            f"E3RegionMaskOverlay NormalizeMaskTextureId must accept {mask_id}.",
+        )
     require_contains(
         overlay,
         'case "natural_brow":',

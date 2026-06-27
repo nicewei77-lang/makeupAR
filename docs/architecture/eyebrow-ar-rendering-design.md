@@ -27,7 +27,7 @@ Eyebrow support was added by extending the existing region recipe pipeline:
 
 1. Extend region constants from `lip | cheek | eye` to include `brow`.
 2. Add brow texture sample presets such as `natural_brow` and `soft_brow`.
-3. Add a brow mask texture id such as `brow-drawn-mask-v1`.
+3. Add brow mask texture ids for the local candidates.
 4. Generate an in-house 512x512 brow UV mask under
    `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/`.
 5. Teach Unity parsing and mask normalization to accept `brow`.
@@ -41,9 +41,9 @@ Implemented contract values:
 | --- | --- |
 | Region | `brow` |
 | Renderer mode | `smooth-region-mask` |
-| Mask texture id | `brow-drawn-mask-v1` |
+| Mask texture id | Default `brow-soft-arch-fine-hair-v1`; options `brow-back-arch-soft-mix-v1`, `brow-slim-tail-fine-hair-v1`, legacy `brow-drawn-mask-v1` |
 | RN presets | `natural_brow`, `soft_brow` |
-| Unity resource | `SmoothRegionMasks/brow-drawn-mask-v1` |
+| Unity resource | `SmoothRegionMasks/brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, `brow-slim-tail-fine-hair-v1`, plus legacy `brow-drawn-mask-v1` |
 | Unity material path | `E3RegionMaskOverlay.BuildMaterialColor` brow cases |
 | Route table | `MakeupRegionRendererRoutes` |
 | Brow renderer id | `brow-smooth-region-mask-renderer` |
@@ -97,9 +97,11 @@ and the effect read as sticker-like. The tuned mask keeps the same resource id
 and renderer contract, but flattens the arch and reduces the stroke footprint.
 
 The user chose to skip rebuilding the intermediate flatter mask and continue
-into the next local loop. The current mask now adds deterministic procedural
-hair/powder density variation inside the same thin footprint so the effect is
-less like one smooth sticker strip.
+into the next local loop. A local variation catalog was generated, and three
+options were selected for the app: soft arch with fine hair, back-shifted arch
+with soft mix texture, and slim tail with fine hair. The first is the RN/Unity
+default for the next QA build; the old `brow-drawn-mask-v1` remains available
+for comparison.
 
 Current local verifier result for `brow-drawn-mask-v1.png`:
 
@@ -113,6 +115,14 @@ Current local verifier result for `brow-drawn-mask-v1.png`:
   mean peak step `2.09` left and `1.66` right.
 - Region separation guard: `eye-drawn=0/1200`, `eye-smooth=0/4200`,
   `cheek-drawn=0/50`, `lip-drawn=0/0`.
+
+Selected local candidate verifier results:
+
+| Mask | Active pixels | Bbox height | Center rise summary | Texture summary |
+| --- | ---: | ---: | --- | --- |
+| `brow-soft-arch-fine-hair-v1` | `3072` | `23` | left `3.44px`, right `2.61px` | peak range `32/43`, mean step `3.84/3.88` |
+| `brow-back-arch-soft-mix-v1` | `3384` | `26` | left `0.16px`, right `-0.75px` | peak range `13/16`, mean step `1.25/1.17` |
+| `brow-slim-tail-fine-hair-v1` | `2569` | `20` | left `0.13px`, right `-0.64px` | peak range `68/61`, mean step `4.29/4.72` |
 
 The mask remains a single-channel soft alpha texture, but no longer uses a
 fully uniform central ridge. If later device QA still shows poor fit, later
@@ -131,10 +141,10 @@ First-loop brow should avoid glossy or glitter behavior. Use low specular,
 moderate feather, and multiply or normal alpha behavior depending on which looks
 more natural on device. Brow now has its own mask policy inside the shared
 smooth-mask backend: threshold `0.035`, default feather `0.42`, and recipe
-feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` at
-opacity `0.48`, intensity `0.48`, and coverage `0.54` so the first visible
-result is less sticker-like while still allowing the user to raise opacity and
-intensity during QA.
+feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
+`brow-soft-arch-fine-hair-v1` at opacity `0.48`, intensity `0.48`, and coverage
+`0.54` so the first visible result is less sticker-like while still allowing
+the user to raise opacity and intensity during QA.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in

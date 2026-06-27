@@ -2243,7 +2243,10 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-drawn-mask-v1"))
             || (region == "cheek" && value == "cheek-smooth-mask-v1")
             || (region == "eye" && value == "eye-smooth-mask-v1")
-            || (region == "brow" && value == "brow-drawn-mask-v1"))
+            || (region == "brow" && (value == "brow-soft-arch-fine-hair-v1"
+                || value == "brow-back-arch-soft-mix-v1"
+                || value == "brow-slim-tail-fine-hair-v1"
+                || value == "brow-drawn-mask-v1")))
         {
             return value;
         }
@@ -2261,7 +2264,7 @@ public sealed class RNBridge : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "brow":
-                return "brow-drawn-mask-v1";
+                return "brow-soft-arch-fine-hair-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }

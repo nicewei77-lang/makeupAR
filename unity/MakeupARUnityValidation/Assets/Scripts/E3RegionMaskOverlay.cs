@@ -2149,7 +2149,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "brow":
-                return "brow-drawn-mask-v1";
+                return "brow-soft-arch-fine-hair-v1";
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -3083,7 +3083,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-drawn-mask-v1"))
             || (region == "cheek" && maskTextureId == "cheek-smooth-mask-v1")
             || (region == "eye" && maskTextureId == "eye-smooth-mask-v1")
-            || (region == "brow" && maskTextureId == "brow-drawn-mask-v1"))
+            || (region == "brow" && (maskTextureId == "brow-soft-arch-fine-hair-v1"
+                || maskTextureId == "brow-back-arch-soft-mix-v1"
+                || maskTextureId == "brow-slim-tail-fine-hair-v1"
+                || maskTextureId == "brow-drawn-mask-v1")))
         {
             return maskTextureId;
         }

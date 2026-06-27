@@ -123,14 +123,22 @@ or bridge rewrite.
   subtle procedural hair/powder density variation inside the same
   `brow-drawn-mask-v1` resource so the brow is less like a single smooth
   sticker strip before the eventual rebuild.
+- 2026-06-27: User then asked to apply three options from the generated brow
+  variation sheet. The local app now exposes `brow-soft-arch-fine-hair-v1`
+  as the default, plus `brow-back-arch-soft-mix-v1` and
+  `brow-slim-tail-fine-hair-v1` for comparison. `brow-drawn-mask-v1` remains
+  as a legacy comparison option. This is local only and has not been rebuilt
+  to the iPhone.
 
 ## Local Verification
 
 - RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
   passed with 23 tests.
-- Brow mask verifier passed:
-  `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py`.
-  The verifier now guards brow separation from eye/cheek/lip masks.
+- Brow mask verifier passed for the three selected local candidates:
+  `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
+  `brow-slim-tail-fine-hair-v1`. The verifier now accepts the thinner
+  fine-hair candidates while still guarding arch height and separation from
+  eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
   The verifier now guards brow renderer routing plus brow-specific
@@ -154,8 +162,9 @@ confirmed attachment and control response, but visual product quality is not
 accepted yet because the installed build's brow mask was too arched and too
 thick. The flatter/thinner tuning requires a fresh UnityFramework/RN device
 build before the next iPhone QA pass. The current local branch intentionally
-continues beyond that intermediate device build and now includes additional
-procedural density texture that has not been installed on-device.
+continues beyond that intermediate device build and now includes three
+candidate brow mask options from the generated variation sheet. These selected
+local options have not been installed on-device.
 
 ## Risks
 

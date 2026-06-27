@@ -289,3 +289,20 @@ Remaining:
     with eye/cheek/lip masks.
   - This texture loop is local only; no UnityFramework/RN device build was
     started.
+- 2026-06-27: User clarified that brow-front direction does not need its own
+  separate option and asked to apply three options from the generated variation
+  sheet.
+  - Selected local candidates: `0202` soft arch/fine hair,
+    `0307` back arch/soft mix, and `0602` slim tail/fine hair.
+  - Added Unity Resources assets: `brow-soft-arch-fine-hair-v1`,
+    `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1`.
+  - RN/Unity default brow mask is now `brow-soft-arch-fine-hair-v1`; the other
+    two candidates and legacy `brow-drawn-mask-v1` remain selectable in the HUD.
+  - RED: focused Jest failed because brow payload/HUD still used
+    `brow-drawn-mask-v1`; `verify_brow_unity_contract.py` failed because the
+    new Unity resource was missing.
+  - GREEN: focused Jest passed with 23 tests, brow Unity contract verifier
+    passed, and all three selected masks passed `verify_brow_mask_texture.py`
+    with zero eye/cheek/lip overlap.
+  - This candidate-selection loop is local only; no UnityFramework/RN device
+    build was started.

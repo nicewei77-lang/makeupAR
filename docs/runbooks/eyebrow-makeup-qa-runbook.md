@@ -106,13 +106,19 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   into the next local loop. The current local mask also includes subtle
   procedural hair/powder density variation; it is not installed on the iPhone
   yet.
+- The latest local loop adds three selectable mask candidates from the generated
+  variation sheet: `brow-soft-arch-fine-hair-v1` as default,
+  `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1`. These are
+  not installed on the iPhone yet.
 
 Check:
 
 - `brow` can be enabled and disabled independently.
 - `natural_brow` appears as the default brow sample.
 - `soft_brow` can be selected and updates immediately.
-- `brow-drawn-mask-v1` is selected for brow.
+- `brow-soft-arch-fine-hair-v1` is selected for brow by default.
+- `brow-back-arch-soft-mix-v1` and `brow-slim-tail-fine-hair-v1` can be selected
+  for visual comparison.
 - The latest recipe HUD shows `renderer=brow-smooth-region-mask-renderer` for
   brow after Unity acknowledges the recipe.
 - Opacity and intensity changes update without restarting AR.

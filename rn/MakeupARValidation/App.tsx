@@ -393,6 +393,9 @@ type MaskTextureId =
   | 'lip-smooth-mask-v1'
   | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1'
+  | 'brow-soft-arch-fine-hair-v1'
+  | 'brow-back-arch-soft-mix-v1'
+  | 'brow-slim-tail-fine-hair-v1'
   | 'brow-drawn-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type MaskDebugViewMode =
@@ -445,7 +448,7 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-drawn-mask-v1',
   eye: 'eye-drawn-mask-v1',
-  brow: 'brow-drawn-mask-v1',
+  brow: 'brow-soft-arch-fine-hair-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -520,7 +523,12 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
     { id: 'eye-drawn-mask-v1', label: 'Drawn' },
     { id: 'eye-smooth-mask-v1', label: 'Smooth' },
   ],
-  brow: [{ id: 'brow-drawn-mask-v1', label: 'brow-drawn-mask-v1' }],
+  brow: [
+    { id: 'brow-soft-arch-fine-hair-v1', label: 'Soft arch fine' },
+    { id: 'brow-back-arch-soft-mix-v1', label: 'Back arch soft' },
+    { id: 'brow-slim-tail-fine-hair-v1', label: 'Slim tail fine' },
+    { id: 'brow-drawn-mask-v1', label: 'Legacy drawn' },
+  ],
 };
 
 function resolveMaskTextureIdForRecipe(

@@ -565,7 +565,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
         specular: browSample!.specular,
         glossBoost: 0,
         gradientAmount: 0,
-        maskTextureId: 'brow-drawn-mask-v1',
+        maskTextureId: DEFAULT_REGION_TUNING.brow.maskTextureId,
       },
     },
     DEFAULT_DEBUG_DISPLAY_OPTIONS,
@@ -581,7 +581,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.enabled).toBe(true);
   expect(browLayer.texture).toBe('natural_brow');
   expect(browLayer.sample).toBe('natural_brow');
-  expect(browLayer.maskTextureId).toBe('brow-drawn-mask-v1');
+  expect(browLayer.maskTextureId).toBe('brow-soft-arch-fine-hair-v1');
   expect(browLayer.opacity).toBe(0.48);
   expect(browLayer.intensity).toBe(0.48);
   expect(browLayer.feather).toBe(0.48);
@@ -939,7 +939,7 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
     expect(eyeLayer.enabled).toBe(false);
     expect(browLayer.texture).toBe('natural_brow');
-    expect(browLayer.maskTextureId).toBe('brow-drawn-mask-v1');
+    expect(browLayer.maskTextureId).toBe('brow-soft-arch-fine-hair-v1');
     expect(browLayer.enabled).toBe(false);
   });
 });
@@ -1060,7 +1060,9 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('focus brow');
   expect(text).toContain('natural_brow');
   expect(text).toContain('soft_brow');
-  expect(text).toContain('brow-drawn-mask-v1');
+  expect(text).toContain('Soft arch fine');
+  expect(text).toContain('Back arch soft');
+  expect(text).toContain('Slim tail fine');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {
