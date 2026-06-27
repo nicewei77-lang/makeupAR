@@ -36,9 +36,21 @@ final class E7NativeLipBoundaryProviders: NSObject {
         throw E7NativeProviderError.invalidFrameImage(request.framePath)
       }
 
-      let landmarks = try extractVisionLipLandmarks(
+      let landmarks = try extractVisionFaceLandmarks(
         cgImage: cgImage,
         orientation: request.orientation
+      )
+      let artifactUrl = try saveProviderArtifact(
+        makeVisionFaceLandmarksArtifact(
+          request: request,
+          frameUrl: frameUrl,
+          exportUrl: exportUrl,
+          width: cgImage.width,
+          height: cgImage.height,
+          landmarks: landmarks
+        ),
+        provider: "vision",
+        frameUrl: frameUrl
       )
       let arFaceExport = try readJsonObject(exportUrl)
       let result: [String: Any] = [
@@ -50,6 +62,10 @@ final class E7NativeLipBoundaryProviders: NSObject {
         "framePath": request.framePath,
         "framePreviewUri": frameUrl.absoluteString,
         "arFaceExportPath": request.arFaceExportPath,
+        "fullFaceLandmarksPath": artifactUrl.path,
+        "debugArtifacts": [
+          "fullFaceLandmarks": artifactUrl.path
+        ],
         "frameWidth": cgImage.width,
         "frameHeight": cgImage.height,
         "boundary": [
@@ -90,10 +106,22 @@ final class E7NativeLipBoundaryProviders: NSObject {
     let arFaceExport = try readJsonObject(exportUrl)
 
     #if canImport(MediaPipeTasksVision)
-    let landmarks = try extractMediaPipeLipLandmarks(
+    let landmarks = try extractMediaPipeFaceLandmarks(
       frameUrl: frameUrl,
       width: cgImage.width,
       height: cgImage.height
+    )
+    let artifactUrl = try saveProviderArtifact(
+      makeMediaPipeFaceLandmarksArtifact(
+        request: request,
+        frameUrl: frameUrl,
+        exportUrl: exportUrl,
+        width: cgImage.width,
+        height: cgImage.height,
+        landmarks: landmarks
+      ),
+      provider: "mediapipe",
+      frameUrl: frameUrl
     )
     let result: [String: Any] = [
       "status": landmarks.outerPoints.count >= 3 ? "ready" : "blocked",
@@ -104,6 +132,10 @@ final class E7NativeLipBoundaryProviders: NSObject {
       "framePath": request.framePath,
       "framePreviewUri": frameUrl.absoluteString,
       "arFaceExportPath": request.arFaceExportPath,
+      "fullFaceLandmarksPath": artifactUrl.path,
+      "debugArtifacts": [
+        "fullFaceLandmarks": artifactUrl.path
+      ],
       "frameWidth": cgImage.width,
       "frameHeight": cgImage.height,
       "boundary": [
@@ -259,10 +291,10 @@ final class E7NativeLipBoundaryProviders: NSObject {
     return object
   }
 
-  private func extractVisionLipLandmarks(
+  private func extractVisionFaceLandmarks(
     cgImage: CGImage,
     orientation: String
-  ) throws -> E7VisionLipLandmarks {
+  ) throws -> E7VisionFaceLandmarks {
     let request = VNDetectFaceLandmarksRequest()
     let handler = VNImageRequestHandler(
       cgImage: cgImage,
@@ -270,13 +302,13 @@ final class E7NativeLipBoundaryProviders: NSObject {
       options: [:]
     )
     try handler.perform([request])
-    guard let face = request.results?.first,
+    guard let face = request.results?.max(by: { $0.confidence < $1.confidence }),
           let landmarks = face.landmarks,
           let outerLips = landmarks.outerLips else {
       throw E7NativeProviderError.visionLipLandmarksMissing
     }
 
-    return E7VisionLipLandmarks(
+    return E7VisionFaceLandmarks(
       outerPoints: convertLandmarkPoints(
         outerLips,
         faceBoundingBox: face.boundingBox,
@@ -288,16 +320,80 @@ final class E7NativeLipBoundaryProviders: NSObject {
         faceBoundingBox: face.boundingBox,
         width: cgImage.width,
         height: cgImage.height
-      )
+      ),
+      faceConfidence: Double(face.confidence),
+      faceBoundingBox: faceBoundingBoxPayload(face.boundingBox),
+      contours: [
+        "faceContour": landmarkRegionPayload(
+          landmarks.faceContour,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "leftEye": landmarkRegionPayload(
+          landmarks.leftEye,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "rightEye": landmarkRegionPayload(
+          landmarks.rightEye,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "leftEyebrow": landmarkRegionPayload(
+          landmarks.leftEyebrow,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "rightEyebrow": landmarkRegionPayload(
+          landmarks.rightEyebrow,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "nose": landmarkRegionPayload(
+          landmarks.nose,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "noseCrest": landmarkRegionPayload(
+          landmarks.noseCrest,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "medianLine": landmarkRegionPayload(
+          landmarks.medianLine,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "outerLips": landmarkRegionPayload(
+          landmarks.outerLips,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        ),
+        "innerLips": landmarkRegionPayload(
+          landmarks.innerLips,
+          faceBoundingBox: face.boundingBox,
+          width: cgImage.width,
+          height: cgImage.height
+        )
+      ]
     )
   }
 
   #if canImport(MediaPipeTasksVision)
-  private func extractMediaPipeLipLandmarks(
+  private func extractMediaPipeFaceLandmarks(
     frameUrl: URL,
     width: Int,
     height: Int
-  ) throws -> E7MediaPipeLipLandmarks {
+  ) throws -> E7MediaPipeFaceLandmarks {
     guard let modelPath = Bundle.main.path(
       forResource: "face_landmarker",
       ofType: "task"
@@ -336,7 +432,7 @@ final class E7NativeLipBoundaryProviders: NSObject {
       )
     }
 
-    return E7MediaPipeLipLandmarks(
+    return E7MediaPipeFaceLandmarks(
       outerPoints: convertMediaPipePoints(
         faceLandmarks,
         indices: mediaPipeOuterLipIndices,
@@ -348,7 +444,56 @@ final class E7NativeLipBoundaryProviders: NSObject {
         indices: mediaPipeInnerLipIndices,
         width: width,
         height: height
-      )
+      ),
+      landmarkPoints: convertAllMediaPipePoints(
+        faceLandmarks,
+        width: width,
+        height: height
+      ),
+      namedRegions: [
+        "faceOval": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeFaceOvalIndices,
+          width: width,
+          height: height
+        ),
+        "leftEye": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeLeftEyeIndices,
+          width: width,
+          height: height
+        ),
+        "rightEye": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeRightEyeIndices,
+          width: width,
+          height: height
+        ),
+        "leftEyebrow": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeLeftBrowIndices,
+          width: width,
+          height: height
+        ),
+        "rightEyebrow": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeRightBrowIndices,
+          width: width,
+          height: height
+        ),
+        "outerLips": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeOuterLipIndices,
+          width: width,
+          height: height
+        ),
+        "innerLips": mediaPipeRegionPayload(
+          faceLandmarks,
+          indices: mediaPipeInnerLipIndices,
+          width: width,
+          height: height
+        )
+      ]
     )
   }
 
@@ -366,6 +511,42 @@ final class E7NativeLipBoundaryProviders: NSObject {
         "z": Double(landmark.z)
       ]
     }
+  }
+
+  private func convertAllMediaPipePoints(
+    _ landmarks: [NormalizedLandmark],
+    width: Int,
+    height: Int
+  ) -> [[String: Any]] {
+    landmarks.enumerated().map { index, landmark in
+      [
+        "index": index,
+        "x": Double(landmark.x) * Double(width),
+        "y": Double(landmark.y) * Double(height),
+        "z": Double(landmark.z)
+      ]
+    }
+  }
+
+  private func mediaPipeRegionPayload(
+    _ landmarks: [NormalizedLandmark],
+    indices: [Int],
+    width: Int,
+    height: Int
+  ) -> [String: Any] {
+    let validIndices = indices.filter { $0 < landmarks.count }
+    let imagePoints = convertMediaPipePoints(
+      landmarks,
+      indices: validIndices,
+      width: width,
+      height: height
+    )
+    return [
+      "status": imagePoints.isEmpty ? "unavailable" : "available",
+      "indices": validIndices,
+      "pointCount": imagePoints.count,
+      "imagePoints": imagePoints
+    ]
   }
   #endif
 
@@ -386,6 +567,134 @@ final class E7NativeLipBoundaryProviders: NSObject {
         "y": Double((1.0 - normalizedY) * CGFloat(height))
       ]
     }
+  }
+
+  private func landmarkRegionPayload(
+    _ region: VNFaceLandmarkRegion2D?,
+    faceBoundingBox: CGRect,
+    width: Int,
+    height: Int
+  ) -> [String: Any] {
+    let imagePoints = convertLandmarkPoints(
+      region,
+      faceBoundingBox: faceBoundingBox,
+      width: width,
+      height: height
+    )
+    return [
+      "status": imagePoints.isEmpty ? "unavailable" : "available",
+      "pointCount": imagePoints.count,
+      "imagePoints": imagePoints
+    ]
+  }
+
+  private func faceBoundingBoxPayload(_ boundingBox: CGRect) -> [String: Double] {
+    [
+      "x": Double(boundingBox.minX),
+      "y": Double(boundingBox.minY),
+      "width": Double(boundingBox.width),
+      "height": Double(boundingBox.height)
+    ]
+  }
+
+  private func makeVisionFaceLandmarksArtifact(
+    request: E7NativeBoundaryRequest,
+    frameUrl: URL,
+    exportUrl: URL,
+    width: Int,
+    height: Int,
+    landmarks: E7VisionFaceLandmarks
+  ) -> [String: Any] {
+    [
+      "schemaVersion": "e7-native-face-landmarks-v0",
+      "createdAt": isoNow(),
+      "status": "available",
+      "provider": "vision",
+      "captureSetId": request.captureSetId,
+      "capturePairId": request.capturePairId,
+      "captureShotKind": request.captureShotKind,
+      "framePath": frameUrl.path,
+      "arFaceExportPath": exportUrl.path,
+      "frameWidth": width,
+      "frameHeight": height,
+      "coordinateSpaces": [
+        "imagePoints": "frame_image_pixel_top_left",
+        "faceBoundingBox": "normalized_bottom_left"
+      ],
+      "face": [
+        "confidence": landmarks.faceConfidence,
+        "boundingBoxNormalizedBottomLeft": landmarks.faceBoundingBox
+      ],
+      "contours": landmarks.contours,
+      "lipBoundary": [
+        "outerPoints": landmarks.outerPoints,
+        "innerPoints": landmarks.innerPoints
+      ],
+      "privacy": [
+        "localOnly": true,
+        "offDeviceUpload": false,
+        "rawFrameStoredByThisTool": false
+      ],
+      "warnings": [
+        "native_vision_full_face_landmarks_current_frame",
+        "buildless_sample_artifact_not_product_quality_proof"
+      ]
+    ]
+  }
+
+  private func makeMediaPipeFaceLandmarksArtifact(
+    request: E7NativeBoundaryRequest,
+    frameUrl: URL,
+    exportUrl: URL,
+    width: Int,
+    height: Int,
+    landmarks: E7MediaPipeFaceLandmarks
+  ) -> [String: Any] {
+    [
+      "schemaVersion": "e7-native-face-landmarks-v0",
+      "createdAt": isoNow(),
+      "status": "available",
+      "provider": "mediapipe",
+      "captureSetId": request.captureSetId,
+      "capturePairId": request.capturePairId,
+      "captureShotKind": request.captureShotKind,
+      "framePath": frameUrl.path,
+      "arFaceExportPath": exportUrl.path,
+      "frameWidth": width,
+      "frameHeight": height,
+      "coordinateSpaces": [
+        "imagePoints": "frame_image_pixel_top_left",
+        "landmarks": "frame_image_pixel_top_left"
+      ],
+      "landmarkCount": landmarks.landmarkPoints.count,
+      "landmarks": landmarks.landmarkPoints,
+      "namedRegions": landmarks.namedRegions,
+      "lipBoundary": [
+        "outerPoints": landmarks.outerPoints,
+        "innerPoints": landmarks.innerPoints
+      ],
+      "privacy": [
+        "localOnly": true,
+        "offDeviceUpload": false,
+        "rawFrameStoredByThisTool": false
+      ],
+      "warnings": [
+        "native_mediapipe_full_face_landmarks_current_frame",
+        "buildless_sample_artifact_not_product_quality_proof"
+      ]
+    ]
+  }
+
+  private func saveProviderArtifact(
+    _ artifact: [String: Any],
+    provider: String,
+    frameUrl: URL
+  ) throws -> URL {
+    let target = frameUrl
+      .deletingLastPathComponent()
+      .appendingPathComponent("\(provider)_face_landmarks.json")
+    try jsonData(artifact).write(to: target, options: .atomic)
+    return target
   }
 
   private func cgImageOrientation(_ value: String) -> CGImagePropertyOrientation {
@@ -442,14 +751,19 @@ private struct E7NativeBoundaryRequest {
   let orientation: String
 }
 
-private struct E7VisionLipLandmarks {
+private struct E7VisionFaceLandmarks {
   let outerPoints: [[String: Double]]
   let innerPoints: [[String: Double]]
+  let faceConfidence: Double
+  let faceBoundingBox: [String: Double]
+  let contours: [String: [String: Any]]
 }
 
-private struct E7MediaPipeLipLandmarks {
+private struct E7MediaPipeFaceLandmarks {
   let outerPoints: [[String: Double]]
   let innerPoints: [[String: Double]]
+  let landmarkPoints: [[String: Any]]
+  let namedRegions: [String: [String: Any]]
 }
 
 private let mediaPipeOuterLipIndices = [
@@ -460,6 +774,30 @@ private let mediaPipeOuterLipIndices = [
 private let mediaPipeInnerLipIndices = [
   78, 95, 88, 178, 87, 14, 317, 402, 318, 324,
   308, 415, 310, 311, 312, 13, 82, 81, 80, 191
+]
+
+private let mediaPipeFaceOvalIndices = [
+  10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288,
+  397, 365, 379, 378, 400, 377, 152, 148, 176, 149, 150, 136,
+  172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109
+]
+
+private let mediaPipeLeftEyeIndices = [
+  263, 249, 390, 373, 374, 380, 381, 382,
+  362, 398, 384, 385, 386, 387, 388, 466
+]
+
+private let mediaPipeRightEyeIndices = [
+  33, 7, 163, 144, 145, 153, 154, 155,
+  133, 173, 157, 158, 159, 160, 161, 246
+]
+
+private let mediaPipeLeftBrowIndices = [
+  276, 283, 282, 295, 285, 336, 296, 334, 293, 300
+]
+
+private let mediaPipeRightBrowIndices = [
+  46, 53, 52, 65, 55, 107, 66, 105, 63, 70
 ]
 
 private enum E7NativeProviderError: LocalizedError {

@@ -2205,6 +2205,573 @@ shared-core npm run test
 git diff --check
 ```
 
+### 13.8 2026-06-27 Real-device user review fix plan
+
+실기기 빌드/install/launch 후 사용자 리뷰와 app Documents 산출물을 대조했다.
+이번 결과는 "기술 파이프라인 일부는 실제로 동작하지만, 제품 flow는 아직 닫히지 않았다"로 판정한다.
+
+현재 회수한 실제 근거:
+
+```txt
+Device:
+  위승철의 iPhone
+  bundleId=com.makeupar.rnvalidation
+  installed/running 확인
+
+Generated package:
+  evidence/logs/e7-device-pull-20260627-post-user-review/generated-package/generated_lip_package.json
+  provider=vision
+  expressionMode=uvOnly
+  captureSetId=e7-capture-set-2-1782559050425
+  source capturePairId=pair_face_20260627T111840Z_12
+  adjustment all zero
+  runtimeApplyPayload.runtimeReady=false
+
+Saved record:
+  evidence/logs/e7-device-pull-20260627-post-user-review/generated-package/saved_record.json
+  status=saved_local_only
+  runtimeReady=false
+
+Captured source:
+  evidence/logs/e7-device-pull-20260627-post-user-review/source-pair-111840Z-12/
+  frame.png
+  arface_export.json
+  projected_mesh_overlay.png
+  capture_summary.json
+
+Capture summary:
+  trackingState=Tracking
+  mesh vertex/index/uv=1220/6912/1220
+  qualityGate=pending_visual_review
+  coordinateSpaceValidated=false
+
+Mask diagnostics:
+  UV mask 128x128
+  alpha nonzero texels=193
+  alpha >= 128 texels=168
+  roundTripPreview=in_app_round_trip_preview_pending
+```
+
+실제로 된 것:
+
+```txt
+Unity capture exporter가 frame.png / arface_export.json / capture_summary.json을 생성했다.
+ARFace mesh/UV/blendShapes가 capture export에 들어왔다.
+native Vision provider가 현재 capture frame에서 lipBoundary2D를 만들었다.
+RN JS가 boundary + ARFace export로 raw RGBA UV mask package를 만들었다.
+saveGeneratedPackage가 local Documents/e7-generated-lip-packages에 package와 saved_record를 썼다.
+Unity runtime apply path의 코드 구조는 raw RGBA texture register -> ARFace UV mesh sample 방향으로 존재한다.
+```
+
+실제로 안 닫힌 것:
+
+```txt
+정렬 step은 실제 gate가 아니라 고정 체크마크라 얼굴이 없어도 통과처럼 보인다.
+촬영 step은 실제 capture를 하지만, 여러 shot button 때문에 완료/중복/다음 shot 상태가 불명확하다.
+같은 captureSet 안에 12장이 쌓였고 neutral/yawRight가 중복됐다.
+정면과 입 다물기 shot이 사용자 행동상 겹친다.
+Extract는 provider 하나를 선택하는 단계인데 Compare wording이 provider 비교처럼 보인다.
+이번 저장 package는 Vision만 담겼고 MediaPipe 실기기 결과는 아직 별도 evidence가 없다.
+Adjust preview는 frame image만 보여주고 mask overlay를 그리지 않는다.
+Adjust 화면은 lip crop처럼 느껴지고 전체 얼굴 판단에 불리하다.
+저장 step이 별도 page로 남아 있어 flow가 늘어진다.
+저장 후 Unity에 payload를 보내지만 generated_lip_mask_applied ack를 성공 조건으로 쓰지 않는다.
+앱은 AR lip runtime 화면으로 전환하지 않고 runtime-ready 문구만 보여준다.
+runtimeReady=false가 saved package와 saved_record에 그대로 남아 있다.
+과거 run의 Unity apply ack는 파일로 persist되지 않아 사후 분석으로 복구할 수 없다.
+```
+
+이 섹션은 위 문제를 해결하기 전까지 17.2 Xcode Gate Prompt를 supersede한다.
+다음 작업의 목표는 "다시 빌드"가 아니라 "다시 빌드할 가치가 있는 제품 flow fix"다.
+
+#### 13.8.1 Fix 원칙
+
+```txt
+1. 화면 shell이 아니라 실제 state machine을 고친다.
+2. 사용자는 한 단계씩만 진행한다. 탭처럼 건너뛰지 않는다.
+3. 촬영 이후에는 live camera가 아니라 captured-frame review가 기본이다.
+4. 촬영은 하나의 primary capture button으로만 실행한다.
+5. Extract는 Vision 또는 MediaPipe 중 하나를 선택한다.
+6. Compare라는 말은 provider 비교에 쓰지 않는다. 제품 flow에서는 "블렌딩 선택"으로 바꾼다.
+7. Adjust는 전체 얼굴 captured frame 위에 mask를 크게 보여준다.
+8. 저장 별도 단계는 제거한다. 최종 CTA는 "저장하고 AR 실행"이다.
+9. 저장 성공, Unity payload 전송 성공, Unity runtime apply 성공을 분리한다.
+10. Unity apply ack가 없으면 AR 적용 성공이라고 말하지 않는다.
+11. Debug/log는 얼굴 판단 영역을 가리지 않는다.
+12. local-only/privacy는 유지한다. raw frame은 calibration session 이후 cleanup 대상이다.
+```
+
+#### 13.8.2 새 사용자 flow
+
+기본 제품 flow:
+
+```txt
+Step 1. 시작
+  목적: 현재 얼굴에서 local-only 맞춤 mask를 만든다는 것만 짧게 알림
+  CTA: 시작
+
+Step 2. 얼굴 정렬
+  화면: live camera 허용
+  gate:
+    AR tracking true
+    faceCount == 1
+    face centered
+    yaw/roll/pitch within threshold
+    brightness acceptable
+    blur/shake acceptable if signal available
+  실패 시:
+    CTA disabled
+    reason 표시: 얼굴을 중앙에 맞춰주세요 / 밝은 곳으로 이동해주세요 / 흔들림을 줄여주세요
+  성공 시:
+    CTA: 촬영으로 이동
+
+Step 3. 촬영
+  화면: live camera 허용
+  primary button: 촬영
+  secondary: 이전, 현재 컷 다시 찍기 only after capture
+  button grid 금지. shot cards는 progress display만 가능.
+  required shot:
+    neutral: 정면, 입 편하게 닫기
+  optional assist shots:
+    open: 입 살짝 벌리기
+    smile: 미소
+    pucker: 오므리기
+  mouthClosed는 neutral과 겹치므로 별도 필수 shot에서 제거한다.
+  각 shot 완료 시:
+    haptic/flash/check/thumbnail/capturePairId 표시
+    "저장된 frame 기준으로 진행합니다" 문구 표시
+  capture set 완료 후:
+    visible live camera off
+    captured neutral frame review로 전환
+
+Step 4. 추출 방식 선택
+  화면: captured neutral frame review
+  선택: Vision 또는 MediaPipe 중 하나
+  CTA: 선택한 방식으로 경계 생성
+  gate:
+    selected provider result ready
+    blocked이면 blockedReason 표시
+  optional diagnostic:
+    "다른 방식도 테스트" 버튼으로 provider comparison을 별도 debug/research flow에서만 허용
+
+Step 5. 블렌딩 선택
+  기존 Compare 이름을 제품 UI에서 제거한다.
+  화면: 선택 provider에서 생성된 후보만 보여준다.
+  기본 후보:
+    블렌딩 끔: uvOnly
+    블렌딩 켬: blendshapeAssist
+  필요하면 softness/material 후보를 추가한다.
+  카드에는 provider를 반복 강조하지 말고, 사용자 의미를 표시한다:
+    기본
+    표정 보정
+    부드러운 가장자리
+    안전 범위
+  gate:
+    selected candidate has package
+    UV mask positive texel count above minimum
+    frame preview and mask overlay available
+
+Step 6. 조정
+  화면: 전체 얼굴 captured frame을 크게 표시
+  lip만 확대 crop 금지. region focus zoom은 optional.
+  mask overlay를 즉시 표시한다.
+  lip 외 region 확장에 대비해 UI wording은 "입술 미세 조정"이 아니라 "마스크 미세 조정"으로 시작한다.
+  current region label은 작게 표시한다.
+  controls:
+    cornerReach
+    upperLipTightness
+    lowerLipTightness
+    verticalOffset
+  slider/stepper 변경 시:
+    native provider 재호출 금지
+    cached boundary + ARFace export로 package 즉시 rebuild
+    preview overlay 즉시 redraw
+    selected package adjustment metadata 즉시 갱신
+  CTA:
+    저장하고 AR 실행
+
+Step 7. 저장하고 AR 실행
+  별도 Save page 제거.
+  버튼 클릭 한 번으로:
+    latest package save
+    Unity ApplyGeneratedLipMaskJson post
+    generated_lip_mask_applied ack 대기
+  성공 조건:
+    saved_record.status == saved_local_only
+    Unity ack status == partial or ready
+    applied == true
+    uvAvailable == true
+    maskTriangles > 0
+  성공 시:
+    wizard close or collapse
+    AR lip runtime screen 표시
+    visible makeup layer가 얼굴에 붙어 있어야 함
+  실패 시:
+    captured review 화면 유지
+    retry button
+    compact error reason
+    debug drawer에 full ack/error
+```
+
+#### 13.8.3 RN implementation contract
+
+```txt
+State machine:
+  replace free tab-like step movement with explicit transition reducer
+  each step owns enter conditions, exit conditions, and failure reason
+  impossible states should be blocked in reducer, not only disabled in UI
+
+Capture:
+  replace shot button grid with one capture button and a currentShot queue
+  track currentShotIndex, currentShotKind, required/optional profile, capturedAt, capturePairId
+  neutral is required
+  mouthClosed is removed or merged into neutral copy
+  duplicate capture of same shot requires explicit Retake
+
+Camera visibility:
+  before/during capture: live Unity view visible
+  after final required capture: live Unity view visually hidden by captured-frame review surface
+  if technically safe, send Unity pause/suppress camera background command after final capture
+  if not safe, opaque captured frame overlay is minimum acceptance
+
+Alignment:
+  align checks cannot be hardcoded checkmarks
+  derive from latest Unity face_feature_snapshot / face_lifecycle / metric events
+  if signal unavailable, show "측정 대기" instead of green
+  photo 8 class failure, face absent while checks green, must be impossible
+
+Provider result:
+  nativeProviderResults should store Vision and MediaPipe independently
+  product selectedProvider can be one provider
+  provider comparison is diagnostic, not the main "블렌딩 선택" page
+
+Mask preview:
+  Adjust preview must render mask overlay, not only framePreviewUri.
+  Because RN project does not currently include react-native-svg or Skia, prefer one of:
+    A. small native iOS preview view that draws UIImage + boundary/mask CALayer from props
+    B. native iOS helper that returns preview PNG URI for current adjusted boundary
+    C. add react-native-svg only if dependency addition is explicitly accepted and verified
+  Required behavior:
+    full-face frame visible
+    selected candidate mask visible
+    slider update redraws without user-visible delay
+    overlay bounds match frame dimensions/orientation
+
+Save/apply:
+  saveSelectedGeneratedPackage becomes saveAndApplySelectedGeneratedPackage
+  no separate wizardStep='save'
+  introduce applying state:
+    saving
+    postingToUnity
+    waitingUnityAck
+    applied
+    blocked
+  generated_lip_mask_applied event must update state.
+  recipe_applied alone is not enough for generated mask success.
+  runtimeReady becomes derived from Unity ack, not prefilled package flag.
+```
+
+#### 13.8.4 Unity implementation contract
+
+```txt
+Existing good path:
+  ApplyGeneratedLipMaskJson parses payload
+  RegisterGeneratedLipMaskTexture loads raw RGBA into Texture2D
+  ApplyRegionRecipe builds smooth-region-mask layer
+  SendGeneratedLipMaskAppliedEvent emits applied/blocked event
+
+Required fixes:
+  generated_lip_mask_applied must be persisted for post-run diagnosis.
+  write a local jsonl or latest JSON under Documents/e7-runtime-events/
+  include:
+    generatedMaskId
+    provider
+    expressionMode
+    captureSetId
+    applied
+    faceCount
+    uvAvailable
+    maskTriangles
+    maskThreshold
+    maskFeatherUvNormalized
+    adjustment
+    error if blocked
+  RN must surface this event in compact UI without covering the face.
+
+Runtime visibility:
+  validation look should be visibly different enough for first apply proof.
+  if the generated mask has too few positive alpha texels, emit blocked/tiny_mask warning rather than silent success.
+  keep product material separate from debug high-contrast material.
+
+Camera/capture:
+  CaptureE7ReferenceFrameJson remains the source of truth for real capture.
+  capture_summary qualityGate should become pass/blocked/pending_visual_review with real reasons.
+  coordinateSpaceValidated=false is acceptable only before visual review, not as final acceptance.
+```
+
+#### 13.8.5 Native provider contract
+
+```txt
+Vision:
+  current frame only
+  return framePreviewUri
+  return lipBoundary2D
+  return provider diagnostics
+
+MediaPipe:
+  current frame only
+  bundled local face_landmarker.task only
+  no fixture/replay
+  return ready or concrete blockedReason
+  must produce its own evidence package in the next device run
+
+Both:
+  return enough metadata for preview, save, and post-run inspection:
+    captureSetId
+    capturePairId
+    captureShotKind
+    frameWidth/frameHeight
+    boundary point counts
+    generationMethod
+    warnings
+```
+
+#### 13.8.6 Evidence and logging contract
+
+다음 fix는 "눈으로 봤다"만으로 완료하지 않는다.
+기기에서 꺼낼 수 있는 evidence를 반드시 남긴다.
+
+```txt
+App Documents expected after one successful run:
+  e7-reference-atlas/capture_pairs/<pair>/frame.png
+  e7-reference-atlas/capture_pairs/<pair>/arface_export.json
+  e7-reference-atlas/capture_pairs/<pair>/capture_summary.json
+  e7-generated-lip-packages/<generatedMaskId>/generated_lip_package.json
+  e7-generated-lip-packages/<generatedMaskId>/saved_record.json
+  e7-runtime-events/generated_lip_mask_applied.latest.json
+  e7-runtime-events/events.jsonl
+
+Required copied evidence:
+  device Documents file listing JSON
+  selected generated package
+  selected capture summary
+  UV mask alpha diagnostic
+  full-face mask preview screenshot
+  AR runtime applied screenshot
+  console-captured run log when possible
+```
+
+Console capture policy:
+
+```txt
+devicectl cannot attach to past app stdout.
+To capture Unity apply logs, launch app with devicectl process launch --console and reproduce the flow.
+If user action is needed, ask immediately and Slack-alert if configured.
+Do not claim Unity apply success from saved_record alone.
+```
+
+Privacy cleanup:
+
+```txt
+Development evidence may temporarily keep pulled frame.png under evidence/logs for diagnosis.
+Product flow must not keep raw camera frames long-term after package/apply unless user explicitly exports evidence.
+After successful apply, app should keep derived mask/package/metadata and expire raw frame cache.
+No upload.
+No external server.
+```
+
+#### 13.8.7 Fix execution phases
+
+Phase F0. Reproduce and lock failing evidence:
+
+```txt
+Read current pulled package/summaries.
+Add failing-state notes to QA checklist.
+No implementation yet.
+```
+
+Exit:
+
+```txt
+Each user complaint mapped to code path and evidence.
+No disagreement with user unless supported by log.
+```
+
+Phase F1. State machine and UI naming:
+
+```txt
+Remove product-facing Save step.
+Rename Compare -> 블렌딩 선택.
+Remove tab-like step affordance from product flow.
+Keep step indicators as progress only.
+Add previous/retake rules.
+Replace hardcoded align checks with measured states or "측정 대기".
+```
+
+Exit:
+
+```txt
+RN tests prove blocked skip, back, retake, disabled next, and no hardcoded green pass.
+```
+
+Phase F2. Capture UX:
+
+```txt
+Implement single capture button queue.
+Remove required mouthClosed duplication.
+Show capture feedback: flash/check/haptic/capturePairId/thumbnail.
+Hide visible live camera after final required capture.
+```
+
+Exit:
+
+```txt
+One neutral capture creates one current neutral pair unless Retake is pressed.
+Duplicate capture requires explicit Retake.
+Capture page has one primary capture CTA.
+```
+
+Phase F3. Preview and adjustment:
+
+```txt
+Implement full-face mask overlay preview.
+Use cached boundary + ARFace export for immediate package rebuild.
+No native provider recall on slider change.
+Make preview and saved package use the same adjusted boundary.
+```
+
+Exit:
+
+```txt
+Changing cornerReach/upper/lower/Y changes visible overlay immediately.
+Saved package adjustment equals UI value.
+UV raw mask alpha metrics change when adjustment changes.
+```
+
+Phase F4. Provider and blending:
+
+```txt
+Keep extraction provider single-select.
+Generate selected provider candidates.
+Show uvOnly/blendshapeAssist as blending choices.
+Run MediaPipe on-device in a dedicated test pass and record separate evidence.
+```
+
+Exit:
+
+```txt
+Vision package and MediaPipe package can each be generated or each blocked with concrete reason.
+Product UI no longer implies provider comparison when only one provider is selected.
+```
+
+Phase F5. Save/apply/AR transition:
+
+```txt
+Implement saveAndApply.
+Wait for generated_lip_mask_applied event.
+Persist Unity ack in Documents.
+If ack success, close/collapse wizard and enter AR lip runtime.
+If ack blocked, remain in review with retry.
+```
+
+Exit:
+
+```txt
+saved_record alone cannot move app to applied state.
+Unity ack with applied=true/uvAvailable=true/maskTriangles>0 is required.
+AR screen visibly changes after success.
+```
+
+Phase F6. Buildless and device retest gate:
+
+```txt
+Before build:
+  RN tsc/test/lint
+  web typecheck/lint/build
+  shared-core typecheck/test
+  Unity batchmode generated-mask smoke
+  git diff --check
+
+Then user-approved build:
+  build_m3_unityframework.sh
+  RN/Xcode install/run
+  console-captured reproduction if possible
+  devicectl pull Documents evidence
+```
+
+Exit:
+
+```txt
+Every original user complaint is marked fixed, still failing, or deferred with reason.
+No Green/product-quality-ready claim until visual/runtime acceptance exists.
+```
+
+#### 13.8.8 Original complaint mapping
+
+| User complaint | Root cause found | Fix |
+| --- | --- | --- |
+| 마스크가 안보임 | Adjust preview renders frame image only, no mask overlay | full-face mask overlay preview; UV/mask diagnostics; visible validation material |
+| 촬영이 되는지 모르겠음 | capture files exist but UI feedback weak | one capture button, flash/check/haptic/thumbnail/capturePairId |
+| 정면/입 다물기가 겹침 | neutral and mouthClosed both ask for closed-mouth behavior | merge mouthClosed into neutral; keep optional expression shots distinct |
+| 촬영 버튼 여러 개 | shot grid buttons are primary actions | one primary capture CTA with current shot prompt |
+| 촬영 티가 안남 | no strong transition to captured review | freeze captured frame after shot; show saved pair id and thumbnail |
+| 비교 페이지가 이상함 | one provider selected but page reads like provider compare | rename to 블렌딩 선택; provider comparison becomes diagnostic |
+| 조정에서 얼굴이 너무 작거나 crop됨 | preview slot uses small/cropped frame | full-face captured frame is primary surface |
+| 저장 단계 없애기 | separate save page remains | final CTA is 저장하고 AR 실행 |
+| 적용 변화 없음 | RN does not wait for Unity generated mask ack or transition to AR | generated_lip_mask_applied ack gate; AR screen transition on success |
+| AR 립 화면으로 안 넘어감 | wizardStep runtime only, no runtime view state | explicit applied state closes/collapses wizard and resumes AR look |
+| 얼굴 없는데 정렬 체크 통과 | hardcoded checkmarks | measured alignment gate or waiting/blocked reason |
+| 로그가 얼굴을 가림 | debug surfaces still too visible in product flow | compact drawer/sheet only, not center face |
+
+#### 13.8.9 Non-goals for this fix
+
+```txt
+No backend/server generation.
+No Android.
+No commercial SDK.
+No live per-frame Vision/MediaPipe/face parsing.
+No product Green claim.
+No broad cosmetic renderer redesign.
+No full face region expansion beyond keeping UI wording compatible.
+```
+
+#### 13.8.10 New success definition
+
+이 fix가 끝났다고 말하려면 아래가 모두 필요하다.
+
+```txt
+1. 사용자 flow:
+   Start -> Align -> Capture -> Extract -> Blending Select -> Adjust -> Save and Run AR
+   without skipped gates.
+
+2. Capture:
+   one button, visible feedback, real Documents capture pair, duplicate only by Retake.
+
+3. Preview:
+   full-face captured frame with visible mask overlay.
+
+4. Adjustment:
+   slider changes preview and saved package immediately.
+
+5. Provider:
+   Vision and MediaPipe can be tested separately from current frame.
+
+6. Save/apply:
+   saved_record exists.
+   Unity generated_lip_mask_applied ack exists.
+   app state changes only after ack.
+
+7. Runtime:
+   AR lip view is visible after apply.
+   debug/log does not cover face.
+
+8. Evidence:
+   package, capture summary, runtime ack, screenshots/logs copied.
+
+9. Honesty:
+   if any item is missing, status is partial or blocked, not complete.
+```
+
 ## 14. User-Required Gates
 
 반드시 사용자 도움을 요청해야 하는 경우:
@@ -2345,9 +2912,9 @@ E7 in-app personalized Generate flow를 Xcode 빌드 직전까지 완성한다. 
 ### 17.1 Superseded: partial 상태에서 이어가던 Goal Prompt
 
 ```txt
-상태: superseded by 13.5 / 17.2.
+상태: superseded by 13.5 / 17.2, and 17.2 is now superseded by 13.8 / 17.3.
 남아 있던 native MediaPipe iOS dependency/model blocker는 2026-06-27 pre-Xcode pass에서 해소됐다.
-현재 이어갈 때는 아래 17.2 Xcode Gate Prompt를 사용한다.
+현재 이어갈 때는 17.3 real-device review fix prompt를 사용한다.
 
 cwd=/Users/wiseungcheol/Desktop/makeupAR
 
@@ -2411,7 +2978,14 @@ E7 in-app personalized Generate flow를 "Xcode build/install/run만 남은 상�
 - Xcode build가 필요해지는 순간 scripts/notify_slack_user_required.py로 Slack 알림을 시도하고 사용자 승인을 기다린다.
 ```
 
-### 17.2 현재 pre-Xcode-ready 상태에서 이어갈 Xcode Gate Prompt
+### 17.2 Superseded: pre-Xcode-ready 상태에서 이어가던 Xcode Gate Prompt
+
+```txt
+상태: superseded by 13.8 / 17.3.
+2026-06-27 실기기 사용자 리뷰에서 제품 flow 결함이 확인됐다.
+아래 prompt는 "Xcode build/install/run만 남았다"는 이전 가정에 기반하므로 현재 실행 금지다.
+먼저 13.8 fix plan과 17.3 prompt로 RN/UI/state/apply evidence를 고친 뒤 다시 build gate를 연다.
+```
 
 ```txt
 cwd=/Users/wiseungcheol/Desktop/makeupAR
@@ -2452,4 +3026,131 @@ E7 in-app personalized Generate flow는 pre-Xcode-ready 상태다. 이제 사용
 - 빌드/install/launch 결과와 실패 로그를 TECH_VALIDATION_RESULT.md에 기록
 - 성공하더라도 Green/product-ready로 올리지 말고 runtime evidence와 visual acceptance를 분리 기록
 - 실패 시 blocker와 fallback을 기록
+```
+
+### 17.3 현재 Goal Prompt: real-device review fix before next build
+
+```txt
+cwd=/Users/wiseungcheol/Desktop/makeupAR
+
+목표:
+2026-06-27 실기기 사용자 리뷰에서 드러난 E7 in-app personalized Generate flow 결함을 고친다. 목표는 다시 Xcode 빌드부터 하는 것이 아니라, 다음 빌드 전에 RN wizard/state machine, capture UX, full-face mask preview, blending selection, save-and-apply ack gate, AR lip runtime transition, persistent evidence logging을 build-ready 상태로 만드는 것이다. 완료 상태는 "다음 사용자 승인 후 한 번의 Xcode build/install/run으로 검증할 수 있는 fix build candidate"여야 한다.
+
+필수 읽기:
+1. AGENTS.md
+2. TECH_VALIDATION_RESULT.md > Current Session Snapshot
+3. docs/roadmaps/README.md
+4. docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md > 13.8
+5. 현 evidence:
+   - evidence/logs/e7-device-pull-20260627-post-user-review/generated-package/generated_lip_package.json
+   - evidence/logs/e7-device-pull-20260627-post-user-review/generated-package/saved_record.json
+   - evidence/logs/e7-device-pull-20260627-post-user-review/source-pair-111840Z-12/capture_summary.json
+   - evidence/logs/e7-device-pull-20260627-post-user-review/source-frame-lip-boundary-overlay.png
+   - evidence/logs/e7-device-pull-20260627-post-user-review/uv-mask-alpha-visible.png
+
+핵심 문제:
+- capture/extract/save 파일 생성은 실제로 됐지만 제품 flow가 닫히지 않았다.
+- 정렬 check가 hardcoded라 얼굴이 없어도 통과처럼 보였다.
+- 촬영 UI가 여러 버튼/중복 capture로 혼란스럽다.
+- 정면과 입 다물기 shot이 겹친다.
+- adjust 화면은 mask overlay를 그리지 않는다.
+- compare wording이 provider 비교와 blending 선택을 섞는다.
+- save step이 별도 page로 남아 있다.
+- Unity apply ack를 기다리지 않아 AR lip 화면으로 넘어가지 않는다.
+- saved_record는 local save일 뿐 runtime apply proof가 아니다.
+- runtimeReady=false가 남아 있고 generated_lip_mask_applied ack evidence가 없다.
+
+필수 작업:
+1. RN wizard state machine 수정
+   - 자유 step jump 제거
+   - reducer/transition guard로 단계 이동 통제
+   - hardcoded align check 제거
+   - measured face/tracking/center/brightness/shake 상태 또는 측정 대기 표시
+
+2. Capture UX 수정
+   - shot grid primary buttons 제거
+   - 하나의 "촬영" 버튼으로 current shot queue 진행
+   - neutral required
+   - mouthClosed는 neutral과 합치고 별도 필수 shot에서 제거
+   - optional assist shots는 open/smile/pucker/yaw처럼 의미가 분리될 때만 사용
+   - 촬영 완료 feedback: flash/check/haptic/thumbnail/capturePairId
+   - final capture 후 visible live camera off, captured frame review로 전환
+
+3. Provider/extraction/블렌딩 flow 수정
+   - Extract는 Vision 또는 MediaPipe 중 하나를 선택
+   - Compare 이름을 제품 UI에서 "블렌딩 선택"으로 변경
+   - 선택 provider에서 uvOnly/blendshapeAssist 후보를 생성
+   - provider comparison은 diagnostic/debug로 분리
+   - Vision/MediaPipe current-frame evidence는 각각 ready 또는 blockedReason으로 남김
+
+4. Full-face mask preview 구현
+   - Adjust는 전체 얼굴 captured frame이 크게 보이는 화면이어야 함
+   - lip crop만 보이면 실패
+   - mask overlay가 실제로 보여야 함
+   - RN에 react-native-svg/Skia가 없으므로 우선 native iOS preview view 또는 native preview PNG helper를 검토
+   - slider 조정 시 native provider 재호출 없이 cached boundary + ARFace export로 package/preview 즉시 rebuild
+   - preview와 saved package가 같은 adjusted boundary를 사용
+
+5. 저장하고 AR 실행으로 flow 단순화
+   - separate Save page 제거
+   - Adjust 마지막 CTA를 "저장하고 AR 실행"으로 변경
+   - saveGeneratedPackage -> ApplyGeneratedLipMaskJson -> generated_lip_mask_applied ack 대기
+   - saved_record만으로 applied 상태 진입 금지
+   - ack success 조건: applied=true, uvAvailable=true, maskTriangles>0
+   - success 시 wizard close/collapse 후 AR lip runtime screen 표시
+   - blocked 시 retry/error/debug drawer 표시
+
+6. Persistent evidence logging
+   - Unity generated_lip_mask_applied event를 Documents/e7-runtime-events/에 latest JSON/jsonl로 저장
+   - RN도 save/apply state transition을 jsonl로 남김
+   - devicectl로 사후 pull 가능한 구조
+   - console attach가 안 되는 과거 run 한계를 문서화
+
+7. Debug/log UI
+   - 얼굴 중앙을 가리지 않게 drawer/sheet로만 표시
+   - product flow 기본 화면에는 large debug panel 금지
+
+8. Privacy/cache cleanup
+   - no upload 유지
+   - raw frame은 calibration/debug 기간 동안만 local temp/evidence로 사용
+   - 성공 적용 후 product app cache에서는 raw frame expire/cleanup 계획 반영
+
+검증:
+- RN ./node_modules/.bin/tsc --noEmit
+- RN npm test -- --runInBand --watchman=false
+- RN npm run lint
+- web npm run typecheck
+- web npm run lint
+- web npm run build
+- packages/lip-generate-core npm run typecheck
+- packages/lip-generate-core npm test
+- Unity generated-mask/editor or batchmode smoke
+- git diff --check
+
+QA 체크:
+- 얼굴이 없으면 정렬 통과처럼 보이지 않는다.
+- 촬영 page primary capture button은 하나다.
+- 촬영 완료 feedback이 확실하다.
+- capture 후 review 화면은 live camera처럼 보이지 않는다.
+- 블렌딩 선택 page는 provider 비교처럼 보이지 않는다.
+- 조정 화면은 전체 얼굴 + visible mask overlay다.
+- 조정값은 preview/package/UV alpha에 즉시 반영된다.
+- 저장 버튼은 곧바로 save/apply/ack gate를 수행한다.
+- Unity ack 없이 applied 상태가 되지 않는다.
+- success 후 AR lip runtime 화면으로 넘어간다.
+- debug/log는 얼굴을 가리지 않는다.
+
+완료 조건:
+- 위 QA 체크가 buildless/source level에서 통과한다.
+- user complaint mapping이 fixed/partial/blocked로 업데이트된다.
+- TECH_VALIDATION_RESULT.md에 fix plan status, evidence, next build boundary를 기록한다.
+- active roadmap 13.8 상태가 구현 결과와 맞게 갱신된다.
+- Xcode build/install/run은 사용자 승인 전 실행하지 않는다.
+
+멈춤/질문 조건:
+- Xcode build가 필요해지면 즉시 멈추고 사용자에게 요청한다.
+- 기기 unlock/camera permission/visual judgment가 필요하면 즉시 요청한다.
+- 새 RN dependency 추가가 필요하면 이유, 대안, 영향도를 설명하고 승인받는다.
+- MediaPipe가 current-frame에서 blocked면 blockedReason과 fallback을 먼저 보고한다.
+- 일부만 끝나면 complete라고 하지 말고 partial/blocked를 명시한다.
 ```

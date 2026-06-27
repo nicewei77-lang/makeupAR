@@ -28,6 +28,10 @@ export type E7NativeBoundaryResult = {
   framePath: string;
   framePreviewUri?: string;
   arFaceExportPath: string;
+  fullFaceLandmarksPath?: string;
+  debugArtifacts?: {
+    fullFaceLandmarks?: string;
+  };
   frameWidth: number;
   frameHeight: number;
   boundary?: {
@@ -476,6 +480,7 @@ export function buildGeneratedLipPackage(input: {
         outerPointCount: result.boundary?.outerPoints.length ?? 0,
         innerPointCount: result.boundary?.innerPoints.length ?? 0,
         generationMethod: result.boundary?.generationMethod,
+        fullFaceLandmarksPath: result.fullFaceLandmarksPath,
         blockedReason: result.blockedReason,
         warnings: result.warnings ?? [],
       },

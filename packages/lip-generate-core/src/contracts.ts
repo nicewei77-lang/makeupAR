@@ -102,6 +102,7 @@ export type LipProviderResultSummary = {
   outerPointCount?: number;
   innerPointCount?: number;
   generationMethod?: string;
+  fullFaceLandmarksPath?: string;
   blockedReason?: string;
   warnings?: string[];
 };

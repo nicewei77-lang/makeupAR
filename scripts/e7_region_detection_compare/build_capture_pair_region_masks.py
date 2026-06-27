@@ -293,6 +293,18 @@ def run_vision(frame_path: Path, output_json: Path, capture_pair_id: str) -> dic
     return data
 
 
+def load_native_provider_artifact(capture_pair: Path, provider: str) -> dict[str, Any] | None:
+    path = capture_pair / f"{provider}_face_landmarks.json"
+    if not path.exists():
+        return None
+    data = json.loads(path.read_text(encoding="utf-8-sig"))
+    data["_source"] = {
+        "kind": "ios_native_provider_artifact",
+        "path": str(path),
+    }
+    return data
+
+
 def contour_points(vision: dict[str, Any], name: str) -> list[tuple[float, float]]:
     contour = vision.get("contours", {}).get(name, {})
     points = contour.get("imagePoints", [])
@@ -656,7 +668,9 @@ def main() -> int:
     arface_by_region = {result.region: result for result in arface_results}
 
     vision_json = output_root / "vision" / "apple_vision_face_landmarks.json"
-    vision = run_vision(frame_path, vision_json, capture_pair_id)
+    vision = load_native_provider_artifact(capture_pair, "vision")
+    if vision is None:
+        vision = run_vision(frame_path, vision_json, capture_pair_id)
     vision_results = build_vision_results(frame, vision, arface_by_region["skin"].mask)  # type: ignore[arg-type]
 
     color_results = build_color_results(
@@ -671,7 +685,9 @@ def main() -> int:
     parsing_results = build_parsing_results(frame, parsing_dir, parsing)
 
     mediapipe_dir = output_root / "mediapipe" / "raw"
-    mediapipe = run_mediapipe_child(frame_path, args.mediapipe_model.resolve(), mediapipe_dir)
+    mediapipe = load_native_provider_artifact(capture_pair, "mediapipe")
+    if mediapipe is None:
+        mediapipe = run_mediapipe_child(frame_path, args.mediapipe_model.resolve(), mediapipe_dir)
     mediapipe_results = build_mediapipe_results(frame, mediapipe)
 
     all_results = arface_results + vision_results + parsing_results + color_results + mediapipe_results
