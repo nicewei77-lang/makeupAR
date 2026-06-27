@@ -261,12 +261,12 @@ or bridge rewrite.
   on a light background. Local follow-up now regenerates `Daily flat`,
   `Flat sharp`, and `Flat multiply` from that source. The PNG verifier now
   rejects hollow FLAT interiors; `Flat sharp` records inner fill `0.822/0.932`
-  with detailStd `57.63`. This fix is locally verified in commit `cd2c0fd` but
-  is not rebuilt or installed on iPhone yet.
+  with detailStd `57.63`. This fix was locally verified in commit `cd2c0fd` and
+  is included in the later `72648a9` Gap/Angle/Arch iPhone install.
 
 ## Local Verification
 
-- RN Jest: `npm test -- --runInBand` passed with 30 tests, including the
+- RN Jest: `npm test -- --runInBand` passed with 31 tests, including the
   daily-flat normal/sharp/multiply comparison path and preset-switch mask
   preservation.
 - Brow mask verifier passed for compatibility procedural mask
@@ -378,16 +378,35 @@ or bridge rewrite.
 - `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
   `evidence/logs/eyebrow-rn-devicectl-install-dailyflat-20260627-r1.log` and
   `evidence/logs/eyebrow-rn-devicectl-launch-dailyflat-20260627-r1.log`.
+- Gap/Angle/Arch and region-scoped parameter UI loop checks passed locally:
+  RN Jest `31/31`, TypeScript, RN lint, brow Unity contract verifier, PNG hair
+  verifier, and UnityFramework build contract verifier.
+- UnityFramework regeneration/sync passed for the Gap/Angle/Arch build with
+  `TIMESTAMP=eyebrow-gap-angle-arch-20260628-ufw-r1`. Artifact verification
+  recorded `126M` UnityFramework copies and `30M` `Data` folders in both RN and
+  package-local locations:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-gap-angle-arch-20260628-ufw-r1.log`.
+- RN/Xcode Debug build passed with
+  `evidence/logs/eyebrow-rn-xcodebuild-device-gap-angle-arch-20260628-r1.log`.
+  The built app bundle is `205M`, including a `126M`
+  `UnityFramework.framework`.
+- `devicectl` install passed on `CloudsiPhone (26.5)` with
+  `evidence/logs/eyebrow-rn-devicectl-install-gap-angle-arch-20260628-r1.log`.
+  Automated launch was attempted twice but the iPhone was locked, so launch was
+  denied by SpringBoard:
+  `evidence/logs/eyebrow-rn-devicectl-launch-gap-angle-arch-20260628-r1.log`
+  and
+  `evidence/logs/eyebrow-rn-devicectl-launch-gap-angle-arch-20260628-r2.log`.
 
 ## QA Status
 
-The latest installed iPhone build is the `9f35cbc` flat non-filled PNG build,
-which user QA rejected because FLAT candidates still rendered hollow. The
-current `cd2c0fd` source-2 FLAT fill fix is locally verified but not rebuilt
-onto the iPhone yet. Product quality is still not accepted until the user
-visually checks visibility, hair texture fidelity, curve shape, color,
-multiply-vs-normal behavior, preset switching, `soft_brow`, brow gap, and
-tracking recovery on the next approved build.
+The latest installed iPhone build is the `72648a9` Gap/Angle/Arch control
+build. It installed on `CloudsiPhone`, but automated launch is not yet verified
+because the phone was locked during both launch attempts. Product quality is
+still not accepted until the user opens the installed app or the launch command
+is rerun after unlock, then visually checks visibility, hair texture fidelity,
+curve shape, color, multiply-vs-normal behavior, preset switching, `soft_brow`,
+brow gap, angle, arch, and tracking recovery.
 
 ## Risks
 

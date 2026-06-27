@@ -241,7 +241,10 @@ Local checks before any real-device build:
   brow mask texture verifier, region renderer route verifier, UnityFramework
   build contract verifier, and Unity `6000.3.18f1` batchmode import/compile in
   `evidence/logs/eyebrow-gap-angle-arch-unity6000-batchmode-20260628.log`.
-  This was not installed on iPhone.
+  The approved iPhone build loop then regenerated/synced UnityFramework with
+  `TIMESTAMP=eyebrow-gap-angle-arch-20260628-ufw-r1`, passed RN/Xcode Debug
+  build, and installed on `CloudsiPhone`. Automated launch was blocked because
+  the device was locked.
 - Two earlier PNG hair attempts used Unity `2022.3.62f1`, which is not the
   project editor version and failed during package resolution because AR
   Foundation `6.3.5` requires Unity 6-era package dependencies. No iPhone build

@@ -454,17 +454,21 @@ recordings unless the user explicitly approves storing them.
 Build context:
 
 - Branch/commit: `feature/brow-0626`
-- Commit: `cd2c0fd`
+- Commit: `72648a9`
 - Device: `CloudsiPhone`
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
-- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: fill
-  after approved build
+- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`:
+  `TIMESTAMP=eyebrow-gap-angle-arch-20260628-ufw-r1`
 - Latest relevant Unity batchmode compile before this rebuild: pass,
-  `evidence/logs/eyebrow-flat2-filled-texture-unity6000-batchmode-20260628.log`
-- UnityFramework rebuild/sync: fill after approved build
-- RN/Xcode rebuild: fill after approved build
-- Install/launch: fill after approved build
+  `evidence/logs/eyebrow-gap-angle-arch-unity6000-batchmode-20260628.log`
+- UnityFramework rebuild/sync:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-gap-angle-arch-20260628-ufw-r1.log`
+- RN/Xcode rebuild:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-gap-angle-arch-20260628-r1.log`
+- Install/launch: install passed,
+  `evidence/logs/eyebrow-rn-devicectl-install-gap-angle-arch-20260628-r1.log`;
+  automated launch was blocked because the iPhone was locked.
 
 Minimum observations:
 
