@@ -434,3 +434,39 @@ Remaining:
   - Next gate: user iPhone visual QA must check brow visibility, placement,
     shape, color, `Warmth`/`Depth`, `Brow Spread`/`Brow Y`, tracking recovery,
     and lip/cheek/eye smoke behavior before calling the module complete.
+- 2026-06-27: User QA feedback on `eyebrow-rebuild-20260627-ufw-r1`.
+  - Confirmed: `spread=` and `y=` are visible and `Brow Spread`/`Brow Y`
+    adjustments apply.
+  - Clarified: `renderer=brow-smooth-region-mask-renderer` was hard to find; it
+    only appeared inside the long `recipe_applied` summary.
+  - Needs tuning: brow remains too faint, too centered, and angled upward enough
+    to read as angry. `Warmth`/`Depth` were not useful while visibility was too
+    low.
+  - RED: focused Jest failed after adding expectations for a `0.75/0.75`
+    default brow, `brow-back-arch-soft-mix-v1` as default, outward
+    `maskSpreadX=0.20`, visible `Renderer ...` compact HUD row, clearer
+    `Ash/Warm` and `Light/Dark` labels, and removal of the high-arch/legacy
+    brow mask options from the user-facing picker.
+  - RN update makes `Soft flat` (`brow-back-arch-soft-mix-v1`) the default,
+    leaves only `Soft flat` and `Slim tail fine` in the brow mask picker,
+    starts opacity/intensity at `0.75`, starts spread at `0.20`, expands
+    slider-to-Unity spread range to `±0.34`, renames visible color controls to
+    `Ash/Warm` and `Light/Dark`, and adds a separate compact HUD
+    `Renderer ...` line plus `mask=... spread=... y=...`.
+  - Unity update matches the wider `maskSpreadX` clamp in both `RNBridge` and
+    `E3RegionMaskOverlay`, changes the Unity default brow mask id to
+    `brow-back-arch-soft-mix-v1`, and raises brow alpha response so `75%`
+    should be readable while `100%` can be deliberately strong.
+  - Verifier update changes the default brow mask guard to
+    `brow-back-arch-soft-mix-v1`, tightens the top-edge arch guard to reduce the
+    `^ ^`/angry read, and separates user-facing mask options from compatibility
+    mask resources.
+  - GREEN: focused RN Jest passed with 26 tests; brow Unity contract, brow mask
+    texture verifier, and region renderer route verifier passed locally. This
+    follow-up tuning is not yet rebuilt or installed on the iPhone.
+  - Unity `6000.3.18f1` batchmode import/compile was attempted twice after
+    confirming no Unity Editor/Hub/Licensing process was active. Both attempts
+    failed before compile at Licensing Client IPC initialization:
+    `evidence/logs/eyebrow-followup-unity-batchmode-20260627.log` and
+    `evidence/logs/eyebrow-followup-unity-batchmode-20260627-r2.log`.
+    The Unity/Licensing processes started by those attempts were terminated.

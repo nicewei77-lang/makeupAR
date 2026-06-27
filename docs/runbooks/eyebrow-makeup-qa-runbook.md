@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Latest brow tuning rebuilt and launched; user QA pending
+Status: Follow-up brow QA tuning implemented locally; rebuild pending
 Date: 2026-06-27
 
 ## Scope
@@ -158,25 +158,36 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
 - Local post-QA tuning now raises brow visibility, adds brow-specific colors,
   and shifts the three selected masks outward/upward.
 - The latest approved rebuild installed and launched this post-QA tuning on
-  `CloudsiPhone (26.5)`. User visual QA for this rebuilt app is pending.
+  `CloudsiPhone (26.5)`.
+- User QA on that rebuilt app confirmed `spread=` and `y=` are visible and
+  adjustable, but `renderer=...` was hard to find because it only appeared in
+  the long `recipe_applied` summary. The brow still looked too faint, too
+  centered, and too sharply upward/angry.
+- Local follow-up tuning now exposes `Renderer ...` as its own compact HUD row,
+  defaults to the flatter `Soft flat` mask (`brow-back-arch-soft-mix-v1`),
+  removes high-arch/legacy masks from the user-facing picker, starts opacity and
+  intensity at `0.75`, starts `Brow Spread` at `0.20`, widens horizontal spread
+  to `±0.34`, and strengthens Unity brow alpha response. This follow-up tuning
+  is not installed on the iPhone yet.
 
 ## Brow Parameter Tuning Guide
 
 Use `neutral_brown` as the first color for natural dark brows. Start with
-opacity `0.68`, intensity `0.68`, coverage `0.62`, feather `0.48`.
+opacity `0.75`, intensity `0.75`, coverage `0.62`, feather `0.48`.
 
-For color, keep `neutral_brown` first and use `Warmth` and `Depth` before
-switching to a darker swatch. `Warmth` below `0.50` moves the result toward ash;
-above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
-darkens. Good first QA probes are `Warmth 0.40..0.60` and `Depth 0.55..0.75`.
+For color, keep `neutral_brown` first and use `Ash/Warm` and `Light/Dark`
+before switching to a darker swatch. `Ash/Warm` below `0.50` moves the result
+toward ash; above `0.50` makes it warmer. `Light/Dark` below `0.50` lightens;
+above `0.50` darkens. Good first QA probes are `Ash/Warm 0.40..0.60` and
+`Light/Dark 0.55..0.75`.
 
-For placement, leave `Brow Spread` and `Brow Y` at `0.50` first. If the brows
-still look too centered, move `Brow Spread` slightly above `0.50`; this expands
-both brows outward around the Unity mask centerline. If the brows still sit low,
-move `Brow Y` slightly above `0.50`. Use small steps such as `0.55`, then
-`0.60`, and record the best value before changing the mask asset again. The RN
-`recipe_applied` HUD summary should show the applied values as `spread=` and
-`y=` after Unity acknowledges the recipe.
+For placement, the follow-up tuning starts `Brow Spread` outward at `0.20`
+internally, which appears around `0.79` on the slider. If the brows still look
+too centered, move `Brow Spread` farther right; the new Unity clamp allows up to
+`0.34`. If the brows are too wide, move it left. If the brows still sit low,
+move `Brow Y` slightly above `0.50`. The compact AR Status HUD should show a
+separate `Renderer brow-smooth-region-mask-renderer` line plus `mask=...`,
+`spread=`, and `y=` after Unity acknowledges the recipe.
 
 If the brow is too faint, raise opacity first to `0.74..0.80`. If it is still
 too faint, raise intensity to `0.74..0.82`. Adjust coverage last, usually no
@@ -193,13 +204,13 @@ Check:
 - `brow` can be enabled and disabled independently.
 - `natural_brow` appears as the default brow sample.
 - `soft_brow` can be selected and updates immediately.
-- `brow-soft-arch-fine-hair-v1` is selected for brow by default.
-- `brow-back-arch-soft-mix-v1` and `brow-slim-tail-fine-hair-v1` can be selected
-  for visual comparison.
+- `Soft flat` (`brow-back-arch-soft-mix-v1`) is selected for brow by default.
+- `Slim tail fine` (`brow-slim-tail-fine-hair-v1`) can be selected for visual
+  comparison.
 - `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains
   attached.
-- The latest recipe HUD shows `renderer=brow-smooth-region-mask-renderer` for
-  brow plus applied `spread=`/`y=` values after Unity acknowledges the recipe.
+- The compact AR Status HUD shows `Renderer brow-smooth-region-mask-renderer`
+  plus applied `spread=`/`y=` values after Unity acknowledges the recipe.
 - Opacity and intensity changes update without restarting AR.
 - Brow color changes stay face-attached during small head motion.
 - Left and right head turns do not cause the brow to float or detach.
@@ -262,8 +273,8 @@ Minimum observations:
 | Raised brow / mild expression | Does the effect avoid severe eyelid/forehead bleed? |  |  |
 | `natural_brow` preset | Does it read as soft makeup rather than a sticker? |  |  |
 | `soft_brow` preset | Is the lighter preset still visible but natural? |  |  |
-| Brow mask options | Which of `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and `brow-slim-tail-fine-hair-v1` should be the default? |  |  |
-| `Warmth` / `Depth` | Do color changes apply immediately and stay natural? |  |  |
+| Brow mask options | Does `Soft flat` work better than `Slim tail fine` as the default? |  |  |
+| `Ash/Warm` / `Light/Dark` | Do color changes apply immediately and stay natural once visibility is readable? |  |  |
 | `Brow Spread` / `Brow Y` | Do placement changes apply immediately and improve centering/height? |  |  |
 | Opacity/intensity change | Do changes apply immediately without AR restart? |  |  |
 | Temporary tracking loss | Does the brow hide/fade and recover without stale placement? |  |  |

@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Latest brow tuning rebuilt and launched; user QA pending
+Status: Follow-up brow QA tuning implemented locally; rebuild pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -55,16 +55,17 @@ Important quality questions for device QA:
 
 First-loop presets use natural brow colors rather than lip colors:
 
-- `natural_brow`: neutral brown, multiply blend, opacity `0.68`,
-  intensity `0.68`, feather `0.48`, coverage `0.62`, roughness `1`,
+- `natural_brow`: neutral brown, multiply blend, opacity `0.75`,
+  intensity `0.75`, feather `0.48`, coverage `0.62`, roughness `1`,
   specular `0`, gloss boost `0`.
-- `soft_brow`: lighter brown, lower intensity `0.56`, feather `0.48`,
+- `soft_brow`: lighter brown, lower intensity `0.66`, feather `0.48`,
   coverage `0.58`, roughness `1`, specular `0`, gloss boost `0`.
 - Brow color choices are separate from lip colors: `ash_brown`,
   `neutral_brown`, `dark_brown`, and `soft_black`.
-- Brow color is also parameterized in the RN HUD with `Warmth` and `Depth`.
-  The selected swatch remains the base color, and RN sends the computed final
-  hex through the existing Unity `color` field.
+- Brow color is also parameterized in the RN HUD with user-facing
+  `Ash/Warm` and `Light/Dark` sliders. Internally these remain
+  `colorWarmth` and `colorDepth`; RN sends the computed final hex through the
+  existing Unity `color` field.
 - Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.
   `Brow Spread` symmetrically expands/contracts the two brow masks around the
   UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
@@ -167,16 +168,23 @@ or bridge rewrite.
   refreshing stale local CocoaPods VFS paths, installed it on
   `CloudsiPhone (26.5)`, and launched `com.celeste.makeupar.validation`. The
   latest visual QA is now pending on the rebuilt app.
+- 2026-06-27: User QA on that rebuilt app found `spread=`/`y=` visible and
+  adjustable, but `renderer=brow-smooth-region-mask-renderer` was hard to find,
+  the brows were still too centered, too faint, and angled upward enough to read
+  as angry. Local follow-up tuning now makes `brow-back-arch-soft-mix-v1` the
+  default `Soft flat` mask, removes high-arch/legacy masks from the user-facing
+  picker, raises brow opacity/intensity to `0.75`, widens `Brow Spread` to
+  `±0.34`, starts brow spread at `0.20`, strengthens Unity brow alpha response,
+  and shows `Renderer ...` as its own compact HUD row. This follow-up tuning is
+  not installed on-device yet.
 
 ## Local Verification
 
 - RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
   passed with 26 tests.
-- Brow mask verifier passed for the three selected local candidates:
-  `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
-  `brow-slim-tail-fine-hair-v1`. The verifier now accepts the thinner
-  fine-hair candidates while still guarding arch height and separation from
-  eye/cheek/lip masks.
+- Brow mask verifier passed for the new default `brow-back-arch-soft-mix-v1`.
+  The verifier now tightens the top-edge arch guard to reduce the angry
+  `^ ^` read while still checking separation from eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
   The verifier now guards brow renderer routing plus brow-specific
@@ -188,7 +196,11 @@ or bridge rewrite.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
-- UnityFramework regeneration/sync passed for the latest tuning with
+- After the follow-up QA tuning, Unity batchmode was retried twice but failed
+  before compile during Licensing Client IPC initialization. Logs:
+  `evidence/logs/eyebrow-followup-unity-batchmode-20260627.log` and
+  `evidence/logs/eyebrow-followup-unity-batchmode-20260627-r2.log`.
+- UnityFramework regeneration/sync passed for the prior installed tuning with
   `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1`.
 - RN/Xcode Debug build first failed because ignored CocoaPods files still
   referenced an old Dropbox `React-VFS.yaml` path. `pod install --no-repo-update`
@@ -200,14 +212,11 @@ or bridge rewrite.
 
 ## QA Status
 
-The feature is installed and launchable on the approved iPhone rebuild. Earlier
-device QA confirmed attachment, expression stability, and control response, then
-rejected the visuals as too faint, too centered, slightly low, and still using
-lip-color choices in the brow HUD. The latest installed rebuild includes the
-post-QA visibility increase, brow-specific colors, outward/upward mask shift,
-live `Warmth`/`Depth`, live `Brow Spread`/`Brow Y`, and applied placement
-diagnostics. Product quality is still not accepted until the user checks this
-rebuilt app on the iPhone.
+The latest installed iPhone build is launchable and confirmed `spread=`/`y=`
+delivery, but user QA still rejected the visual as too faint, too centered, and
+too upward/angry. The local branch now contains a stronger, flatter follow-up
+tuning pass. Product quality is still not accepted until this new local tuning
+is rebuilt, installed, and visually checked on the iPhone.
 
 ## Risks
 

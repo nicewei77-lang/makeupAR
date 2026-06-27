@@ -533,12 +533,16 @@ test('posts eyebrow as a fourth independent region layer', () => {
   );
 
   expect(browSample).toBeTruthy();
-  expect(browSample!.intensity).toBe(0.68);
+  expect(browSample!.intensity).toBe(0.75);
   expect(browSample!.feather).toBe(0.48);
   expect(browSample!.coverage).toBe(0.62);
   expect(browSample!.specular).toBe(0);
-  expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.68);
+  expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.75);
   expect(DEFAULT_REGION_RECIPES.brow.color).toBe(BROW_COLOR_OPTIONS[1]);
+  expect(DEFAULT_REGION_TUNING.brow.maskTextureId).toBe(
+    'brow-back-arch-soft-mix-v1',
+  );
+  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.2);
 
   const payload = buildValidationRecipeBatchPayload(
     {
@@ -563,7 +567,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
         ...DEFAULT_REGION_TUNING.brow,
         feather: browSample!.feather,
         coverage: browSample!.coverage,
-        maskSpreadX: 0,
+        maskSpreadX: DEFAULT_REGION_TUNING.brow.maskSpreadX,
         maskOffsetY: 0,
         roughness: browSample!.roughness,
         specular: browSample!.specular,
@@ -585,13 +589,13 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.enabled).toBe(true);
   expect(browLayer.texture).toBe('natural_brow');
   expect(browLayer.sample).toBe('natural_brow');
-  expect(browLayer.maskTextureId).toBe('brow-soft-arch-fine-hair-v1');
+  expect(browLayer.maskTextureId).toBe('brow-back-arch-soft-mix-v1');
   expect(browLayer.color).toBe('#4A342B');
-  expect(browLayer.opacity).toBe(0.68);
-  expect(browLayer.intensity).toBe(0.68);
+  expect(browLayer.opacity).toBe(0.75);
+  expect(browLayer.intensity).toBe(0.75);
   expect(browLayer.feather).toBe(0.48);
   expect(browLayer.coverage).toBe(0.62);
-  expect(browLayer.maskSpreadX).toBe(0);
+  expect(browLayer.maskSpreadX).toBe(0.2);
   expect(browLayer.maskOffsetY).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
@@ -912,10 +916,10 @@ test('surfaces eyebrow placement diagnostics from Unity recipe events', async ()
     textureMode: 'sample',
     blendMode: 'normal',
     finish: 'matte',
-    maskTextureId: 'brow-soft-arch-fine-hair-v1',
+    maskTextureId: 'brow-back-arch-soft-mix-v1',
     color: '#4A342B',
-    opacity: 0.68,
-    intensity: 0.68,
+    opacity: 0.75,
+    intensity: 0.75,
     coverage: 0.62,
     maskSpreadX: 0.12,
     maskOffsetY: 0.024,
@@ -926,14 +930,15 @@ test('surfaces eyebrow placement diagnostics from Unity recipe events', async ()
     uvAvailable: true,
     stateAction: 'tracking_render',
     topologyAuditStatus: 'pass_uv_topology_ready',
-    maskSource: 'brow-soft-arch-fine-hair-v1',
+    maskSource: 'brow-back-arch-soft-mix-v1',
     boundaryRenderer: 'brow_smooth_region_mask',
   });
 
   const text = collectText(renderer!);
 
+  expect(text).toContain('Renderer brow-smooth-region-mask-renderer');
   expect(text).toContain('recipe_applied region=brow');
-  expect(text).toContain('maskTex=brow-soft-arch-fine-hair-v1');
+  expect(text).toContain('maskTex=brow-back-arch-soft-mix-v1');
   expect(text).toContain('spread=0.120');
   expect(text).toContain('y=0.024');
 });
@@ -1046,7 +1051,7 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
     expect(eyeLayer.enabled).toBe(false);
     expect(browLayer.texture).toBe('natural_brow');
-    expect(browLayer.maskTextureId).toBe('brow-soft-arch-fine-hair-v1');
+    expect(browLayer.maskTextureId).toBe('brow-back-arch-soft-mix-v1');
     expect(browLayer.enabled).toBe(false);
   });
 });
@@ -1173,14 +1178,15 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('soft_black');
   expect(text).not.toContain('rose');
   expect(text).not.toContain('red');
-  expect(text).toContain('Warmth');
-  expect(text).toContain('Depth');
+  expect(text).toContain('Ash/Warm');
+  expect(text).toContain('Light/Dark');
   expect(text).toContain('Brow Spread');
   expect(text).not.toContain('Brow X');
   expect(text).toContain('Brow Y');
-  expect(text).toContain('Soft arch fine');
-  expect(text).toContain('Back arch soft');
+  expect(text).toContain('Soft flat');
   expect(text).toContain('Slim tail fine');
+  expect(text).not.toContain('High arch fine');
+  expect(text).not.toContain('Legacy drawn');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {

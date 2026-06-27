@@ -2215,7 +2215,7 @@ public sealed class RNBridge : MonoBehaviour
 
     private static float NormalizeMaskSpread(float maskSpread)
     {
-        return Mathf.Clamp(maskSpread, -0.16f, 0.16f);
+        return Mathf.Clamp(maskSpread, -0.34f, 0.34f);
     }
 
     private static string NormalizeBlendMode(string blendMode, string textureSample)
@@ -2294,7 +2294,7 @@ public sealed class RNBridge : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "brow":
-                return "brow-soft-arch-fine-hair-v1";
+                return "brow-back-arch-soft-mix-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }

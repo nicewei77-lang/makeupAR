@@ -78,7 +78,8 @@ export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
-const BROW_MASK_SPREAD_RANGE = 0.16;
+const DEFAULT_BROW_MASK_SPREAD_X = 0.2;
+const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
@@ -233,7 +234,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#4A342B',
-    intensity: 0.68,
+    intensity: 0.75,
     feather: 0.48,
     coverage: 0.62,
     finish: 'powder-brow',
@@ -251,7 +252,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#5A4034',
-    intensity: 0.56,
+    intensity: 0.66,
     feather: 0.48,
     coverage: 0.58,
     finish: 'soft-powder-brow',
@@ -473,7 +474,7 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-drawn-mask-v1',
   eye: 'eye-drawn-mask-v1',
-  brow: 'brow-soft-arch-fine-hair-v1',
+  brow: 'brow-back-arch-soft-mix-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -504,7 +505,7 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   },
   brow: {
     color: BROW_COLOR_OPTIONS[1],
-    opacity: 0.68,
+    opacity: 0.75,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
     colorWarmth: DEFAULT_COLOR_WARMTH,
@@ -557,10 +558,8 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
     { id: 'eye-smooth-mask-v1', label: 'Smooth' },
   ],
   brow: [
-    { id: 'brow-soft-arch-fine-hair-v1', label: 'Soft arch fine' },
-    { id: 'brow-back-arch-soft-mix-v1', label: 'Back arch soft' },
+    { id: 'brow-back-arch-soft-mix-v1', label: 'Soft flat' },
     { id: 'brow-slim-tail-fine-hair-v1', label: 'Slim tail fine' },
-    { id: 'brow-drawn-mask-v1', label: 'Legacy drawn' },
   ],
 };
 
@@ -626,6 +625,16 @@ function formatMaskTextureSummary(
     return 'Atlas';
   }
 
+  if (region === 'brow') {
+    if (maskTextureId === 'brow-back-arch-soft-mix-v1') {
+      return 'Soft flat';
+    }
+
+    if (maskTextureId === 'brow-slim-tail-fine-hair-v1') {
+      return 'Slim tail fine';
+    }
+  }
+
   return maskTextureId.replace(/-v1$/, '').split('-').join(' ');
 }
 
@@ -636,7 +645,7 @@ function buildDefaultRegionTuningForSample(
   return {
     feather: textureSample.feather,
     coverage: textureSample.coverage,
-    maskSpreadX: 0,
+    maskSpreadX: region === 'brow' ? DEFAULT_BROW_MASK_SPREAD_X : 0,
     maskOffsetY: 0,
     roughness: textureSample.roughness,
     specular: textureSample.specular,
@@ -2720,7 +2729,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 {focusedRegion === 'brow' && (
                   <>
                     <ValueSlider
-                      label="Warmth"
+                      label="Ash/Warm"
                       value={focusedRecipe.colorWarmth ?? DEFAULT_COLOR_WARMTH}
                       width={sliderWidth}
                       fillColor={selectedDisplayColor}
@@ -2731,7 +2740,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                     />
 
                     <ValueSlider
-                      label="Depth"
+                      label="Light/Dark"
                       value={focusedRecipe.colorDepth ?? DEFAULT_COLOR_DEPTH}
                       width={sliderWidth}
                       fillColor={selectedDisplayColor}
@@ -2885,7 +2894,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
+                    ? ` / ash-warm ${colorWarmthPercent}% / light-dark ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(
@@ -3164,6 +3173,10 @@ function CompactEvidenceHud({
   const stateAction = String(
     latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
   );
+  const rendererId = String(latestRecipe?.rendererId ?? 'waiting');
+  const maskTextureId = String(
+    latestRecipe?.maskTextureId ?? latestMetric?.maskSource ?? 'waiting',
+  );
 
   return (
     <View
@@ -3190,6 +3203,15 @@ function CompactEvidenceHud({
         )}ms state=${stateAction} latency=${formatMetricNumber(
           recipeLatencyMs,
         )}ms`}
+      </Text>
+      <Text style={styles.compactHudText} numberOfLines={1}>
+        {`Renderer ${rendererId}`}
+      </Text>
+      <Text style={styles.compactHudText} numberOfLines={1}>
+        {`mask=${maskTextureId} spread=${formatMetricNumber(
+          latestRecipe?.maskSpreadX,
+          3,
+        )} y=${formatMetricNumber(latestRecipe?.maskOffsetY, 3)}`}
       </Text>
     </View>
   );

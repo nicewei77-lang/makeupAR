@@ -22,12 +22,16 @@ DEFAULT_ROUTES = Path(
 DEFAULT_BROW_MASK_DIR = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 )
-DEFAULT_BROW_MASK_ID = "brow-soft-arch-fine-hair-v1"
+DEFAULT_BROW_MASK_ID = "brow-back-arch-soft-mix-v1"
 LEGACY_BROW_MASK_ID = "brow-drawn-mask-v1"
 SELECTED_BROW_MASK_IDS = (
     DEFAULT_BROW_MASK_ID,
-    "brow-back-arch-soft-mix-v1",
     "brow-slim-tail-fine-hair-v1",
+)
+SUPPORTED_BROW_MASK_IDS = (
+    *SELECTED_BROW_MASK_IDS,
+    "brow-soft-arch-fine-hair-v1",
+    LEGACY_BROW_MASK_ID,
 )
 
 
@@ -99,12 +103,13 @@ def main() -> None:
         "| 'soft_brow'",
         "RN recipe sample names must include soft_brow.",
     )
-    for mask_id in SELECTED_BROW_MASK_IDS:
+    for mask_id in SUPPORTED_BROW_MASK_IDS:
         require_contains(
             rn_app,
             f"| '{mask_id}'",
             f"RN mask texture ids must include {mask_id}.",
         )
+    for mask_id in SELECTED_BROW_MASK_IDS:
         require_contains(
             rn_app,
             f"id: '{mask_id}'",
@@ -137,7 +142,7 @@ def main() -> None:
         rf"case\s+\"brow\"\s*:\s*return\s+\"{DEFAULT_BROW_MASK_ID}\"",
         f"RNBridge GetDefaultMaskTextureId must return {DEFAULT_BROW_MASK_ID}.",
     )
-    for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID):
+    for mask_id in SUPPORTED_BROW_MASK_IDS:
         require_contains(
             rn_bridge,
             f'"{mask_id}"',
@@ -157,6 +162,11 @@ def main() -> None:
         rn_bridge,
         "MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX)",
         "RNBridge must normalize layer maskSpreadX into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "return Mathf.Clamp(maskSpread, -0.34f, 0.34f);",
+        "RNBridge must preserve the wider brow spread tuning range.",
     )
     require_contains(
         rn_bridge,
@@ -209,6 +219,11 @@ def main() -> None:
         overlay,
         'case "natural_brow":',
         "E3RegionMaskOverlay BuildMaterialColor must tune natural_brow.",
+    )
+    require_contains(
+        overlay,
+        "sampleAlphaScale = Mathf.Lerp(0.58f, 0.96f, recipe.Intensity);",
+        "E3RegionMaskOverlay must make natural_brow visible enough at 75% intensity.",
     )
     require_contains(
         overlay,
@@ -265,7 +280,7 @@ def main() -> None:
     )
     require_contains(
         overlay,
-        "MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.16f, 0.16f)",
+        "MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f)",
         "E3RegionMaskOverlay must clamp mask spread X.",
     )
     require_contains(

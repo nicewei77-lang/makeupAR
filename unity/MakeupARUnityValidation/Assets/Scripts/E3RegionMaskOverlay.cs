@@ -360,7 +360,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 : secondaryColorHex.Trim(),
             SecondaryColor = secondaryColor,
             Coverage = Mathf.Clamp01(coverage),
-            MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.16f, 0.16f),
+            MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f),
             MaskOffsetY = Mathf.Clamp(maskOffsetY, -0.08f, 0.08f),
             Finish = NormalizeOptional(finish),
             Roughness = Mathf.Clamp01(roughness),
@@ -2159,7 +2159,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "brow":
-                return "brow-soft-arch-fine-hair-v1";
+                return "brow-back-arch-soft-mix-v1";
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -2762,12 +2762,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 brightnessScale = Mathf.Lerp(1.0f, 1.1f, recipe.Intensity);
                 break;
             case "natural_brow":
-                sampleAlphaScale = Mathf.Lerp(0.42f, 0.64f, recipe.Intensity);
-                brightnessScale = 0.72f;
+                sampleAlphaScale = Mathf.Lerp(0.58f, 0.96f, recipe.Intensity);
+                brightnessScale = 0.66f;
                 break;
             case "soft_brow":
-                sampleAlphaScale = Mathf.Lerp(0.32f, 0.5f, recipe.Intensity);
-                brightnessScale = 0.82f;
+                sampleAlphaScale = Mathf.Lerp(0.46f, 0.82f, recipe.Intensity);
+                brightnessScale = 0.74f;
                 break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);

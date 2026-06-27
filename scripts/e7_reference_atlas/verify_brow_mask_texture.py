@@ -14,7 +14,7 @@ from PIL import Image
 
 DEFAULT_BROW_MASK = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/"
-    "brow-soft-arch-fine-hair-v1.png"
+    "brow-back-arch-soft-mix-v1.png"
 )
 DEFAULT_MASK_DIR = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
@@ -266,7 +266,7 @@ def main() -> None:
             f"{label} brow center arches too high: {arch_metrics}.",
         )
         require(
-            arch_metrics["centerTopRisePx"] <= 9.5,
+            arch_metrics["centerTopRisePx"] <= 6.5,
             f"{label} brow top edge makes a ^ shape: {arch_metrics}.",
         )
 
