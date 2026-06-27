@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Daily flat PNG A/B installed on CloudsiPhone; visual QA pending
+Status: Flat-fill/soft-brow local retune verified; iPhone rebuild pending
 Date: 2026-06-27
 
 ## Scope
@@ -201,6 +201,36 @@ Latest approved build for the next visual QA loop:
 
 No face screenshots, recordings, or raw frames were captured by default.
 
+## 2026-06-27 Flat-Fill/Soft-Brow Local Retune
+
+This follow-up is not installed on the iPhone yet.
+
+- Triggering QA feedback on the installed daily-flat build:
+  - `Daily flat`, `Flat sharp`, and `Flat multiply` showed mostly outlines with
+    hollow centers.
+  - `Daily hair`, `Natural hair`, and `Narrow hair` were visible but still
+    looked paint-like.
+  - Switching `natural_brow`/`soft_brow` reset the selected mask to
+    `Flat sharp`.
+  - The brow gap was too narrow, making the midline look crowded.
+  - `soft_brow` appeared invisible.
+- Local retune:
+  - Filled daily-flat alpha silhouettes while preserving extracted hair detail.
+  - Widened the daily-flat targets and raised default `maskSpreadX` to `0.24`.
+  - Preserved brow mask/spread/Y/detail settings while switching presets.
+  - Raised `soft_brow` intensity/coverage to `0.75/0.62` and Unity
+    `soft_brow` alpha response.
+- Local verification:
+  - Full RN Jest passed with `30` tests.
+  - TypeScript, RN lint, PNG hair verifier, brow mask verifier, Unity contract
+    verifier, renderer route verifier, and UnityFramework build contract
+    verifier passed.
+  - Unity `6000.3.18f1` batchmode import/compile passed:
+    `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log`.
+
+An approved UnityFramework/RN iPhone build is required before accepting or
+rejecting the visual result.
+
 ## Device QA
 
 Start in HUD mode with `lip` active by default, then select `brow`.
@@ -248,6 +278,11 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   sharp` is the new local default, `Texture Detail` starts at `0.68`, and
   `Flat multiply` is an explicit multiply comparison path. This daily-flat loop
   is now installed and launched on `CloudsiPhone (26.5)` for visual QA.
+- User QA on the daily-flat install found the flat candidates hollow, the
+  visible hair candidates still paint-like, `soft_brow` not visibly appearing,
+  preset switching resetting the selected mask, and the two brows too close
+  together. Local retune for those issues has passed checks but is not installed
+  yet.
 
 ## Brow Parameter Tuning Guide
 
@@ -260,8 +295,8 @@ ash; above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
 darkens. Good first QA probes are `Temperature 0.40..0.60` and
 `Depth 0.55..0.75`.
 
-For placement, the follow-up tuning starts `Brow Spread` outward at `0.20`
-internally, which appears around `0.79` on the slider. If the brows still look
+For placement, the current local retune starts `Brow Spread` outward at `0.24`
+internally, which appears around `0.85` on the slider. If the brows still look
 too centered, move `Brow Spread` farther right; the new Unity clamp allows up to
 `0.34`. If the brows are too wide, move it left. If the brows still sit low,
 move `Brow Y` slightly above `0.50`. The compact AR Status HUD should show a
@@ -283,6 +318,8 @@ Check:
 - `brow` can be enabled and disabled independently.
 - `natural_brow` appears as the default brow sample.
 - `soft_brow` can be selected and updates immediately.
+- Switching `natural_brow`/`soft_brow` does not reset the selected brow mask.
+- `soft_brow` remains visible enough to judge color and placement.
 - `Soft flat` (`brow-back-arch-soft-mix-v1`) was the previous installed default
   and remains selectable for comparison.
 - `Slim tail fine` (`brow-slim-tail-fine-hair-v1`) can be selected for visual
@@ -294,6 +331,8 @@ Check:
 - Compare `Flat sharp` against `Flat multiply` with the same color and
   `Texture Detail` value to judge whether multiply revives texture or makes the
   brow too muddy.
+- `Daily flat`, `Flat sharp`, and `Flat multiply` no longer show only an outline
+  with a hollow center.
 - `Texture Detail` changes the visible PNG hair detail without replacing the
   selected brow color layer.
 - `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains
@@ -312,6 +351,7 @@ Check:
 - The brow stroke is thin enough to read as makeup, not a sticker.
 - The brow fill has subtle density variation and does not read as one uniform
   grey strip.
+- The two brows no longer make the midline look too narrow.
 
 ## Acceptance Notes
 
@@ -337,21 +377,17 @@ recordings unless the user explicitly approves storing them.
 Build context:
 
 - Branch/commit: `feature/brow-0626`
-- Commit: `b875be0`
+- Commit: fill after the next approved flat-fill/soft-brow build
 - Device: `CloudsiPhone`
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
-- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: yes,
-  `TIMESTAMP=eyebrow-png-bright-20260627-ufw-r1`
+- UnityFramework regenerated with `scripts/build_m3_unityframework.sh`: fill
+  after approved build
 - Latest relevant Unity batchmode compile before this rebuild: pass,
-  `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
-- UnityFramework rebuild/sync: pass,
-  `evidence/logs/m3-repro-artifact-verification-eyebrow-png-bright-20260627-ufw-r1.log`
-- RN/Xcode rebuild: pass on retry,
-  `evidence/logs/eyebrow-rn-xcodebuild-device-png-bright-20260627-r2.log`
-- Install/launch: pass,
-  `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log`,
-  `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`
+  `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log`
+- UnityFramework rebuild/sync: fill after approved build
+- RN/Xcode rebuild: fill after approved build
+- Install/launch: fill after approved build
 
 Minimum observations:
 

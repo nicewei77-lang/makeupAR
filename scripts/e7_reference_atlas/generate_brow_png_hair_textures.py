@@ -27,47 +27,55 @@ class BrowTextureConfig:
     final_blur: float = 0.18
     left_source_region: tuple[float, float, float, float] | None = None
     right_source_region: tuple[float, float, float, float] | None = None
+    fill_vertical_gaps: bool = False
+    vertical_fill_strength: float = 0.72
 
 
 CONFIGS = {
     "dailyflat": BrowTextureConfig(
         "dailyflat",
         "brow-png-dailyflat-hair-v1",
-        (98, 98, 242, 132),
-        (270, 98, 414, 132),
+        (86, 98, 230, 132),
+        (282, 98, 426, 132),
         detail_blur=0.18,
-        shape_filter_size=3,
-        shape_blur=0.76,
+        shape_filter_size=11,
+        shape_blur=1.10,
         shape_detail_floor=0.16,
-        final_blur=0.08,
+        final_blur=0.06,
         left_source_region=(0.055, 0.405, 0.390, 0.545),
         right_source_region=(0.600, 0.405, 0.925, 0.545),
+        fill_vertical_gaps=True,
+        vertical_fill_strength=0.78,
     ),
     "dailyflatsharp": BrowTextureConfig(
         "dailyflat",
         "brow-png-dailyflat-sharp-v1",
-        (100, 100, 242, 130),
-        (270, 100, 412, 130),
+        (90, 100, 232, 130),
+        (280, 100, 422, 130),
         detail_blur=0.08,
-        shape_filter_size=3,
-        shape_blur=0.42,
+        shape_filter_size=9,
+        shape_blur=0.90,
         shape_detail_floor=0.08,
-        final_blur=0.0,
+        final_blur=0.04,
         left_source_region=(0.055, 0.405, 0.390, 0.545),
         right_source_region=(0.600, 0.405, 0.925, 0.545),
+        fill_vertical_gaps=True,
+        vertical_fill_strength=0.72,
     ),
     "dailyflatmultiply": BrowTextureConfig(
         "dailyflat",
         "brow-png-dailyflat-multiply-v1",
-        (100, 100, 242, 130),
-        (270, 100, 412, 130),
+        (90, 100, 232, 130),
+        (280, 100, 422, 130),
         detail_blur=0.08,
-        shape_filter_size=3,
-        shape_blur=0.42,
+        shape_filter_size=9,
+        shape_blur=0.90,
         shape_detail_floor=0.08,
-        final_blur=0.0,
+        final_blur=0.04,
         left_source_region=(0.055, 0.405, 0.390, 0.545),
         right_source_region=(0.600, 0.405, 0.925, 0.545),
+        fill_vertical_gaps=True,
+        vertical_fill_strength=0.72,
     ),
     "daily": BrowTextureConfig(
         "daily",
@@ -341,6 +349,38 @@ def score_hair_pixels(crop: Image.Image) -> tuple[np.ndarray, np.ndarray]:
     return alpha, score
 
 
+def fill_vertical_gaps(alpha_crop: np.ndarray, fill_strength: float) -> np.ndarray:
+    filled = np.zeros_like(alpha_crop, dtype=np.float32)
+    height, width = alpha_crop.shape
+
+    for x in range(width):
+        column = alpha_crop[:, x]
+        peak = float(column.max())
+        if peak < 0.08:
+            continue
+
+        active_rows = np.flatnonzero(column >= max(0.05, peak * 0.20))
+        if len(active_rows) < 2:
+            continue
+
+        top = int(active_rows.min())
+        bottom = int(active_rows.max()) + 1
+        if bottom - top < 2:
+            continue
+
+        filled[top:bottom, x] = max(filled[top:bottom, x].max(), peak * fill_strength)
+
+    if width > 2:
+        for x in range(1, width - 1):
+            if filled[:, x].max() > 0:
+                continue
+
+            neighbor = np.maximum(filled[:, x - 1], filled[:, x + 1]) * 0.55
+            filled[:, x] = np.maximum(filled[:, x], neighbor)
+
+    return np.clip(filled, 0.0, 1.0)
+
+
 def extract_brow_side(source: Image.Image, side: str, config: BrowTextureConfig) -> Image.Image:
     width, height = source.size
     source_region = config.left_source_region if side == "left" else config.right_source_region
@@ -378,7 +418,16 @@ def extract_brow_side(source: Image.Image, side: str, config: BrowTextureConfig)
     if config.detail_blur > 0:
         detail = detail.filter(ImageFilter.GaussianBlur(radius=config.detail_blur))
 
-    shape = detail.filter(ImageFilter.MaxFilter(size=config.shape_filter_size))
+    shape_seed = detail
+    if config.fill_vertical_gaps:
+        filled_alpha = fill_vertical_gaps(alpha_crop, config.vertical_fill_strength)
+        filled_detail = Image.fromarray(
+            np.clip(filled_alpha * 255.0, 0, 255).astype(np.uint8),
+            "L",
+        ).filter(ImageFilter.GaussianBlur(radius=2.35))
+        shape_seed = filled_detail
+
+    shape = shape_seed.filter(ImageFilter.MaxFilter(size=config.shape_filter_size))
     if config.shape_blur > 0:
         shape = shape.filter(ImageFilter.GaussianBlur(radius=config.shape_blur))
 

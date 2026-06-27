@@ -2777,8 +2777,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 brightnessScale = 0.78f;
                 break;
             case "soft_brow":
-                sampleAlphaScale = Mathf.Lerp(0.46f, 0.82f, recipe.Intensity);
-                brightnessScale = 0.84f;
+                sampleAlphaScale = Mathf.Lerp(0.58f, 0.94f, recipe.Intensity);
+                brightnessScale = 0.86f;
                 break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);

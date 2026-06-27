@@ -264,6 +264,11 @@ def main() -> None:
     )
     require_contains(
         overlay,
+        "sampleAlphaScale = Mathf.Lerp(0.58f, 0.94f, recipe.Intensity);",
+        "E3RegionMaskOverlay must keep soft_brow visible enough at 75% intensity.",
+    )
+    require_contains(
+        overlay,
         "regionsInScope=lip,cheek,eye,brow",
         "E3RegionMaskOverlay diagnostics must report brow in regionsInScope.",
     )

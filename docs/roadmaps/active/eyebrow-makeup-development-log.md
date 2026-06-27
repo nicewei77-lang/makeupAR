@@ -626,3 +626,33 @@ Remaining:
   - No face screenshots, recordings, or raw camera frames were captured.
   - Next gate: user iPhone visual QA on the installed daily-flat A/B build.
     Any quality feedback starts a new agreement proposal before implementation.
+- 2026-06-27: Flat-fill/soft-brow local follow-up after daily-flat QA.
+  - User QA found the flat daily candidates showed mostly outlines with hollow
+    centers, while `Daily hair`/`Natural hair`/`Narrow hair` were visible but
+    still paint-like. Switching `natural_brow`/`soft_brow` reset the selected
+    mask to `Flat sharp`, the two brows looked too close together, and
+    `soft_brow` appeared invisible.
+  - RED: focused RN Jest failed because switching to `soft_brow` reset the
+    selected brow mask. `verify_brow_png_hair_textures.py` failed the
+    daily-flat assets with `center gap too narrow: 29px`.
+  - Generator update moves the flat PNG targets outward and fills vertical
+    alpha gaps for the flat silhouette while keeping extracted hair detail in
+    the detail channel. The verifier now rejects daily-flat center gaps under
+    `44px` and hollow interior fill under `0.72`.
+  - RN update preserves the selected brow mask, spread, Y offset, texture
+    detail, and preserve-detail settings when switching between
+    `natural_brow` and `soft_brow`. The default brow spread is raised from
+    `0.20` to `0.24`.
+  - `soft_brow` is raised to intensity/coverage `0.75/0.62`, and Unity now
+    maps `soft_brow` alpha with
+    `sampleAlphaScale = Mathf.Lerp(0.58f, 0.94f, recipe.Intensity)`.
+  - GREEN: focused RN Jest passed, then full RN Jest passed with `30` tests.
+    TypeScript, RN lint, `verify_brow_png_hair_textures.py`,
+    `verify_brow_unity_contract.py`, `verify_brow_mask_texture.py`,
+    `verify_region_renderer_routes.py`, and
+    `verify_unityframework_build_contract.py` passed.
+  - Unity `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log`.
+  - This follow-up is local only. No UnityFramework regeneration, RN/Xcode
+    device build, install, launch, screenshots, recordings, or raw camera frames
+    were run in this loop.

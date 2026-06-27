@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Daily flat PNG A/B installed on CloudsiPhone; visual QA pending
+Status: Flat-fill/soft-brow local retune verified; iPhone rebuild pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -58,8 +58,8 @@ First-loop presets use natural brow colors rather than lip colors:
 - `natural_brow`: neutral brown, multiply blend, opacity `0.75`,
   intensity `0.75`, feather `0.48`, coverage `0.62`, roughness `1`,
   specular `0`, gloss boost `0`.
-- `soft_brow`: lighter brown, lower intensity `0.66`, feather `0.48`,
-  coverage `0.58`, roughness `1`, specular `0`, gloss boost `0`.
+- `soft_brow`: lighter brown, intensity `0.75`, feather `0.48`,
+  coverage `0.62`, roughness `1`, specular `0`, gloss boost `0`.
 - Brow color choices are separate from lip colors: `ash_brown`,
   `neutral_brown`, `dark_brown`, `soft_black`, and `light_brown`.
 - Brow color is also parameterized in the RN HUD with user-facing
@@ -74,7 +74,8 @@ First-loop presets use natural brow colors rather than lip colors:
   color separately.
 - `Flat sharp` is the current local default candidate. It uses the flatter
   `brow_dailyflat.png` source, a thinner target height, stronger extracted hair
-  detail, and default `Texture Detail` `0.68`.
+  detail, filled alpha silhouette for the flat PNG interior, and default
+  `Texture Detail` `0.68`.
 - Brow texture detail is parameterized with a `Texture Detail` slider that maps
   to `detailAmount`. This preserves the color layer while allowing a controlled
   multiply-like darkening of only the extracted hair detail.
@@ -90,7 +91,8 @@ First-loop presets use natural brow colors rather than lip colors:
   `Brow Spread` symmetrically expands/contracts the two brow masks around the
   UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
   QA can correct small centered/low placement errors live without regenerating
-  PNG masks.
+  PNG masks. The current local default starts `maskSpreadX` at `0.24` to reduce
+  the too-narrow midline look observed on the previous installed build.
 - Unity `recipe_applied` diagnostics emit the applied `maskSpreadX` and
   `maskOffsetY` values, and the RN HUD summarizes them as `spread=` and `y=` so
   device QA can confirm placement control delivery without collecting raw
@@ -226,11 +228,20 @@ or bridge rewrite.
   installed it on `CloudsiPhone (26.5)`, and launched
   `com.celeste.makeupar.validation`. User visual QA on this daily-flat build is
   pending.
+- 2026-06-27: User QA on the daily-flat build found the flat candidates showed
+  mostly outlines with hollow centers, the visible hair candidates still looked
+  paint-like, switching between `natural_brow` and `soft_brow` reset the brow
+  mask to `Flat sharp`, the brow gap was too narrow, and `soft_brow` appeared
+  invisible. Local follow-up now fills the flat PNG alpha interior while keeping
+  hair detail separate, widens the daily-flat masks and default spread, preserves
+  the selected mask when switching brow presets, and raises `soft_brow`
+  visibility. This follow-up has not yet been rebuilt or installed on iPhone.
 
 ## Local Verification
 
-- RN Jest: `npm test -- --runInBand` passed with 29 tests, including the
-  daily-flat normal/sharp/multiply comparison path.
+- RN Jest: `npm test -- --runInBand` passed with 30 tests, including the
+  daily-flat normal/sharp/multiply comparison path and preset-switch mask
+  preservation.
 - Brow mask verifier passed for compatibility procedural mask
   `brow-back-arch-soft-mix-v1`. The PNG hair verifier now covers the local
   `Flat sharp` default.
@@ -270,10 +281,20 @@ or bridge rewrite.
 - `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
   `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log` and
   `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`.
-- Latest daily-flat local checks passed: full RN Jest (`29` tests), TypeScript,
+- Latest flat-fill/soft-brow local checks passed: full RN Jest (`30` tests), TypeScript,
   RN lint, `verify_brow_png_hair_textures.py`, `verify_brow_unity_contract.py`,
   `verify_brow_mask_texture.py`, `verify_region_renderer_routes.py`, and
   `verify_unityframework_build_contract.py`.
+- The latest PNG verifier records the widened daily-flat resources with a
+  minimum center gap of `44px` and non-hollow interior fill guards. The current
+  `brow-png-dailyflat-sharp-v1` verifier pass recorded `5163` active pixels,
+  bbox `left=91,right=421,height=30`, and non-flat detail.
+- Unity `6000.3.18f1` batchmode import/compile for the flat-fill/soft-brow
+  local retune exited `0`. Log
+  `evidence/logs/eyebrow-flat-fill-softbrow-unity6000-batchmode-20260627.log`
+  shows `Tundra build success`, imports for the three
+  `brow-png-dailyflat-*` textures, `CompileScripts: 3043.203ms`, and
+  `Exiting batchmode successfully now!`.
 - Unity `6000.3.18f1` batchmode import/compile for the daily-flat loop first
   hit a Licensing IPC timeout in the sandboxed run:
   `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627.log`.
@@ -295,10 +316,12 @@ or bridge rewrite.
 
 ## QA Status
 
-The latest installed iPhone build is the daily-flat A/B brow build. Product
-quality is still not accepted until the user visually checks visibility, hair
-texture fidelity, curve shape, color, multiply-vs-normal behavior, and tracking
-recovery.
+The latest installed iPhone build is still the daily-flat A/B brow build. The
+current flat-fill/soft-brow follow-up is locally verified but not rebuilt onto
+the iPhone yet. Product quality is still not accepted until the user visually
+checks visibility, hair texture fidelity, curve shape, color,
+multiply-vs-normal behavior, preset switching, `soft_brow`, and tracking
+recovery on the next approved build.
 
 ## Risks
 

@@ -112,6 +112,27 @@ def connected_components(mask: np.ndarray, min_pixels: int) -> list[dict[str, An
     return sorted(components, key=lambda component: component["centerX"])
 
 
+def component_fill_metrics(active: np.ndarray, component: dict[str, Any]) -> dict[str, float]:
+    bbox = component["bbox"]
+    left = bbox["left"]
+    right = bbox["right"] + 1
+    top = bbox["top"]
+    bottom = bbox["bottom"] + 1
+    width = max(1, right - left)
+    height = max(1, bottom - top)
+    crop = active[top:bottom, left:right]
+    inner_left = left + int(width * 0.20)
+    inner_right = right - int(width * 0.20)
+    inner_top = top + int(height * 0.25)
+    inner_bottom = bottom - int(height * 0.25)
+    inner = active[inner_top:inner_bottom, inner_left:inner_right]
+
+    return {
+        "bboxFill": float(crop.sum() / max(1, crop.size)),
+        "innerFill": float(inner.sum() / max(1, inner.size)),
+    }
+
+
 def verify_texture(path: Path, resolution: int, threshold: int, component_threshold: int, min_component_pixels: int) -> str:
     require(path.exists(), f"Missing PNG brow hair texture: {path}")
     image = Image.open(path).convert("RGBA")
@@ -128,8 +149,8 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     coverage = active_count / float(resolution * resolution)
     require(1600 <= active_count <= 12500, f"{path.name} active pixels off: {active_count}")
     require(0.006 <= coverage <= 0.048, f"{path.name} coverage off: {coverage:.6f}")
-    require(94 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
-    require(398 <= bounds["right"] <= 416, f"{path.name} right bbox off: {bounds}")
+    require(84 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
+    require(398 <= bounds["right"] <= 430, f"{path.name} right bbox off: {bounds}")
     require(92 <= bounds["top"] <= 104, f"{path.name} top bbox off: {bounds}")
     require(126 <= bounds["bottom"] <= 138, f"{path.name} bottom bbox off: {bounds}")
     require(24 <= bounds["height"] <= 48, f"{path.name} height off: {bounds}")
@@ -141,6 +162,12 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     left, right = components
     require(left["bbox"]["right"] < 246, f"{path.name} left brow crosses center: {left}")
     require(right["bbox"]["left"] > 266, f"{path.name} right brow crosses center: {right}")
+    center_gap = right["bbox"]["left"] - left["bbox"]["right"] - 1
+    min_center_gap = 44 if "dailyflat" in path.name else 30
+    require(
+        center_gap >= min_center_gap,
+        f"{path.name} center gap too narrow: {center_gap}px components={components}",
+    )
     if "dailyflat" in path.name:
         require(
             bounds["left"] >= left["bbox"]["left"] - 8,
@@ -149,6 +176,16 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
         require(
             bounds["right"] <= right["bbox"]["right"] + 8,
             f"{path.name} has stray low-alpha pixels after the right brow: bounds={bounds} right={right}",
+        )
+        left_fill = component_fill_metrics(active, left)
+        right_fill = component_fill_metrics(active, right)
+        require(
+            left_fill["innerFill"] >= 0.72,
+            f"{path.name} left brow interior is hollow: {left_fill}",
+        )
+        require(
+            right_fill["innerFill"] >= 0.72,
+            f"{path.name} right brow interior is hollow: {right_fill}",
         )
 
     corner_alpha = int(

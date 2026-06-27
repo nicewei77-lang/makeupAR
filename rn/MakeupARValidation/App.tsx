@@ -79,7 +79,7 @@ export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
-const DEFAULT_BROW_MASK_SPREAD_X = 0.2;
+const DEFAULT_BROW_MASK_SPREAD_X = 0.24;
 const DEFAULT_BROW_DETAIL_AMOUNT = 0.68;
 const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
@@ -254,9 +254,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#5A4034',
-    intensity: 0.66,
+    intensity: 0.75,
     feather: 0.48,
-    coverage: 0.58,
+    coverage: 0.62,
     finish: 'soft-powder-brow',
     roughness: 1,
     specular: 0,
@@ -1896,12 +1896,24 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ...activeRegions,
         [focusedRegion]: true,
       };
+      const defaultTuning = buildDefaultRegionTuningForSample(
+        focusedRegion,
+        textureSample,
+      );
+      const currentTuning = regionTuning[focusedRegion];
+      const nextFocusedTuning = focusedRegion === 'brow'
+        ? {
+            ...defaultTuning,
+            maskTextureId: currentTuning.maskTextureId,
+            maskSpreadX: currentTuning.maskSpreadX,
+            maskOffsetY: currentTuning.maskOffsetY,
+            detailAmount: currentTuning.detailAmount,
+            preserveDetail: currentTuning.preserveDetail,
+          }
+        : defaultTuning;
       const nextTuning = {
         ...regionTuning,
-        [focusedRegion]: buildDefaultRegionTuningForSample(
-          focusedRegion,
-          textureSample,
-        ),
+        [focusedRegion]: nextFocusedTuning,
       };
 
       setRegionRecipes(nextRecipes);

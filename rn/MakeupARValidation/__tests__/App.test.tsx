@@ -187,6 +187,19 @@ function pressByText(
   });
 }
 
+function pressByTestID(
+  renderer: ReactTestRenderer.ReactTestRenderer,
+  testID: string,
+) {
+  const button = renderer.root.findByProps({ testID });
+
+  expect(button).toBeTruthy();
+
+  ReactTestRenderer.act(() => {
+    button.props.onPress();
+  });
+}
+
 function sendUnityMessage(
   renderer: ReactTestRenderer.ReactTestRenderer,
   payload: object,
@@ -535,19 +548,26 @@ test('posts eyebrow as a fourth independent region layer', () => {
   const browSample = BROW_TEXTURE_STYLE_OPTIONS.find(
     textureSample => textureSample.name === 'natural_brow',
   );
+  const softBrowSample = BROW_TEXTURE_STYLE_OPTIONS.find(
+    textureSample => textureSample.name === 'soft_brow',
+  );
 
   expect(browSample).toBeTruthy();
+  expect(softBrowSample).toBeTruthy();
   expect(browSample!.intensity).toBe(0.75);
   expect(browSample!.feather).toBe(0.48);
   expect(browSample!.coverage).toBe(0.62);
   expect(browSample!.specular).toBe(0);
+  expect(softBrowSample!.intensity).toBe(0.75);
+  expect(softBrowSample!.coverage).toBe(0.62);
+  expect(softBrowSample!.feather).toBe(0.48);
   expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.75);
   expect(DEFAULT_REGION_RECIPES.brow.color).toBe(BROW_COLOR_OPTIONS[1]);
   expect(DEFAULT_REGION_TUNING.brow.maskTextureId).toBe(
     'brow-png-dailyflat-sharp-v1',
   );
   expect(DEFAULT_REGION_TUNING.brow.detailAmount).toBe(0.68);
-  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.2);
+  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.24);
 
   const payload = buildValidationRecipeBatchPayload(
     {
@@ -601,7 +621,7 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.detailAmount).toBe(0.68);
   expect(browLayer.feather).toBe(0.48);
   expect(browLayer.coverage).toBe(0.62);
-  expect(browLayer.maskSpreadX).toBe(0.2);
+  expect(browLayer.maskSpreadX).toBe(0.24);
   expect(browLayer.maskOffsetY).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
@@ -1369,6 +1389,36 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).not.toContain('High arch fine');
   expect(text).not.toContain('Legacy drawn');
   expect(text).not.toContain('LEGACY DRAWN');
+});
+
+test('keeps selected brow mask when switching natural and soft brow presets', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  pressByTestID(renderer!, 'brow-mask-brow-png-daily-hair-v1');
+
+  let dailyHairButton = renderer!.root.findByProps({
+    testID: 'brow-mask-brow-png-daily-hair-v1',
+  });
+  expect(dailyHairButton.props.accessibilityState?.selected).toBe(true);
+
+  pressByTestID(renderer!, 'brow-finish-soft_brow');
+
+  dailyHairButton = renderer!.root.findByProps({
+    testID: 'brow-mask-brow-png-daily-hair-v1',
+  });
+  const flatSharpButton = renderer!.root.findByProps({
+    testID: 'brow-mask-brow-png-dailyflat-sharp-v1',
+  });
+
+  expect(dailyHairButton.props.accessibilityState?.selected).toBe(true);
+  expect(flatSharpButton.props.accessibilityState?.selected).toBe(false);
+  expect(collectText(renderer!)).toContain('sample soft_brow');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {
