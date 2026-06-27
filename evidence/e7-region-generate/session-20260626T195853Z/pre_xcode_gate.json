@@ -45,7 +45,7 @@
     "webTypecheck": "passed",
     "webBuild": "passed",
     "gitDiffCheck": "passed",
-    "unityBatchmodeSmoke": "blocked_existing_unity_project_instance"
+    "unityBatchmodeSmoke": "passed"
   },
   "deferredRequiredEvidence": [
     "xcode_build_install_launch",

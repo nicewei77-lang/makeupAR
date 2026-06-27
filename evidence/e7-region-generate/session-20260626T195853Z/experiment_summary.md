@@ -23,7 +23,7 @@ Verification:
 - Unity runtime asset registry JSON validation passed.
 - RN TypeScript check passed.
 - Web review shell lint/typecheck/build passed before the RN/Unity handoff.
-- Unity batchmode smoke is prepared but blocked in this run by an already-open Unity project instance.
+- Unity batchmode smoke passed after closing the stale Unity project-locking processes.
 
 Deferred:
 - Xcode/iPhone build, install, launch, and runtime camera evidence.

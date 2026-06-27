@@ -49,3 +49,10 @@ Session: `session-20260626T195853Z`
 - Created `pre_xcode_gate.md` and `pre_xcode_gate.json`.
 - Current result: all four regions are `pre-xcode-ready`, not Green.
 - Xcode/iPhone build, install, launch, visual runtime evidence, FPS/frame-time, latency, memory, thermal, motion/expression/blink/yaw checks, and human subjective boundary acceptance remain deferred to the next phone-connected gate.
+
+## 2026-06-27 11:00 KST - Unity Smoke Retry
+
+- Closed the stale Unity project-locking processes on user request.
+- Re-ran Unity batchmode with `E7FullFaceRegionPackageSmoke.RunFromCommandLine`.
+- Smoke passed: Unity parsed/dispatched four layers for `lip`, `blush`, `brow`, and `eyeliner`, including all four `e7-*` mask texture IDs.
+- This remains pre-Xcode evidence only; no iPhone runtime visual acceptance was collected.

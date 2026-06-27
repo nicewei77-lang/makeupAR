@@ -31,18 +31,16 @@ Status: `pre-xcode-ready`
 - `npx tsc --noEmit` in `rn/MakeupARValidation`
 - `npm run lint`, `npm run typecheck`, and `npm run build` in `web/lip-generate-beta`
 - `git diff --check` and `git diff --cached --check`
+- Unity batchmode `E7FullFaceRegionPackageSmoke.RunFromCommandLine`: passed after closing the stale project-locking Unity processes
 
 ## Blocked / Deferred
 
-- Unity batchmode smoke did not run because another Unity AssetImportWorker had the project open. The smoke code is committed for the next clean Editor pass.
 - Xcode/iPhone build, install, launch, camera permission, and runtime visual evidence were intentionally not run in this phone-disconnected session.
 - No region can be promoted to Green/product-quality-ready without real-device face attachment, motion/expression, blink/yaw, FPS/frame-time, latency, memory, thermal, and human visual acceptance evidence.
 
 ## Next Phone-Connected Gate
 
-1. Close any open Unity Editor/AssetImportWorker for this project.
-2. Run `E7FullFaceRegionPackageSmoke.RunFromCommandLine` in Unity batchmode.
-3. Run UnityFramework export/sync only after build approval.
-4. Run RN iPhone build/install/launch only after build approval.
-5. Capture representative visual evidence for neutral, smile, open/close mouth, yaw, and blink/eyeliner stability.
-6. Record runtime logs and update `TECH_VALIDATION_RESULT.md` with Green/Yellow/Red decisions per region.
+1. Run UnityFramework export/sync only after build approval.
+2. Run RN iPhone build/install/launch only after build approval.
+3. Capture representative visual evidence for neutral, smile, open/close mouth, yaw, and blink/eyeliner stability.
+4. Record runtime logs and update `TECH_VALIDATION_RESULT.md` with Green/Yellow/Red decisions per region.
