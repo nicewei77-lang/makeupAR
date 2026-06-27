@@ -4070,3 +4070,68 @@ Still not proven:
 - No real-device capture-frame visual confirmation after the `framePreviewUri` change.
 - No real-device proof that AR validation controls visually change mask ON/OFF, opacity, color, strong mode, or boundary mode.
 - No final human acceptance for Vision/MediaPipe boundary smoothness, adjustment responsiveness, or AR transition timing.
+
+### 17.10 Tri-agent audit: stale-event hardening, gate scope, and minimum build path
+
+Status: **source/buildless audit passed, next phone build should skip UnityFramework unless Unity runtime files change**.
+
+사용자 관점에서 아직 버그가 남았을 가능성을 전제로, 이번에는 기능 UI가 아니라 다른 각도에서 봤다.
+
+- Code QA: 늦게 도착한 Unity/RN 이벤트와 비동기 generation 결과가 새 촬영/새 후보를 오염시키는지 검사.
+- Gate/Test QA: prebuild gate가 오래 걸리거나 실제 빌드 전 판단을 흐리게 만드는지 검사.
+- Build QA: 팀원이 말한 "필요한 파일만 빌드하면 빨라진다"는 관찰을 기준으로 UnityFramework 재생성을 언제 생략할 수 있는지 검사.
+
+#### 17.10.1 Fixed before next build
+
+| Risk | Fix | Gate |
+| --- | --- | --- |
+| 이전 capture request의 늦은 `e7_reference_capture` ack가 현재 shot을 저장 완료로 오염할 수 있음 | RN이 `captureSetId`, `captureShotKind`, `capturePairId`가 현재 pending shot과 모두 맞을 때만 capture 결과를 반영한다. | RN Jest late capture ack test |
+| Retake/reset 뒤 이전 `generated_lip_mask_applied` ack가 도착하면 이전 package가 다시 applied/blocked 상태를 만들 수 있음 | RN이 현재 pending generatedMaskId 또는 pending control check와 일치하지 않는 stale ack를 무시한다. | RN Jest stale generated ack after retake test |
+| Provider/capture set/adjustment 변경 중 async generation preview가 늦게 끝나면 stale candidates가 UI를 덮을 수 있음 | `generationRequestGuard`를 추가해 request id, captureSetId, provider, adjustment signature가 같은 경우에만 candidate state를 반영한다. | RN TypeScript/Jest |
+| 빌드 전마다 UnityFramework를 감으로 재생성해 시간이 크게 늘어남 | `scripts/e7_build/decide_minimum_build.mjs`와 `npm run e7:build-plan`을 추가해 diff bucket, framework hash, required strings를 기준으로 최소 빌드 경로를 판정한다. | `npm run e7:build-plan -- --no-report` |
+| 사용되지 않는 Unity 리소스를 감으로 삭제하면 scene/registry/RN selector를 깨뜨릴 수 있음 | build-plan에 Unity asset audit을 포함해 `runtime-referenced`, `tooling-or-registry-referenced`, `no-static-reference`를 나눈다. 현재 SmoothRegionMasks 17개 중 `no-static-reference=0`이므로 삭제는 보류한다. | build-plan asset audit |
+
+#### 17.10.2 Build-minimization decision
+
+Current command:
+
+```sh
+cd rn/MakeupARValidation
+npm run e7:build-plan -- --no-report
+```
+
+Current result:
+
+```txt
+decision=skip-unityframework-run-rn-xcode-only
+reason=Only RN/iOS app-side files changed and UnityFramework reference/package hashes are synced.
+unityFrameworkSync=true reason=frameworks_synced
+unityAssetAudit smoothRegionMasks=17 noStaticReference=0
+```
+
+Interpretation:
+
+- 다음 iPhone 빌드에서 Unity runtime source/assets를 건드리지 않았다면 `bash scripts/build_m3_unityframework.sh`를 먼저 돌리지 않는다.
+- RN TypeScript/Jest/lint/prebuild gate를 통과한 뒤 RN Xcode build만 간다.
+- Unity runtime script, scene, shader, material, prefab, Resources, XR, iOS plugin이 바뀌면 이 판정은 즉시 `run-unityframework-build`로 바뀌어야 한다.
+- Unity old resource cleanup은 별도 작업이다. 먼저 RN `LIP_RUNTIME_CANDIDATE_OPTIONS` / Unity registry / scripts 참조를 줄이고, build-plan에서 `no-static-reference`가 뜨는 파일만 삭제 후보로 삼는다.
+
+#### 17.10.3 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `18 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report`
+  - result: `skip-unityframework-run-rn-xcode-only`
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report`
+  - result: `34 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Still not proven:
+
+- No new RN/Xcode iPhone build after this audit.
+- No new Unity batchmode compile in this audit.
+- No real-device visual acceptance for capture preview, boundary smoothness, live adjustment reflection, blending difference, save/apply ack, or AR validation controls.

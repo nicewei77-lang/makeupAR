@@ -448,6 +448,12 @@ type E7GeneratedCandidateWithPreview = E7GeneratedCandidate & {
   previewStatus?: E7GeneratedPreviewState;
   previewError?: string;
 };
+type E7GenerationRequestGuard = {
+  requestId: number;
+  captureSetId: string;
+  provider: GeneratedLipMaskProvider;
+  adjustmentSignature: string;
+};
 type E7GeneratedApplyStatus =
   | 'idle'
   | 'saving'
@@ -685,6 +691,13 @@ function readBoolean(value: unknown) {
   return typeof value === 'boolean' ? value : undefined;
 }
 
+function isCaptureShotKind(value: unknown): value is E7CaptureShotKind {
+  return (
+    typeof value === 'string' &&
+    E7_CAPTURE_SHOT_OPTIONS.some(option => option.kind === value)
+  );
+}
+
 function getWizardStepIndex(step: E7WizardStep) {
   return E7_WIZARD_STEPS.indexOf(step);
 }
@@ -750,6 +763,8 @@ type UnityEventPayload = {
   provider?: string;
   expressionMode?: string;
   generatedMaskId?: string;
+  captureSetId?: string;
+  captureShotKind?: string;
   runtimeReady?: boolean;
   color?: string;
   opacity?: number;
@@ -1082,14 +1097,23 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
   const [isSavingGeneratedPackage, setIsSavingGeneratedPackage] =
     useState(false);
+  const generationRequestSequenceRef = useRef(0);
+  const activeGenerationRequestRef =
+    useRef<E7GenerationRequestGuard | null>(null);
+  const pendingGeneratedMaskIdRef = useRef<string | null>(null);
   const selectedLipSample =
     lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
+  const lipUserAdjustmentSignature = useMemo(
+    () => JSON.stringify(lipUserAdjustment),
+    [lipUserAdjustment],
+  );
   const selectedLipRuntimeCandidate =
     LIP_RUNTIME_CANDIDATE_OPTIONS.find(
       candidate => candidate.candidateId === selectedLipRuntimeCandidateId,
     ) ?? DEFAULT_LIP_RUNTIME_CANDIDATE;
 
   const resetGeneratedApplyFlow = useCallback((reason: string) => {
+    pendingGeneratedMaskIdRef.current = null;
     setGeneratedApplyState(createGeneratedApplyState('idle'));
     setPendingGeneratedMaskId(null);
     setPendingGeneratedPackage(null);
@@ -1097,6 +1121,15 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     setPendingGeneratedControlCheck(null);
     console.log('[E7] generated_apply_state_reset', reason);
   }, []);
+
+  useEffect(() => {
+    pendingGeneratedMaskIdRef.current = pendingGeneratedMaskId;
+  }, [pendingGeneratedMaskId]);
+
+  useEffect(() => {
+    activeGenerationRequestRef.current = null;
+    setIsGeneratingCandidates(false);
+  }, [captureSetId, lipGenerateProvider, lipUserAdjustmentSignature]);
 
   useEffect(() => {
     console.log(
@@ -1784,6 +1817,22 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     if (isGeneratingCandidates) {
       return;
     }
+    const requestGuard: E7GenerationRequestGuard = {
+      requestId: (generationRequestSequenceRef.current += 1),
+      captureSetId,
+      provider: lipGenerateProvider,
+      adjustmentSignature: lipUserAdjustmentSignature,
+    };
+    activeGenerationRequestRef.current = requestGuard;
+    const isCurrentGenerationRequest = () => {
+      const activeGuard = activeGenerationRequestRef.current;
+      return (
+        activeGuard?.requestId === requestGuard.requestId &&
+        activeGuard.captureSetId === requestGuard.captureSetId &&
+        activeGuard.provider === requestGuard.provider &&
+        activeGuard.adjustmentSignature === requestGuard.adjustmentSignature
+      );
+    };
     setIsGeneratingCandidates(true);
     setWizardNotice(
       `현재 촬영 frame에서 ${formatProviderLabel(
@@ -1819,6 +1868,15 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       const candidatesWithPreviews =
         await renderGeneratedCandidatePreviews(candidates);
+      if (!isCurrentGenerationRequest()) {
+        console.log(
+          '[E7] stale_generate_candidates_dropped',
+          `requestId=${requestGuard.requestId}`,
+          `captureSetId=${requestGuard.captureSetId}`,
+          `provider=${requestGuard.provider}`,
+        );
+        return;
+      }
       setCaptureShots(currentShots => {
         let nextShots = currentShots;
         results.forEach(result => {
@@ -1876,18 +1934,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           : '후보 생성이 막혔습니다. 다시 생성하거나 다른 방식을 선택하세요.',
       );
     } catch (error) {
+      if (!isCurrentGenerationRequest()) {
+        return;
+      }
       const message =
         error instanceof Error ? error.message : 'unknown_native_generate_error';
       setWizardNotice(`후보 생성 실패: ${message}`);
     } finally {
-      setIsGeneratingCandidates(false);
+      if (isCurrentGenerationRequest()) {
+        setIsGeneratingCandidates(false);
+      }
     }
   }, [
     captureShots,
+    captureSetId,
     invokeNativeBoundaryProvider,
     isGeneratingCandidates,
     lipGenerateProvider,
     lipUserAdjustment,
+    lipUserAdjustmentSignature,
     renderGeneratedCandidatePreviews,
     resetGeneratedApplyFlow,
     selectedGeneratedCandidateKey,
@@ -1914,6 +1979,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         blockedReason: 'saving_local_generated_package',
       }),
     );
+    pendingGeneratedMaskIdRef.current = selectedCandidate.package.generatedMaskId;
     setPendingGeneratedMaskId(selectedCandidate.package.generatedMaskId);
     setPendingGeneratedPackage(selectedCandidate.package);
     setAppliedGeneratedPackage(null);
@@ -1963,6 +2029,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unknown_save_error';
+      pendingGeneratedMaskIdRef.current = null;
       setPendingGeneratedMaskId(null);
       setPendingGeneratedPackage(null);
       setGeneratedApplyState(
@@ -2081,9 +2148,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               ? parsed.generatedMaskId
               : '';
           const status = String(parsed.status ?? 'unknown');
-          const isMatchingPendingMask = pendingGeneratedMaskId
-            ? generatedMaskId === pendingGeneratedMaskId
-            : Boolean(generatedMaskId);
+          const currentPendingMaskId = pendingGeneratedMaskIdRef.current;
+          const pendingControlMaskId =
+            pendingGeneratedControlCheck?.generatedMaskId ?? '';
+          const isMatchingPendingMask =
+            Boolean(generatedMaskId) &&
+            ((Boolean(currentPendingMaskId) &&
+              generatedMaskId === currentPendingMaskId) ||
+              (Boolean(pendingControlMaskId) &&
+                generatedMaskId === pendingControlMaskId));
+          const shouldIgnoreStaleAck =
+            !isMatchingPendingMask &&
+            !currentPendingMaskId &&
+            (!pendingControlMaskId || generatedMaskId !== pendingControlMaskId);
           const isRuntimeApplyStatus =
             status === 'partial' || status === 'ready';
           const isApplied =
@@ -2101,7 +2178,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   'unity_apply_unknown',
               );
 
-          if (isApplied) {
+          if (shouldIgnoreStaleAck) {
+            console.log(
+              '[E7] stale_generated_lip_mask_applied_ignored',
+              `generatedMaskId=${generatedMaskId || 'missing'}`,
+            );
+          } else if (isApplied) {
             const didConfirmPendingControls =
               Boolean(pendingGeneratedControlCheck) &&
               generatedMaskId === pendingGeneratedControlCheck?.generatedMaskId &&
@@ -2126,6 +2208,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 )?.package ??
                 null,
             );
+            pendingGeneratedMaskIdRef.current = null;
             setPendingGeneratedMaskId(null);
             if (didConfirmPendingControls) {
               setPendingGeneratedControlCheck(null);
@@ -2151,49 +2234,75 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         if (parsed.type === 'e7_reference_capture') {
           const captureStatus = String(parsed.status ?? 'unknown');
           const capturePairId = String(parsed.capturePairId ?? '');
-          const capturedShotKind = pendingCaptureShotKind;
+          const eventCaptureSetId = String(parsed.captureSetId ?? '');
+          const eventShotKind = isCaptureShotKind(parsed.captureShotKind)
+            ? parsed.captureShotKind
+            : pendingCaptureShotKind;
           if (
             captureStatus === 'exported' ||
             captureStatus === 'failed' ||
             captureStatus === 'busy'
           ) {
             setPendingCapturePairId(currentPairId =>
-              currentPairId === parsed.capturePairId || captureStatus === 'failed'
+              currentPairId === capturePairId && eventCaptureSetId === captureSetId
                 ? null
                 : currentPairId,
             );
-            setPendingCaptureShotKind(null);
+            setPendingCaptureShotKind(currentShotKind =>
+              currentShotKind === eventShotKind &&
+              eventCaptureSetId === captureSetId
+                ? null
+                : currentShotKind,
+            );
           }
-          if (capturedShotKind && capturePairId) {
-            setCaptureShots(currentShots => ({
-              ...currentShots,
-              [capturedShotKind]: {
-                ...currentShots[capturedShotKind],
-                status:
-                  captureStatus === 'exported'
-                    ? 'captured'
-                    : captureStatus === 'failed' || captureStatus === 'busy'
-                    ? 'blocked'
-                    : currentShots[capturedShotKind].status,
-                capturePairId,
-                relativeDirectory:
-                  typeof parsed.relativeDirectory === 'string'
-                    ? parsed.relativeDirectory
-                    : currentShots[capturedShotKind].relativeDirectory,
-                framePreviewUri:
-                  typeof parsed.framePreviewUri === 'string'
-                    ? parsed.framePreviewUri
-                    : currentShots[capturedShotKind].framePreviewUri,
-                detail:
-                  typeof parsed.detail === 'string'
-                    ? parsed.detail
-                    : captureStatus,
-              },
-            }));
-            if (captureStatus === 'exported') {
-              setWizardNotice(`${capturedShotKind} 촬영 완료.`);
-            } else if (captureStatus === 'failed' || captureStatus === 'busy') {
-              setWizardNotice(`${capturedShotKind} 촬영 실패: ${parsed.detail ?? captureStatus}`);
+          if (eventShotKind && capturePairId && eventCaptureSetId === captureSetId) {
+            let acceptedCaptureEvent = false;
+            setCaptureShots(currentShots => {
+              const currentShot = currentShots[eventShotKind];
+              if (currentShot.capturePairId !== capturePairId) {
+                return currentShots;
+              }
+              acceptedCaptureEvent = true;
+              return {
+                ...currentShots,
+                [eventShotKind]: {
+                  ...currentShot,
+                  status:
+                    captureStatus === 'exported'
+                      ? 'captured'
+                      : captureStatus === 'failed' || captureStatus === 'busy'
+                      ? 'blocked'
+                      : currentShot.status,
+                  capturePairId,
+                  relativeDirectory:
+                    typeof parsed.relativeDirectory === 'string'
+                      ? parsed.relativeDirectory
+                      : currentShot.relativeDirectory,
+                  framePreviewUri:
+                    typeof parsed.framePreviewUri === 'string'
+                      ? parsed.framePreviewUri
+                      : currentShot.framePreviewUri,
+                  detail:
+                    typeof parsed.detail === 'string'
+                      ? parsed.detail
+                      : captureStatus,
+                },
+              };
+            });
+            if (acceptedCaptureEvent && captureStatus === 'exported') {
+              setWizardNotice(`${eventShotKind} 촬영 완료.`);
+            } else if (
+              acceptedCaptureEvent &&
+              (captureStatus === 'failed' || captureStatus === 'busy')
+            ) {
+              setWizardNotice(`${eventShotKind} 촬영 실패: ${parsed.detail ?? captureStatus}`);
+            } else if (!acceptedCaptureEvent) {
+              console.log(
+                '[E7] stale_reference_capture_ignored',
+                `capturePairId=${capturePairId || 'missing'}`,
+                `captureSetId=${eventCaptureSetId || 'missing'}`,
+                `captureShotKind=${String(parsed.captureShotKind ?? 'missing')}`,
+              );
             }
           }
         }
@@ -2260,10 +2369,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       }
     },
     [
+      captureSetId,
       generatedCandidates,
       pendingCaptureShotKind,
       pendingGeneratedControlCheck,
-      pendingGeneratedMaskId,
       pendingGeneratedPackage,
       postRecipeAck,
       validationViewMode,

@@ -5,6 +5,7 @@
   "scripts": {
     "android": "react-native run-android",
     "ios": "react-native run-ios",
+    "e7:build-plan": "node ../../scripts/e7_build/decide_minimum_build.mjs",
     "e7:prebuild": "node ../../scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs",
     "e7:prebuild:full": "node ../../scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs --run-checks",
     "lint": "eslint .",

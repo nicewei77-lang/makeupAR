@@ -28,11 +28,34 @@ cd rn/MakeupARValidation
 npm run e7:prebuild:full
 ```
 
+최소 빌드 경로 판정:
+
+```bash
+cd rn/MakeupARValidation
+npm run e7:build-plan
+```
+
 직접 실행:
 
 ```bash
 node scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs
 ```
+
+## 최소 빌드 판정
+
+`npm run e7:build-plan`은 Xcode/Unity를 실행하지 않는다. 현재 git diff와
+`UnityFramework.framework` 해시/필수 문자열을 읽어서 다음 중 하나를 고른다.
+
+- `skip-unityframework-run-rn-xcode-only`: RN/Swift 쪽만 바뀌었고 UnityFramework가 sync됨. Unity export/build를 생략하고 RN Xcode 빌드만 간다.
+- `run-unityframework-build`: Unity 런타임 script, scene, shader, material, prefab, Resources, XR, iOS plugin이 바뀜. `bash scripts/build_m3_unityframework.sh`가 필요하다.
+- `sync-or-rebuild-unityframework-before-xcode`: RN reference framework와 package-local framework가 다르거나 필수 ack/capture 문자열이 빠짐. sync 또는 rebuild 후 prebuild gate를 다시 돌린다.
+- `skip-unityframework-run-unity-import-if-needed`: Unity Editor smoke/tooling만 바뀜. player framework 재생성은 보통 불필요하다.
+- `manual-review-before-build`: 분류되지 않은 경로가 바뀜. Unity 생략 여부를 사람이 먼저 확인한다.
+
+이 판정은 "사용하지 않는 Unity 파일 삭제"를 대신하지 않는다. 도구가 함께 출력하는
+Unity asset audit은 `runtime-referenced`, `tooling-or-registry-referenced`,
+`no-static-reference`를 나눠 보여주는 참고 자료다. 삭제는 RN sample selector,
+Unity registry, scene/prefab 참조를 제거한 뒤 Unity import/compile까지 통과할 때만 한다.
 
 ## 입력 Fixture
 
@@ -97,8 +120,9 @@ Unity source에는 `generated_lip_mask_applied.latest.json/jsonl` 저장 코드�
 
 ## 운영 규칙
 
-1. 앱/RN/Unity Generate flow를 수정한 뒤 먼저 `npm run e7:prebuild`를 실행한다.
-2. 빨간불이 있으면 Xcode build로 가지 않는다.
-3. preview 관련 빨간불은 `mask-preview.html`과 RN preview가 같아질 때까지 수정한다.
-4. UnityFramework 빨간불은 UnityFramework regenerate/sync 후 다시 확인한다.
-5. 모든 gate가 pass한 뒤에만 사용자에게 Xcode build 승인을 요청한다.
+1. 앱/RN/Unity Generate flow를 수정한 뒤 먼저 `npm run e7:build-plan`으로 최소 빌드 경로를 정한다.
+2. RN/Swift만 바뀐 경우 UnityFramework 재생성을 건너뛰고 RN 정적 체크와 prebuild gate를 먼저 돌린다.
+3. `npm run e7:prebuild` 또는 `npm run e7:prebuild:full`에 빨간불이 있으면 Xcode build로 가지 않는다.
+4. preview 관련 빨간불은 `mask-preview.html`과 RN preview가 같아질 때까지 수정한다.
+5. UnityFramework 빨간불은 UnityFramework regenerate/sync 후 다시 확인한다.
+6. 모든 gate가 pass한 뒤에만 사용자에게 Xcode build 승인을 요청한다.

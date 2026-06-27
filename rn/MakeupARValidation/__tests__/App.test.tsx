@@ -209,6 +209,7 @@ function enterGenerateWizard(renderer: ReactTestRenderer.ReactTestRenderer) {
 function emitUnityReferenceCapture(
   renderer: ReactTestRenderer.ReactTestRenderer,
   capturePairId: string,
+  patch: Record<string, unknown> = {},
 ) {
   const unityView = renderer.root.findByProps({ testID: 'unity-view' });
 
@@ -219,6 +220,8 @@ function emitUnityReferenceCapture(
           type: 'e7_reference_capture',
           status: 'exported',
           capturePairId,
+          captureSetId: patch.captureSetId,
+          captureShotKind: patch.captureShotKind,
           relativeDirectory: `Documents/e7-reference-atlas/capture_pairs/${capturePairId}`,
           framePreviewUri: `file:///tmp/${capturePairId}-frame.png`,
           detail: 'pending_projected_mesh_overlay_review',
@@ -226,6 +229,7 @@ function emitUnityReferenceCapture(
           meshIndexCount: 6912,
           meshUvCount: 1220,
           frameWidth: 1179,
+          ...patch,
         }),
       },
     });
@@ -266,7 +270,10 @@ function getLastUnityPostPayload(method: string) {
 function captureNextWizardShot(renderer: ReactTestRenderer.ReactTestRenderer) {
   pressByTestID(renderer, 'e7-wizard-capture-primary');
   const request = getLastUnityPostPayload('CaptureE7ReferenceFrameJson');
-  emitUnityReferenceCapture(renderer, request.capturePairId);
+  emitUnityReferenceCapture(renderer, request.capturePairId, {
+    captureSetId: request.captureSetId,
+    captureShotKind: request.captureShotKind,
+  });
   return request;
 }
 
@@ -539,6 +546,55 @@ test('unblocks capture when Unity capture response is missing', async () => {
   expect(text).toContain('정면 기준 촬영');
 });
 
+test('ignores late capture ack from an older capture request', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  const firstRequest = getLastUnityPostPayload('CaptureE7ReferenceFrameJson');
+
+  ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(7_000);
+  });
+
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  const secondRequest = getLastUnityPostPayload('CaptureE7ReferenceFrameJson');
+
+  emitUnityReferenceCapture(renderer!, firstRequest.capturePairId, {
+    captureSetId: firstRequest.captureSetId,
+    captureShotKind: firstRequest.captureShotKind,
+  });
+
+  let text = collectText(renderer!);
+  expect(text).toContain('촬영 중');
+  expect(text).not.toContain('캡처 프레임 검토');
+  expect(
+    renderer!.root.findAll(
+      node =>
+        node.props.source?.uri ===
+        `file:///tmp/${firstRequest.capturePairId}-frame.png`,
+    ),
+  ).toHaveLength(0);
+
+  emitUnityReferenceCapture(renderer!, secondRequest.capturePairId, {
+    captureSetId: secondRequest.captureSetId,
+    captureShotKind: secondRequest.captureShotKind,
+  });
+
+  text = collectText(renderer!);
+  expect(text).toContain('컷 완료');
+  expect(text).toContain('다음 컷');
+  expect(text).toContain('정면 기준');
+  expect(text).toContain('저장됨');
+});
+
 test('blocks current-frame generation when native module is unavailable', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -556,7 +612,10 @@ test('blocks current-frame generation when native module is unavailable', async 
       call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
   );
   const request = JSON.parse(String(captureCall?.[2]));
-  emitUnityReferenceCapture(renderer!, request.capturePairId);
+  emitUnityReferenceCapture(renderer!, request.capturePairId, {
+    captureSetId: request.captureSetId,
+    captureShotKind: request.captureShotKind,
+  });
 
   for (let index = 1; index < 6; index += 1) {
     const captureCallForShot = mockUnityPostMessage.mock.calls
@@ -566,7 +625,10 @@ test('blocks current-frame generation when native module is unavailable', async 
       )
       .at(-1);
     const previousRequest = JSON.parse(String(captureCallForShot?.[2]));
-    emitUnityReferenceCapture(renderer!, previousRequest.capturePairId);
+    emitUnityReferenceCapture(renderer!, previousRequest.capturePairId, {
+      captureSetId: previousRequest.captureSetId,
+      captureShotKind: previousRequest.captureShotKind,
+    });
     pressByTestID(renderer!, 'e7-wizard-capture-primary');
   }
   const finalCaptureCall = mockUnityPostMessage.mock.calls
@@ -576,7 +638,10 @@ test('blocks current-frame generation when native module is unavailable', async 
     )
     .at(-1);
   const finalRequest = JSON.parse(String(finalCaptureCall?.[2]));
-  emitUnityReferenceCapture(renderer!, finalRequest.capturePairId);
+  emitUnityReferenceCapture(renderer!, finalRequest.capturePairId, {
+    captureSetId: finalRequest.captureSetId,
+    captureShotKind: finalRequest.captureShotKind,
+  });
   pressByTestID(renderer!, 'e7-wizard-capture-primary');
   await ReactTestRenderer.act(async () => {
     renderer!.root
@@ -945,4 +1010,29 @@ test('rejects generated-mask ack when generatedMaskId does not match pending pac
   expect(text).toContain('이전 마스크 응답이 도착했습니다');
   expect(text).not.toContain('AR 립 적용 중');
   expect(text).not.toContain('Unity 적용 실패 또는 미확인');
+});
+
+test('ignores stale generated-mask ack after retaking capture', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+  await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
+
+  const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
+  pressByTestID(renderer!, 'e7-wizard-back');
+  pressByTestID(renderer!, 'e7-wizard-retake-after-adjust');
+
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+  });
+
+  const text = collectText(renderer!);
+  expect(text).toContain('다시 촬영합니다');
+  expect(text).not.toContain('AR 립 적용됨');
+  expect(text).not.toContain('AR 화면입니다');
+  expect(text).not.toContain('이전 마스크 응답이 도착했습니다');
 });
