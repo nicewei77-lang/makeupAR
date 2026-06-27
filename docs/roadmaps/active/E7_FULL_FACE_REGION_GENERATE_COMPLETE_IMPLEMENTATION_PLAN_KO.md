@@ -3922,3 +3922,40 @@ This copies local-only app Documents evidence for:
 - latest `capture_summary.json`
 
 If `xcrun devicectl list devices` reports the iPhone as `unavailable`, this gate cannot run; unlock/reconnect the device first.
+
+### 17.6 Prebuild bug audit after user suspicion
+
+Status: **pre-Xcode bug audit passed, device visual acceptance still pending**.
+
+사용자 지적처럼 `prebuild pass`는 "버그 없음"이 아니다. 다음 Xcode 빌드 전에 소스/도구를 다시 공격적으로 훑었고, buildless로 잡을 수 있는 회귀 2개를 고쳤다.
+
+#### 17.6.1 Fixed before next build
+
+| Risk | Fix | Gate |
+| --- | --- | --- |
+| 블렌딩 후보/조정 preview가 `cover` crop으로 잘려 full-face mask 품질 확인이 어려움 | `generateWizardCandidatePreviewImage`와 `generatedAdjustmentPreviewImage`를 `contain`으로 변경하고 카드/preview 높이를 키움 | `v2.preview_images_show_full_face` prebuild gate 추가 |
+| evidence pull helper가 `--dry-run`에서도 폴더를 만들거나 일부 missing source를 `pulled`로 오판할 수 있음 | dry-run은 명령만 출력하고 파일 시스템을 건드리지 않음. source별 `copyResults`를 기록하고 missing source가 있으면 summary `status=partial` | `python3 -m py_compile` + dry-run no-output-side-effect 확인 |
+
+#### 17.6.2 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `14 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd packages/lip-generate-core && npm run typecheck`
+- `cd packages/lip-generate-core && npm test`
+- `python3 -m py_compile scripts/e7_inapp_generate/pull_ios_generated_evidence.py`
+- `python3 scripts/e7_inapp_generate/pull_ios_generated_evidence.py --dry-run --timestamp codex-dryrun-check --output-base /tmp/e7-device-pull-dryrun-check`
+  - follow-up `ls -ld /tmp/e7-device-pull-dryrun-check` returned no directory, which is expected.
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full`
+  - result: `30 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Still not proven:
+
+- No new iPhone Documents pull after this audit because the latest device check still had the iPhone unavailable.
+- No new Xcode build/install/run after this audit.
+- No user-visible AR validation control proof after this audit.
+- No final visual acceptance for boundary smoothness, adjustment visibility, blending difference, or AR runtime opacity/color/ON-OFF controls.

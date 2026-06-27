@@ -28,6 +28,10 @@ PULL_SOURCES = (
 )
 
 
+def source_output_path(output_root: Path, source: str) -> Path:
+    return output_root / "pulled" / source.removeprefix("Documents/")
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Pull latest E7 generated lip package/apply evidence from iPhone Documents."
@@ -173,6 +177,13 @@ def render_markdown(summary: dict[str, Any]) -> str:
         f"- bundle: `{summary['bundleId']}`",
         f"- status: `{summary['status']}`",
         "",
+        "## Copy Results",
+        "",
+        *[
+            f"- `{result.get('source')}` -> `{result.get('status')}`"
+            for result in summary.get("copyResults", [])
+        ],
+        "",
         "## Latest Artifacts",
         "",
         f"- generated package: `{package.get('path')}`",
@@ -204,11 +215,8 @@ def render_markdown(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def copy_device_source(args: argparse.Namespace, output_root: Path, source: str) -> bool:
-    destination = output_root / "pulled" / source.removeprefix("Documents/")
-    if destination.exists():
-        shutil.rmtree(destination)
-    destination.parent.mkdir(parents=True, exist_ok=True)
+def copy_device_source(args: argparse.Namespace, output_root: Path, source: str) -> dict[str, Any]:
+    destination = source_output_path(output_root, source)
     json_output = output_root / f"{source.replace('/', '_')}.devicectl.json"
     command = [
         "xcrun",
@@ -233,28 +241,52 @@ def copy_device_source(args: argparse.Namespace, output_root: Path, source: str)
     ]
     if args.dry_run:
         print(" ".join(command))
-        return True
+        return {
+            "source": source,
+            "destination": str(destination),
+            "status": "dry-run",
+        }
+    if destination.exists():
+        shutil.rmtree(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     completed = run(command)
     if completed.returncode == 0:
-        return True
+        return {
+            "source": source,
+            "destination": str(destination),
+            "status": "copied",
+        }
     if args.allow_missing:
         print(f"[e7-device-pull] missing-or-unavailable source tolerated: {source}")
-        return False
+        return {
+            "source": source,
+            "destination": str(destination),
+            "status": "missing",
+            "returnCode": completed.returncode,
+        }
     raise SystemExit(completed.returncode)
 
 
-def build_summary(args: argparse.Namespace, output_root: Path) -> dict[str, Any]:
+def build_summary(
+    args: argparse.Namespace,
+    output_root: Path,
+    copy_results: list[dict[str, Any]],
+) -> dict[str, Any]:
     pulled_root = output_root / "pulled"
     package_path = latest_file(pulled_root / "e7-generated-lip-packages", "generated_lip_package.json")
     saved_path = latest_file(pulled_root / "e7-generated-lip-packages", "saved_record.json")
     ack_path = latest_file(pulled_root / "e7-runtime-events", "generated_lip_mask_applied.latest.json")
     capture_path = latest_file(pulled_root / "e7-reference-atlas" / "capture_pairs", "capture_summary.json")
+    status = "pulled"
+    if any(result.get("status") == "missing" for result in copy_results):
+        status = "partial"
     return {
         "timestamp": args.timestamp,
         "device": args.device,
         "bundleId": args.bundle_id,
-        "status": "pulled",
+        "status": status,
         "outputRoot": str(output_root),
+        "copyResults": copy_results,
         "generatedPackage": summarize_package(read_json_if_present(package_path), package_path),
         "savedRecord": summarize_saved_record(read_json_if_present(saved_path), saved_path),
         "generatedApplyAck": summarize_ack(read_json_if_present(ack_path), ack_path),
@@ -265,15 +297,16 @@ def build_summary(args: argparse.Namespace, output_root: Path) -> dict[str, Any]
 def main() -> int:
     args = parse_args()
     output_root = args.output_base.resolve() / f"e7-device-generated-pull-{args.timestamp}"
-    output_root.mkdir(parents=True, exist_ok=True)
 
+    copy_results = []
     for source in PULL_SOURCES:
-        copy_device_source(args, output_root, source)
+        copy_results.append(copy_device_source(args, output_root, source))
 
     if args.dry_run:
         return 0
 
-    summary = build_summary(args, output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+    summary = build_summary(args, output_root, copy_results)
     summary_path = output_root / "summary.json"
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n",

@@ -757,6 +757,17 @@ function runMain() {
   );
 
   addCheck(
+    'v2.preview_images_show_full_face',
+    /generateWizardCandidatePreviewImage:\s*{[\s\S]*?resizeMode:\s*['"]contain['"]/.test(
+      rnAppSource,
+    ) &&
+      /generatedAdjustmentPreviewImage:\s*{[\s\S]*?resizeMode:\s*['"]contain['"]/.test(
+        rnAppSource,
+      ),
+    'Generated candidate and adjustment previews must use contain, not cover, so full-face mask quality is inspectable before build.',
+  );
+
+  addCheck(
     'unity.source_persists_generated_ack',
     /e7-runtime-events/.test(unityBridgeSource) &&
       /generated_lip_mask_applied\.latest\.json/.test(unityBridgeSource) &&

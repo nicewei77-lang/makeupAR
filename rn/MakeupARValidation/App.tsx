@@ -5379,8 +5379,8 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   generateWizardCandidateCard: {
-    width: 218,
-    minHeight: 256,
+    width: 240,
+    minHeight: 322,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
@@ -5398,14 +5398,14 @@ const styles = StyleSheet.create({
     borderColor: '#FCA5A5',
   },
   generateWizardCandidatePreview: {
-    height: 170,
+    height: 220,
     overflow: 'hidden',
     backgroundColor: 'rgba(15, 23, 42, 0.84)',
   },
   generateWizardCandidatePreviewImage: {
     width: '100%',
     height: '100%',
-    resizeMode: 'cover',
+    resizeMode: 'contain',
   },
   generateWizardCandidatePreviewEmpty: {
     flex: 1,
@@ -5414,7 +5414,7 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   generateWizardCandidateCopy: {
-    minHeight: 84,
+    minHeight: 98,
     padding: 10,
     gap: 5,
   },
@@ -5470,7 +5470,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   generatedAdjustmentPreview: {
-    minHeight: 170,
+    minHeight: 220,
     overflow: 'hidden',
     borderRadius: 8,
     borderWidth: 1,
@@ -5479,11 +5479,11 @@ const styles = StyleSheet.create({
   },
   generatedAdjustmentPreviewImage: {
     width: '100%',
-    height: 170,
-    resizeMode: 'cover',
+    height: 220,
+    resizeMode: 'contain',
   },
   generatedAdjustmentPreviewEmpty: {
-    minHeight: 170,
+    minHeight: 220,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
