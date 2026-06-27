@@ -46,6 +46,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float SpecularPower;
         public float GlossBoost;
         public float GradientAmount;
+        public float DetailAmount;
         public bool PreserveDetail;
         public string TopologyAuditStatus;
         public string TopologyAuditSummary;
@@ -102,6 +103,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float SpecularPower = 8.0f;
         public float GlossBoost = 0.0f;
         public float GradientAmount = 0.08f;
+        public float DetailAmount = 0.0f;
         public bool PreserveDetail = true;
     }
 
@@ -337,6 +339,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float specularPower,
         float glossBoost,
         float gradientAmount,
+        float detailAmount,
         bool preserveDetail)
     {
         region = NormalizeRegion(region);
@@ -368,6 +371,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             SpecularPower = Mathf.Max(1.0f, specularPower),
             GlossBoost = Mathf.Clamp01(glossBoost),
             GradientAmount = Mathf.Clamp01(gradientAmount),
+            DetailAmount = Mathf.Clamp01(detailAmount),
             PreserveDetail = preserveDetail
         };
 
@@ -529,6 +533,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             SpecularPower = 0.0f,
             GlossBoost = 0.0f,
             GradientAmount = 0.0f,
+            DetailAmount = 0.0f,
             PreserveDetail = true,
             TopologyAuditStatus = "not_run",
             TopologyAuditSummary = "none",
@@ -578,6 +583,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.SpecularPower = recipe.SpecularPower;
         result.GlossBoost = recipe.GlossBoost;
         result.GradientAmount = recipe.GradientAmount;
+        result.DetailAmount = recipe.DetailAmount;
         result.PreserveDetail = recipe.PreserveDetail;
         result.MaskTextureId = recipe.MaskTextureId;
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
@@ -2675,6 +2681,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_GradientAmount", recipe.GradientAmount);
         }
 
+        if (material.HasProperty("_DetailAmount"))
+        {
+            material.SetFloat("_DetailAmount", recipe.DetailAmount);
+        }
+
         if (material.HasProperty("_PreserveDetail"))
         {
             material.SetFloat("_PreserveDetail", recipe.PreserveDetail ? 1.0f : 0.0f);
@@ -2763,11 +2774,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 break;
             case "natural_brow":
                 sampleAlphaScale = Mathf.Lerp(0.58f, 0.96f, recipe.Intensity);
-                brightnessScale = 0.66f;
+                brightnessScale = 0.78f;
                 break;
             case "soft_brow":
                 sampleAlphaScale = Mathf.Lerp(0.46f, 0.82f, recipe.Intensity);
-                brightnessScale = 0.74f;
+                brightnessScale = 0.84f;
                 break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);
@@ -3106,6 +3117,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             || (region == "brow" && (maskTextureId == "brow-soft-arch-fine-hair-v1"
                 || maskTextureId == "brow-back-arch-soft-mix-v1"
                 || maskTextureId == "brow-slim-tail-fine-hair-v1"
+                || maskTextureId == "brow-png-daily-hair-v1"
+                || maskTextureId == "brow-png-natural-hair-v1"
+                || maskTextureId == "brow-png-narrow-hair-v1"
+                || maskTextureId == "brow-png-lightbrown-hair-v1"
                 || maskTextureId == "brow-drawn-mask-v1")))
         {
             return maskTextureId;

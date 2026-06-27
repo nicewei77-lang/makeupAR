@@ -493,3 +493,31 @@ Remaining:
   - Hand/occlusion handling is a real SDK requirement, but it is not part of
     this loop. It needs a separate occlusion track so hand, hair, glasses, or
     other foreground objects can remove makeup only where they cover the face.
+- 2026-06-27: PNG-derived brow hair texture loop.
+  - User confirmed the supplied `brow_daily.png`, `brow_natural.png`,
+    `brow_narrow.png`, and `brow_lightbrown.png` are self-authored.
+  - Direction chosen: do not multiply the full source PNG over the face.
+    Instead, preprocess the art into Unity 512x512 alpha/detail textures and
+    keep the brow color as a separate recipe color layer.
+  - RED: focused Jest failed because `light_brown`, PNG brow mask options, and
+    `detailAmount` were absent; `verify_brow_png_hair_textures.py` failed
+    because the generated PNG hair resources were missing.
+  - GREEN: generated `brow-png-daily-hair-v1`,
+    `brow-png-natural-hair-v1`, `brow-png-narrow-hair-v1`, and
+    `brow-png-lightbrown-hair-v1` plus matching `.meta` files. RN now exposes
+    `Daily hair`, `Natural hair`, `Narrow hair`, `Light brown`,
+    `light_brown`, and `Texture Detail`; Unity parses `detailAmount` and
+    passes it to `_DetailAmount` in `SmoothRegionMask.shader`.
+  - Verification passed: full RN Jest `27/27`, `npx tsc --noEmit`,
+    `npm run lint`, `verify_brow_png_hair_textures.py`,
+    `verify_brow_mask_texture.py`, `verify_brow_unity_contract.py`, and
+    `verify_region_renderer_routes.py`.
+  - Unity `2022.3.62f1` batchmode import/compile was attempted twice but
+    failed before C# compile during package resolution:
+    AR Foundation `6.3.5` requested `com.unity.ugui 2.0.0`, while the editor
+    resolved builtin `1.0.0`. Logs:
+    `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627.log` and
+    `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627-rerun.log`.
+    The automatic `packages-lock.json` downgrade produced by the failed
+    attempts was restored.
+  - No UnityFramework/iPhone build was run in this loop.

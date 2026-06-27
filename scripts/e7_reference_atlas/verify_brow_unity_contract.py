@@ -27,6 +27,10 @@ LEGACY_BROW_MASK_ID = "brow-drawn-mask-v1"
 SELECTED_BROW_MASK_IDS = (
     DEFAULT_BROW_MASK_ID,
     "brow-slim-tail-fine-hair-v1",
+    "brow-png-daily-hair-v1",
+    "brow-png-natural-hair-v1",
+    "brow-png-narrow-hair-v1",
+    "brow-png-lightbrown-hair-v1",
 )
 SUPPORTED_BROW_MASK_IDS = (
     *SELECTED_BROW_MASK_IDS,
@@ -160,6 +164,11 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        "public float detailAmount;",
+        "RNBridge recipe payloads must accept PNG brow hair detailAmount.",
+    )
+    require_contains(
+        rn_bridge,
         "MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX)",
         "RNBridge must normalize layer maskSpreadX into parsed layers.",
     )
@@ -185,6 +194,11 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        "DetailAmount = Mathf.Clamp01(layer.detailAmount > 0.0f",
+        "RNBridge must normalize PNG brow detailAmount into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
         '",\\\"maskSpreadX\\\":"',
         "RNBridge recipe_applied event must emit applied maskSpreadX for QA diagnostics.",
     )
@@ -203,6 +217,11 @@ def main() -> None:
         ' + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)',
         "RNBridge recipe_applied log must include applied maskOffsetY.",
     )
+    require_contains(
+        rn_bridge,
+        ' + " detailAmount=" + layer.DetailAmount.ToString("0.##", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include detailAmount.",
+    )
 
     require_match(
         overlay,
@@ -219,7 +238,7 @@ def main() -> None:
         rf"case\s+\"brow\"\s*:\s*return\s+\"{DEFAULT_BROW_MASK_ID}\"",
         f"E3RegionMaskOverlay GetDefaultMaskTextureId must return {DEFAULT_BROW_MASK_ID}.",
     )
-    for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID):
+    for mask_id in SUPPORTED_BROW_MASK_IDS:
         require_contains(
             overlay,
             f'"{mask_id}"',
@@ -290,6 +309,11 @@ def main() -> None:
     )
     require_contains(
         overlay,
+        "public float DetailAmount;",
+        "E3RegionMaskOverlay result must expose PNG brow detail amount.",
+    )
+    require_contains(
+        overlay,
         "MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f)",
         "E3RegionMaskOverlay must clamp mask spread X.",
     )
@@ -307,6 +331,11 @@ def main() -> None:
         overlay,
         'material.SetFloat("_MaskSpreadX", recipe.MaskSpreadX)',
         "E3RegionMaskOverlay must pass symmetric mask spread to the shader.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_DetailAmount", recipe.DetailAmount)',
+        "E3RegionMaskOverlay must pass PNG brow detail amount to the shader.",
     )
     require_contains(
         shader,
@@ -327,6 +356,16 @@ def main() -> None:
         shader,
         "float _MaskSpreadX;",
         "SmoothRegionMask shader must expose _MaskSpreadX to shader code.",
+    )
+    require_contains(
+        shader,
+        '_DetailAmount ("Detail Amount", Range(0, 1)) = 0',
+        "SmoothRegionMask shader must define a PNG brow detail amount property.",
+    )
+    require_contains(
+        shader,
+        "float _DetailAmount;",
+        "SmoothRegionMask shader must expose _DetailAmount to shader code.",
     )
     require_contains(
         shader,

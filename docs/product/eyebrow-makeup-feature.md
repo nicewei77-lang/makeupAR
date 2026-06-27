@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Follow-up brow QA tuning implemented locally; rebuild pending
+Status: PNG brow hair texture loop implemented locally; rebuild pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -61,11 +61,19 @@ First-loop presets use natural brow colors rather than lip colors:
 - `soft_brow`: lighter brown, lower intensity `0.66`, feather `0.48`,
   coverage `0.58`, roughness `1`, specular `0`, gloss boost `0`.
 - Brow color choices are separate from lip colors: `ash_brown`,
-  `neutral_brown`, `dark_brown`, and `soft_black`.
+  `neutral_brown`, `dark_brown`, `soft_black`, and `light_brown`.
 - Brow color is also parameterized in the RN HUD with user-facing
   `Temperature` and `Depth` sliders. Internally these remain
   `colorWarmth` and `colorDepth`; RN sends the computed final hex through the
   existing Unity `color` field.
+- PNG-derived hair candidates are selectable as mask/detail textures:
+  `Daily hair`, `Natural hair`, `Narrow hair`, and `Light brown`. The source
+  art is user-authored. The generated Unity textures remove the grey
+  background/glow, store soft alpha in red/alpha, and store hair detail in blue
+  so the shader can apply color separately.
+- Brow texture detail is parameterized with a `Texture Detail` slider that maps
+  to `detailAmount`. This preserves the color layer while allowing a controlled
+  multiply-like darkening of only the extracted hair detail.
 - Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.
   `Brow Spread` symmetrically expands/contracts the two brow masks around the
   UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
@@ -77,8 +85,9 @@ First-loop presets use natural brow colors rather than lip colors:
   camera frames.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
-license materials should enter the shipping path. The first brow mask should be
-generated in-house from simple procedural geometry.
+license materials should enter the shipping path. Current brow assets are
+either procedural in-house masks or user-authored PNGs transformed into
+Unity-ready alpha/detail textures.
 
 ## Renderer Direction
 
@@ -177,18 +186,27 @@ or bridge rewrite.
   `±0.34`, starts brow spread at `0.20`, strengthens Unity brow alpha response,
   and shows `Renderer ...` as its own compact HUD row. This follow-up tuning is
   not installed on-device yet.
+- 2026-06-27: User provided self-authored brow PNGs. The local branch now adds
+  four PNG-derived candidates (`Daily hair`, `Natural hair`, `Narrow hair`,
+  `Light brown`) plus a brow-only `Texture Detail` slider. The implementation
+  does not multiply the full source PNG over the face; it extracts alpha/detail
+  channels and lets Unity apply the chosen brow color layer separately.
 
 ## Local Verification
 
 - RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
-  passed with 26 tests.
+  passed with 27 tests.
 - Brow mask verifier passed for the new default `brow-back-arch-soft-mix-v1`.
   The verifier now tightens the top-edge arch guard to reduce the angry
   `^ ^` read while still checking separation from eye/cheek/lip masks.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
   The verifier now guards brow renderer routing plus brow-specific
-  threshold/feather policy.
+  threshold/feather policy and PNG hair `detailAmount`.
+- PNG brow hair texture verifier passed:
+  `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py`.
+  It checks all four generated PNG-derived textures for active coverage, two
+  brow components, transparent corners, and a non-flat detail channel.
 - Region renderer route verifier passed:
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - UnityFramework build contract verifier passed:
@@ -196,6 +214,12 @@ or bridge rewrite.
 - Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
   `Tundra build success` and imported
   `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
+- Unity `2022.3.62f1` batchmode import/compile for the PNG hair loop was
+  attempted twice and failed before C# compile during package resolution:
+  `com.unity.xr.arfoundation@6.3.5` requested `com.unity.ugui 2.0.0`, while
+  the editor resolved builtin `com.unity.ugui 1.0.0`. Logs:
+  `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627.log` and
+  `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627-rerun.log`.
 - After the follow-up QA tuning, Unity batchmode was retried twice but failed
   before compile during Licensing Client IPC initialization. Logs:
   `evidence/logs/eyebrow-followup-unity-batchmode-20260627.log` and

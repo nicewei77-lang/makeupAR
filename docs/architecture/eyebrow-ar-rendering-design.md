@@ -1,6 +1,6 @@
 # Eyebrow AR Rendering Design
 
-Status: Follow-up brow QA tuning implemented locally; rebuild pending
+Status: PNG brow hair texture loop implemented locally; rebuild pending
 Date: 2026-06-27
 Related product doc: `docs/product/eyebrow-makeup-feature.md`
 
@@ -41,9 +41,9 @@ Implemented contract values:
 | --- | --- |
 | Region | `brow` |
 | Renderer mode | `smooth-region-mask` |
-| Mask texture id | Default `brow-back-arch-soft-mix-v1`; user-facing option `brow-slim-tail-fine-hair-v1`; compatibility resources `brow-soft-arch-fine-hair-v1` and `brow-drawn-mask-v1` |
+| Mask texture id | Default `brow-back-arch-soft-mix-v1`; user-facing options include `brow-slim-tail-fine-hair-v1` plus PNG-derived `brow-png-daily-hair-v1`, `brow-png-natural-hair-v1`, `brow-png-narrow-hair-v1`, and `brow-png-lightbrown-hair-v1`; compatibility resources `brow-soft-arch-fine-hair-v1` and `brow-drawn-mask-v1` |
 | RN presets | `natural_brow`, `soft_brow` |
-| Unity resource | `SmoothRegionMasks/brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, `brow-slim-tail-fine-hair-v1`, plus legacy `brow-drawn-mask-v1` |
+| Unity resource | `SmoothRegionMasks/brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, `brow-slim-tail-fine-hair-v1`, four `brow-png-*` hair textures, plus legacy `brow-drawn-mask-v1` |
 | Unity material path | `E3RegionMaskOverlay.BuildMaterialColor` brow cases |
 | Route table | `MakeupRegionRendererRoutes` |
 | Brow renderer id | `brow-smooth-region-mask-renderer` |
@@ -144,6 +144,15 @@ The mask remains a single-channel soft alpha texture, but no longer uses a
 fully uniform central ridge. If later device QA still shows poor fit, later
 loops can add:
 
+The current PNG hair loop adds user-authored brow art as generated mask/detail
+resources rather than applying the original PNGs directly. The generator removes
+the grey background and glow, maps the left/right brow art into the same 512 UV
+space, stores soft shape alpha in red/alpha, and stores extracted hair strokes
+in blue. The shader keeps the existing color layer and uses `_DetailAmount` to
+darken/detail only the hair signal inside the mask. This gives a controlled
+multiply-like effect without multiplying the full grey source image over the
+face.
+
 - Separate left/right channels.
 - Asymmetry parameters.
 - Dedicated brow mesh culling.
@@ -163,10 +172,14 @@ feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
 brow alpha scaling is stronger than the previous installed build so `75%`
 should be visibly usable and `100%` can become deliberately heavy. The brow
 color palette is now separate from lip colors: `ash_brown`, `neutral_brown`,
-`dark_brown`, and `soft_black`. RN exposes brow-only `Temperature` and
+`dark_brown`, `soft_black`, and `light_brown`. RN exposes brow-only `Temperature` and
 `Depth` sliders. These compute a final HTML hex color on the RN side and
 keep sending it through the existing Unity `color` field, so no Unity recipe
 schema change is required for color QA.
+PNG hair detail is separate from color: RN sends `detailAmount`, Unity stores
+it in `RegionRecipeState.DetailAmount`, and `SmoothRegionMask.shader` exposes
+`_DetailAmount` to strengthen extracted hair strokes after the chosen brow
+color is applied.
 RN also exposes brow-only `Brow Spread` and `Brow Y` placement sliders. `Brow
 Spread` becomes signed `maskSpreadX` and expands/contracts the two brow masks
 symmetrically around the UV centerline; `Brow Y` becomes signed `maskOffsetY`.
@@ -206,10 +219,17 @@ Local checks before any real-device build:
 - Static guard that Unity parser accepts `brow` and applies brow-specific mask
   threshold/feather policy: passed.
 - Offline mask inspection for active pixel coverage and bbox: passed.
+- PNG-derived brow hair texture inspection:
+  `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py`
+  passed for `Daily hair`, `Natural hair`, `Narrow hair`, and `Light brown`.
 - Unity batchmode import/compile passed with Unity `6000.3.18f1` for the prior
   installed tuning. The follow-up visibility/spread tuning was attempted twice
   but failed before compile at Unity Licensing Client IPC initialization; the
   spawned Unity/Licensing processes were terminated.
+- Unity `2022.3.62f1` batchmode import/compile for the PNG hair loop was
+  attempted twice and failed before C# compile during package resolution
+  because AR Foundation `6.3.5` requested `com.unity.ugui 2.0.0` while the
+  editor resolved builtin `1.0.0`. No iPhone build was attempted.
 - UnityFramework build contract verifier passed and now guards Swift
   compatibility link flags plus Unity export failure detection.
 - UnityFramework regeneration/sync passed for the prior installed tuning with

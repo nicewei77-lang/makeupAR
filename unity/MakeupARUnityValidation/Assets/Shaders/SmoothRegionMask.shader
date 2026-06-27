@@ -21,6 +21,7 @@ Shader "MakeupAR/SmoothRegionMask"
         _GlossSharpness ("Gloss Sharpness", Range(0, 1)) = 0.72
         _GlossHaloIntensity ("Gloss Halo Intensity", Range(0, 1)) = 0.07
         _GradientAmount ("Gradient Amount", Range(0, 1)) = 0
+        _DetailAmount ("Detail Amount", Range(0, 1)) = 0
         _PreserveDetail ("Preserve Detail", Range(0, 1)) = 1
         _LipStyleMode ("Lip Style Mode", Float) = -1
         [HideInInspector] _PigmentMultiply ("Pigment Multiply", Float) = 0
@@ -72,6 +73,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _SpecularPower;
             float _GlossBoost;
             float _GradientAmount;
+            float _DetailAmount;
             float _PreserveDetail;
             float _LipStyleMode;
             float _PigmentMultiply;
@@ -262,6 +264,19 @@ Shader "MakeupAR/SmoothRegionMask"
                         pigmentColor = saturate(lerp(_SecondaryColor.rgb, pigmentColor, fullCore * 0.78));
                         alphaColor = pigmentColor;
                     }
+                }
+
+                float detailAmount = saturate(_DetailAmount) * saturate(_PreserveDetail);
+                if (_LipStyleMode < -0.5 && detailAmount > 0.001)
+                {
+                    float hairDetail = saturate(max(mask.b, softMask.b) * fullSoft);
+                    float hairContrast = saturate((hairDetail - fullSoft * 0.10) * 1.42);
+                    maskStrength = saturate(maskStrength + hairContrast * coverage * detailAmount * 0.38);
+                    pigmentColor = saturate(lerp(
+                        pigmentColor,
+                        pigmentColor * 0.64,
+                        hairContrast * detailAmount));
+                    alphaColor = pigmentColor;
                 }
 
                 float preserveScale = lerp(1.0, 0.92, saturate(_PreserveDetail));

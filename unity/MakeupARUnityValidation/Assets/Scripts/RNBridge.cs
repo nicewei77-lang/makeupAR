@@ -46,6 +46,7 @@ public sealed class RNBridge : MonoBehaviour
         public float specularPower;
         public float glossBoost;
         public float gradientAmount;
+        public float detailAmount;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -93,6 +94,7 @@ public sealed class RNBridge : MonoBehaviour
         public float specularPower;
         public float glossBoost;
         public float gradientAmount;
+        public float detailAmount;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -180,6 +182,7 @@ public sealed class RNBridge : MonoBehaviour
         public float SpecularPower;
         public float GlossBoost;
         public float GradientAmount;
+        public float DetailAmount;
         public float Shimmer;
         public string ShimmerColor;
         public bool SkinAdaptive;
@@ -225,6 +228,7 @@ public sealed class RNBridge : MonoBehaviour
         public float SpecularPower;
         public float GlossBoost;
         public float GradientAmount;
+        public float DetailAmount;
         public float Shimmer;
         public string ShimmerColor = "#FFFFFF";
         public bool SkinAdaptive;
@@ -1012,6 +1016,7 @@ public sealed class RNBridge : MonoBehaviour
             layer.SpecularPower,
             layer.GlossBoost,
             layer.GradientAmount,
+            layer.DetailAmount,
             layer.PreserveDetail);
     }
 
@@ -1052,6 +1057,7 @@ public sealed class RNBridge : MonoBehaviour
             SpecularPower = layer.SpecularPower,
             GlossBoost = layer.GlossBoost,
             GradientAmount = layer.GradientAmount,
+            DetailAmount = layer.DetailAmount,
             Shimmer = layer.Shimmer,
             ShimmerColor = layer.ShimmerColor,
             SkinAdaptive = layer.SkinAdaptive,
@@ -1491,6 +1497,7 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"specularPower\":" + (state != null ? state.SpecularPower : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"glossBoost\":" + (state != null ? state.GlossBoost : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"gradientAmount\":" + (state != null ? state.GradientAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"detailAmount\":" + (state != null ? state.DetailAmount : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSource\":\"" + EscapeJsonString(state != null ? state.MaskSource : "smooth_region_mask") + "\""
             + ",\"boundaryRenderer\":\"" + EscapeJsonString(state != null ? state.BoundaryRenderer : "smooth_alpha_mask") + "\""
             + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryStatus : "not_requested") + "\""
@@ -1619,6 +1626,7 @@ public sealed class RNBridge : MonoBehaviour
             + " specularPower=" + layer.SpecularPower.ToString("0.##", CultureInfo.InvariantCulture)
             + " glossBoost=" + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
             + " gradientAmount=" + layer.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + " detailAmount=" + layer.DetailAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + " shimmer=" + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
             + " shimmerColor=" + layer.ShimmerColor
             + " skinAdaptive=" + layer.SkinAdaptive.ToString().ToLowerInvariant()
@@ -1869,6 +1877,8 @@ public sealed class RNBridge : MonoBehaviour
             + layer.GlossBoost.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"gradientAmount\":"
             + layer.GradientAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"detailAmount\":"
+            + layer.DetailAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"shimmer\":"
             + layer.Shimmer.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"shimmerColor\":\""
@@ -2005,6 +2015,9 @@ public sealed class RNBridge : MonoBehaviour
             SpecularPower = Mathf.Max(0.0f, layer.specularPower),
             GlossBoost = Mathf.Max(0.0f, layer.glossBoost),
             GradientAmount = Mathf.Max(0.0f, layer.gradientAmount),
+            DetailAmount = Mathf.Clamp01(layer.detailAmount > 0.0f
+                ? layer.detailAmount
+                : recipe.detailAmount),
             Shimmer = Mathf.Max(0.0f, layer.shimmer),
             ShimmerColor = NormalizeOptional(layer.shimmerColor, recipe.shimmerColor, "#FFFFFF"),
             SkinAdaptive = layer.skinAdaptive || recipe.skinAdaptive,
@@ -2284,6 +2297,10 @@ public sealed class RNBridge : MonoBehaviour
             || (region == "brow" && (value == "brow-soft-arch-fine-hair-v1"
                 || value == "brow-back-arch-soft-mix-v1"
                 || value == "brow-slim-tail-fine-hair-v1"
+                || value == "brow-png-daily-hair-v1"
+                || value == "brow-png-natural-hair-v1"
+                || value == "brow-png-narrow-hair-v1"
+                || value == "brow-png-lightbrown-hair-v1"
                 || value == "brow-drawn-mask-v1")))
         {
             return value;

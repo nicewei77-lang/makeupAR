@@ -39,6 +39,7 @@ export const BROW_COLOR_OPTIONS = [
   { name: 'neutral_brown', color: '#4A342B' },
   { name: 'dark_brown', color: '#2F241F' },
   { name: 'soft_black', color: '#1F1B18' },
+  { name: 'light_brown', color: '#9A715A' },
 ] as const;
 
 const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye', 'brow'] as const;
@@ -79,6 +80,7 @@ export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
 const DEFAULT_BROW_MASK_SPREAD_X = 0.2;
+const DEFAULT_BROW_DETAIL_AMOUNT = 0.42;
 const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 
@@ -418,6 +420,10 @@ type MaskTextureId =
   | 'brow-soft-arch-fine-hair-v1'
   | 'brow-back-arch-soft-mix-v1'
   | 'brow-slim-tail-fine-hair-v1'
+  | 'brow-png-daily-hair-v1'
+  | 'brow-png-natural-hair-v1'
+  | 'brow-png-narrow-hair-v1'
+  | 'brow-png-lightbrown-hair-v1'
   | 'brow-drawn-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type MaskDebugViewMode =
@@ -441,6 +447,7 @@ export type RegionTuningParameters = {
   specularPower: number;
   glossBoost: number;
   gradientAmount: number;
+  detailAmount: number;
   preserveDetail: boolean;
   maskTextureId: MaskTextureId;
 };
@@ -560,6 +567,10 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
   brow: [
     { id: 'brow-back-arch-soft-mix-v1', label: 'Soft flat' },
     { id: 'brow-slim-tail-fine-hair-v1', label: 'Slim tail fine' },
+    { id: 'brow-png-daily-hair-v1', label: 'Daily hair' },
+    { id: 'brow-png-natural-hair-v1', label: 'Natural hair' },
+    { id: 'brow-png-narrow-hair-v1', label: 'Narrow hair' },
+    { id: 'brow-png-lightbrown-hair-v1', label: 'Light brown' },
   ],
 };
 
@@ -633,6 +644,22 @@ function formatMaskTextureSummary(
     if (maskTextureId === 'brow-slim-tail-fine-hair-v1') {
       return 'Slim tail fine';
     }
+
+    if (maskTextureId === 'brow-png-daily-hair-v1') {
+      return 'Daily hair';
+    }
+
+    if (maskTextureId === 'brow-png-natural-hair-v1') {
+      return 'Natural hair';
+    }
+
+    if (maskTextureId === 'brow-png-narrow-hair-v1') {
+      return 'Narrow hair';
+    }
+
+    if (maskTextureId === 'brow-png-lightbrown-hair-v1') {
+      return 'Light brown';
+    }
   }
 
   return maskTextureId.replace(/-v1$/, '').split('-').join(' ');
@@ -652,6 +679,7 @@ function buildDefaultRegionTuningForSample(
     specularPower: textureSample.specularPower,
     glossBoost: textureSample.glossBoost,
     gradientAmount: textureSample.gradientAmount,
+    detailAmount: region === 'brow' ? DEFAULT_BROW_DETAIL_AMOUNT : 0,
     preserveDetail: textureSample.preserveDetail,
     maskTextureId: resolveMaskTextureIdForRecipe(region, textureSample),
   };
@@ -832,6 +860,7 @@ export function buildValidationRecipeBatchPayload(
       specularPower: tuning.specularPower,
       glossBoost: tuning.glossBoost,
       gradientAmount: tuning.gradientAmount,
+      detailAmount: tuning.detailAmount,
       shimmer: sample.name === 'shimmer_eye' ? layerIntensity : 0,
       shimmerColor:
         sample.name === 'shimmer_eye' ? sample.secondaryColor : '#FFFFFF',
@@ -885,6 +914,7 @@ export function buildValidationRecipeBatchPayload(
     specularPower: focusTuning.specularPower,
     glossBoost: focusTuning.glossBoost,
     gradientAmount: focusTuning.gradientAmount,
+    detailAmount: focusTuning.detailAmount,
     shimmer: focusSample.name === 'shimmer_eye' ? focusIntensity : 0,
     shimmerColor:
       focusSample.name === 'shimmer_eye'
@@ -1028,6 +1058,7 @@ type UnityEventPayload = {
   specularPower?: number;
   glossBoost?: number;
   gradientAmount?: number;
+  detailAmount?: number;
   shimmer?: number;
   shimmerColor?: string;
   skinAdaptive?: boolean;
@@ -1895,7 +1926,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         | 'specular'
         | 'specularPower'
         | 'glossBoost'
-        | 'gradientAmount',
+        | 'gradientAmount'
+        | 'detailAmount',
       nextValue: number,
     ) => {
       const nextTuning = {
@@ -2740,6 +2772,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
                 {focusedRegion === 'brow' && (
                   <>
+                    <ValueSlider
+                      label="Texture Detail"
+                      value={focusedTuning.detailAmount}
+                      width={sliderWidth}
+                      fillColor="#C7D2FE"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue('detailAmount', value)
+                      }
+                    />
+
                     <Text style={styles.tuningSectionTitle}>Placement</Text>
                     <ValueSlider
                       label="Temperature"
@@ -2907,7 +2950,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
+                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / detail ${Math.round(focusedTuning.detailAmount * 100)}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(

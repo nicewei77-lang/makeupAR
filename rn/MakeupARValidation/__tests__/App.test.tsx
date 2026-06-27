@@ -662,6 +662,55 @@ test('applies eyebrow color warmth and depth parameters to payload color', () =>
   expect(browLayer.color).toBe('#422C1E');
 });
 
+test('passes PNG eyebrow hair texture and detail layer controls to payload', () => {
+  const browSample = BROW_TEXTURE_STYLE_OPTIONS.find(
+    textureSample => textureSample.name === 'natural_brow',
+  )!;
+  const lightBrown = BROW_COLOR_OPTIONS.find(
+    colorOption => colorOption.name === 'light_brown',
+  );
+
+  expect(lightBrown).toBeTruthy();
+
+  const payload = buildValidationRecipeBatchPayload(
+    {
+      ...DEFAULT_REGION_RECIPES,
+      brow: {
+        ...DEFAULT_REGION_RECIPES.brow,
+        color: lightBrown!,
+        colorDepth: 0.24,
+        textureSample: browSample,
+      },
+    },
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24683,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        detailAmount: 0.68,
+        maskTextureId: 'brow-png-daily-hair-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(payload.maskTextureId).toBe('brow-png-daily-hair-v1');
+  expect(payload.detailAmount).toBe(0.68);
+  expect(payload.color).toBe('#A7836F');
+  expect(browLayer.maskTextureId).toBe('brow-png-daily-hair-v1');
+  expect(browLayer.detailAmount).toBe(0.68);
+  expect(browLayer.blendMode).toBe('multiply');
+  expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
+});
+
 test('combines lip finish type and area style independently in payload', () => {
   expect(LIP_FINISH_TYPE_OPTIONS.map(option => option.label)).toEqual([
     'Normal',
@@ -1180,6 +1229,7 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('neutral_brown');
   expect(text).toContain('dark_brown');
   expect(text).toContain('soft_black');
+  expect(text).toContain('light_brown');
   expect(text).not.toContain('rose');
   expect(text).not.toContain('red');
   expect(text).toContain('Brow QA');
@@ -1194,6 +1244,11 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('Brow Y');
   expect(text).toContain('Soft flat');
   expect(text).toContain('Slim tail fine');
+  expect(text).toContain('Daily hair');
+  expect(text).toContain('Natural hair');
+  expect(text).toContain('Narrow hair');
+  expect(text).toContain('Light brown');
+  expect(text).toContain('Texture Detail');
   expect(text).not.toContain('High arch fine');
   expect(text).not.toContain('Legacy drawn');
   expect(text).not.toContain('LEGACY DRAWN');
