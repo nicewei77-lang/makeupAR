@@ -14,6 +14,9 @@ from PIL import Image
 
 MASK_DIR = Path("unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks")
 MASK_TEXTURE_IDS = (
+    "brow-png-dailyflat-hair-v1",
+    "brow-png-dailyflat-sharp-v1",
+    "brow-png-dailyflat-multiply-v1",
     "brow-png-daily-hair-v1",
     "brow-png-natural-hair-v1",
     "brow-png-narrow-hair-v1",
@@ -130,12 +133,23 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     require(92 <= bounds["top"] <= 104, f"{path.name} top bbox off: {bounds}")
     require(126 <= bounds["bottom"] <= 138, f"{path.name} bottom bbox off: {bounds}")
     require(24 <= bounds["height"] <= 48, f"{path.name} height off: {bounds}")
+    if "dailyflat-sharp" in path.name or "dailyflat-multiply" in path.name:
+        require(bounds["height"] <= 38, f"{path.name} should stay thin: {bounds}")
 
     components = connected_components(red > component_threshold, min_component_pixels)
     require(len(components) == 2, f"{path.name} should have two brows, got: {components}")
     left, right = components
     require(left["bbox"]["right"] < 246, f"{path.name} left brow crosses center: {left}")
     require(right["bbox"]["left"] > 266, f"{path.name} right brow crosses center: {right}")
+    if "dailyflat" in path.name:
+        require(
+            bounds["left"] >= left["bbox"]["left"] - 8,
+            f"{path.name} has stray low-alpha pixels before the left brow: bounds={bounds} left={left}",
+        )
+        require(
+            bounds["right"] <= right["bbox"]["right"] + 8,
+            f"{path.name} has stray low-alpha pixels after the right brow: bounds={bounds} right={right}",
+        )
 
     corner_alpha = int(
         alpha[:32, :32].max()
@@ -147,7 +161,8 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
 
     detail_values = blue[active]
     red_values = red[active]
-    require(float(detail_values.std()) >= 8.0, f"{path.name} detail channel too flat.")
+    min_detail_std = 11.0 if "dailyflat-sharp" in path.name or "dailyflat-multiply" in path.name else 8.0
+    require(float(detail_values.std()) >= min_detail_std, f"{path.name} detail channel too flat.")
     require(float(red_values.std()) >= 7.0, f"{path.name} alpha shape too flat.")
     require(int(blue[active].max()) > int(red[active].mean()), f"{path.name} detail channel lacks hair peaks.")
 

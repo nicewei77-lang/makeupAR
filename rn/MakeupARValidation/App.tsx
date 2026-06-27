@@ -80,7 +80,7 @@ export type LipAreaStyle = 'full' | 'gradient' | 'overline';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
 const DEFAULT_BROW_MASK_SPREAD_X = 0.2;
-const DEFAULT_BROW_DETAIL_AMOUNT = 0.42;
+const DEFAULT_BROW_DETAIL_AMOUNT = 0.68;
 const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 
@@ -420,6 +420,9 @@ type MaskTextureId =
   | 'brow-soft-arch-fine-hair-v1'
   | 'brow-back-arch-soft-mix-v1'
   | 'brow-slim-tail-fine-hair-v1'
+  | 'brow-png-dailyflat-hair-v1'
+  | 'brow-png-dailyflat-sharp-v1'
+  | 'brow-png-dailyflat-multiply-v1'
   | 'brow-png-daily-hair-v1'
   | 'brow-png-natural-hair-v1'
   | 'brow-png-narrow-hair-v1'
@@ -481,7 +484,7 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-drawn-mask-v1',
   eye: 'eye-drawn-mask-v1',
-  brow: 'brow-back-arch-soft-mix-v1',
+  brow: 'brow-png-dailyflat-sharp-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -567,6 +570,9 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
   brow: [
     { id: 'brow-back-arch-soft-mix-v1', label: 'Soft flat' },
     { id: 'brow-slim-tail-fine-hair-v1', label: 'Slim tail fine' },
+    { id: 'brow-png-dailyflat-hair-v1', label: 'Daily flat' },
+    { id: 'brow-png-dailyflat-sharp-v1', label: 'Flat sharp' },
+    { id: 'brow-png-dailyflat-multiply-v1', label: 'Flat multiply' },
     { id: 'brow-png-daily-hair-v1', label: 'Daily hair' },
     { id: 'brow-png-natural-hair-v1', label: 'Natural hair' },
     { id: 'brow-png-narrow-hair-v1', label: 'Narrow hair' },
@@ -643,6 +649,18 @@ function formatMaskTextureSummary(
 
     if (maskTextureId === 'brow-slim-tail-fine-hair-v1') {
       return 'Slim tail fine';
+    }
+
+    if (maskTextureId === 'brow-png-dailyflat-hair-v1') {
+      return 'Daily flat';
+    }
+
+    if (maskTextureId === 'brow-png-dailyflat-sharp-v1') {
+      return 'Flat sharp';
+    }
+
+    if (maskTextureId === 'brow-png-dailyflat-multiply-v1') {
+      return 'Flat multiply';
     }
 
     if (maskTextureId === 'brow-png-daily-hair-v1') {
@@ -790,11 +808,18 @@ export function resolveRecipeColorHex(recipe: RegionRecipe) {
 
 function isPngBrowHairMask(maskTextureId: MaskTextureId) {
   return (
+    maskTextureId === 'brow-png-dailyflat-hair-v1' ||
+    maskTextureId === 'brow-png-dailyflat-sharp-v1' ||
+    maskTextureId === 'brow-png-dailyflat-multiply-v1' ||
     maskTextureId === 'brow-png-daily-hair-v1' ||
     maskTextureId === 'brow-png-natural-hair-v1' ||
     maskTextureId === 'brow-png-narrow-hair-v1' ||
     maskTextureId === 'brow-png-lightbrown-hair-v1'
   );
+}
+
+function isPngBrowMultiplyProbe(maskTextureId: MaskTextureId) {
+  return maskTextureId === 'brow-png-dailyflat-multiply-v1';
 }
 
 function resolveLayerBlendMode(
@@ -803,6 +828,10 @@ function resolveLayerBlendMode(
   textureSample: RecipeTextureSample,
   maskTextureId: MaskTextureId,
 ) {
+  if (region === 'brow' && isPngBrowMultiplyProbe(maskTextureId)) {
+    return 'multiply';
+  }
+
   if (
     region === 'brow' &&
     recipe.color.name === 'light_brown' &&

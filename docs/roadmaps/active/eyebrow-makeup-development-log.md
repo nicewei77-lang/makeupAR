@@ -565,3 +565,42 @@ Remaining:
   - No face screenshots, recordings, or raw camera frames were captured.
   - Next gate: user iPhone visual QA on the installed PNG/bright brow build.
     Any quality feedback starts a new agreement proposal before implementation.
+- 2026-06-27: Daily-flat PNG texture fidelity A/B loop.
+  - User supplied self-authored `brow_dailyflat.png` and approved the proposed
+    texture-fidelity loop.
+  - RED: focused RN Jest failed because the default brow mask was still
+    `brow-back-arch-soft-mix-v1`, flat PNG A/B labels were absent, and
+    `light_brown` with the new sharp/multiply probes did not route to the
+    expected blend modes. `verify_brow_png_hair_textures.py` and
+    `verify_brow_unity_contract.py` failed because the new daily-flat assets and
+    Unity texture ids were missing.
+  - First generated sharp texture carried a source-image vertical artifact; the
+    verifier was tightened to reject stray low-alpha pixels outside the brow
+    components.
+  - GREEN: generator now supports `dailyflat` source extraction, `--only`
+    output selection, bright-on-dark hair scoring, component-based brow crop
+    selection, and three generated Unity resources:
+    `brow-png-dailyflat-hair-v1`, `brow-png-dailyflat-sharp-v1`, and
+    `brow-png-dailyflat-multiply-v1`.
+  - RN now defaults brow mask selection to `Flat sharp`, exposes `Daily flat`,
+    `Flat sharp`, and `Flat multiply`, raises default `Texture Detail` to
+    `0.68`, keeps light-brown PNG hair on normal composition except for the
+    explicit `Flat multiply` probe, and verifies this with focused Jest.
+  - Unity `RNBridge` and `E3RegionMaskOverlay` accept the new ids and default to
+    `brow-png-dailyflat-sharp-v1`. `SmoothRegionMask.shader` now preserves a
+    sharper `hairNeedle` signal and strengthens extracted PNG brow detail.
+  - Verification passed: full RN Jest (`29` tests), `npx tsc --noEmit`,
+    `npm run lint`, `verify_brow_png_hair_textures.py`,
+    `verify_brow_unity_contract.py`, `verify_brow_mask_texture.py`,
+    `verify_region_renderer_routes.py`, and
+    `verify_unityframework_build_contract.py`.
+  - Unity `6000.3.18f1` batchmode import/compile first failed before compile
+    because Unity Licensing IPC timed out in the sandboxed run. Log:
+    `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627.log`.
+    The Unity/Licensing processes started by that attempt were terminated.
+  - Retrying Unity batchmode with elevated permissions passed with `Tundra build
+    success`, imported the three `brow-png-dailyflat-*` textures, and exited
+    successfully:
+    `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627-r2.log`.
+  - No UnityFramework/RN iPhone build was started in this loop. A device build
+    is required before user visual QA can judge the new texture fidelity.

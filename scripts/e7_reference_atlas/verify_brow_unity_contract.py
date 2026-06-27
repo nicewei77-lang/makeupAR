@@ -22,10 +22,13 @@ DEFAULT_ROUTES = Path(
 DEFAULT_BROW_MASK_DIR = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 )
-DEFAULT_BROW_MASK_ID = "brow-back-arch-soft-mix-v1"
+DEFAULT_BROW_MASK_ID = "brow-png-dailyflat-sharp-v1"
 LEGACY_BROW_MASK_ID = "brow-drawn-mask-v1"
 SELECTED_BROW_MASK_IDS = (
     DEFAULT_BROW_MASK_ID,
+    "brow-png-dailyflat-hair-v1",
+    "brow-png-dailyflat-multiply-v1",
+    "brow-back-arch-soft-mix-v1",
     "brow-slim-tail-fine-hair-v1",
     "brow-png-daily-hair-v1",
     "brow-png-natural-hair-v1",
@@ -376,6 +379,16 @@ def main() -> None:
         shader,
         "maskUv.y = saturate(maskUv.y - _MaskOffset.y);",
         "SmoothRegionMask shader must still apply vertical mask offset before sampling.",
+    )
+    require_contains(
+        shader,
+        "float hairNeedle = saturate(rawHairDetail - softHairDetail * 0.38);",
+        "SmoothRegionMask shader must preserve thin PNG brow hair needles.",
+    )
+    require_contains(
+        shader,
+        "hairContrast * coverage * detailAmount * 0.62",
+        "SmoothRegionMask shader must strengthen PNG brow detail response.",
     )
 
     print("brow_unity_contract_ok")

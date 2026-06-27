@@ -269,13 +269,18 @@ Shader "MakeupAR/SmoothRegionMask"
                 float detailAmount = saturate(_DetailAmount) * saturate(_PreserveDetail);
                 if (_LipStyleMode < -0.5 && detailAmount > 0.001)
                 {
-                    float hairDetail = saturate(max(mask.b, softMask.b) * fullSoft);
-                    float hairContrast = saturate((hairDetail - fullSoft * 0.10) * 1.42);
-                    maskStrength = saturate(maskStrength + hairContrast * coverage * detailAmount * 0.38);
+                    float rawHairDetail = saturate(mask.b * fullSoft);
+                    float softHairDetail = saturate(softMask.b * fullSoft);
+                    float hairNeedle = saturate(rawHairDetail - softHairDetail * 0.38);
+                    float hairContrast = saturate((
+                        rawHairDetail * 1.18
+                        + hairNeedle * 1.55
+                        - fullSoft * 0.055) * 1.62);
+                    maskStrength = saturate(maskStrength + hairContrast * coverage * detailAmount * 0.62);
                     pigmentColor = saturate(lerp(
                         pigmentColor,
-                        pigmentColor * 0.64,
-                        hairContrast * detailAmount));
+                        pigmentColor * 0.52,
+                        hairContrast * detailAmount * 0.82));
                     alphaColor = pigmentColor;
                 }
 

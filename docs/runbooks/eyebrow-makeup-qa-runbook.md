@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: PNG/bright brow build installed on iPhone; user visual QA pending
+Status: Daily flat PNG A/B implemented locally; iPhone rebuild pending
 Date: 2026-06-27
 
 ## Scope
@@ -210,6 +210,11 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   brow hair candidates (`Daily hair`, `Natural hair`, `Narrow hair`,
   `Light brown`), `Texture Detail`, and the `light_brown` normal-composition
   split for PNG-derived brow hair. User visual QA is pending.
+- Local daily-flat follow-up now adds `Daily flat`, `Flat sharp`, and
+  `Flat multiply` from the flatter user-authored `brow_dailyflat.png`. `Flat
+  sharp` is the new local default, `Texture Detail` starts at `0.68`, and
+  `Flat multiply` is an explicit multiply comparison path. This daily-flat loop
+  is not installed on the iPhone yet.
 
 ## Brow Parameter Tuning Guide
 
@@ -245,11 +250,17 @@ Check:
 - `brow` can be enabled and disabled independently.
 - `natural_brow` appears as the default brow sample.
 - `soft_brow` can be selected and updates immediately.
-- `Soft flat` (`brow-back-arch-soft-mix-v1`) is selected for brow by default.
+- `Soft flat` (`brow-back-arch-soft-mix-v1`) was the previous installed default
+  and remains selectable for comparison.
 - `Slim tail fine` (`brow-slim-tail-fine-hair-v1`) can be selected for visual
   comparison.
-- PNG hair candidates `Daily hair`, `Natural hair`, `Narrow hair`, and
-  `Light brown` can be selected and compared.
+- `Flat sharp` (`brow-png-dailyflat-sharp-v1`) is selected for brow by default
+  in the local daily-flat build candidate.
+- PNG hair candidates `Daily flat`, `Flat sharp`, `Flat multiply`, `Daily hair`,
+  `Natural hair`, `Narrow hair`, and `Light brown` can be selected and compared.
+- Compare `Flat sharp` against `Flat multiply` with the same color and
+  `Texture Detail` value to judge whether multiply revives texture or makes the
+  brow too muddy.
 - `Texture Detail` changes the visible PNG hair detail without replacing the
   selected brow color layer.
 - `Brow Spread` and `Brow Y` controls can be adjusted while the brow remains

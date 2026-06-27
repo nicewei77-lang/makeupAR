@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: PNG/bright brow build installed on iPhone; user visual QA pending
+Status: Daily flat PNG A/B implemented locally; iPhone rebuild pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -67,13 +67,21 @@ First-loop presets use natural brow colors rather than lip colors:
   `colorWarmth` and `colorDepth`; RN sends the computed final hex through the
   existing Unity `color` field.
 - PNG-derived hair candidates are selectable as mask/detail textures:
-  `Daily hair`, `Natural hair`, `Narrow hair`, and `Light brown`. The source
-  art is user-authored. The generated Unity textures remove the grey
-  background/glow, store soft alpha in red/alpha, and store hair detail in blue
-  so the shader can apply color separately.
+  `Daily flat`, `Flat sharp`, `Flat multiply`, `Daily hair`, `Natural hair`,
+  `Narrow hair`, and `Light brown`. The source art is user-authored. The
+  generated Unity textures remove the grey/black background and glow, store
+  soft alpha in red/alpha, and store hair detail in blue so the shader can apply
+  color separately.
+- `Flat sharp` is the current local default candidate. It uses the flatter
+  `brow_dailyflat.png` source, a thinner target height, stronger extracted hair
+  detail, and default `Texture Detail` `0.68`.
 - Brow texture detail is parameterized with a `Texture Detail` slider that maps
   to `detailAmount`. This preserves the color layer while allowing a controlled
   multiply-like darkening of only the extracted hair detail.
+- `Flat multiply` uses the same flatter/sharper extracted texture as
+  `Flat sharp`, but forces multiply composition even for `light_brown` so the
+  next device QA can compare normal color-layer composition against a multiply
+  probe.
 - `light_brown` with PNG-derived brow hair uses normal alpha composition while
   keeping `detailAmount` active. Darker PNG brow colors keep multiply
   composition. This prevents the light brow option from being darkened by a
@@ -206,22 +214,30 @@ or bridge rewrite.
   after correcting stale generated CocoaPods Hermes paths, installed it on
   `CloudsiPhone (26.5)`, and launched `com.celeste.makeupar.validation`.
   User visual QA on this exact build is pending.
+- 2026-06-27: User supplied a flatter self-authored `brow_dailyflat.png` and
+  approved the texture-fidelity A/B loop. The local branch now adds
+  `Daily flat`, `Flat sharp`, and `Flat multiply`; defaults brow mask selection
+  to `Flat sharp`; raises default `Texture Detail` to `0.68`; strengthens the
+  shader's thin-hair detail response; and keeps `Flat multiply` as an explicit
+  multiply comparison path. This is local only and requires a new iPhone build
+  before visual QA.
 
 ## Local Verification
 
-- RN Jest: `npm test -- --runInBand` passed with 28 tests, including the
-  bright PNG brow blend split.
-- Brow mask verifier passed for the new default `brow-back-arch-soft-mix-v1`.
-  The verifier now tightens the top-edge arch guard to reduce the angry
-  `^ ^` read while still checking separation from eye/cheek/lip masks.
+- RN Jest: `npm test -- --runInBand` passed with 29 tests, including the
+  daily-flat normal/sharp/multiply comparison path.
+- Brow mask verifier passed for compatibility procedural mask
+  `brow-back-arch-soft-mix-v1`. The PNG hair verifier now covers the local
+  `Flat sharp` default.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
   The verifier now guards brow renderer routing plus brow-specific
   threshold/feather policy and PNG hair `detailAmount`.
 - PNG brow hair texture verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py`.
-  It checks all four generated PNG-derived textures for active coverage, two
-  brow components, transparent corners, and a non-flat detail channel.
+  It checks all seven generated PNG-derived textures for active coverage, two
+  brow components, transparent corners, non-flat detail, daily-flat thinness,
+  and stray low-alpha artifact rejection.
 - Region renderer route verifier passed:
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - UnityFramework build contract verifier passed:
@@ -249,13 +265,24 @@ or bridge rewrite.
 - `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
   `evidence/logs/eyebrow-rn-devicectl-install-png-bright-20260627.log` and
   `evidence/logs/eyebrow-rn-devicectl-launch-png-bright-20260627.log`.
+- Latest daily-flat local checks passed: full RN Jest (`29` tests), TypeScript,
+  RN lint, `verify_brow_png_hair_textures.py`, `verify_brow_unity_contract.py`,
+  `verify_brow_mask_texture.py`, `verify_region_renderer_routes.py`, and
+  `verify_unityframework_build_contract.py`.
+- Unity `6000.3.18f1` batchmode import/compile for the daily-flat loop first
+  hit a Licensing IPC timeout in the sandboxed run:
+  `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627.log`.
+  The elevated retry passed with `Tundra build success`, imported the three
+  `brow-png-dailyflat-*` textures, and exited successfully:
+  `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627-r2.log`.
 
 ## QA Status
 
-The latest iPhone build is launchable and includes the stronger, flatter brow
-tuning, PNG hair candidates, `Texture Detail`, and the bright-brow composition
-split. Product quality is still not accepted until the user visually checks this
-installed build for visibility, placement, shape, color, and tracking recovery.
+The latest installed iPhone build is still the PNG/bright brow build. The newer
+daily-flat A/B texture loop is implemented locally but not installed yet. Product
+quality is still not accepted until the daily-flat build is installed and the
+user visually checks visibility, hair texture fidelity, curve shape, color,
+multiply-vs-normal behavior, and tracking recovery.
 
 ## Risks
 
