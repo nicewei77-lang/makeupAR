@@ -776,6 +776,11 @@ test('selects exactly one cheek blush region mask per cheek layer', () => {
     expect(cheekLayer.blendMode).toBe('multiply');
     expect(cheekLayer.finish).toBe('powder');
     expect(cheekLayer.shaderMode).toBe('cheek-blush-powder-validation');
+    expect(cheekLayer.intensity).toBeGreaterThanOrEqual(0.46);
+    expect(cheekLayer.intensity).toBeLessThanOrEqual(0.54);
+    expect(cheekLayer.coverage).toBeGreaterThanOrEqual(0.62);
+    expect(cheekLayer.coverage).toBeLessThanOrEqual(0.72);
+    expect(cheekLayer.preserveDetail).toBe(true);
   });
 });
 

@@ -62,18 +62,24 @@ def verify_masks() -> dict[str, dict[str, float | int]]:
         b = rgba[:, :, 2]
         a = rgba[:, :, 3]
         active = r > 8
+        density_active = b > 8
 
         require(int(g.max()) == 0, f"{mask_id} G channel must stay reserved/zero")
         require(np.array_equal(r, a), f"{mask_id} R and A alpha channels must match")
-        require(int(active.sum()) > 3000, f"{mask_id} alpha coverage is unexpectedly tiny")
-        require(int((b > 8).sum()) > 2500, f"{mask_id} density channel is unexpectedly tiny")
-        require(float(b[active].mean()) < float(r[active].mean()), f"{mask_id} B density should not be flat alpha")
-        require(int(b.max()) > 90, f"{mask_id} density peak is too weak")
+        require(int(active.sum()) > 1200, f"{mask_id} final alpha coverage is unexpectedly tiny")
+        require(int(density_active.sum()) > 2500, f"{mask_id} density channel is unexpectedly tiny")
+        require(170 <= int(r.max()) <= 255, f"{mask_id} coverage alpha peak must preserve the full soft shape")
+        require(55 <= int(b.max()) <= 140, f"{mask_id} density peak must stay in natural blush range")
+        require(float(b[density_active].std()) > 18.0, f"{mask_id} density should have visible falloff")
+        require(float(r[active].std()) > 12.0, f"{mask_id} alpha should not be flat across the shape")
 
         stats[mask_id] = {
             "alphaPixelsGt8": int(active.sum()),
-            "densityPixelsGt8": int((b > 8).sum()),
+            "alphaMax": int(r.max()),
+            "alphaStdActive": float(r[active].std()) if int(active.sum()) > 0 else 0.0,
+            "densityPixelsGt8": int(density_active.sum()),
             "densityMax": int(b.max()),
+            "densityStdActive": float(b[density_active].std()) if int(density_active.sum()) > 0 else 0.0,
             "reservedGMax": int(g.max()),
         }
     return stats
@@ -84,19 +90,74 @@ def main() -> None:
     expected = json.loads(EXPECTED_SUMMARY_PATH.read_text(encoding="utf-8"))
 
     require(sorted(summary["maskIds"]) == sorted(MASK_IDS), "summary maskIds must match cheek v1")
+    require(
+        summary["channelContract"]["r"].startswith("coverage alpha = softly expanded shape boundary only"),
+        "summary must document coverage alpha separately from density",
+    )
     require(summary["channelContract"]["g"].startswith("reserved"), "summary must document reserved G")
+    profiles = summary.get("densityProfiles", {})
+    require(sorted(profiles.keys()) == sorted(MASK_IDS), "summary must define a density profile per cheek style")
+    require(
+        profiles["cheek-daily-mask-v1"]["blobs"]["cheek"]["centerX"] > 0.0,
+        "daily profile must push core slightly outward",
+    )
+    require(
+        profiles["cheek-lovely-mask-v1"]["blobs"]["cheek"]["radiusX"]
+        < profiles["cheek-daily-mask-v1"]["blobs"]["cheek"]["radiusX"],
+        "lovely profile must stay rounder/tighter than daily",
+    )
+    require(
+        profiles["cheek-sunkissed-mask1-v1"]["blobs"]["nose"]["maxAlpha"]
+        < profiles["cheek-sunkissed-mask1-v1"]["blobs"]["cheek"]["maxAlpha"],
+        "sunkissed1 nose core must stay weaker than cheek core",
+    )
+    require(
+        profiles["cheek-sunkissed-mask2-v1"]["blobs"]["noseBridge"]["maxAlpha"]
+        < profiles["cheek-sunkissed-mask2-v1"]["blobs"]["leftCheek"]["maxAlpha"],
+        "sunkissed2 nose bridge must stay weaker than cheekbone cores",
+    )
+    require(
+        "verticalBalance" in profiles["cheek-sunkissed-mask2-v1"]
+        and "lowerFade" not in profiles["cheek-sunkissed-mask2-v1"],
+        "sunkissed2 must use horizontal cheek-to-nose density, not top-to-bottom lowerFade",
+    )
+    require(
+        profiles["cheek-under-eye-mask-v1"]["blobs"]["underEye"]["centerY"] < 0.0,
+        "under-eye profile must keep the core high under the eye",
+    )
+    require(
+        profiles["cheek-under-eye-mask-v1"]["lowerFade"]["endY"]
+        > profiles["cheek-under-eye-mask-v1"]["lowerFade"]["startY"],
+        "under-eye profile must fade down into the cheek",
+    )
     require(len(expected["rows"]) == 5, "expected render summary must contain five rows")
     require(
         expected["runtimeSelectionRule"] == "one cheek blush region mask is selected per cheek layer",
         "expected render must document single-mask runtime selection",
     )
     require(
-        expected["edgeContract"] == "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
-        "expected render must document the skin-fade edge contract",
+        expected["edgeContract"] == "coverage alpha stays wide/soft while density and coverage form one continuous watercolor field; cheek color is applied through skin-aware multiply tint",
+        "expected render must document the skin-aware edge contract",
+    )
+    require(
+        expected["blendContract"] == "cheek blush uses a density-gated multiply filter, not simple source-over alpha color",
+        "expected render must document the non-alpha-overlay blend contract",
+    )
+    require(
+        expected["coreEdgeContract"].startswith("visible blush uses one continuous density curve"),
+        "expected render must document the continuous blush density curve",
     )
     require(
         expected["densityContract"]["blush_daily"].startswith("outer/high cheekbone peak"),
         "expected render must document shape-specific density behavior",
+    )
+    require(
+        "fades horizontally inward" in expected["densityContract"]["blush_sunkissed2"],
+        "expected render must document sunkissed2 horizontal fade",
+    )
+    require(
+        "fades gradually downward" in expected["densityContract"]["blush_under_eye"],
+        "expected render must document under-eye downward fade",
     )
 
     require_text(APP_PATH, MASK_IDS + TEXTURE_NAMES + ("cheek_blush_validation_v1", "cheek-blush-v1"))
@@ -117,7 +178,7 @@ def main() -> None:
         MASK_IDS
         + (
             "_CheekBlushMode",
-            "rgba_cheek_blush_density_feather_powder",
+            "skin_aware_cheek_blush_density_filter",
             "MaskTextureDensityPixelCountGt8",
             "MaskTextureDensityCoverageGt8",
             "MaskTextureDensityBbox",
@@ -126,7 +187,14 @@ def main() -> None:
     )
     require_text(
         SHADER_PATH,
-        ("_CheekBlushMode", "cheekDensity", "cheekEdge", "cheekSkinFade", "cheekSkinTint"),
+        (
+            "_CheekBlushMode",
+            "cheekDensity",
+            "cheekContinuousField",
+            "cheekWatercolorField",
+            "skinAwareFilter",
+            "cheekBlushPigment",
+        ),
     )
 
     print(json.dumps({"status": "ok", "masks": verify_masks()}, indent=2, ensure_ascii=False))

@@ -205,7 +205,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string CheekSunkissedMask2Id = "cheek-sunkissed-mask2-v1";
     private const string CheekUnderEyeMaskId = "cheek-under-eye-mask-v1";
     private const string CheekBlushMaskSource = "cheek_blush_v1_uv_back_projection";
-    private const string CheekBlushBoundaryRenderer = "rgba_cheek_blush_density_feather_powder";
+    private const string CheekBlushBoundaryRenderer = "skin_aware_cheek_blush_density_filter";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -2079,7 +2079,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 : visionLipBoundary
                 ? 0.34f
                 : cheekBlushMask
-                ? 0.64f
+                ? 0.78f
                 : 0.56f
         };
     }
@@ -2114,7 +2114,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             return Mathf.Clamp01(Mathf.Min(
                 mask.FeatherUvNormalized,
-                Mathf.Max(0.54f, recipe.Feather)));
+                Mathf.Max(0.68f, recipe.Feather)));
         }
 
         return mask.FeatherUvNormalized;
@@ -2467,7 +2467,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         view.MeshRenderer.sharedMaterial = material;
         material.SetTexture("_MaskTex", maskTexture);
-        ApplyMaterialBlendMode(material, recipe.BlendMode);
+        ApplyMaterialBlendMode(material, recipe.BlendMode, recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId));
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
 
         if (material.HasProperty("_UseScreenSpaceMask"))
@@ -2567,6 +2567,35 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_PreserveDetail", recipe.PreserveDetail ? 1.0f : 0.0f);
         }
 
+        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        if (cheekBlushMask)
+        {
+            if (material.HasProperty("_DensityPower"))
+            {
+                material.SetFloat("_DensityPower", 0.68f);
+            }
+
+            if (material.HasProperty("_EdgeSoftness"))
+            {
+                material.SetFloat("_EdgeSoftness", 0.90f);
+            }
+
+            if (material.HasProperty("_SkinPreserve"))
+            {
+                material.SetFloat("_SkinPreserve", 0.70f);
+            }
+
+            if (material.HasProperty("_SaturationBoost"))
+            {
+                material.SetFloat("_SaturationBoost", 0.34f);
+            }
+
+            if (material.HasProperty("_Warmth"))
+            {
+                material.SetFloat("_Warmth", 0.28f);
+            }
+        }
+
         if (material.HasProperty("_LipStyleMode"))
         {
             material.SetFloat(
@@ -2655,7 +2684,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "blush_sunkissed1":
             case "blush_sunkissed2":
             case "blush_under_eye":
-                sampleAlphaScale = Mathf.Lerp(0.18f, 0.42f, recipe.Intensity);
+                float blushIntensityCurve = recipe.Intensity * recipe.Intensity * (3.0f - 2.0f * recipe.Intensity);
+                sampleAlphaScale = Mathf.Lerp(0.06f, 1.24f, blushIntensityCurve);
                 brightnessScale = 0.98f;
                 break;
             case "shimmer_eye":
@@ -2694,7 +2724,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
     }
 
-    private static void ApplyMaterialBlendMode(Material material, string blendMode)
+    private static void ApplyMaterialBlendMode(Material material, string blendMode, bool cheekBlushMask)
     {
         if (material == null)
         {
