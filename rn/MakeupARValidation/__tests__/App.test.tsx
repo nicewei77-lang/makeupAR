@@ -273,8 +273,10 @@ test('shows blush region, style, and intensity controls in HUD mode', async () =
 
   expect(hudText).toContain('rose');
   expect(hudText).toContain('coral');
+  expect(hudText).toContain('pale pink');
   expect(hudText).toContain('Blush Region');
   expect(hudText).toContain('Daily');
+  expect(hudText).toContain('Default 2');
   expect(hudText).toContain('Lovely');
   expect(hudText).toContain('Sun 1');
   expect(hudText).toContain('Sun 2');
@@ -727,6 +729,7 @@ test('passes selected lip color, finish, and intensity through payload', () => {
 test('selects exactly one cheek blush region mask per cheek layer', () => {
   const expectedMaskIds: Record<string, string> = {
     blush_daily: 'cheek-daily-mask-v1',
+    blush_default2: 'cheek-default2-mask-v1',
     blush_lovely: 'cheek-lovely-mask-v1',
     blush_sunkissed1: 'cheek-sunkissed-mask1-v1',
     blush_sunkissed2: 'cheek-sunkissed-mask2-v1',
@@ -735,6 +738,7 @@ test('selects exactly one cheek blush region mask per cheek layer', () => {
 
   expect(CHEEK_BLUSH_REGION_OPTIONS.map(option => option.name)).toEqual([
     'blush_daily',
+    'blush_default2',
     'blush_lovely',
     'blush_sunkissed1',
     'blush_sunkissed2',
@@ -777,9 +781,9 @@ test('selects exactly one cheek blush region mask per cheek layer', () => {
     expect(cheekLayer.finish).toBe('powder');
     expect(cheekLayer.shaderMode).toBe('cheek-blush-powder-validation');
     expect(cheekLayer.intensity).toBeGreaterThanOrEqual(0.46);
-    expect(cheekLayer.intensity).toBeLessThanOrEqual(0.54);
+    expect(cheekLayer.intensity).toBeLessThanOrEqual(0.56);
     expect(cheekLayer.coverage).toBeGreaterThanOrEqual(0.62);
-    expect(cheekLayer.coverage).toBeLessThanOrEqual(0.72);
+    expect(cheekLayer.coverage).toBeLessThanOrEqual(0.78);
     expect(cheekLayer.preserveDetail).toBe(true);
   });
 });

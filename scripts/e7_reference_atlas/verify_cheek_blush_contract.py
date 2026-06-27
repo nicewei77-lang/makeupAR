@@ -24,6 +24,7 @@ SHADER_PATH = ROOT / "unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionM
 
 MASK_IDS = (
     "cheek-daily-mask-v1",
+    "cheek-default2-mask-v1",
     "cheek-lovely-mask-v1",
     "cheek-sunkissed-mask1-v1",
     "cheek-sunkissed-mask2-v1",
@@ -31,6 +32,7 @@ MASK_IDS = (
 )
 TEXTURE_NAMES = (
     "blush_daily",
+    "blush_default2",
     "blush_lovely",
     "blush_sunkissed1",
     "blush_sunkissed2",
@@ -107,6 +109,15 @@ def main() -> None:
         "lovely profile must stay rounder/tighter than daily",
     )
     require(
+        profiles["cheek-default2-mask-v1"]["blobs"]["centerWash"]["maxAlpha"]
+        < profiles["cheek-default2-mask-v1"]["blobs"]["leftCheek"]["maxAlpha"],
+        "default2 center wash must stay weaker than cheek cores",
+    )
+    require(
+        "verticalBalance" in profiles["cheek-default2-mask-v1"],
+        "default2 must keep a broad vertical balance for multi-band cheek blending",
+    )
+    require(
         profiles["cheek-sunkissed-mask1-v1"]["blobs"]["nose"]["maxAlpha"]
         < profiles["cheek-sunkissed-mask1-v1"]["blobs"]["cheek"]["maxAlpha"],
         "sunkissed1 nose core must stay weaker than cheek core",
@@ -130,26 +141,30 @@ def main() -> None:
         > profiles["cheek-under-eye-mask-v1"]["lowerFade"]["startY"],
         "under-eye profile must fade down into the cheek",
     )
-    require(len(expected["rows"]) == 5, "expected render summary must contain five rows")
+    require(len(expected["rows"]) == 6, "expected render summary must contain six rows")
     require(
         expected["runtimeSelectionRule"] == "one cheek blush region mask is selected per cheek layer",
         "expected render must document single-mask runtime selection",
     )
     require(
-        expected["edgeContract"] == "coverage alpha stays wide/soft while density and coverage form one continuous watercolor field; cheek color is applied through skin-aware multiply tint",
-        "expected render must document the skin-aware edge contract",
+        "outer skin tint, mid wash, and density core" in expected["edgeContract"],
+        "expected render must document the default2 multi-band edge contract",
     )
     require(
         expected["blendContract"] == "cheek blush uses a density-gated multiply filter, not simple source-over alpha color",
         "expected render must document the non-alpha-overlay blend contract",
     )
     require(
-        expected["coreEdgeContract"].startswith("visible blush uses one continuous density curve"),
-        "expected render must document the continuous blush density curve",
+        "outer, mid, and core bands" in expected["coreEdgeContract"],
+        "expected render must document smooth multi-band blush falloff",
     )
     require(
         expected["densityContract"]["blush_daily"].startswith("outer/high cheekbone peak"),
         "expected render must document shape-specific density behavior",
+    )
+    require(
+        "outer band stays close to skin" in expected["densityContract"]["blush_default2"],
+        "expected render must document default2 outer/mid/core density behavior",
     )
     require(
         "fades horizontally inward" in expected["densityContract"]["blush_sunkissed2"],
@@ -178,7 +193,9 @@ def main() -> None:
         MASK_IDS
         + (
             "_CheekBlushMode",
+            "_BlushIntensity",
             "skin_aware_cheek_blush_density_filter",
+            "skin_aware_cheek_blush_multiband_filter",
             "MaskTextureDensityPixelCountGt8",
             "MaskTextureDensityCoverageGt8",
             "MaskTextureDensityBbox",
@@ -189,6 +206,10 @@ def main() -> None:
         SHADER_PATH,
         (
             "_CheekBlushMode",
+            "_BlushIntensity",
+            "cheekDefault2OuterBand",
+            "cheekDefault2MidBand",
+            "cheekDefault2CoreBand",
             "cheekDensity",
             "cheekContinuousField",
             "cheekWatercolorField",

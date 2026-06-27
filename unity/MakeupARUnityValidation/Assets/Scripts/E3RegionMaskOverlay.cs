@@ -200,12 +200,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string LipDrawnStyleAtlasMaskId = "lip-drawn-style-atlas-v1";
     private const string LipDrawnGradientDensityAtlasMaskId = "lip-drawn-gradient-density-atlas-v1";
     private const string CheekDailyMaskId = "cheek-daily-mask-v1";
+    private const string CheekDefault2MaskId = "cheek-default2-mask-v1";
     private const string CheekLovelyMaskId = "cheek-lovely-mask-v1";
     private const string CheekSunkissedMask1Id = "cheek-sunkissed-mask1-v1";
     private const string CheekSunkissedMask2Id = "cheek-sunkissed-mask2-v1";
     private const string CheekUnderEyeMaskId = "cheek-under-eye-mask-v1";
     private const string CheekBlushMaskSource = "cheek_blush_v1_uv_back_projection";
     private const string CheekBlushBoundaryRenderer = "skin_aware_cheek_blush_density_filter";
+    private const string CheekDefault2BoundaryRenderer = "skin_aware_cheek_blush_multiband_filter";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -563,6 +565,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
         bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        bool cheekDefault2Mask = recipe.Region == "cheek" && IsCheekDefault2Mask(recipe.MaskTextureId);
         bool lipLogicalMultilayer = lipStyleAtlas || visionLipBoundary;
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
@@ -584,7 +587,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 ? "rgba_style_atlas_logical_multilayer_sdf_feather"
                 : "rgba_style_atlas_soft_alpha_sdf_feather")
             : cheekBlushMask
-            ? CheekBlushBoundaryRenderer
+            ? (cheekDefault2Mask ? CheekDefault2BoundaryRenderer : CheekBlushBoundaryRenderer)
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
@@ -2514,6 +2517,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_Coverage", recipe.Coverage);
         }
 
+        if (material.HasProperty("_BlushIntensity"))
+        {
+            material.SetFloat("_BlushIntensity", Mathf.Clamp01(recipe.Intensity));
+        }
+
         if (material.HasProperty("_Roughness"))
         {
             material.SetFloat("_Roughness", recipe.Roughness);
@@ -2609,7 +2617,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_CheekBlushMode",
-                recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId)
+                recipe.Region == "cheek" && IsCheekDefault2Mask(recipe.MaskTextureId)
+                    ? 2.0f
+                    : recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId)
                     ? 1.0f
                     : 0.0f);
         }
@@ -2677,6 +2687,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "overline_lip":
                 sampleAlphaScale = Mathf.Lerp(0.28f, 0.42f, recipe.Intensity);
                 brightnessScale = 0.96f;
+                break;
+            case "blush_default2":
+                sampleAlphaScale = 1.0f;
+                brightnessScale = 0.98f;
                 break;
             case "soft_blush":
             case "blush_daily":
@@ -2917,6 +2931,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "overline_lip"))
             || (region == "cheek"
                 && (textureSample == "soft_blush"
+                    || textureSample == "blush_default2"
                     || textureSample == "blush_daily"
                     || textureSample == "blush_lovely"
                     || textureSample == "blush_sunkissed1"
@@ -3012,10 +3027,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : maskTextureId.Trim();
 
         return maskTextureId == CheekDailyMaskId
+            || maskTextureId == CheekDefault2MaskId
             || maskTextureId == CheekLovelyMaskId
             || maskTextureId == CheekSunkissedMask1Id
             || maskTextureId == CheekSunkissedMask2Id
             || maskTextureId == CheekUnderEyeMaskId;
+    }
+
+    private static bool IsCheekDefault2Mask(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        return maskTextureId == CheekDefault2MaskId;
     }
 
     private static string NormalizeOptional(string value)

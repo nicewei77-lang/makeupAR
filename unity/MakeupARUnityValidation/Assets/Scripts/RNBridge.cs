@@ -2119,6 +2119,7 @@ public sealed class RNBridge : MonoBehaviour
     {
         return value == "soft_blush"
             || value == "blush_daily"
+            || value == "blush_default2"
             || value == "blush_lovely"
             || value == "blush_sunkissed1"
             || value == "blush_sunkissed2"
@@ -2128,6 +2129,7 @@ public sealed class RNBridge : MonoBehaviour
     private static bool IsCheekBlushMaskTextureId(string value)
     {
         return value == "cheek-daily-mask-v1"
+            || value == "cheek-default2-mask-v1"
             || value == "cheek-lovely-mask-v1"
             || value == "cheek-sunkissed-mask1-v1"
             || value == "cheek-sunkissed-mask2-v1"

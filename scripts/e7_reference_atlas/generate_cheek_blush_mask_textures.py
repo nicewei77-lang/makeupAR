@@ -42,6 +42,12 @@ MASK_SPECS = (
         "default": "/Users/yeoduchi/Downloads/cheek_daily_mask.png",
     },
     {
+        "id": "cheek-default2-mask-v1",
+        "label": "default2 multi-band cheek",
+        "arg": "default2",
+        "default": "/Users/yeoduchi/Downloads/blush_defalut2.png",
+    },
+    {
         "id": "cheek-sunkissed-mask1-v1",
         "label": "sunkissed cheek plus nose",
         "arg": "sunkissed1",
@@ -62,10 +68,12 @@ MASK_SPECS = (
 )
 
 SUNKISSED2_PLACEMENT_BBOX = (220, 906, 917, 1052)
+DEFAULT2_PLACEMENT_BBOX = (160, 760, 1018, 1285)
 ALPHA_MASK_THRESHOLD = 8
 SUNKISSED2_ALPHA_GEOMETRY_THRESHOLD = 128
 OUTER_X_EXTENSION_PX = {
     "cheek-daily-mask-v1": 26,
+    "cheek-default2-mask-v1": 18,
     "cheek-lovely-mask-v1": 22,
     "cheek-sunkissed-mask1-v1": 30,
     "cheek-sunkissed-mask2-v1": 34,
@@ -85,6 +93,39 @@ DENSITY_STYLE_PROFILES = {
                 "maxAlpha": 0.50,
             },
         },
+    },
+    "cheek-default2-mask-v1": {
+        "contract": "wide default2 blush; outer skin tint, mid wash, and density-driven cheek cores",
+        "blobs": {
+            "leftCheek": {
+                "centerXFromLeft": 0.23,
+                "centerYFromTop": 0.43,
+                "radiusX": 0.34,
+                "radiusY": 0.42,
+                "rotation": -5.0,
+                "falloffPower": 0.92,
+                "maxAlpha": 0.46,
+            },
+            "rightCheek": {
+                "centerXFromRight": 0.23,
+                "centerYFromTop": 0.43,
+                "radiusX": 0.34,
+                "radiusY": 0.42,
+                "rotation": 5.0,
+                "falloffPower": 0.92,
+                "maxAlpha": 0.46,
+            },
+            "centerWash": {
+                "centerX": 0.0,
+                "centerYFromTop": 0.42,
+                "radiusX": 0.18,
+                "radiusY": 0.38,
+                "rotation": 0.0,
+                "falloffPower": 1.10,
+                "maxAlpha": 0.14,
+            },
+        },
+        "verticalBalance": {"centerYFromTop": 0.43, "radiusY": 0.66},
     },
     "cheek-lovely-mask-v1": {
         "contract": "apple-cheek radial blush; strongest at round front-cheek center",
@@ -247,6 +288,7 @@ def overlay_source_masks_for_comparison(
         (224, 92, 76, 108),
         (236, 116, 86, 98),
         (229, 118, 146, 100),
+        (220, 120, 150, 96),
     )
     output = reference.convert("RGBA")
     for index, (_, mask) in enumerate(masks):
@@ -360,6 +402,21 @@ def load_cheek_source_mask(
     dark_mask = (alpha > ALPHA_MASK_THRESHOLD) & (darkness < dark_threshold)
     source_mode = "dark-rgb"
 
+    if (
+        expected_shape is not None
+        and dark_mask.shape != expected_shape
+        and mask_id == "cheek-default2-mask-v1"
+    ):
+        dark_mask = (
+            place_alpha_strip_on_canvas(
+                dark_mask.astype(np.uint8) * 255,
+                expected_shape,
+                DEFAULT2_PLACEMENT_BBOX,
+            )
+            > ALPHA_MASK_THRESHOLD
+        )
+        source_mode = "dark-rgb-fit-to-default2-canvas"
+
     if not dark_mask.any() and (alpha > ALPHA_MASK_THRESHOLD).any():
         source_mode = "alpha"
         alpha_threshold = ALPHA_MASK_THRESHOLD
@@ -375,6 +432,17 @@ def load_cheek_source_mask(
             )
             alpha_threshold = SUNKISSED2_ALPHA_GEOMETRY_THRESHOLD
             source_mode = "alpha-strip-fit-to-sunkissed2-canvas"
+        elif (
+            expected_shape is not None
+            and alpha.shape != expected_shape
+            and mask_id == "cheek-default2-mask-v1"
+        ):
+            alpha = place_alpha_strip_on_canvas(
+                alpha,
+                expected_shape,
+                DEFAULT2_PLACEMENT_BBOX,
+            )
+            source_mode = "alpha-fit-to-default2-canvas"
         dark_mask = alpha > alpha_threshold
 
     return dark_mask, {
@@ -399,6 +467,15 @@ def load_cheek_source_mask(
                 "alphaGeometryThreshold": SUNKISSED2_ALPHA_GEOMETRY_THRESHOLD,
             }
             if source_mode == "alpha-strip-fit-to-sunkissed2-canvas"
+            else {
+                "left": DEFAULT2_PLACEMENT_BBOX[0],
+                "top": DEFAULT2_PLACEMENT_BBOX[1],
+                "right": DEFAULT2_PLACEMENT_BBOX[2],
+                "bottom": DEFAULT2_PLACEMENT_BBOX[3],
+                "alphaGeometryThreshold": ALPHA_MASK_THRESHOLD,
+            }
+            if source_mode
+            in ("dark-rgb-fit-to-default2-canvas", "alpha-fit-to-default2-canvas")
             else None
         ),
     }
@@ -559,6 +636,55 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
                 falloff_power=blob["falloffPower"],
                 weight=blob["maxAlpha"],
             )
+        elif mask_id == "cheek-default2-mask-v1":
+            left_blob = blobs["leftCheek"]
+            right_blob = blobs["rightCheek"]
+            wash_blob = blobs["centerWash"]
+            balance = profile["verticalBalance"]
+            left_peak = gaussian_blob(
+                grid_x,
+                grid_y,
+                xs.min() + box_w * left_blob["centerXFromLeft"],
+                ys.min() + box_h * left_blob["centerYFromTop"],
+                box_w * left_blob["radiusX"],
+                box_h * left_blob["radiusY"],
+                rotation_degrees=left_blob["rotation"],
+                falloff_power=left_blob["falloffPower"],
+                weight=left_blob["maxAlpha"],
+            )
+            right_peak = gaussian_blob(
+                grid_x,
+                grid_y,
+                xs.max() - box_w * right_blob["centerXFromRight"],
+                ys.min() + box_h * right_blob["centerYFromTop"],
+                box_w * right_blob["radiusX"],
+                box_h * right_blob["radiusY"],
+                rotation_degrees=right_blob["rotation"],
+                falloff_power=right_blob["falloffPower"],
+                weight=right_blob["maxAlpha"],
+            )
+            center_wash = gaussian_blob(
+                grid_x,
+                grid_y,
+                cx + direction * box_w * wash_blob["centerX"],
+                ys.min() + box_h * wash_blob["centerYFromTop"],
+                box_w * wash_blob["radiusX"],
+                box_h * wash_blob["radiusY"],
+                rotation_degrees=direction * wash_blob["rotation"],
+                falloff_power=wash_blob["falloffPower"],
+                weight=wash_blob["maxAlpha"],
+            )
+            vertical_balance = gaussian_blob(
+                grid_x,
+                grid_y,
+                cx,
+                ys.min() + box_h * balance["centerYFromTop"],
+                box_w * 1.8,
+                box_h * balance["radiusY"],
+                falloff_power=0.96,
+                weight=1.0,
+            )
+            density_seed = np.maximum(np.maximum(left_peak, right_peak), center_wash) * vertical_balance
         elif mask_id == "cheek-sunkissed-mask1-v1":
             is_nose = abs(cx - width * 0.5) < width * 0.10 and box_w < width * 0.18
             if is_nose:
@@ -813,7 +939,7 @@ def main() -> None:
             "r": "coverage alpha = softly expanded shape boundary only; density is not baked into this channel",
             "g": "reserved; must remain zero for cheek v1",
             "b": "style density map with center-specific Gaussian falloff",
-            "a": "coverage alpha = same as R; final runtime strength is coverage alpha * density * global opacity",
+            "a": "coverage alpha = same as R; runtime blends coverage and B density, with blush_default2 using outer/mid/core multi-band strength",
         },
         "densityProfiles": {
             spec["id"]: DENSITY_STYLE_PROFILES[spec["id"]] for spec in MASK_SPECS

@@ -26,11 +26,12 @@ import {
 LogBox.ignoreAllLogs(true);
 
 export const RECIPE_COLOR_OPTIONS = [
-  { name: 'rose', color: '#D94B74' },
-  { name: 'coral', color: '#E67B5F' },
-  { name: 'nude', color: '#B9826B' },
-  { name: 'berry', color: '#A8325F' },
-  { name: 'red', color: '#C21F3A' },
+  { name: 'rose', label: 'rose', color: '#D94B74' },
+  { name: 'coral', label: 'coral', color: '#E67B5F' },
+  { name: 'nude', label: 'nude', color: '#B9826B' },
+  { name: 'berry', label: 'berry', color: '#A8325F' },
+  { name: 'red', label: 'red', color: '#C21F3A' },
+  { name: 'pale_pink', label: 'pale pink', color: '#ECC4CB' },
 ] as const;
 
 const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
@@ -162,6 +163,24 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     preserveDetail: true,
   },
   {
+    name: 'blush_default2',
+    label: 'default2 blush',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#E38C9A',
+    intensity: 0.56,
+    feather: 0.86,
+    coverage: 0.78,
+    finish: 'powder',
+    roughness: 0.98,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
     name: 'blush_lovely',
     label: 'lovely blush',
     region: 'cheek',
@@ -222,9 +241,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#E98EA2',
-    intensity: 0.46,
+    intensity: 0.52,
     feather: 0.74,
-    coverage: 0.62,
+    coverage: 0.66,
     finish: 'powder',
     roughness: 0.98,
     specular: 0,
@@ -279,6 +298,7 @@ export const CHEEK_BLUSH_REGION_OPTIONS: RecipeTextureSample[] =
     textureSample =>
       textureSample.region === 'cheek' &&
       (textureSample.name === 'blush_daily' ||
+        textureSample.name === 'blush_default2' ||
         textureSample.name === 'blush_lovely' ||
         textureSample.name === 'blush_sunkissed1' ||
         textureSample.name === 'blush_sunkissed2' ||
@@ -303,6 +323,7 @@ type MaskTextureId =
   | 'cheek-drawn-mask-v1'
   | 'cheek-lovely-mask-v1'
   | 'cheek-daily-mask-v1'
+  | 'cheek-default2-mask-v1'
   | 'cheek-sunkissed-mask1-v1'
   | 'cheek-sunkissed-mask2-v1'
   | 'cheek-under-eye-mask-v1'
@@ -378,6 +399,8 @@ function resolveMaskTextureIdForRecipe(
         return 'cheek-lovely-mask-v1';
       case 'blush_daily':
         return 'cheek-daily-mask-v1';
+      case 'blush_default2':
+        return 'cheek-default2-mask-v1';
       case 'blush_sunkissed1':
         return 'cheek-sunkissed-mask1-v1';
       case 'blush_sunkissed2':
@@ -1374,6 +1397,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           return 'Gradient';
         case 'blush_daily':
           return 'Daily';
+        case 'blush_default2':
+          return 'Default 2';
         case 'blush_lovely':
           return 'Lovely';
         case 'blush_sunkissed1':
@@ -1638,7 +1663,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                         onPress={() => selectColor(colorOption)}
                       >
                         <Text style={styles.colorButtonText}>
-                          {colorOption.name}
+                          {colorOption.label}
                         </Text>
                       </Pressable>
                     );
@@ -1697,7 +1722,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
                 <Text style={styles.recipeValueText} numberOfLines={3}>
                   active {activeRegionSummary} / focus {focusedRegion} /{' '}
-                  {selectedColor.name} {selectedColor.color} / intensity{' '}
+                  {selectedColor.label} {selectedColor.color} / intensity{' '}
                   {intensityPercent}% / shape {selectedTextureSample.name}
                 </Text>
 

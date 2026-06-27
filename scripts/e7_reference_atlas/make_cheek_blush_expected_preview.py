@@ -19,13 +19,15 @@ OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260627"
 
 MASKS = (
     ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.72, "#EA8F82", 0.54),
+    ("Default 2", "blush_default2", "cheek-default2-mask-v1", 0.78, "#E38C9A", 0.56),
     ("Lovely", "blush_lovely", "cheek-lovely-mask-v1", 0.70, "#E98694", 0.52),
     ("Sun 1", "blush_sunkissed1", "cheek-sunkissed-mask1-v1", 0.68, "#E58965", 0.54),
     ("Sun 2", "blush_sunkissed2", "cheek-sunkissed-mask2-v1", 0.66, "#E9805C", 0.50),
-    ("Under", "blush_under_eye", "cheek-under-eye-mask-v1", 0.62, "#E98EA2", 0.46),
+    ("Under", "blush_under_eye", "cheek-under-eye-mask-v1", 0.66, "#E98EA2", 0.52),
 )
 SOURCE_DRAWINGS = {
     "cheek-daily-mask-v1": Path("/Users/yeoduchi/Downloads/cheek_daily_mask.png"),
+    "cheek-default2-mask-v1": Path("/Users/yeoduchi/Downloads/blush_defalut2.png"),
     "cheek-lovely-mask-v1": Path("/Users/yeoduchi/Downloads/cheek_lovely_mask.png"),
     "cheek-sunkissed-mask1-v1": Path("/Users/yeoduchi/Downloads/cheek_sunkissed_mask1.png"),
     "cheek-sunkissed-mask2-v1": Path("/Users/yeoduchi/Downloads/cheek_sunkissed_mask2.png"),
@@ -40,6 +42,7 @@ SATURATION_BOOST = 0.34
 WARMTH = 0.28
 CROP_BOX = (110, 710, 1060, 1460)
 SUNKISSED2_PLACEMENT_BBOX = (220, 906, 917, 1052)
+DEFAULT2_PLACEMENT_BBOX = (160, 760, 1018, 1285)
 
 
 def load_arface(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -145,6 +148,7 @@ def render_expected(
     coverage: float,
     secondary_hex: str,
     intensity: float,
+    sample_name: str,
 ) -> Image.Image:
     base = np.asarray(frame.convert("RGB"), dtype=np.float32) / 255.0
     alpha_image = Image.fromarray(np.rint(np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8), mode="L")
@@ -158,6 +162,56 @@ def render_expected(
     density_soft = np.asarray(density_image, dtype=np.float32) / 255.0
     coverage_soft = smoothstep(0.025 - 0.76 * 0.46, 0.025 + 0.76, soft)
     density_mix = np.clip(density * (1.0 - 0.42) + density_soft * 0.42, 0.0, 1.0)
+    secondary = parse_hex_color(secondary_hex)
+    blush_pigment = np.clip(ROSE * (1.0 - 0.04) + secondary * 0.04, 0.0, 1.0)
+    pigment_warmth = np.clip(
+        (blush_pigment[0] - max(blush_pigment[1], blush_pigment[2])) * 2.25
+        + SATURATION_BOOST * 0.18,
+        0.0,
+        1.0,
+    )
+
+    if sample_name == "blush_default2":
+        density_ramp = np.clip(smoothstep(0.015, 0.72, density_mix) ** 0.82, 0.0, 1.0)
+        wide_coverage = np.clip(coverage_soft ** (1.05 + (1.22 - 1.05) * 0.90), 0.0, 1.0)
+        outer_band = np.clip(wide_coverage * smoothstep(0.0, 0.16, coverage_soft), 0.0, 1.0)
+        mid_band = np.clip(wide_coverage * smoothstep(0.05, 0.58, density_ramp), 0.0, 1.0)
+        core_band = np.clip(wide_coverage * smoothstep(0.34, 0.92, density_ramp), 0.0, 1.0)
+        slider_curve = intensity * intensity * (3.0 - 2.0 * intensity)
+        global_opacity = min(CHEEK_OPACITY * PRESERVE_SCALE * 1.72, 1.0)
+        outer_strength = outer_band * global_opacity * (0.040 + (0.120 - 0.040) * slider_curve)
+        mid_strength = mid_band * global_opacity * (0.080 + (0.360 - 0.080) * slider_curve)
+        core_strength = core_band * global_opacity * (0.020 + (0.520 - 0.020) * slider_curve)
+        warm_bias = WARMTH
+        outer_target = np.array(
+            [1.0, 0.965 - warm_bias * 0.010, 0.955 - warm_bias * 0.012],
+            dtype=np.float32,
+        )
+        mid_target = np.array(
+            [
+                1.0,
+                (0.93 + (0.76 - 0.93) * pigment_warmth) - warm_bias * 0.018,
+                (0.94 + (0.81 - 0.94) * pigment_warmth) - warm_bias * 0.020,
+            ],
+            dtype=np.float32,
+        )
+        core_target = np.array(
+            [
+                1.0,
+                (0.90 + (0.62 - 0.90) * pigment_warmth) - warm_bias * 0.020,
+                (0.92 + (0.70 - 0.92) * pigment_warmth) - warm_bias * 0.024,
+            ],
+            dtype=np.float32,
+        )
+        outer_target = np.clip(np.maximum(outer_target, np.array([0.92, 0.88, 0.88])), 0.0, 1.0)
+        mid_target = np.clip(np.maximum(mid_target, np.array([0.86, 0.70, 0.74])), 0.0, 1.0)
+        core_target = np.clip(np.maximum(core_target, np.array([0.84, 0.58, 0.66])), 0.0, 1.0)
+        outer_filter = 1.0 + (outer_target.reshape((1, 1, 3)) - 1.0) * outer_strength[..., None]
+        mid_filter = 1.0 + (mid_target.reshape((1, 1, 3)) - 1.0) * mid_strength[..., None]
+        core_filter = 1.0 + (core_target.reshape((1, 1, 3)) - 1.0) * core_strength[..., None]
+        rendered = np.clip(base * outer_filter * mid_filter * core_filter, 0.0, 1.0)
+        return Image.fromarray(np.rint(rendered * 255).astype(np.uint8), mode="RGB")
+
     density_curve = smoothstep(0.006, 0.62, density_mix)
     density_ramp = np.clip(density_curve ** 0.912, 0.0, 1.0)
     edge_melt = smoothstep(0.0, 0.22, coverage_soft) * smoothstep(0.015, 0.18, density_mix)
@@ -175,14 +229,6 @@ def render_expected(
     )
     pigment_strength = np.clip(pigment_strength ** (1.08 + (0.88 - 1.08) * SATURATION_BOOST), 0.0, 1.0)
     pigment_strength *= 1.0 + (0.84 - 1.0) * SKIN_PRESERVE
-    secondary = parse_hex_color(secondary_hex)
-    blush_pigment = np.clip(ROSE * (1.0 - 0.04) + secondary * 0.04, 0.0, 1.0)
-    pigment_warmth = np.clip(
-        (blush_pigment[0] - max(blush_pigment[1], blush_pigment[2])) * 2.25
-        + SATURATION_BOOST * 0.18,
-        0.0,
-        1.0,
-    )
     filter_target = np.array(
         [
             1.0,
@@ -214,6 +260,27 @@ def source_mask_overlay(frame: Image.Image, mask_id: str) -> Image.Image:
             left, top, right, bottom = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
             crop = source_alpha.crop((left, top, right + 1, bottom + 1))
             target_left, target_top, target_right, target_bottom = SUNKISSED2_PLACEMENT_BBOX
+            crop = crop.resize(
+                (target_right - target_left + 1, target_bottom - target_top + 1),
+                Image.Resampling.LANCZOS,
+            )
+            placed = Image.new("L", frame.size, 0)
+            placed.paste(crop, (target_left, target_top))
+            return overlay_alpha(
+                frame,
+                np.asarray(placed, dtype=np.float32) / 255.0,
+                (242, 112, 126),
+            )
+    if mask_id == "cheek-default2-mask-v1" and source_rgba.size != frame.size:
+        source_rgb = np.asarray(source_rgba.convert("RGB"), dtype=np.float32)
+        source_alpha = np.asarray(source_rgba.getchannel("A"), dtype=np.float32)
+        darkness = source_rgb.mean(axis=2)
+        mask_values = np.where((source_alpha > 8.0) & (darkness < 150.0), 255, 0).astype(np.uint8)
+        ys, xs = np.nonzero(mask_values > 8)
+        if len(xs) > 0:
+            left, top, right, bottom = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
+            crop = Image.fromarray(mask_values, mode="L").crop((left, top, right + 1, bottom + 1))
+            target_left, target_top, target_right, target_bottom = DEFAULT2_PLACEMENT_BBOX
             crop = crop.resize(
                 (target_right - target_left + 1, target_bottom - target_top + 1),
                 Image.Resampling.LANCZOS,
@@ -271,12 +338,13 @@ def main() -> None:
         "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer",
         "color": "#D94B74",
         "opacity": CHEEK_OPACITY,
-        "materialAlphaRule": "opacity * lerp(0.06, 1.24, smoothstep(intensity))",
-        "edgeContract": "coverage alpha stays wide/soft while density and coverage form one continuous watercolor field; cheek color is applied through skin-aware multiply tint",
+        "materialAlphaRule": "legacy blush uses opacity * lerp(0.06, 1.24, smoothstep(intensity)); blush_default2 keeps opacity stable and curves outer/mid/core inside shader",
+        "edgeContract": "coverage alpha stays wide/soft; blush_default2 renders outer skin tint, mid wash, and density core as smooth multi-band skin-aware multiply tint",
         "blendContract": "cheek blush uses a density-gated multiply filter, not simple source-over alpha color",
-        "coreEdgeContract": "visible blush uses one continuous density curve, avoiding separate strong and weak color layers",
+        "coreEdgeContract": "visible blush keeps smooth falloff between outer, mid, and core bands without hard thresholds",
         "densityContract": {
             "blush_daily": "outer/high cheekbone peak; fades inward toward nose and lower cheek",
+            "blush_default2": "wide user mask; outer band stays close to skin, mid band washes softly, and cheek cores rise from density",
             "blush_lovely": "round apple-center radial peak; fades outward evenly",
             "blush_sunkissed1": "outer cheek strongest; fades inward toward the nose; nose stays medium-light",
             "blush_sunkissed2": "outer cheekbone shy blush strongest; fades horizontally inward; nose bridge stays very light",
@@ -301,6 +369,7 @@ def main() -> None:
             coverage,
             secondary_hex,
             intensity,
+            sample_name,
         )
 
         expected_path = OUTPUT_ROOT / f"expected_{mask_id}.png"
@@ -327,6 +396,8 @@ def main() -> None:
                 "secondaryColor": secondary_hex,
                 "intensity": intensity,
                 "materialAlphaApprox": CHEEK_OPACITY
+                if sample_name == "blush_default2"
+                else CHEEK_OPACITY
                 * (0.06 + (1.24 - 0.06) * (intensity * intensity * (3.0 - 2.0 * intensity))),
                 "projectedAlphaActivePixelsGt003": int(active.sum()),
                 "expectedRender": str(expected_path.relative_to(ROOT)),
@@ -364,6 +435,7 @@ def main() -> None:
                 coverage,
                 secondary_hex,
                 level,
+                sample_name,
             )
             ramp_sheet.paste(crop_thumb(rendered, tile_w, tile_h), (col * tile_w, y + label_h))
 
