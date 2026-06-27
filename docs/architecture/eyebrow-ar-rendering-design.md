@@ -150,8 +150,12 @@ feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
 `brow-soft-arch-fine-hair-v1` at opacity `0.68`, intensity `0.68`, and coverage
 `0.62` with `neutral_brown` (`#4A342B`). The brow color palette is now separate
 from lip colors: `ash_brown`, `neutral_brown`, `dark_brown`, and `soft_black`.
+RN additionally exposes brow-only `Warmth` and `Depth` sliders. These compute a
+final HTML hex color on the RN side and keep sending it through the existing
+Unity `color` field, so no Unity recipe schema change is required for color QA.
 For QA, raise opacity first, intensity second, and coverage last to improve
-visibility without immediately making the brow sticker-like.
+visibility without immediately making the brow sticker-like; use `Warmth` and
+`Depth` to fine-tune color after visibility is readable.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in

@@ -594,6 +594,33 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
 
+test('applies eyebrow color warmth and depth parameters to payload color', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    {
+      ...DEFAULT_REGION_RECIPES,
+      brow: {
+        ...DEFAULT_REGION_RECIPES.brow,
+        color: BROW_COLOR_OPTIONS[1],
+        colorWarmth: 0.75,
+        colorDepth: 0.8,
+      },
+    },
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24681,
+    DEFAULT_REGION_TUNING,
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(browLayer.color).toBe('#422C1E');
+});
+
 test('combines lip finish type and area style independently in payload', () => {
   expect(LIP_FINISH_TYPE_OPTIONS.map(option => option.label)).toEqual([
     'Normal',
@@ -1069,6 +1096,8 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('soft_black');
   expect(text).not.toContain('rose');
   expect(text).not.toContain('red');
+  expect(text).toContain('Warmth');
+  expect(text).toContain('Depth');
   expect(text).toContain('Soft arch fine');
   expect(text).toContain('Back arch soft');
   expect(text).toContain('Slim tail fine');

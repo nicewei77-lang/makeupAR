@@ -62,6 +62,9 @@ First-loop presets use natural brow colors rather than lip colors:
   coverage `0.58`, roughness `1`, specular `0`, gloss boost `0`.
 - Brow color choices are separate from lip colors: `ash_brown`,
   `neutral_brown`, `dark_brown`, and `soft_black`.
+- Brow color is also parameterized in the RN HUD with `Warmth` and `Depth`.
+  The selected swatch remains the base color, and RN sends the computed final
+  hex through the existing Unity `color` field.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -138,6 +141,9 @@ or bridge rewrite.
 - 2026-06-27: Local post-QA tuning raises `natural_brow` visibility, adds the
   brow-specific color palette, and shifts the three selected mask PNGs outward
   and upward. This post-QA tuning has not yet been installed on-device.
+- 2026-06-27: Added brow `Warmth` and `Depth` color parameters in the RN HUD.
+  This keeps Unity's recipe contract stable while allowing real-device QA to
+  tune ash/warm and light/dark brow color without adding more fixed swatches.
 
 ## Local Verification
 

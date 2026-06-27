@@ -35,7 +35,7 @@ Fresh local checks recorded on 2026-06-27:
 | `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py --mask <selected-brow-mask>` | Passed for the three selected local candidates |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
-| `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 23 tests |
+| `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 24 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
 | Unity `6000.3.18f1` batchmode import/compile | Passed, `evidence/logs/eyebrow-unity-batchmode-20260627.log` |
@@ -69,6 +69,10 @@ Post-QA tuning notes:
   `0.68/0.68/0.62`, adds brow-specific colors, and shifts the three selected
   mask PNGs 10px outward and 7px upward. This latest tuning has not yet been
   regenerated into UnityFramework or reinstalled on the iPhone.
+- Local color-parameter tuning adds brow `Warmth` and `Depth` controls that
+  compute the final RN hex color before sending Unity's existing `color` field.
+  This color tuning has not yet been regenerated into UnityFramework or
+  reinstalled on the iPhone.
 
 Build notes:
 
@@ -95,7 +99,7 @@ Build notes:
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, central arch height, and overlap thresholds | Locally verified; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Warmth`/`Depth` color parameters, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported the installed build is too arched, too thick, and sticker-like; local tuning now includes flatter shape plus subtle density variation, but it is not device-verified | Needs re-QA after rebuild |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
@@ -119,7 +123,7 @@ QA after applying the local tuning to a fresh device build:
 4. Compare `brow-soft-arch-fine-hair-v1`, `brow-back-arch-soft-mix-v1`, and
    `brow-slim-tail-fine-hair-v1` on device and choose the best default.
 5. Collect user visual observations for frontal neutral, left/right head turns,
-   expression change, color/intensity update, tracking recovery, and existing
+   expression change, color/Warmth/Depth/intensity update, tracking recovery, and existing
    lip/cheek/eye smoke behavior using the observation template in
    `docs/runbooks/eyebrow-makeup-qa-runbook.md`.
 6. Decide whether explicit left/right asymmetry correction is required before
@@ -130,11 +134,11 @@ QA after applying the local tuning to a fresh device build:
 The current codebase has a locally verified and device-installed first-loop
 eyebrow makeup module, and iPhone QA confirmed attachment/control behavior. The
 full objective is not complete because visual quality still needs a rebuild and
-re-QA after the latest visibility, color, and placement tuning. Completion still
-needs:
+re-QA after the latest visibility, color-parameter, and placement tuning.
+Completion still needs:
 
-- UnityFramework/RN device rebuild with the post-QA visibility, color, and mask
-  placement tuning.
+- UnityFramework/RN device rebuild with the post-QA visibility,
+  color-parameter, and mask placement tuning.
 - User visual QA confirming product-quality visibility, placement, shape, and
   thickness on the rebuilt iPhone build.
 - A decision on whether explicit left/right asymmetry correction must be added

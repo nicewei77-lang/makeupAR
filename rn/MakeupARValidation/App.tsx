@@ -76,6 +76,8 @@ export type RecipeTextureSample = {
 };
 export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
+const DEFAULT_COLOR_WARMTH = 0.5;
+const DEFAULT_COLOR_DEPTH = 0.5;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
   id: LipFinishType;
@@ -422,6 +424,8 @@ export type RegionRecipe = {
   opacity: number;
   intensity: number;
   textureSample: RecipeTextureSample;
+  colorWarmth?: number;
+  colorDepth?: number;
 };
 export type ActiveRegionMap = Record<RecipeRegion, boolean>;
 export type RegionTuningParameters = {
@@ -475,24 +479,32 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     opacity: 0.9,
     intensity: 0.84,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
+    colorWarmth: DEFAULT_COLOR_WARMTH,
+    colorDepth: DEFAULT_COLOR_DEPTH,
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
     opacity: 0.52,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
+    colorWarmth: DEFAULT_COLOR_WARMTH,
+    colorDepth: DEFAULT_COLOR_DEPTH,
   },
   eye: {
     color: DEFAULT_RECIPE_COLOR,
     opacity: 0.54,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
+    colorWarmth: DEFAULT_COLOR_WARMTH,
+    colorDepth: DEFAULT_COLOR_DEPTH,
   },
   brow: {
     color: BROW_COLOR_OPTIONS[1],
     opacity: 0.68,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
+    colorWarmth: DEFAULT_COLOR_WARMTH,
+    colorDepth: DEFAULT_COLOR_DEPTH,
   },
 };
 export const DEFAULT_REGION_TUNING: Record<
@@ -640,6 +652,61 @@ function resolveRegionTuning(
     textureSample,
   );
 }
+
+function clampChannel(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function clampUnitInterval(value: number | undefined) {
+  return Math.max(0, Math.min(1, value ?? DEFAULT_COLOR_WARMTH));
+}
+
+function parseHexColor(hexColor: string) {
+  const hex = hexColor.replace('#', '');
+
+  return {
+    r: parseInt(hex.slice(0, 2), 16),
+    g: parseInt(hex.slice(2, 4), 16),
+    b: parseInt(hex.slice(4, 6), 16),
+  };
+}
+
+function formatHexColor(r: number, g: number, b: number) {
+  return `#${[r, g, b]
+    .map(channel => clampChannel(channel).toString(16).padStart(2, '0'))
+    .join('')}`.toUpperCase();
+}
+
+export function resolveRecipeColorHex(recipe: RegionRecipe) {
+  const { r, g, b } = parseHexColor(recipe.color.color);
+  const warmth = clampUnitInterval(recipe.colorWarmth);
+  const depth = Math.max(0, Math.min(1, recipe.colorDepth ?? DEFAULT_COLOR_DEPTH));
+  const warmthOffset = (warmth - DEFAULT_COLOR_WARMTH) * 2;
+  const depthOffset = (depth - DEFAULT_COLOR_DEPTH) * 2;
+  const warmed = {
+    r: r + (warmthOffset >= 0 ? 18 : 14) * warmthOffset,
+    g: g + (warmthOffset >= 0 ? 8 : 2) * warmthOffset,
+    b: b - (warmthOffset >= 0 ? 10 : 12) * warmthOffset,
+  };
+
+  if (depthOffset >= 0) {
+    const darkenFactor = 1 - 0.35 * depthOffset;
+
+    return formatHexColor(
+      warmed.r * darkenFactor,
+      warmed.g * darkenFactor,
+      warmed.b * darkenFactor,
+    );
+  }
+
+  const lightenAmount = -depthOffset * 0.25;
+
+  return formatHexColor(
+    warmed.r + (255 - warmed.r) * lightenAmount,
+    warmed.g + (255 - warmed.g) * lightenAmount,
+    warmed.b + (255 - warmed.b) * lightenAmount,
+  );
+}
 export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,
   cheek: false,
@@ -678,6 +745,7 @@ export function buildValidationRecipeBatchPayload(
     const sample = recipe.textureSample;
     const tuning = resolveRegionTuning(region, sample, regionTuning);
     const layerIntensity = recipe.intensity;
+    const layerColor = resolveRecipeColorHex(recipe);
     const maskTextureId = tuning.maskTextureId;
     const layerRecipeId = `${E7_RECIPE_PREFIX}-${region}-${
       sample.name
@@ -695,7 +763,7 @@ export function buildValidationRecipeBatchPayload(
       enabledLayerCount,
       region,
       layer: region,
-      color: recipe.color.color,
+      color: layerColor,
       secondaryColor: sample.secondaryColor,
       opacity: recipe.opacity,
       texture: sample.name,
@@ -737,6 +805,7 @@ export function buildValidationRecipeBatchPayload(
   );
   const focusMaskTextureId = focusTuning.maskTextureId;
   const focusIntensity = recipes[focusRegion].intensity;
+  const focusColor = resolveRecipeColorHex(recipes[focusRegion]);
 
   return {
     version: 1,
@@ -753,6 +822,7 @@ export function buildValidationRecipeBatchPayload(
     texture: focusSample.name,
     sample: focusSample.name,
     textureMode: focusSample.textureMode,
+    color: focusColor,
     secondaryColor: focusSample.secondaryColor,
     coverage: focusTuning.coverage,
     finish: focusSample.finish,
@@ -1528,6 +1598,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const focusedRecipe = regionRecipes[focusedRegion];
   const focusedTuning = regionTuning[focusedRegion];
   const selectedColor = focusedRecipe.color;
+  const selectedDisplayColor = resolveRecipeColorHex(focusedRecipe);
   const selectedTextureSample = focusedRecipe.textureSample;
   const colorOptionsForFocusedRegion = COLOR_OPTIONS_BY_REGION[focusedRegion];
   const textureOptionsForFocusedRegion = RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
@@ -1627,6 +1698,23 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const updateFocusedRecipeValue = useCallback(
     (key: 'opacity' | 'intensity', nextValue: number) => {
+      const nextRecipe = {
+        ...regionRecipes[focusedRegion],
+        [key]: nextValue,
+      };
+      const nextRecipes = {
+        ...regionRecipes,
+        [focusedRegion]: nextRecipe,
+      };
+
+      setRegionRecipes(nextRecipes);
+      postRecipeBatch(nextRecipes, activeRegions, focusedRegion);
+    },
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
+  );
+
+  const updateFocusedColorParameter = useCallback(
+    (key: 'colorWarmth' | 'colorDepth', nextValue: number) => {
       const nextRecipe = {
         ...regionRecipes[focusedRegion],
         [key]: nextValue,
@@ -1965,6 +2053,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const intensityPercent = Math.round(focusedIntensity * 100);
   const opacityPercent = Math.round(focusedRecipe.opacity * 100);
+  const colorWarmthPercent = Math.round(
+    (focusedRecipe.colorWarmth ?? DEFAULT_COLOR_WARMTH) * 100,
+  );
+  const colorDepthPercent = Math.round(
+    (focusedRecipe.colorDepth ?? DEFAULT_COLOR_DEPTH) * 100,
+  );
   const formatTextureLabel = useCallback(
     (textureSample: RecipeTextureSample) => {
       switch (textureSample.name) {
@@ -2532,7 +2626,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   label="Opacity"
                   value={focusedRecipe.opacity}
                   width={sliderWidth}
-                  fillColor={selectedColor.color}
+                  fillColor={selectedDisplayColor}
                   onLayoutWidth={setSliderWidth}
                   onChange={value => updateFocusedRecipeValue('opacity', value)}
                 />
@@ -2541,12 +2635,38 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   label="Intensity"
                   value={focusedIntensity}
                   width={sliderWidth}
-                  fillColor={selectedColor.color}
+                  fillColor={selectedDisplayColor}
                   onLayoutWidth={setSliderWidth}
                   onChange={value =>
                     updateFocusedRecipeValue('intensity', value)
                   }
                 />
+
+                {focusedRegion === 'brow' && (
+                  <>
+                    <ValueSlider
+                      label="Warmth"
+                      value={focusedRecipe.colorWarmth ?? DEFAULT_COLOR_WARMTH}
+                      width={sliderWidth}
+                      fillColor={selectedDisplayColor}
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedColorParameter('colorWarmth', value)
+                      }
+                    />
+
+                    <ValueSlider
+                      label="Depth"
+                      value={focusedRecipe.colorDepth ?? DEFAULT_COLOR_DEPTH}
+                      width={sliderWidth}
+                      fillColor={selectedDisplayColor}
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedColorParameter('colorDepth', value)
+                      }
+                    />
+                  </>
+                )}
 
                 <ValueSlider
                   label="Coverage"
@@ -2664,8 +2784,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
                 <Text style={styles.recipeValueText} numberOfLines={4}>
                   active {activeRegionSummary} / focus {focusedRegion} /{' '}
-                  {selectedColor.name} {selectedColor.color} / opacity{' '}
-                  {opacityPercent}% / intensity {intensityPercent}% / mask{' '}
+                  {selectedColor.name} {selectedColor.color} tuned{' '}
+                  {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
+                  {intensityPercent}%
+                  {focusedRegion === 'brow'
+                    ? ` / warmth ${colorWarmthPercent}% / depth ${colorDepthPercent}%`
+                    : ''}{' '}
+                  / mask{' '}
                   {formatMaskTextureSummary(
                     focusedRegion,
                     focusedTuning.maskTextureId,

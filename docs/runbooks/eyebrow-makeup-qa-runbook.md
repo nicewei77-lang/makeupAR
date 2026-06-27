@@ -123,6 +123,11 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
 Use `neutral_brown` as the first color for natural dark brows. Start with
 opacity `0.68`, intensity `0.68`, coverage `0.62`, feather `0.48`.
 
+For color, keep `neutral_brown` first and use `Warmth` and `Depth` before
+switching to a darker swatch. `Warmth` below `0.50` moves the result toward ash;
+above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
+darkens. Good first QA probes are `Warmth 0.40..0.60` and `Depth 0.55..0.75`.
+
 If the brow is too faint, raise opacity first to `0.74..0.80`. If it is still
 too faint, raise intensity to `0.74..0.82`. Adjust coverage last, usually no
 higher than `0.68`, because too much coverage can make the brow read as a

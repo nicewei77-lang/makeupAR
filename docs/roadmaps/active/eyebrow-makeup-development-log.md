@@ -334,3 +334,16 @@ Remaining:
   - GREEN: focused Jest passed with 23 tests; all three selected masks passed
     placement/overlap verification. This post-QA local tuning is not yet
     installed on-device.
+- 2026-06-27: Local brow color parameter loop.
+  - RED: focused Jest failed because brow `colorWarmth`/`colorDepth` values did
+    not affect the outgoing layer color and because the brow HUD had no
+    `Warmth`/`Depth` controls.
+  - RN update adds optional `colorWarmth` and `colorDepth` recipe parameters,
+    computes the final brow hex color before sending Unity's existing `color`
+    field, and shows brow-only `Warmth`/`Depth` sliders in the HUD.
+  - Default values are neutral `0.50/0.50`, so the existing `neutral_brown`
+    default remains `#4A342B`; one test probe verifies `Warmth 0.75` and
+    `Depth 0.80` produce `#422C1E`.
+  - GREEN: focused Jest passed with 24 tests; lint, TypeScript, brow Unity
+    contract, renderer routes, and UnityFramework build contract passed. This
+    local color-parameter tuning is not yet installed on-device.
