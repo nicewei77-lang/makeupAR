@@ -3907,3 +3907,18 @@ Run Xcode/iPhone build only after user approval. The next device run must verify
 7. After ack, confirm AR validation controls appear.
 8. In AR view, test ON/OFF, strong, color, opacity, and boundary/debug controls.
 9. Pull/check `generated_lip_mask_applied.latest.json` and screenshots before claiming runtime success.
+
+Device evidence pull helper:
+
+```sh
+python3 scripts/e7_inapp_generate/pull_ios_generated_evidence.py
+```
+
+This copies local-only app Documents evidence for:
+
+- latest `generated_lip_package.json`
+- latest `saved_record.json`
+- latest `generated_lip_mask_applied.latest.json`
+- latest `capture_summary.json`
+
+If `xcrun devicectl list devices` reports the iPhone as `unavailable`, this gate cannot run; unlock/reconnect the device first.
