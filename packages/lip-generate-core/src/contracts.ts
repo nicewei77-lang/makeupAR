@@ -73,6 +73,7 @@ export type LipUvCoverageMetadata = {
 export type LipRuntimeApplyPayload = {
   schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0';
   generatedMaskId: string;
+  captureSetId?: string;
   provider: LipMaskProvider;
   expressionMode: ExpressionAssistMode;
   adjustment: LipAdjustment;
@@ -91,11 +92,37 @@ export type LipRuntimeApplyPayload = {
   runtimeReady: boolean;
 };
 
+export type LipProviderResultSummary = {
+  status: LipGenerateStatus;
+  provider: LipMaskProvider;
+  capturePairId?: string;
+  captureShotKind?: string;
+  frameWidth?: number;
+  frameHeight?: number;
+  outerPointCount?: number;
+  innerPointCount?: number;
+  generationMethod?: string;
+  blockedReason?: string;
+  warnings?: string[];
+};
+
+export type LipBlendshapeAssistMetadata = {
+  mode: ExpressionAssistMode;
+  enabled: boolean;
+  source: 'arface-blendshapes';
+  materialFeatherUvNormalized: number;
+  values?: Record<string, number>;
+  warning?: string;
+};
+
 export type LipGeneratePackage = {
   schemaVersion: 'e7-personalized-lip-generate-package-v0';
   generatedMaskId: string;
+  captureSetId: string;
   provider: LipMaskProvider;
+  providerResults: Partial<Record<LipMaskProvider, LipProviderResultSummary>>;
   expressionMode: ExpressionAssistMode;
+  blendshapeAssist: LipBlendshapeAssistMetadata;
   adjustment: LipAdjustment;
   sourceFrameMetadata: LipSourceFrameMetadata;
   sourceFaceState: LipSourceFaceState;
@@ -131,8 +158,11 @@ export const DEFAULT_LIP_ADJUSTMENT: LipAdjustment = {
 
 export const REQUIRED_PACKAGE_FIELDS = [
   'generatedMaskId',
+  'captureSetId',
   'provider',
+  'providerResults',
   'expressionMode',
+  'blendshapeAssist',
   'adjustment',
   'sourceFrameMetadata',
   'sourceFaceState',

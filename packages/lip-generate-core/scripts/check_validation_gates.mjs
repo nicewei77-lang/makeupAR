@@ -22,6 +22,7 @@ function buildPackage(overrides = {}) {
   const runtimeApplyPayload = {
     schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0',
     generatedMaskId: 'validation-gate-smoke',
+    captureSetId: 'validation-capture-set',
     provider: 'vision',
     expressionMode: 'uvOnly',
     adjustment: {
@@ -53,8 +54,30 @@ function buildPackage(overrides = {}) {
   return {
     schemaVersion: 'e7-personalized-lip-generate-package-v0',
     generatedMaskId: 'validation-gate-smoke',
+    captureSetId: 'validation-capture-set',
     provider: 'vision',
+    providerResults: {
+      vision: {
+        status: 'ready',
+        provider: 'vision',
+        capturePairId: 'validation-pair',
+        captureShotKind: 'neutral',
+        frameWidth: 1,
+        frameHeight: 1,
+        outerPointCount: 20,
+        innerPointCount: 20,
+        generationMethod: 'validation',
+        warnings: [],
+      },
+    },
     expressionMode: 'uvOnly',
+    blendshapeAssist: {
+      mode: 'uvOnly',
+      enabled: false,
+      source: 'arface-blendshapes',
+      materialFeatherUvNormalized: 0.07,
+      warning: 'validation',
+    },
     adjustment: runtimeApplyPayload.adjustment,
     sourceFrameMetadata: {
       framePath: 'fixture/frame.png',

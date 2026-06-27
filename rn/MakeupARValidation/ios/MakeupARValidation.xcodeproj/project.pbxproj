@@ -12,6 +12,9 @@
 		463A7F6197DF044F1AEEE315 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		E7A001000000000000000001 /* E7NativeLipBoundaryProviders.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7A001000000000000000003 /* E7NativeLipBoundaryProviders.swift */; };
+		E7A001000000000000000002 /* E7NativeLipBoundaryProvidersBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = E7A001000000000000000004 /* E7NativeLipBoundaryProvidersBridge.m */; };
+		E7A002000000000000000001 /* face_landmarker.task in Resources */ = {isa = PBXBuildFile; fileRef = E7A002000000000000000002 /* face_landmarker.task */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +27,9 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-MakeupARValidation.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-MakeupARValidation.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = MakeupARValidation/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = MakeupARValidation/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		E7A001000000000000000003 /* E7NativeLipBoundaryProviders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = E7NativeLipBoundaryProviders.swift; path = MakeupARValidation/E7NativeLipBoundaryProviders.swift; sourceTree = "<group>"; };
+		E7A001000000000000000004 /* E7NativeLipBoundaryProvidersBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = E7NativeLipBoundaryProvidersBridge.m; path = MakeupARValidation/E7NativeLipBoundaryProvidersBridge.m; sourceTree = "<group>"; };
+		E7A002000000000000000002 /* face_landmarker.task */ = {isa = PBXFileReference; lastKnownFileType = file; path = face_landmarker.task; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -44,6 +50,9 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				E7A001000000000000000003 /* E7NativeLipBoundaryProviders.swift */,
+				E7A001000000000000000004 /* E7NativeLipBoundaryProvidersBridge.m */,
+				E7A002000000000000000003 /* E7Models */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -96,6 +105,14 @@
 				5709B34CF0A7D63546082F79 /* Pods-MakeupARValidation.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		E7A002000000000000000003 /* E7Models */ = {
+			isa = PBXGroup;
+			children = (
+				E7A002000000000000000002 /* face_landmarker.task */,
+			);
+			path = MakeupARValidation/E7Models;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -161,6 +178,7 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				463A7F6197DF044F1AEEE315 /* PrivacyInfo.xcprivacy in Resources */,
+				E7A002000000000000000001 /* face_landmarker.task in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +265,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				E7A001000000000000000001 /* E7NativeLipBoundaryProviders.swift in Sources */,
+				E7A001000000000000000002 /* E7NativeLipBoundaryProvidersBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

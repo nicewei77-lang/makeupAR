@@ -7,6 +7,7 @@ const root = process.cwd();
 const required = [
   'src/main.tsx',
   'src/App.tsx',
+  'src/AppWizardShell.tsx',
   'src/localServerClient.ts',
   'src/styles.css',
 ];
@@ -20,6 +21,7 @@ for (const file of required) {
 }
 
 const app = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
+const appWizard = fs.readFileSync(path.join(root, 'src/AppWizardShell.tsx'), 'utf8');
 const fullFace = fs.readFileSync(path.join(root, 'src/FullFaceRegionShell.tsx'), 'utf8');
 for (const token of [
   'Vision',
@@ -30,6 +32,22 @@ for (const token of [
 ]) {
   if (!app.includes(token)) {
     console.error(`[lip-generate-beta] App.tsx missing UI token: ${token}`);
+    failed = true;
+  }
+}
+
+for (const token of [
+  'E7 Personalized Generate',
+  '얼굴 정렬',
+  'Capture',
+  '추출',
+  '둘 중 하나만 추출',
+  '부드럽게',
+  'fixture replay 금지',
+  'Xcode build pending',
+]) {
+  if (!appWizard.includes(token)) {
+    console.error(`[lip-generate-beta] AppWizardShell.tsx missing UI token: ${token}`);
     failed = true;
   }
 }

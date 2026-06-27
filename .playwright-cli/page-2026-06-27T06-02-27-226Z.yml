@@ -1,0 +1,94 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - text: Web app shell
+      - heading "E7 Personalized Generate" [level=1] [ref=e6]
+      - paragraph [ref=e7]: 기능 없는 앱 UI 계약 · RN 이식 전 시각 승인용
+    - generic [ref=e8]:
+      - button "Full-face beta" [ref=e9] [cursor=pointer]
+      - button "Functional beta" [ref=e10] [cursor=pointer]
+  - generic [ref=e11]:
+    - complementary "Wizard preview steps" [ref=e12]:
+      - button "01 시작 AR 지원 / 카메라 권한 / 로컬 전용" [ref=e13] [cursor=pointer]:
+        - generic [ref=e14]: "01"
+        - strong [ref=e15]: 시작
+        - generic [ref=e16]: AR 지원 / 카메라 권한 / 로컬 전용
+      - button "02 얼굴 정렬 face tracked / centered / blur ok" [ref=e17] [cursor=pointer]:
+        - generic [ref=e18]: "02"
+        - strong [ref=e19]: 얼굴 정렬
+        - generic [ref=e20]: face tracked / centered / blur ok
+      - button "03 촬영 required shots ready" [ref=e21] [cursor=pointer]:
+        - generic [ref=e22]: "03"
+        - strong [ref=e23]: 촬영
+        - generic [ref=e24]: required shots ready
+      - button "04 추출 provider results ready" [ref=e25] [cursor=pointer]:
+        - generic [ref=e26]: "04"
+        - strong [ref=e27]: 추출
+        - generic [ref=e28]: provider results ready
+      - button "05 비교 Vision/MediaPipe x assist off/on" [ref=e29] [cursor=pointer]:
+        - generic [ref=e30]: "05"
+        - strong [ref=e31]: 비교
+        - generic [ref=e32]: Vision/MediaPipe x assist off/on
+      - button "06 조정 mask / UV / payload delta" [ref=e33] [cursor=pointer]:
+        - generic [ref=e34]: "06"
+        - strong [ref=e35]: 조정
+        - generic [ref=e36]: mask / UV / payload delta
+      - button "07 저장 package metadata complete" [ref=e37] [cursor=pointer]:
+        - generic [ref=e38]: "07"
+        - strong [ref=e39]: 저장
+        - generic [ref=e40]: package metadata complete
+      - button "08 AR 준비 Xcode build pending" [ref=e41] [cursor=pointer]:
+        - generic [ref=e42]: "08"
+        - strong [ref=e43]: AR 준비
+        - generic [ref=e44]: Xcode build pending
+    - region "iPhone app shell preview" [ref=e45]:
+      - generic [ref=e46]:
+        - img "capture reference frame" [ref=e50]
+        - generic [ref=e53]:
+          - generic [ref=e54]:
+            - generic [ref=e55]:
+              - generic [ref=e56]: Step 3
+              - heading "촬영" [level=2] [ref=e57]
+            - strong [ref=e58]: 진행 중
+          - generic [ref=e59]:
+            - generic [ref=e60]:
+              - strong [ref=e61]: Neutral
+              - generic [ref=e62]: 기준 얼굴
+            - generic [ref=e63]:
+              - strong [ref=e64]: Mouth open
+              - generic [ref=e65]: inner-mouth guard
+            - generic [ref=e66]:
+              - strong [ref=e67]: Mouth closed
+              - generic [ref=e68]: closed-lip baseline
+            - generic [ref=e69]:
+              - strong [ref=e70]: Smile
+              - generic [ref=e71]: corner stretch
+            - generic [ref=e72]:
+              - strong [ref=e73]: Pucker
+              - generic [ref=e74]: projection stress
+            - generic [ref=e75]:
+              - strong [ref=e76]: Yaw L/R
+              - generic [ref=e77]: visibility guard
+          - generic [ref=e78]:
+            - button "재촬영" [ref=e79] [cursor=pointer]
+            - button "다음 촬영" [ref=e80] [cursor=pointer]
+    - complementary [ref=e81]:
+      - generic [ref=e82]:
+        - generic [ref=e83]: Debug sheet
+        - heading "얼굴 중앙 밖 evidence" [level=2] [ref=e84]
+      - generic [ref=e85]:
+        - generic [ref=e86]:
+          - generic [ref=e87]: captureSetId
+          - strong [ref=e88]: preview-capture-set-v0
+        - generic [ref=e89]:
+          - generic [ref=e90]: providers
+          - strong [ref=e91]: Vision / MediaPipe
+        - generic [ref=e92]:
+          - generic [ref=e93]: blendshapeAssist
+          - strong [ref=e94]: off / on 비교
+        - generic [ref=e95]:
+          - generic [ref=e96]: privacy
+          - strong [ref=e97]: localOnly / no upload
+        - generic [ref=e98]:
+          - generic [ref=e99]: build
+          - strong [ref=e100]: Xcode pending

@@ -7,6 +7,7 @@ import {
 
 type BuildRuntimePayloadInput = {
   generatedMaskId: string;
+  captureSetId?: string;
   provider: LipMaskProvider;
   expressionMode: LipRuntimeApplyPayload['expressionMode'];
   adjustment: LipAdjustment;
@@ -24,6 +25,7 @@ type BuildRuntimePayloadInput = {
 
 export function buildRuntimeApplyPayload({
   generatedMaskId,
+  captureSetId,
   provider,
   expressionMode,
   adjustment,
@@ -41,6 +43,7 @@ export function buildRuntimeApplyPayload({
   return {
     schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0',
     generatedMaskId,
+    captureSetId,
     provider,
     expressionMode,
     adjustment,
@@ -67,6 +70,7 @@ export function buildUnityMessageFromPackage(
     type: 'apply_generated_lip_mask',
     schemaVersion: generatedPackage.runtimeApplyPayload.schemaVersion,
     generatedMaskId: generatedPackage.generatedMaskId,
+    captureSetId: generatedPackage.captureSetId,
     provider: generatedPackage.provider,
     expressionMode: generatedPackage.expressionMode,
     adjustment: generatedPackage.adjustment,

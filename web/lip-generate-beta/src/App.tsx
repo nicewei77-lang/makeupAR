@@ -24,6 +24,7 @@ import {
   SavedLipPackageRecord,
   ServerGenerateResult,
 } from './localServerClient';
+import { AppWizardShell } from './AppWizardShell';
 import { FullFaceRegionShell } from './FullFaceRegionShell';
 
 const ADJUSTMENT_FIELDS: Array<keyof LipAdjustment> = [
@@ -74,7 +75,9 @@ const ADJUSTMENT_STEP = 0.05;
 type StatusTone = 'neutral' | 'warn' | 'bad';
 
 function App() {
-  const [mode, setMode] = useState<'fullFace' | 'lipBeta'>('fullFace');
+  const [mode, setMode] = useState<'appShell' | 'fullFace' | 'lipBeta'>(
+    'appShell',
+  );
   const [state, dispatch] = useReducer(
     lipGenerateReducer,
     INITIAL_LIP_GENERATE_STATE,
@@ -240,8 +243,22 @@ function App() {
     ),
   };
 
+  if (mode === 'appShell') {
+    return (
+      <AppWizardShell
+        onOpenFullFace={() => setMode('fullFace')}
+        onOpenLipBeta={() => setMode('lipBeta')}
+      />
+    );
+  }
+
   if (mode === 'fullFace') {
-    return <FullFaceRegionShell onOpenLipBeta={() => setMode('lipBeta')} />;
+    return (
+      <FullFaceRegionShell
+        onOpenAppShell={() => setMode('appShell')}
+        onOpenLipBeta={() => setMode('lipBeta')}
+      />
+    );
   }
 
   return (
@@ -256,6 +273,9 @@ function App() {
         <div className="toolbar-actions">
           <button type="button" onClick={() => setMode('fullFace')}>
             Full-face package
+          </button>
+          <button type="button" onClick={() => setMode('appShell')}>
+            App shell
           </button>
           <button type="button" onClick={() => void refreshFixtures()}>
             샘플 새로고침

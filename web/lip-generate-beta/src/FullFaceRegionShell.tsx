@@ -120,8 +120,10 @@ function initialRegionAdjustments(): RegionAdjustmentState {
 }
 
 export function FullFaceRegionShell({
+  onOpenAppShell,
   onOpenLipBeta,
 }: {
+  onOpenAppShell: () => void;
   onOpenLipBeta: () => void;
 }) {
   const [selectedRegion, setSelectedRegion] = useState<RegionKey>('lip');
@@ -180,6 +182,9 @@ export function FullFaceRegionShell({
           </p>
         </div>
         <div className="toolbar-actions">
+          <button type="button" onClick={onOpenAppShell}>
+            App shell
+          </button>
           <button type="button" onClick={onOpenLipBeta}>
             Lip beta
           </button>

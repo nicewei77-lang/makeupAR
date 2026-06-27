@@ -19,6 +19,7 @@ jest.mock('react-native', () => {
   const View = createComponent('View');
   const Text = createComponent('Text');
   const ScrollView = createComponent('ScrollView');
+  const Image = createComponent('Image');
 
   const Pressable = ReactRuntime.forwardRef(
     ({ children, style, ...props }: any, ref: any) =>
@@ -36,8 +37,10 @@ jest.mock('react-native', () => {
 
   return {
     GestureResponderEvent: {},
+    Image,
     LayoutChangeEvent: {},
     LogBox: { ignoreAllLogs: jest.fn() },
+    NativeModules: {},
     PanResponder: {
       create: jest.fn(() => ({ panHandlers: {} })),
     },
@@ -46,6 +49,13 @@ jest.mock('react-native', () => {
     StatusBar: jest.fn(() => null),
     StyleSheet: {
       create: (styles: object) => styles,
+      absoluteFillObject: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        bottom: 0,
+        left: 0,
+      },
       hairlineWidth: 1,
     },
     Text,
@@ -135,18 +145,6 @@ function collectText(renderer: ReactTestRenderer.ReactTestRenderer) {
   return collectJsonText(renderer.toJSON());
 }
 
-function enterUnityScreen(renderer: ReactTestRenderer.ReactTestRenderer) {
-  const startButton = renderer.root
-    .findAll(node => typeof node.props.onPress === 'function')
-    .find(node => collectInstanceText(node).includes('Start AR'));
-
-  expect(startButton).toBeTruthy();
-
-  ReactTestRenderer.act(() => {
-    startButton?.props.onPress();
-  });
-}
-
 function pressByText(
   renderer: ReactTestRenderer.ReactTestRenderer,
   text: string,
@@ -175,32 +173,36 @@ function pressByTestID(
   });
 }
 
-function getLastRecipePayload() {
-  const recipeCall = [...mockUnityPostMessage.mock.calls]
-    .reverse()
-    .find(
-      call => call[0] === 'RNBridge' && call[1] === 'ApplyRecipeJson',
-    );
-
-  expect(recipeCall).toBeTruthy();
-
-  return JSON.parse(String(recipeCall?.[2]));
+function enterGenerateWizard(renderer: ReactTestRenderer.ReactTestRenderer) {
+  pressByText(renderer, '시작');
 }
 
-function getLastGeneratedLipMaskPayload() {
-  const generatedCall = [...mockUnityPostMessage.mock.calls]
-    .reverse()
-    .find(
-      call =>
-        call[0] === 'RNBridge' && call[1] === 'ApplyGeneratedLipMaskJson',
-    );
+function emitUnityReferenceCapture(
+  renderer: ReactTestRenderer.ReactTestRenderer,
+  capturePairId: string,
+) {
+  const unityView = renderer.root.findByProps({ testID: 'unity-view' });
 
-  expect(generatedCall).toBeTruthy();
-
-  return JSON.parse(String(generatedCall?.[2]));
+  ReactTestRenderer.act(() => {
+    unityView.props.onUnityMessage({
+      nativeEvent: {
+        message: JSON.stringify({
+          type: 'e7_reference_capture',
+          status: 'exported',
+          capturePairId,
+          relativeDirectory: `Documents/e7-reference-atlas/capture_pairs/${capturePairId}`,
+          detail: 'pending_projected_mesh_overlay_review',
+          meshVertexCount: 1220,
+          meshIndexCount: 6912,
+          meshUvCount: 1220,
+          frameWidth: 1179,
+        }),
+      },
+    });
+  });
 }
 
-test('renders home with neutral validation copy', async () => {
+test('renders personalized Generate home instead of old validation entry', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -209,360 +211,108 @@ test('renders home with neutral validation copy', async () => {
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('Makeup AR Validation');
-  expect(text).toContain('Ready to start AR');
-  expect(text).not.toContain('Region ' + 'Precision');
-  expect(text).not.toContain('Validation status');
-  expect(text).not.toContain('E7.3');
+  expect(text).toContain('맞춤 Generate');
+  expect(text).toContain('로컬 생성 준비');
+  expect(text).not.toContain('Makeup AR Validation');
+  expect(text).not.toContain('Start AR');
 });
 
-test('does not render old selector controls', async () => {
+test('opens forced wizard as the default app flow', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
-  enterUnityScreen(renderer!);
+  enterGenerateWizard(renderer!);
 
   const text = collectText(renderer!);
 
-  expect(text).not.toContain('Vari' + 'ant');
-  expect(text).not.toContain('vari' + 'ant');
-  expect(text).not.toContain('soft-' + 'wide');
-  expect(text).not.toContain('co' + 're');
-
-  pressByText(renderer!, 'Debug');
-  const debugText = collectText(renderer!);
-  expect(debugText).not.toContain('vari' + 'antId');
+  expect(text).toContain('로컬 맞춤 생성');
+  expect(text).toContain('얼굴 정렬 시작');
+  expect(text).toContain('시작');
+  expect(text).toContain('정렬');
+  expect(text).toContain('촬영');
+  expect(text).not.toContain('Regions');
+  expect(text).not.toContain('daily');
+  expect(text).not.toContain('Full-face');
 });
 
-test('keeps validation modes visually compact before build', async () => {
+test('keeps later steps locked until previous gates are reached', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
-  enterUnityScreen(renderer!);
+  enterGenerateWizard(renderer!);
 
-  const hudText = collectText(renderer!);
-  expect(hudText).toContain('Clean');
-  expect(hudText).toContain('HUD');
-  expect(hudText).toContain('Debug');
-  expect(hudText).toContain('Regions');
-  expect(hudText).toContain('AR Status');
-  expect(hudText).toContain('daily');
-  expect(hudText).toContain('opac');
-  expect(hudText.indexOf('Regions')).toBeLessThan(
-    hudText.indexOf('AR Status'),
-  );
-  expect(hudText).toContain('active=lip');
-  expect(hudText).not.toContain('E7.03 HUD');
+  expect(
+    renderer!.root.findByProps({ testID: 'e7-wizard-step-compare' }).props
+      .disabled,
+  ).toBe(true);
 
-  pressByText(renderer!, 'Clean');
-  expect(collectText(renderer!)).not.toContain('Regions');
-  expect(collectText(renderer!)).not.toContain('E7.03 HUD');
-  expect(collectText(renderer!)).not.toContain('opac');
+  pressByTestID(renderer!, 'e7-wizard-start-next');
 
-  pressByText(renderer!, 'Debug');
-  expect(collectText(renderer!)).toContain('Evidence metadata');
-  expect(collectText(renderer!)).not.toContain('AR Status');
-  expect(collectText(renderer!)).not.toContain('opac');
+  expect(
+    renderer!.root.findByProps({ testID: 'e7-wizard-step-capture' }).props
+      .disabled,
+  ).toBe(false);
+  expect(
+    renderer!.root.findByProps({ testID: 'e7-wizard-step-compare' }).props
+      .disabled,
+  ).toBe(true);
 });
 
-test('posts lip daily sample by default before build', async () => {
+test('posts Unity capture request for a wizard neutral shot', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
-  enterUnityScreen(renderer!);
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  pressByTestID(renderer!, 'e7-capture-shot-neutral');
 
-  ReactTestRenderer.act(() => {
-    jest.advanceTimersByTime(1000);
-  });
-
-  const recipePostCall = consoleLogSpy.mock.calls.find(call =>
-    call.includes('[E7] rn_texture_recipe_batch_post'),
+  const captureCall = mockUnityPostMessage.mock.calls.find(
+    call =>
+      call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
   );
 
-  expect(recipePostCall).toBeTruthy();
-  expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
-  expect(recipePostCall).toContain('lookId=lip_daily');
-  expect(recipePostCall).toContain('finish=cream');
-  expect(recipePostCall).toContain('activeRegions=lip');
-  expect(recipePostCall).toContain('enabledLayerCount=1');
-  expect(recipePostCall).not.toContain('cand' + 'idateId=');
-  expect(recipePostCall).not.toContain('vari' + 'antId=');
-
-  const payload = getLastRecipePayload();
-  expect(payload.version).toBe(2);
-  expect(payload.lookId).toBe('lip_daily');
-  expect(payload.candidateId).toBe('lip-smooth-mask-v1');
-  expect(payload.maskTextureId).toBe('lip-smooth-mask-v1');
-  expect(payload.cornerReach).toBe(0);
-  expect(payload.upperLipTightness).toBe(0);
-  expect(payload.lowerLipTightness).toBe(0);
-  expect(payload.verticalOffset).toBe(0);
-  expect(payload.activeRegions).toBe('lip');
-  expect(payload.enabledLayerCount).toBe(1);
-  expect(payload.layers).toHaveLength(3);
-  expect(payload.layers.map((layer: any) => layer.enabled)).toEqual([
-    true,
-    false,
-    false,
-  ]);
-  expect(payload.layers[0]).toMatchObject({
-    region: 'lip',
-    texture: 'matte_lip',
-    finish: 'cream',
-    textureAmount: 0.08,
-    glossBoost: 0,
-    cornerReach: 0,
-    upperLipTightness: 0,
-    lowerLipTightness: 0,
-    verticalOffset: 0,
-  });
+  expect(captureCall).toBeTruthy();
+  const request = JSON.parse(String(captureCall?.[2]));
+  expect(request.captureSetId).toContain('e7-capture-set');
+  expect(request.captureShotKind).toBe('neutral');
+  expect(request.requestedBy).toBe('rn-personalized-generate-wizard');
 });
 
-test('switches lip sample pack values without changing 3-layer contract', async () => {
+test('blocks current-frame generation when native module is unavailable', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
-  enterUnityScreen(renderer!);
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  pressByTestID(renderer!, 'e7-capture-shot-neutral');
 
-  pressByText(renderer!, 'gloss');
-  let payload = getLastRecipePayload();
-  expect(payload.lookId).toBe('lip_gloss');
-  expect(payload.activeRegions).toBe('lip');
-  expect(payload.enabledLayerCount).toBe(1);
-  expect(payload.layers).toHaveLength(3);
-  expect(payload.layers[0]).toMatchObject({
-    region: 'lip',
-    enabled: true,
-    finish: 'gloss',
-    textureAmount: 0.05,
-    glossBoost: 0.55,
-  });
-  expect(payload.layers[1].enabled).toBe(false);
-  expect(payload.layers[2].enabled).toBe(false);
-
-  pressByText(renderer!, 'texture');
-  payload = getLastRecipePayload();
-  expect(payload.lookId).toBe('lip_texture');
-  expect(payload.activeRegions).toBe('lip');
-  expect(payload.enabledLayerCount).toBe(1);
-  expect(payload.layers[0]).toMatchObject({
-    region: 'lip',
-    enabled: true,
-    finish: 'matte',
-    textureAmount: 0.34,
-    glossBoost: 0,
-  });
-  expect(payload.layers.map((layer: any) => layer.enabled)).toEqual([
-    true,
-    false,
-    false,
-  ]);
-});
-
-test('updates lip color finish and tuning values from HUD', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<App />);
-  });
-  enterUnityScreen(renderer!);
-
-  pressByTestID(renderer!, 'lip-color-berry');
-
-  let payload = getLastRecipePayload();
-  expect(payload.lookId).toBe('lip_daily');
-  expect(payload.layers[0]).toMatchObject({
-    color: '#B83A55',
-    finish: 'cream',
-    opacity: 0.42,
-  });
-
-  pressByTestID(renderer!, 'lip-finish-matte');
-
-  payload = getLastRecipePayload();
-  expect(payload.layers[0]).toMatchObject({
-    color: '#B83A55',
-    finish: 'matte',
-    roughness: 0.92,
-    specular: 0.02,
-    specularPower: 8,
-    glossBoost: 0,
-  });
-
-  pressByTestID(renderer!, 'lip-tuning-step-opac-up');
-
-  payload = getLastRecipePayload();
-  expect(payload.layers[0]).toMatchObject({
-    color: '#B83A55',
-    finish: 'matte',
-    opacity: 0.45,
-  });
-});
-
-test('posts lip user adjustment probe values from HUD', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<App />);
-  });
-  enterUnityScreen(renderer!);
-
-  pressByTestID(renderer!, 'lip-adjustment-step-corner-up');
-
-  let payload = getLastRecipePayload();
-  expect(payload.cornerReach).toBe(0.05);
-  expect(payload.upperLipTightness).toBe(0);
-  expect(payload.layers[0]).toMatchObject({
-    region: 'lip',
-    cornerReach: 0.05,
-    upperLipTightness: 0,
-    lowerLipTightness: 0,
-    verticalOffset: 0,
-  });
-
-  pressByTestID(renderer!, 'lip-adjust-field-upperLipTightness');
-  pressByTestID(renderer!, 'lip-adjustment-step-upper-down');
-
-  payload = getLastRecipePayload();
-  expect(payload.cornerReach).toBe(0.05);
-  expect(payload.upperLipTightness).toBe(-0.05);
-  expect(payload.layers[0]).toMatchObject({
-    cornerReach: 0.05,
-    upperLipTightness: -0.05,
-  });
-});
-
-test('posts generated lip mask payload with provider and assist choices', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<App />);
-  });
-  enterUnityScreen(renderer!);
-
-  pressByTestID(renderer!, 'lip-generate-provider-mediapipe');
-  pressByTestID(renderer!, 'lip-generate-expression-blendshapeAssist');
-  pressByTestID(renderer!, 'lip-adjustment-step-corner-up');
-  pressByTestID(renderer!, 'lip-generate-apply');
-
-  const generatedPayload = getLastGeneratedLipMaskPayload();
-
-  expect(generatedPayload.type).toBe('apply_generated_lip_mask');
-  expect(generatedPayload.schemaVersion).toBe(
-    'e7-generated-lip-mask-runtime-payload-v0',
+  const captureCall = mockUnityPostMessage.mock.calls.find(
+    call =>
+      call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
   );
-  expect(generatedPayload.provider).toBe('mediapipe');
-  expect(generatedPayload.expressionMode).toBe('blendshapeAssist');
-  expect(generatedPayload.localOnly).toBe(true);
-  expect(generatedPayload.offDeviceUpload).toBe(false);
-  expect(generatedPayload.longTermRawFrameStored).toBe(false);
-  expect(generatedPayload.runtimeReady).toBe(false);
-  expect(generatedPayload.maskTextureEncoding).toBe('raw_rgba_base64');
-  expect(generatedPayload.maskTextureId).toContain(
-    'e7-generated-lip-mediapipe-blendshapeAssist',
-  );
-  expect(generatedPayload.maskRawRgbaBase64.length).toBeGreaterThan(100);
-  expect(generatedPayload.maskTextureWidth).toBe(8);
-  expect(generatedPayload.maskTextureHeight).toBe(8);
-  expect(generatedPayload.adjustment.cornerReach).toBeCloseTo(0.05);
-});
+  const request = JSON.parse(String(captureCall?.[2]));
+  emitUnityReferenceCapture(renderer!, request.capturePairId);
 
-test('keeps Unity face debug surface suppressed while Clean preserves makeup overlay', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<App />);
-  });
-  enterUnityScreen(renderer!);
-
-  pressByText(renderer!, 'Debug');
-
-  let latestVisibilityPostCall = [...consoleLogSpy.mock.calls]
-    .reverse()
-    .find(call => call.includes('[E7] rn_region_overlay_visibility_post'));
-
-  expect(latestVisibilityPostCall).toBeTruthy();
-  expect(latestVisibilityPostCall).toContain('visible=true');
-  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceSuppressed=true');
-  expect(latestVisibilityPostCall).toContain('validationViewMode=full');
-
-  pressByText(renderer!, 'Clean');
-
-  latestVisibilityPostCall = [...consoleLogSpy.mock.calls]
-    .reverse()
-    .find(call => call.includes('[E7] rn_region_overlay_visibility_post'));
-
-  expect(latestVisibilityPostCall).toBeTruthy();
-  expect(latestVisibilityPostCall).toContain('visible=true');
-  expect(latestVisibilityPostCall).toContain('faceDebugSurfaceSuppressed=true');
-  expect(latestVisibilityPostCall).toContain('validationViewMode=clean');
-});
-
-test('allows all regions to be off before build', async () => {
-  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-  await ReactTestRenderer.act(() => {
-    renderer = ReactTestRenderer.create(<App />);
-  });
-  enterUnityScreen(renderer!);
-
-  ReactTestRenderer.act(() => {
-    renderer!.root.findByProps({ testID: 'region-toggle-lip' }).props.onPress();
+  pressByTestID(renderer!, 'e7-wizard-capture-next');
+  await ReactTestRenderer.act(async () => {
+    renderer!.root
+      .findByProps({ testID: 'e7-wizard-generate-candidates' })
+      .props.onPress();
   });
 
-  for (const region of ['lip', 'cheek', 'eye']) {
-    expect(
-      renderer!.root.findByProps({ testID: `region-toggle-${region}` }).props
-        .accessibilityState.checked,
-    ).toBe(false);
-  }
+  const text = collectText(renderer!);
 
-  expect(collectText(renderer!)).toContain('active=none');
-
-  const latestRecipePostCall = [...consoleLogSpy.mock.calls]
-    .reverse()
-    .find(call => call.includes('[E7] rn_texture_recipe_batch_post'));
-
-  expect(latestRecipePostCall).toBeTruthy();
-  expect(latestRecipePostCall).toContain('activeRegions=none');
-  expect(latestRecipePostCall).toContain('enabledLayerCount=0');
+  expect(text).toContain('native_boundary_module_unavailable');
+  expect(text).toContain('vision / off');
+  expect(text).not.toContain('mediapipe / off');
 });
-
-test.each(['lip', 'cheek', 'eye'])(
-  'toggles %s region on and off',
-  async region => {
-    let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
-
-    await ReactTestRenderer.act(() => {
-      renderer = ReactTestRenderer.create(<App />);
-    });
-    enterUnityScreen(renderer!);
-
-    const getToggle = () =>
-      renderer!.root.findByProps({ testID: `region-toggle-${region}` });
-
-    const startsEnabled = region === 'lip';
-
-    expect(getToggle().props.accessibilityState.checked).toBe(startsEnabled);
-
-    ReactTestRenderer.act(() => {
-      getToggle().props.onPress();
-    });
-
-    expect(getToggle().props.accessibilityState.checked).toBe(!startsEnabled);
-
-    ReactTestRenderer.act(() => {
-      getToggle().props.onPress();
-    });
-
-    expect(getToggle().props.accessibilityState.checked).toBe(startsEnabled);
-  },
-);

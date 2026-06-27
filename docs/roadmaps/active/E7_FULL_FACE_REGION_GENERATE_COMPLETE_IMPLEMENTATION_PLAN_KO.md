@@ -10,6 +10,8 @@
 
 ```txt
 사용자가 맞춤 생성 시작
+-> 얼굴 정렬과 n회 촬영으로 현재 사용자 capture set 생성
+-> native Vision / native MediaPipe가 현재 촬영 frame에서 boundary 후보 추출
 -> 현재 얼굴 기준으로 립 / 블러셔 / 눈썹 / 아이라인 region mask 후보 생성
 -> 부위별로 가장 흔한 실패를 직접 조정
 -> 조정된 마스크 패키지 저장
@@ -38,13 +40,18 @@
 2. 외부 mask prior, MediaPipe/Vision, face parsing, color confidence, ARFace UV 신호 역할 정리
 3. 부위별 selected policy와 top candidate set 기록
 4. 부위별 사용자 조정축 3-7개 확정
-5. 웹앱에서 Generate -> Review/Adjust -> Save -> Payload 흐름 완주
-6. RN 앱에서 저장된 region package를 읽고 AR 화면으로 넘기는 흐름 구현
-7. Unity runtime이 저장된 UV mask texture를 부위별로 적용할 수 있도록 구현
-8. Xcode 빌드 직전 상태까지 정적/빌드리스 검증 완료
-9. iPhone 연결 후 실행할 build/run/test checklist와 evidence matrix 준비
-10. synthetic package smoke, Unity import/compile, RN test/typecheck/lint, runtime log analyzer smoke 기록
-11. TECH_VALIDATION_RESULT.md에 결정, evidence, limitations, next boundary 기록
+5. 웹앱에서 실제 iPhone 앱 패널/wizard UI shell을 기능 없는 껍데기로 먼저 확인
+6. 기존 웹앱 방식으로 Generate -> Review/Adjust -> Save -> Payload 실제 로직 검증
+7. RN 앱 기본 진입면이 옛 validation HUD가 아니라 강제 단계형 wizard가 되도록 구현
+8. Unity가 현재 얼굴 촬영 package를 만들 수 있도록 구현
+9. native iOS Vision provider와 native iOS MediaPipe provider가 현재 촬영 frame에서 boundary를 추출하도록 구현
+10. n회 촬영 capture set과 blendshape assist off/on 비교 흐름 구현
+11. RN 앱에서 저장된 region package를 읽고 AR 화면으로 넘기는 흐름 구현
+12. Unity runtime이 저장된 UV mask texture를 부위별로 적용할 수 있도록 구현
+13. Xcode 빌드 직전 상태까지 정적/빌드리스 검증 완료
+14. iPhone 연결 후 실행할 build/run/test checklist와 evidence matrix 준비
+15. synthetic package smoke, Unity import/compile, RN test/typecheck/lint, native provider static checks, runtime log analyzer smoke 기록
+16. TECH_VALIDATION_RESULT.md에 결정, evidence, limitations, next boundary 기록
 ```
 
 완료가 아닌 경우:
@@ -54,6 +61,11 @@
 - 외부 mask prior만 만들고 우리 app frame / ARFace UV로 투영하지 않은 경우
 - 저장된 package 없이 임시 asset만 바꾼 경우
 - 한두 부위만 성공했는데 전체 완료라고 말하는 경우
+- 현재 얼굴 촬영 없이 fixture/synthetic payload만 앱 Generate로 보여주는 경우
+- native Vision/MediaPipe provider가 placeholder인데 구현 완료라고 말하는 경우
+- 앱 기본 UI가 옛 validation HUD/버튼 패널 그대로 남아 있는 경우
+- 사용자가 전 단계를 밟지 않아도 임의 단계로 건너뛸 수 있는 경우
+- blendshape assist가 UI 토글만 있고 payload/material/runtime 차이를 만들지 못하는 경우
 - iPhone runtime evidence 없이 product-quality ready를 주장하는 경우
 - Xcode 빌드 직전 검증만 해놓고 실기기 Green이라고 주장하는 경우
 - 사용자 판단이 필요한 visual choice를 auto success로 처리한 경우
@@ -79,26 +91,32 @@ eyeliner: pre-xcode-ready / partial / blocked
 ```txt
 1. 앱 진입
 2. 맞춤 메이크업 생성 시작
-3. 얼굴 체크
+3. 얼굴 정렬
    - 정면
    - 얼굴 거리
    - 밝기
    - 흔들림
-4. Generate 누름
-5. 앱이 현재 얼굴에서 4개 region mask 후보를 만든다
+4. n회 촬영
+   - neutral
+   - mouth open/closed
+   - smile
+   - pucker
+   - yaw left/right
+5. 앱이 현재 촬영 frame에서 native Vision / MediaPipe boundary를 추출한다
+6. 앱이 현재 얼굴에서 4개 region mask 후보를 만든다
    - 립
    - 블러셔
    - 눈썹
    - 아이라인
-6. 후보가 화면에 보인다
-7. 사용자는 부위별로 켜고 끄며 확인한다
-8. 가장 흔한 문제를 빠르게 조정한다
-9. 저장
-10. 저장된 mask package를 AR 화면 진입 payload로 고정
-11. iPhone 연결 후 AR 화면에서 메이크업 look 적용
-12. smile / open mouth / blink / yaw로 확인
-13. 마음에 들면 유지
-14. 마음에 안 들면 조정 화면으로 돌아가기
+7. 후보가 화면에 보인다
+8. 사용자는 Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend를 비교한다
+9. 가장 흔한 문제를 빠르게 조정한다
+10. 저장
+11. 저장된 mask package를 AR 화면 진입 payload로 고정
+12. iPhone 연결 후 AR 화면에서 메이크업 look 적용
+13. smile / open mouth / blink / yaw로 확인
+14. 마음에 들면 유지
+15. 마음에 안 들면 조정 화면으로 돌아가기
 ```
 
 ### 2.2 제품 화면 용어
@@ -160,11 +178,145 @@ Lineage: source, candidateId, selectedPolicy, warning
 좌우 밸런스
 ```
 
+### 2.4 2026-06-27 사용자 흐름 재검토 결론
+
+이번 재검토의 결론은 기존 "하단 탭/페이지네이션 HUD" 가정이 제품 흐름과 맞지 않는다는 것이다. 앱은 사용자가 아무 탭이나 눌러 다른 화면으로 이동하는 구조가 아니라, 반드시 이전 단계를 통과해야 다음 단계가 열리는 단계형 흐름이어야 한다.
+
+현실성 판단:
+
+```txt
+방향은 맞다.
+다만 단순 UI 교체가 아니라 capture -> native extraction -> UV projection -> save -> runtime apply까지 이어지는 제품 slice다.
+따라서 다음 iPhone/Xcode 빌드 전에 웹 shell, RN wizard, Unity capture, native Vision/MediaPipe provider, save package, blend off/on 비교가 모두 build-ready 상태여야 한다.
+Xcode 빌드 전에는 실기기 증거를 주장하지 않는다.
+하지만 코드/계약/정적 검증 관점에서는 "이제 Xcode build만 남았다"라고 말할 수 있을 만큼 준비한다.
+```
+
+핵심 보정:
+
+```txt
+1. 웹앱에는 앱 UI shell preview와 실제 mask logic beta를 분리한다.
+2. 앱은 강제 wizard다. 탭 전환형 페이지네이션이 아니다.
+3. 첫 실사용 단계는 Generate가 아니라 촬영이다.
+4. native Vision/MediaPipe는 fixture가 아니라 현재 촬영 frame에서 실행한다.
+5. n회 촬영과 blendshape assist는 후보 비교의 1급 기능이다.
+6. Debug/log는 얼굴 중앙을 가리지 않는 별도 sheet/drawer로 격리한다.
+7. 옛 validation HUD는 기본 제품 흐름에서 제거하고 dev/debug 진입으로만 남긴다.
+```
+
+### 2.5 강제 단계형 App Flow
+
+앱 기본 흐름은 아래 순서만 허용한다. 사용자는 뒤로가기/재촬영은 가능하지만, 이전 gate가 통과되지 않은 다음 단계로 직접 건너뛰면 안 된다.
+
+```txt
+Step 0. 시작 / 권한 / 로컬 처리 안내
+  gate: camera permission, AR support, local-only privacy notice accepted
+
+Step 1. 얼굴 정렬
+  gate: face tracked, front camera active, face centered, distance/brightness/blur/yaw acceptable
+
+Step 2. n회 촬영
+  gate: required capture shots collected or explicitly marked blocked
+  required validation shots: neutral, mouth-open, mouth-closed, smile, pucker, yaw-left, yaw-right
+  optional/region shots: blink, squint, brow raise, cheek smile
+
+Step 3. native boundary 추출
+  gate: Vision result and MediaPipe result both produced or one provider has concrete blockedReason
+
+Step 4. 후보 생성
+  gate: 2D mask, UV mask, round-trip preview, package metadata produced
+
+Step 5. 후보 비교
+  gate: Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend 비교 가능
+
+Step 6. 미세 조정
+  gate: adjustment values change 2D mask, UV texture, round-trip, runtime payload
+
+Step 7. 저장
+  gate: stale result cannot save; saved package contains privacy/source/blend/adjustment metadata
+
+Step 8. AR 적용 준비
+  gate: Unity can parse saved package, register texture, apply generated mask path in smoke
+
+Step 9. Debug/evidence
+  gate: logs are available without covering the face judgment area
+```
+
+### 2.6 Capture Bundle Contract
+
+촬영 없이 맞춤 생성은 불가능하다. 앱의 Generate는 반드시 현재 얼굴에서 생성된 capture bundle을 입력으로 사용한다.
+
+```ts
+type E7CaptureShotKind =
+  | "neutral"
+  | "mouthOpen"
+  | "mouthClosed"
+  | "smile"
+  | "pucker"
+  | "yawLeft"
+  | "yawRight"
+  | "blink"
+  | "squint"
+  | "browRaise";
+
+type E7CaptureShot = {
+  shotId: string;
+  captureSetId: string;
+  shotKind: E7CaptureShotKind;
+  localFramePath: string;
+  frameWidth: number;
+  frameHeight: number;
+  orientation: "portrait" | "landscapeLeft" | "landscapeRight";
+  isMirrored: boolean;
+  arfaceExportPath: string;
+  meshVertexCount: number;
+  meshIndexCount: number;
+  meshUvCount: number;
+  blendshapeValues: Record<string, number>;
+  quality: {
+    faceTracked: boolean;
+    faceCentered: boolean;
+    brightnessOk: boolean;
+    blurOk: boolean;
+    distanceOk: boolean;
+    yawOk: boolean;
+    pitchOk: boolean;
+    mouthStateOk: boolean;
+  };
+  privacy: {
+    localOnly: true;
+    offDeviceUpload: false;
+    longTermRawFrameStored: false;
+  };
+};
+
+type E7CaptureSet = {
+  captureSetId: string;
+  createdAtLocal: string;
+  shots: E7CaptureShot[];
+  requiredShotStatus: Record<string, "ready" | "blocked" | "retakeRequired">;
+  selectedReferenceShotId: string;
+};
+```
+
+보관 원칙:
+
+```txt
+raw camera frame은 장기 저장하지 않는다.
+build/debug 중 필요한 local temp만 사용하고, 저장 package에는 필요한 파생 mask/metadata만 남긴다.
+evidence로 남길 때는 representative frame/contact sheet/metadata 중심으로 남긴다.
+```
+
 ## 3. 범위
 
 ### 3.1 포함
 
 - CLI 기반 반복 실험.
+- 앱 UI shell preview를 웹에서 먼저 확인하는 단계.
+- Unity AR 세션에서 현재 frame + ARFace mesh/UV + blendshape를 묶어 capture bundle 생성.
+- n회 촬영 flow와 shot별 품질 gate.
+- native iOS Vision provider.
+- native iOS MediaPipe provider.
 - 외부 마스킹 데이터 기반 silver prior 확보/정규화/warping.
 - 기존 evidence와 local capture pair 재사용.
 - MediaPipe, Apple Vision, face parsing, color/gradient confidence, ARFace UV 신호 비교.
@@ -177,6 +329,8 @@ Lineage: source, candidateId, selectedPolicy, warning
 - 저장 가능한 region mask package.
 - RN 앱의 저장 package import와 AR 화면 전환 준비.
 - Unity runtime UV mask 적용 준비와 synthetic smoke.
+- blendshape assist off/on 비교와 runtime payload 차이 확인.
+- 얼굴 중앙을 가리지 않는 debug/evidence sheet.
 - Xcode 빌드 직전 checklist/evidence matrix/package readiness.
 - Slack user-required alert.
 - TECH_VALIDATION_RESULT.md 업데이트.
@@ -188,7 +342,10 @@ Lineage: source, candidateId, selectedPolicy, warning
 - commercial SDK 도입.
 - Android.
 - live face parsing/Core ML runtime.
-- 매 프레임 Vision/MediaPipe/face parsing으로 boundary 재생성.
+- 화장 AR runtime 매 프레임 Vision/MediaPipe/face parsing으로 boundary 재생성.
+- RN이 Unity ARKit session과 별도 camera session을 동시에 열어 충돌시키는 구조.
+- fixture/replay 결과를 현재 사용자 촬영 Generate처럼 표시하는 구조.
+- web shell만 만들고 실제 native provider/app capture를 생략하는 구조.
 - 외부 dataset asset을 product source나 Unity Resources에 직접 복사.
 - iPhone evidence 없이 product-quality ready 선언.
 - 이번 세션의 Xcode/iPhone build/install/launch.
@@ -229,13 +386,38 @@ Pre-Xcode Build Package
   -> result doc update
 ```
 
+### 4.1.1 Capture-First App Architecture
+
+제품 앱에서는 RN이 직접 별도 camera session을 열지 않는다. Unity가 이미 ARKit/AR Foundation 세션을 소유하므로, 촬영도 Unity가 현재 AR session에서 수행하고 RN은 단계 흐름과 상태를 관리한다.
+
+```txt
+RN Wizard
+  -> Unity에 StartCaptureStep 요청
+  -> Unity가 현재 camera frame + ARFace mesh/UV/screen projection + blendshape 저장
+  -> Unity가 capture metadata event를 RN에 전달
+  -> RN/native bridge가 Vision provider와 MediaPipe provider 실행
+  -> provider 결과가 2D boundary contract로 정규화
+  -> Unity 또는 shared local tool이 2D mask -> UV mask -> round-trip 생성
+  -> RN이 후보 비교/조정/저장 UI 표시
+  -> Unity runtime이 saved UV mask를 계속 샘플링
+```
+
+이 구조의 이유:
+
+```txt
+같은 순간의 camera frame과 ARFace mesh를 묶을 수 있다.
+RN camera와 Unity ARKit session 충돌을 피한다.
+서버/fixture가 아니라 현재 사용자 얼굴에서 생성한다.
+runtime 매 프레임 AI가 아니라 calibration-time generation으로 성능과 privacy를 지킨다.
+```
+
 ### 4.2 신호 역할
 
 | Signal | 역할 | 금지 |
 | --- | --- | --- |
 | ARFace mesh/UV | runtime 좌표계, 2D mask -> UV projection, 얼굴 부착 | semantic boundary 자체로 과신 금지 |
-| Apple Vision | 2D contour / landmark sanity signal | gold mask 또는 runtime primary tracker 취급 금지 |
-| MediaPipe | geometry prior, lip/eye/brow landmark helper, comparison signal | Codex shell 자동 필수 gate로 고정 금지 |
+| Apple Vision | native iOS current-frame 2D contour / landmark provider, sanity signal | gold mask 또는 runtime primary tracker 취급 금지 |
+| MediaPipe | native iOS current-frame geometry/landmark provider, comparison signal | fixture/replay 또는 Codex shell-only 결과를 앱 구현 완료로 취급 금지 |
 | Face parsing | local/offline silver semantic layer, spill/exclude 판단 | live runtime/Core ML로 승격 금지 |
 | Color/gradient | confidence, contrast, hair/skin/lip edge, visibility/spill warning | boundary 생성 신호로 단독 사용 금지 |
 | External mask prior | gold 없는 부위의 silver draft 생성 | 직접 gold 또는 product asset 취급 금지 |
@@ -277,10 +459,26 @@ type RegionMaskPackage = {
   };
   sourceFrameMetadata: {
     capturePairId?: string;
+    captureSetId?: string;
+    referenceShotId?: string;
     frameWidth: number;
     frameHeight: number;
     orientation: string;
     isMirrored: boolean;
+  };
+  providerResults?: {
+    vision?: {
+      status: "ready" | "partial" | "blocked";
+      boundaryPath?: string;
+      confidence?: number;
+      blockedReason?: string;
+    };
+    mediapipe?: {
+      status: "ready" | "partial" | "blocked";
+      boundaryPath?: string;
+      confidence?: number;
+      blockedReason?: string;
+    };
   };
   mask2d: {
     hardMaskPath: string;
@@ -296,6 +494,12 @@ type RegionMaskPackage = {
     roundTripStatus: "ready" | "partial" | "blocked";
   };
   adjustment: Record<string, number>;
+  blendshapeAssist: {
+    enabled: boolean;
+    captureShotIds: string[];
+    assistMode: "off" | "calibrationEnvelope" | "runtimeMaterialAssist";
+    runtimeBlendshapeFields: string[];
+  };
   qualityWarnings: string[];
   runtimeApplyPayload: {
     region: RegionKind;
@@ -680,72 +884,114 @@ candidate generate
 각 부위의 사용자 조정축 존재
 ```
 
-### Phase 2. 1시간 웹앱 완성
+### Phase 2. 웹 UI Shell + 기능 Beta 분리
 
 목표:
 
-- 웹앱은 실험장이 아니라 pre-build UI/logic verification shell이다.
-- selected candidate policy를 불러와 Generate / Adjust / Save 흐름을 확인한다.
+- 웹앱에서 먼저 실제 iPhone 앱 패널/wizard 껍데기를 본다.
+- 이 shell은 기능 없는 화면 계약이며, 사용자가 UI 흐름을 승인하는 기준이다.
+- 실제 mask 생성/조정/저장 로직은 기존 web beta/local server 방식을 참고해 별도 functional beta로 검증한다.
+- shell approval 없이 RN 앱 UI 구현을 진행하지 않는다.
 
-필수 화면:
+필수 shell 화면:
 
 ```txt
-Generate
-  - 얼굴/fixture 선택
-  - 4개 부위 Generate
-  - status pre-xcode-ready/partial/blocked
+App Shell / Step 0
+  - 시작 / 권한 / 로컬 처리 안내
 
-Review
-  - lip / blush / brow / eyeliner tabs
-  - candidate toggle
-  - overlay preview
-  - warning list
+App Shell / Step 1
+  - 얼굴 정렬 guide
+  - 품질 gate status
 
-Adjust
-  - button presets
-  - sliders
-  - before/after preview
+App Shell / Step 2
+  - n회 촬영 progress
+  - neutral/open/closed/smile/pucker/yaw shot checklist
+  - retake state
 
-Save
+App Shell / Step 3
+  - native Vision / native MediaPipe 추출 진행 상태
+
+App Shell / Step 4
+  - 후보 생성 결과
+  - Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend
+
+App Shell / Step 5
+  - 후보 크게 보기
+  - next/previous 후보 전환
+  - region enable/disable
+
+App Shell / Step 6
+  - 미세 조정
+  - stale result warning
+  - regenerate required state
+
+App Shell / Step 7
+  - 저장
   - saved package summary
   - privacy flags
-  - runtime payload preview
+
+App Shell / Step 8
+  - AR 적용 준비
+  - debug/evidence sheet는 얼굴 중앙 밖
 ```
 
 완료 조건:
 
 ```txt
-웹앱에서 4개 부위 package load/generate/review/adjust/save 가능
+web shell에서 강제 단계 흐름을 시각적으로 확인 가능
+shell은 기능 없는 UI 계약임을 명시
+functional beta에서 package load/generate/review/adjust/save 가능
+functional beta가 fixture/prebuilt copy가 아니라 생성 path를 호출함을 smoke로 확인
 payload JSON preview 가능
 얼굴 중앙을 가리는 debug UI 없음
+사용자가 승인하기 전 RN UI 이식 금지
 ```
 
 ### Phase 3. RN App Integration
 
 목표:
 
-- 웹앱에서 검증한 흐름을 RN 앱에 옮긴다.
+- 웹 shell에서 승인된 화면 구조를 RN 앱에 옮긴다.
+- functional web beta에서 검증한 생성/조정/저장 contract를 RN 앱에 연결한다.
+- RN 기본 진입면에서 옛 validation HUD를 제거하고, debug/dev mode로만 격리한다.
 - 저장 package를 AR 화면으로 넘긴다.
 
 필수 UI:
 
 ```txt
-Calibration screen
-  - Generate
-  - Review/Edit each region
-  - Save package
-  - Enter AR
+Forced Wizard
+  - Step 0 Start / Permission / Privacy
+  - Step 1 Face Alignment
+  - Step 2 Capture Shots
+  - Step 3 Native Extraction
+  - Step 4 Generate Candidates
+  - Step 5 Compare Candidates
+  - Step 6 Adjust
+  - Step 7 Save Package
+  - Step 8 Enter AR / Runtime Check
+
+Navigation
+  - Next is disabled until current gate passes
+  - Back and Retake are allowed
+  - arbitrary tab jump is not allowed
+  - debug drawer does not cover face center
 
 AR screen
-  - Clean
-  - Compare HUD
-  - Debug
+  - Clean visual mode
+  - compact compare controls
+  - debug sheet/drawer
   - Return to Adjust
 ```
 
 필수 contract:
 
 ```txt
+StartCaptureStep
+CaptureShotCompleted
+CaptureSetReady
+RunNativeVisionBoundary
+RunNativeMediaPipeBoundary
+GenerateCandidatePackage
 ApplySavedRegionPackage
 ApplyCompositeMakeupPackage
 RegionPackageSaved
@@ -762,6 +1008,64 @@ npm run lint
 payload snapshot tests
 ```
 
+### Phase 3A. Unity Capture + Native Provider Integration
+
+목표:
+
+- 앱 Generate의 입력을 fixture가 아니라 현재 촬영 capture set으로 바꾼다.
+- native Vision과 native MediaPipe를 둘 다 구현한다.
+- Xcode build 전에는 실기기 증거를 주장하지 않지만, iOS native module 파일/bridge/model/resource/contract가 build-ready 상태여야 한다.
+
+Unity capture 필수 구현:
+
+```txt
+StartCaptureStep(stepKind)
+current camera frame local temp write
+same-moment ARFace mesh/indices/uv/screen projection export
+ARKit blendshape values export
+quality metrics export
+CaptureShotCompleted RN event
+CaptureSetReady RN event
+raw frame cleanup policy
+```
+
+native Vision provider:
+
+```txt
+입력: localFramePath, orientation, isMirrored, face bounding metadata
+처리: VNDetectFaceLandmarksRequest 또는 동등한 iOS Vision face landmark request
+출력: lip/eye/brow contour points, confidence, coordinate transform metadata, warnings
+금지: precomputed fixture contour를 현재 촬영 결과처럼 반환
+```
+
+native MediaPipe provider:
+
+```txt
+입력: localFramePath, orientation, isMirrored
+처리: bundled local MediaPipe Tasks FaceLandmarker model 또는 iOS native MediaPipe equivalent
+출력: face landmarks, lip/eye/brow point groups, confidence, coordinate transform metadata, warnings
+금지: 서버 호출, 외부 업로드, fixture points replay
+```
+
+Provider 비교:
+
+```txt
+Vision/off
+Vision/blend
+MediaPipe/off
+MediaPipe/blend
+```
+
+완료 조건:
+
+```txt
+native module bridge가 RN에서 호출 가능한 contract로 연결
+provider 결과가 shared boundary schema로 정규화
+blockedReason 없이 build-ready로 남기려면 local model/resource path와 initialization contract가 문서화
+static checks와 snapshot/smoke가 provider placeholder를 감지
+Xcode build만 남은 상태인지 Strict QA가 확인
+```
+
 ### Phase 4. Unity Runtime Integration
 
 목표:
@@ -773,9 +1077,11 @@ payload snapshot tests
 
 ```txt
 GeneratedRegionMaskRegistry
+CaptureBundleExporter
 ApplySavedRegionPackage parser
 CompositeMakeupPackage parser
 DynamicRegionMaskTexture loader
+2D boundary -> 2D mask -> UV mask projection entrypoint
 Region material/shader parameter binding
 Blendshape assist hooks
 Runtime event logging
@@ -801,12 +1107,27 @@ runtimeApplyReady
 warning
 ```
 
+Blendshape assist contract:
+
+```txt
+Assist off:
+  saved neutral/reference UV mask를 그대로 샘플링
+
+Assist on:
+  runtime ARKit blendshape 값을 이용해 material/feather/visibility/inner-mouth guard를 보조
+  mask boundary를 매 프레임 AI로 재생성하지 않음
+  generate-time n-shot capture set으로 expression envelope를 만든 뒤 runtime에서는 가볍게 보정
+```
+
 검증:
 
 ```txt
 Unity batchmode import/compile
 synthetic package smoke
 texture load smoke
+capture bundle export smoke
+generated UV projection smoke
+blendshape assist off/on payload smoke
 runtime log analyzer smoke
 ```
 
@@ -821,13 +1142,19 @@ Build question:
   iPhone이 연결된 다음 세션에서 UnityFramework/RN iPhone build를 진행할까요?
 
 Primary path:
-  saved composite package -> Unity generated region masks -> AR runtime apply path
+  approved web app shell -> RN forced wizard -> Unity capture bundle -> native Vision/MediaPipe -> generated UV mask package -> Unity runtime apply path
 
 Compare paths:
-  base / selected / safe
-  assist off / assist on where available
+  Vision/off
+  Vision/blend
+  MediaPipe/off
+  MediaPipe/blend
+  selected / safe fallback where available
 
 Quality gate:
+  user flow matches forced wizard
+  capture set completeness
+  native provider readiness
   boundary accuracy
   face attachment
   expression stability
@@ -837,17 +1164,22 @@ Quality gate:
   memory/thermal if available
 
 Evidence matrix:
+  web shell screenshots
+  functional web beta generation proof
   logs
   buildless screenshots/frames
   contact sheets
   package summary
   runtime events
+  native provider contract/static checks
+  RN wizard snapshot/state gate tests
 
 Out of scope:
   upload
   Android
   commercial SDK
   live face parsing/Core ML runtime
+  AR runtime per-frame AI boundary generation
   이번 세션의 Xcode/iPhone build/install/launch
   이번 세션의 iPhone unlock/camera permission/runtime capture
 ```
@@ -992,6 +1324,78 @@ web_app_screen_contract.md
 rn_screen_contract.md
 ```
 
+### UX Shell Agent
+
+역할:
+
+- 기능 없는 web app shell을 만든다.
+- iPhone 앱의 강제 단계형 화면을 웹에서 먼저 볼 수 있게 한다.
+- shell과 functional beta를 섞지 않는다.
+- 사용자가 승인할 수 있는 screenshot/state list를 만든다.
+
+산출물:
+
+```txt
+web_app_shell_route.md
+app_shell_screenshots/
+wizard_step_contract.json
+shell_to_rn_mapping.md
+```
+
+### Native Provider Agent
+
+역할:
+
+- iOS native Vision provider와 iOS native MediaPipe provider를 build-ready 상태로 구현한다.
+- fixture replay, server upload, precomputed contour copy를 막는다.
+- orientation/mirror/coordinate transform contract를 고정한다.
+- RN bridge 호출 contract와 error/blockedReason shape를 만든다.
+
+산출물:
+
+```txt
+native_provider_contract.md
+vision_provider_static_check.md
+mediapipe_provider_static_check.md
+provider_boundary_schema.json
+provider_blocker_report.md
+```
+
+### Unity Capture/Projection Agent
+
+역할:
+
+- Unity AR session에서 현재 frame과 ARFace mesh/UV/blendshape를 같은 순간에 export한다.
+- capture bundle schema를 구현한다.
+- provider 2D boundary를 UV mask로 투영하는 entrypoint를 준비한다.
+- runtime debug/log가 얼굴 중앙을 가리지 않게 만든다.
+
+산출물:
+
+```txt
+capture_bundle_schema.json
+capture_export_smoke.md
+uv_projection_smoke.md
+runtime_debug_layout_check.md
+```
+
+### Blend/Capture Agent
+
+역할:
+
+- n회 촬영 sequence와 shot별 gate를 구현한다.
+- blendshape assist off/on 비교 payload를 만든다.
+- assist가 mask 재생성이 아니라 material/feather/visibility 보조임을 검증한다.
+
+산출물:
+
+```txt
+capture_sequence_contract.md
+blendshape_assist_contract.md
+assist_off_on_payload_diff.json
+expression_gate_matrix.md
+```
+
 ### Data Agent
 
 역할:
@@ -1044,6 +1448,10 @@ gold 없는 후보를 pre-xcode-ready라고 부르면 중단
 iPhone evidence 없는 Green/product-quality claim이면 중단
 4개 부위 중 하나라도 누락되면 완료 선언 차단
 raw frame/upload/privacy 위반이면 중단
+web shell approval 없이 RN UI 이식이면 중단
+current capture 없이 fixture 결과를 앱 Generate로 표시하면 중단
+native Vision/MediaPipe placeholder를 build-ready라고 부르면 중단
+강제 단계 gate 없이 자유 탭 이동이면 중단
 ```
 
 산출물:
@@ -1163,11 +1571,12 @@ Documentation/Handoff Agent
 
 ```txt
 T+00:00 - T+00:15  Session boot, manifest, active contract 확인
-T+00:15 - T+02:15  Experiment loop
-T+02:15 - T+03:15  Web app UI/logic completion
-T+03:15 - T+04:15  RN/Unity buildless integration and checks
-T+04:15 - T+04:45  Pre-Xcode build gate package and deferred test checklist
-T+04:45 - T+05:15  Result sync and final report
+T+00:15 - T+01:15  Web app shell 화면 계약 작성/검증
+T+01:15 - T+03:15  Capture/native provider/experiment loop 병렬 구현
+T+03:15 - T+04:30  RN forced wizard + Unity capture/projection integration
+T+04:30 - T+05:15  Functional web beta parity, save package, blend off/on 검증
+T+05:15 - T+05:45  Pre-Xcode build gate package and deferred test checklist
+T+05:45 - T+06:15  Result sync and final report
 ```
 
 알림/heartbeat:
@@ -1175,7 +1584,7 @@ T+04:45 - T+05:15  Result sync and final report
 ```txt
 30분마다 timeline.md 업데이트
 2시간 실험 종료 시 Slack/user-required alert if review needed
-1시간 웹앱 종료 시 Slack/user-required alert if visual/user choice needed
+웹 shell screenshot 준비 시 Slack/user-required alert if visual/user choice needed
 pre-Xcode package 완료 시 Slack/user-required alert if next-session build decision needed
 이번 세션에서는 iPhone 잠금/권한/빌드 승인을 요청하지 않음
 시각 판단, 외부 full download, scope 확대가 필요할 때만 Slack/user-required alert
@@ -1264,12 +1673,25 @@ eyeliner: eyeball/eye opening spill severe or line too unstable
 
 ## 11. 웹앱 상세
 
-웹앱은 실험 시간이 아니라 검증 시간이다.
+웹앱은 두 갈래다.
+
+```txt
+1. App Shell Preview
+   - 기능 없는 UI 껍데기
+   - iPhone 앱의 강제 단계형 flow를 웹에서 먼저 확인
+   - RN 이식 전 사용자 승인 기준
+
+2. Functional Generate Beta
+   - 기존 lip-generate-beta/local server 방식을 참고
+   - 실제 mask generation, UV projection, round-trip, adjust, save 검증
+   - app shell과 UI가 다를 수 있지만 contract는 RN 이식 기준으로 맞춘다
+```
 
 권장 위치:
 
 ```txt
 web/region-generate-beta/
+web/region-generate-beta/src/routes/app-shell/
 packages/region-generate-core/
 local-tools/region-generate-server/
 ```
@@ -1285,12 +1707,24 @@ local-tools/lip-generate-server/
 필수 UX:
 
 ```txt
-Generate all
-Review by region
-Adjust by region
-Save package
-Payload preview
-Evidence export
+App Shell Preview:
+  Start
+  Face Alignment
+  Capture Shots
+  Native Extraction
+  Candidate Compare
+  Adjust
+  Save
+  Runtime Ready
+  Debug Sheet
+
+Functional Generate Beta:
+  Generate all
+  Review by region
+  Adjust by region
+  Save package
+  Payload preview
+  Evidence export
 ```
 
 디자인 원칙:
@@ -1310,23 +1744,41 @@ debug JSON은 별도 panel
 필수 state:
 
 ```txt
+wizardStep
+wizardGateStatus
+captureSet
+captureShotProgress
+nativeProviderStatus
 savedPackage
 selectedRegion
 regionStatus
 adjustmentValues
+blendshapeAssistEnabled
 arApplyStatus
 latestUnityEvent
-viewMode: clean | compareHud | debug
+viewMode: clean | compareHud | debugSheet
 ```
 
 필수 buttons:
 
 ```txt
-맞춤 생성
+촬영 시작
+재촬영
+후보 생성
+4가지 후보 비교
 저장
 AR에서 보기
 조정으로 돌아가기
 부위 ON/OFF
+```
+
+금지:
+
+```txt
+기본 화면에 옛 validation HUD 노출
+Vision/MediaPipe/UV/Assist 같은 기술 버튼을 사용자 flow의 primary action으로 노출
+gate가 실패했는데 다음 단계 활성화
+얼굴 중앙을 가리는 로그 panel
 ```
 
 ### 12.2 Unity
@@ -1334,8 +1786,13 @@ AR에서 보기
 필수:
 
 ```txt
+current frame capture
+ARFace export
+blendshape export
 package parser
 mask texture loader
+native provider result receiver
+2D boundary/UV projection bridge
 region material binding
 per-region enable/disable
 runtime warning event
@@ -1397,6 +1854,308 @@ Red:
 
 Green은 iPhone evidence 없이는 선언하지 않는다.
 이번 iPhone 미연결 세션의 최종 표기는 `pre-xcode-ready`, `partial`, `blocked` 중 하나다.
+
+### 13.3 Build-Ready Reality Checklist
+
+아래가 모두 참이어야 "이제 Xcode build만 남았다"고 말할 수 있다.
+
+```txt
+UI:
+  web app shell에서 강제 wizard 전체 화면을 확인했다
+  RN 기본 진입 화면이 shell과 같은 단계 구조다
+  옛 validation HUD는 default path에서 제거되거나 dev/debug 뒤에 숨었다
+
+Capture:
+  Unity current-frame capture contract가 구현됐다
+  capture set에 frame, ARFace mesh/UV, blendshape, quality metrics가 묶인다
+  n회 촬영 shot 상태가 ready/retakeRequired/blocked로 기록된다
+
+Providers:
+  native Vision provider가 현재 frame 입력을 받는 bridge를 갖는다
+  native MediaPipe provider가 현재 frame 입력을 받는 bridge를 갖는다
+  두 provider 모두 fixture/precomputed replay를 앱 Generate로 반환하지 않는다
+
+Generation:
+  provider boundary -> 2D mask -> UV mask -> round-trip path가 연결됐다
+  조정값 변경이 mask/UV/runtime payload에 실제 delta를 만든다
+  stale result는 저장할 수 없다
+
+Blend:
+  assist off/on 비교 payload가 존재한다
+  assist on은 runtime 매 프레임 AI 재생성이 아니라 blendshape 기반 lightweight 보정이다
+
+Save/Runtime:
+  saved package에 captureSetId, providerResults, adjustment, blendshapeAssist, privacy flags가 있다
+  Unity가 saved package를 parse/register/apply하는 smoke를 통과했다
+  debug/log UI는 얼굴 중앙을 가리지 않는다
+
+QA:
+  RN test/typecheck/lint 통과
+  web build/typecheck/lint 통과
+  Unity batchmode import/compile 통과
+  provider static/snapshot checks 통과
+  Strict QA가 빠진 단계와 과장 claim이 없다고 확인했다
+```
+
+### 13.4 2026-06-27 구현 현실 점검
+
+이번 구현 루프의 결론은 `partial`이다. 핵심 제품 흐름은 앱 코드에 들어갔지만, native MediaPipe iOS dependency/model이 아직 로컬 프로젝트에 없으므로 "이제 Xcode build만 남았다"라고 말하면 안 된다.
+
+완료된 것:
+
+```txt
+web app shell:
+  Start -> Face Alignment -> Capture -> Native Extraction -> Compare -> Adjust -> Save -> Runtime Ready를 보여주는 기능 없는 iPhone 앱 UI shell 추가
+  functional beta는 기존 local server Generate/adjust/save 검증 경로 유지
+
+RN app:
+  기본 진입을 옛 validation HUD가 아니라 맞춤 Generate forced wizard로 변경
+  임의 단계 점프 방지
+  n-shot capture state 추가
+  neutral capture 없이는 native extraction 불가
+  adjustment 변경 시 generated candidates stale 처리
+  stale 상태에서는 save 차단
+  debug는 face-center HUD가 아니라 별도 drawer로 이동
+
+Unity capture:
+  기존 E7SynchronizedCaptureExporter 재사용
+  CaptureReferenceFrameJson으로 frame.png, arface_export.json, projected mesh overlay, blendShapes를 app Documents에 저장 가능
+
+native iOS:
+  E7NativeLipBoundaryProviders Swift bridge 추가
+  Vision provider는 현재 capture frame과 arface_export.json을 읽어 lip landmark boundary와 ARFace export/blendshape payload를 RN에 반환
+  saveGeneratedPackage는 local-only package record를 Documents/e7-generated-lip-packages에 저장
+  MediaPipe provider는 fixture/replay를 반환하지 않으며, 현재는 blockedReason=mediapipe_ios_dependency_or_task_model_not_bundled 반환
+
+RN generation:
+  native boundary + ARFace screen/UV export -> raw RGBA UV mask package 생성 helper 추가
+  Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend 후보 shape 생성
+  Unity ApplyGeneratedLipMaskJson payload 전송 경로 유지
+```
+
+검증:
+
+```txt
+RN:
+  ./node_modules/.bin/tsc --noEmit
+  npm test -- --runInBand --watchman=false
+  npm run lint
+
+web:
+  npm run lint
+  npm run typecheck
+  npm run build
+
+shared:
+  packages/lip-generate-core npm run typecheck
+  packages/lip-generate-core npm test
+
+local server:
+  python3 local-tools/lip-generate-server/server.py --smoke
+  result: partial
+  Vision adjusted delta: 6763
+  MediaPipe adjusted delta: 8275
+  both uvMaskReady=true, roundTripReady=true, saveStatus=saved
+
+iOS project static:
+  plutil -lint rn/MakeupARValidation/ios/MakeupARValidation.xcodeproj/project.pbxproj
+  ruby -c rn/MakeupARValidation/ios/Podfile
+
+Unity:
+  E7GeneratedLipMaskSmoke.RunFromCommandLine exit 0
+  evidence/logs/e7-generated-lip-mask-rn-wizard-unity-smoke-20260627.log
+```
+
+현재 상태:
+
+| 항목 | 상태 | 이유 |
+| --- | --- | --- |
+| Web shell | ready | 앱 wizard 껍데기 확인 가능 |
+| Functional web beta | partial | 실제 fixture 기반 mask/UV/save 검증 가능, 앱 runtime 증거는 아님 |
+| RN forced wizard | partial | buildless tests 통과, iPhone visual/runtime 미검증 |
+| Unity capture/export | partial | 기존 exporter 재사용 가능, 이번 wizard에서 실기기 capture evidence 미수집 |
+| native Vision | partial | Swift bridge/source 구현, Xcode/iPhone runtime 미검증 |
+| native MediaPipe | blocked | iOS MediaPipe dependency/model 미번들; blockedReason 명시 |
+| RN boundary->UV package | partial | JS helper/typecheck 통과, 실제 native Vision 결과와 on-device performance 미검증 |
+| Save/runtime apply | partial | native save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증 |
+| Build-ready claim | blocked | MediaPipe native blocker와 Xcode/iPhone evidence 부재 |
+
+다음 결정을 해야 한다:
+
+```txt
+1. MediaPipe iOS dependency/model을 로컬 프로젝트에 번들해서 native MediaPipe를 완성한다.
+2. 또는 첫 Xcode gate를 Vision-only로 좁힌다고 명시적으로 scope 조정한다.
+
+사용자 원래 목표는 Vision과 MediaPipe 실제 비교이므로 기본 추천은 1번이다.
+단, dependency/license/model size를 확인하기 전에는 build-ready로 올리지 않는다.
+```
+
+### 13.5 2026-06-27 MediaPipe iOS unblock / pre-Xcode ready 점검
+
+13.4에서 남았던 native MediaPipe blocker는 제거됐다. 현재 상태는 `pre-xcode-ready`다. 의미는 "이제 Xcode build/install/run gate로 넘어갈 수 있다"이지, iPhone runtime 품질이나 product-ready를 뜻하지 않는다.
+
+구현된 것:
+
+```txt
+iOS dependency:
+  Podfile에 MediaPipeTasksVision 0.10.35 추가
+  pod install 통과
+  Podfile.lock에 MediaPipeTasksVision / MediaPipeTasksCommon 0.10.35 기록
+
+iOS model resource:
+  rn/MakeupARValidation/ios/MakeupARValidation/E7Models/face_landmarker.task 추가
+  Xcode project Resources phase에 face_landmarker.task 등록
+  모델 크기: 약 3.6MB
+
+native MediaPipe provider:
+  E7NativeLipBoundaryProviders.swift가 MediaPipeTasksVision을 conditional import
+  module/resource가 있으면 current capture framePath + arFaceExportPath로 FaceLandmarker image mode 실행
+  MediaPipe outer/inner lip landmark index를 frame_image_pixel_top_left boundary로 변환
+  fixture/replay 반환 금지 유지
+  module/resource가 없을 때만 blockedReason=mediapipe_tasks_vision_module_not_installed 또는 model missing 계열 반환
+
+package contract:
+  saved package에 captureSetId, providerResults, blendshapeAssist, adjustment, privacyFlags 명시
+  Unity runtime payload에도 captureSetId 포함
+
+Unity capture contract:
+  E7SynchronizedCaptureExporter가 RN 요청의 captureSetId / captureShotKind / purpose를 파싱
+  arface_export.json, capture_summary.json, RN capture event에 captureSetId / captureShotKind 보존
+  quality summary에 trackingState, frame size, mesh vertex/index/uv count, projectedVertexCount, stable UV 여부, HUD 미포함 여부 기록
+  blendshape 원본 값은 arface_export.json의 blendShapes에 유지하고 quality는 그 위치를 가리킴
+```
+
+검증:
+
+```txt
+iOS dependency/static:
+  pod trunk info MediaPipeTasksVision
+  pod install
+  plutil -lint rn/MakeupARValidation/ios/MakeupARValidation.xcodeproj/project.pbxproj
+  ruby -c rn/MakeupARValidation/ios/Podfile
+  xcodebuild -workspace MakeupARValidation.xcworkspace -scheme MakeupARValidation -showBuildSettings
+
+RN:
+  ./node_modules/.bin/tsc --noEmit
+  npm test -- --runInBand --watchman=false
+  npm run lint
+
+web:
+  npm run lint
+  npm run typecheck
+  npm run build
+
+shared:
+  packages/lip-generate-core npm run typecheck
+  packages/lip-generate-core npm test
+
+local server:
+  python3 local-tools/lip-generate-server/server.py --smoke
+  result: partial
+  Vision adjusted delta: 6763
+  MediaPipe adjusted delta: 8275
+  both uvMaskReady=true, roundTripReady=true, saveStatus=saved
+
+Unity:
+  E7GeneratedLipMaskSmoke.RunFromCommandLine exit 0
+  evidence/logs/e7-generated-lip-mask-rn-wizard-mediapipe-prexcode-20260627.log
+  evidence/logs/e7-generated-lip-mask-rn-wizard-capture-contract-prexcode-20260627.log
+
+Strict QA:
+  old validation HUD default path 없음
+  capture 전 Generate 비활성
+  stale 상태 save 차단
+  debug/log face-center HUD 제거, drawer 뒤로 이동
+  offDeviceUpload=false, longTermRawFrameStored=false 유지
+```
+
+현재 상태:
+
+| 항목 | 상태 | 이유 |
+| --- | --- | --- |
+| Web shell | ready | 앱 wizard 껍데기 확인 가능 |
+| Functional web beta | partial | fixture/local server 기반 생성/조정/저장 검증 가능, 앱 runtime 증거는 아님 |
+| RN forced wizard | pre-xcode-ready | buildless tests 통과, Xcode/iPhone runtime 미검증 |
+| Unity capture/export | pre-xcode-ready | captureSetId/shotKind/purpose/quality export 계약 보강 및 Unity compile/smoke 통과, 실기기 capture evidence는 다음 gate |
+| native Vision | pre-xcode-ready | Swift current-frame provider 구현, Xcode/iPhone runtime 미검증 |
+| native MediaPipe | pre-xcode-ready | Pod/model/resource/Swift current-frame provider 준비, Xcode/iPhone runtime 미검증 |
+| RN boundary->UV package | pre-xcode-ready | JS helper/typecheck 통과, 실제 native 결과 runtime 성능 미검증 |
+| Save/runtime apply | pre-xcode-ready | local save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증 |
+| Build-ready claim | pre-xcode-ready | 이제 의도적으로 남긴 gate는 Xcode build/install/run과 실기기 evidence |
+
+명시적 한계:
+
+```txt
+Xcode build/install/run은 실행하지 않았다.
+iPhone에서 native Vision/MediaPipe가 실제 frame으로 성공하는지는 아직 증명되지 않았다.
+FPS/frame-time/latency/memory/thermal/visual acceptance는 아직 없다.
+Green/product-quality-ready, Lip G/Y/R, E7.3 Green은 아니다.
+```
+
+다음 gate:
+
+```txt
+사용자 승인 후 Xcode build/install/run.
+빌드 전 Slack/user-required alert sent:
+"이제 Xcode build만 하면 됩니다. 빌드 진행 승인이 필요합니다."
+```
+
+### 13.6 2026-06-27 UX correction after shell review
+
+사용자 리뷰에서 다음 문제를 확인했다.
+
+```txt
+추출은 Vision 또는 MediaPipe 둘 중 하나를 선택하는 단계인데,
+비교 화면이 provider 선택과 후보 비교를 섞어 보이게 했다.
+
+조정 화면에서 마스크가 올라간 얼굴이 너무 작았다.
+촬영 이후에도 live camera처럼 보여서 실제 촬영/저장 프레임인지 헷갈렸다.
+뒤로가기가 없었다.
+실제 촬영인지, 보이기만 하는 shell인지 구분이 부족했다.
+```
+
+반영한 것:
+
+```txt
+web shell:
+  Start -> Align -> Capture -> Extract -> Compare -> Adjust -> Save -> Runtime 강제 흐름 유지
+  Extract에서 Vision / MediaPipe 중 하나만 선택
+  Compare는 선택 provider에서 나온 여러 후보를 비교하는 화면으로 변경
+  모든 post-start step에 이전 버튼 추가
+  Capture 이후 화면은 live camera가 아니라 캡처 프레임 검토 상태로 표시
+  Adjust 화면은 작은 썸네일 대신 큰 mask-on-face preview 중심으로 변경
+
+RN:
+  generateWizardCandidates가 선택 provider 하나만 native current-frame provider로 실행
+  provider 변경 시 기존 후보/save state 초기화
+  wizard back button 추가
+  Extract 이후 Unity live camera view 위에 captured-frame review shield 표시
+  native provider 결과의 framePreviewUri를 큰 조정 preview slot에 연결
+
+iOS native provider:
+  Vision / MediaPipe 결과에 framePreviewUri=file://.../frame.png 반환
+```
+
+정직한 해석:
+
+```txt
+web shell은 실제 촬영이 아니다. UI/흐름 확인용이다.
+RN/Unity 앱 경로는 단순 표시가 아니라 CaptureE7ReferenceFrameJson을 Unity로 보내고,
+Unity exporter가 WaitForEndOfFrame 이후 ReadPixels로 frame.png를 쓰고 ARFace export를 저장하는 구조다.
+다만 iPhone에서 실제로 캡처 파일이 생성되고 framePreviewUri 이미지가 RN에 표시되는지는 아직 Xcode/iPhone runtime gate 전이므로 증명되지 않았다.
+```
+
+검증:
+
+```txt
+web npm run typecheck
+web npm run lint
+web npm run build
+RN ./node_modules/.bin/tsc --noEmit
+RN npm test -- --runInBand --watchman=false
+RN npm run lint
+git diff --check
+```
 
 ## 14. User-Required Gates
 
@@ -1474,7 +2233,7 @@ Next boundary
 cwd=/Users/wiseungcheol/Desktop/makeupAR
 
 목표:
-E7 Full Face Region Generate 완전 구현 계획을 실행한다. 립 / 블러셔 / 눈썹 / 아이라인 region mask를 생성, 조정, 저장하고, 저장된 mask package를 RN/Unity AR runtime에서 적용할 수 있도록 Xcode 빌드 직전까지 세팅을 완료한다.
+E7 in-app personalized Generate flow를 Xcode 빌드 직전까지 완성한다. 사용자가 앱에서 단계별로 얼굴을 정렬하고, n회 촬영하고, 현재 촬영 frame에서 native Vision/MediaPipe 후보를 생성하고, blendshape assist off/on을 비교하고, 조정 후 저장하며, 저장된 UV mask package를 Unity AR runtime이 적용할 수 있는 상태까지 준비한다. 최종 상태는 "이제 Xcode build/install/run만 하면 된다"여야 한다.
 
 필수 읽기:
 1. AGENTS.md
@@ -1483,35 +2242,166 @@ E7 Full Face Region Generate 완전 구현 계획을 실행한다. 립 / 블러�
 4. docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md
 
 작업 원칙:
-- 실험은 웹앱이 아니라 CLI/local script로 2시간 반복한다.
-- 웹앱은 1시간 pre-build UI/logic verification shell로 완성한다.
-- 외부 mask prior는 silver only로 사용한다.
-- face parsing과 color confidence는 버리지 말고 후보 생성/검증/경고 신호로 사용한다.
-- ARFace UV는 runtime 좌표계다.
+- 구현 전에 web app shell을 만든다. shell은 기능 없는 iPhone 앱 UI 껍데기이며 강제 단계형 flow를 보여준다.
+- 실제 기능은 기존 web beta/local server의 생성/조정/저장 방식을 RN/Unity/native 구조로 이식한다.
+- 앱은 탭/하단 페이지네이션이 아니라 강제 wizard다. 이전 gate가 통과되지 않으면 다음 단계로 넘어갈 수 없다.
+- 첫 핵심 단계는 Generate가 아니라 촬영이다. 현재 frame + ARFace mesh/UV + blendshape + quality metrics를 capture bundle로 만든다.
+- native Vision과 native MediaPipe를 둘 다 current-frame provider로 구현한다. fixture/precomputed replay를 앱 Generate처럼 보이면 실패다.
+- blendshape assist off/on 비교를 구현한다. assist on은 매 프레임 AI 재생성이 아니라 saved UV mask의 material/feather/visibility 보조다.
+- 조정값은 2D mask, UV texture, round-trip, runtime payload에 실제 delta를 만들어야 한다.
+- 저장 버튼과 stale-result 차단을 구현한다.
+- 옛 validation HUD는 기본 제품 흐름에서 제거하고 dev/debug 뒤로 숨긴다.
+- debug/log는 얼굴 중앙을 가리지 않는 sheet/drawer로만 보여준다.
+- raw camera frame 장기 저장, 서버 업로드, Android, commercial SDK, live face parsing/Core ML runtime은 하지 않는다.
+- Xcode/iPhone build/install/launch는 실행하지 않는다. 목표는 build 직전 준비 완료다.
 - iPhone evidence 없이 Green/product-quality ready를 주장하지 않는다.
-- 이번 세션에서는 Xcode/iPhone build/install/launch, 기기 잠금 해제, 카메라 권한 요청, 실기기 runtime test를 실행하지 않는다.
-- 4개 부위를 모두 처리한다. 못 끝낸 부위는 blocked/partial로 명시한다.
-- 아이라인은 어렵다는 이유로 제외하지 않는다. 사진/reference/외부 prior/parametric curve/soft lashline 우회로를 반복해서라도 최소 candidate를 만든다.
-- Claude는 구현자가 아니라 외부 비평가로 사용한다. Codex가 구체적인 관련 맥락을 context packet으로 정리해 넘기고, Claude의 비평을 Codex가 repo/evidence gate에 맞춰 다시 판단한다.
 
 에이전트:
 - Manager
+- UX Shell Agent
+- RN Wizard Agent
+- Unity Capture/Projection Agent
+- Native Provider Agent
+- Blend/Capture Agent
+- Web Logic Agent
 - Debugger
-- Designer
-- Data Agent
-- Experiment and Reasoning Agent
 - Strict QA Agent
-- Wildcard Agent when blocked
-- Claude External Critic Agent for critique/fallback/risk review
+- Documentation/Handoff Agent
+- Wildcard Agent only when blocked
+- Claude External Critic Agent only for critique/fallback/risk review
 
 완료 조건:
-- 4개 region 후보 생성과 selected policy
-- 사용자 조정축
-- Claude critique 또는 Codex 내부 대체 비평 반영 여부 기록
-- web generate/review/adjust/save
-- RN saved package -> AR screen
-- Unity generated mask apply
-- pre-Xcode build gate package
-- deferred Xcode/iPhone build/run/test checklist
+- web app shell에서 Start -> Face Alignment -> Capture -> Native Extraction -> Compare -> Adjust -> Save -> Runtime Ready 화면 확인 가능
+- functional web beta가 실제 mask generation/adjust/save를 계속 검증
+- RN 기본 화면이 forced wizard이고 old validation HUD가 default path에 없음
+- Unity capture bundle exporter 구현
+- native Vision provider 구현
+- native MediaPipe provider 구현
+- capture set n회 촬영 상태와 quality gate 구현
+- Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend 후보 비교 가능
+- adjustment delta와 stale save block 검증
+- saved package에 captureSetId, providerResults, adjustment, blendshapeAssist, privacy flags 포함
+- Unity saved package parse/register/apply smoke 통과
+- web/RN/shared/native/Unity buildless checks 통과
+- Strict QA가 Build-Ready Reality Checklist를 통과 또는 partial/blocked 항목을 명시
 - TECH_VALIDATION_RESULT.md 업데이트
+- Slack/user-required alert 준비: "이제 Xcode build만 하면 됩니다. 빌드 진행 승인이 필요합니다."
+
+중단/질문 조건:
+- web shell 시각 승인이 필요하면 사용자에게 바로 요청
+- iPhone unlock, camera permission, Xcode build가 필요해지는 순간 멈추고 사용자에게 요청
+- native MediaPipe dependency/license/model 문제가 막히면 blockedReason과 우회안을 정리하고 사용자에게 보고
+- 목표 일부만 끝났으면 완료라고 하지 말고 partial/blocked를 명시
+```
+
+### 17.1 Superseded: partial 상태에서 이어가던 Goal Prompt
+
+```txt
+상태: superseded by 13.5 / 17.2.
+남아 있던 native MediaPipe iOS dependency/model blocker는 2026-06-27 pre-Xcode pass에서 해소됐다.
+현재 이어갈 때는 아래 17.2 Xcode Gate Prompt를 사용한다.
+
+cwd=/Users/wiseungcheol/Desktop/makeupAR
+
+목표:
+E7 in-app personalized Generate flow를 "Xcode build/install/run만 남은 상태"까지 마저 닫는다. 현재 web shell, functional web beta, RN forced wizard, Unity capture exporter 연동, native Vision bridge, JS boundary->UV raw RGBA package helper, local save bridge, Unity generated-mask editor smoke는 buildless/source-stage 통과했다. 남은 핵심 blocker는 native MediaPipe iOS dependency/model 미번들이다. 절대 Vision-only를 완성으로 포장하지 말고, MediaPipe를 실제 current-frame provider로 완성하거나 사용자의 명시 승인 아래 scope를 Vision-only build gate로 좁혀라.
+
+필수 읽기:
+1. AGENTS.md
+2. TECH_VALIDATION_RESULT.md > Current Session Snapshot
+3. docs/roadmaps/README.md
+4. docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md > 13.4
+
+현재 완료된 기반:
+- web/lip-generate-beta/src/AppWizardShell.tsx: 기능 없는 앱 UI shell
+- web/lip-generate-beta functional beta/local server: 실제 fixture Generate/adjust/save 검증
+- rn/MakeupARValidation/App.tsx: forced wizard default path
+- rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts: native boundary + ARFace export -> raw RGBA UV package helper
+- rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift: native Vision + local save bridge, MediaPipe blocked adapter
+- Unity RNBridge/E3RegionMaskOverlay: generated raw RGBA mask register/apply path
+- evidence/logs/e7-generated-lip-mask-rn-wizard-unity-smoke-20260627.log
+
+필수 작업:
+1. MediaPipe iOS dependency/model 현실성 확인
+   - repo-local asset/dependency 우선 탐색
+   - 없으면 공식/primary source만 확인
+   - license/model size/offline bundling 가능성 기록
+2. native MediaPipe current-frame provider 구현
+   - fixture/precomputed replay 금지
+   - current capture framePath + arFaceExportPath 입력
+   - lip outer/inner boundary 반환
+   - blockedReason 없이 ready가 되려면 model/resource path와 initialization contract가 실제로 존재해야 함
+3. RN wizard와 native provider 통합 보강
+   - Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend 중 blocked/ready가 UI에 명확히 보이게 유지
+   - MediaPipe ready 시 generated candidate package 생성 확인
+   - adjustment 변경 -> stale -> regenerate -> save 경로 유지
+4. buildless 검증 재실행
+   - RN tsc/test/lint
+   - web lint/typecheck/build
+   - lip-generate-core typecheck/test
+   - local server smoke
+   - iOS project static checks
+   - Unity generated-mask editor smoke
+5. Strict QA
+   - old validation HUD가 default path에 보이지 않는지 확인
+   - capture 없이 Generate가 되지 않는지 확인
+   - 저장 버튼/stale 차단 확인
+   - debug/log가 얼굴 중앙을 가리지 않는지 확인
+   - raw frame upload/long-term storage 금지 유지
+6. 문서 업데이트
+   - TECH_VALIDATION_RESULT.md에 결정/evidence/limitations/next boundary 기록
+   - active roadmap 13.4 상태 갱신
+
+완료 조건:
+- MediaPipe native blocker가 제거되어 Vision과 MediaPipe 모두 current-frame provider로 build-ready이거나, 사용자가 Vision-only build gate 축소를 명시 승인했다.
+- RN/web/shared/iOS static/Unity buildless checks가 통과했다.
+- Strict QA가 "Xcode build만 남음" 또는 남은 partial/blocked를 명확히 선언했다.
+- Xcode/iPhone build/install/launch는 실행하지 않았다.
+
+멈춤 조건:
+- MediaPipe dependency/model 다운로드, license, 큰 binary 추가, Xcode build, iPhone unlock/camera permission, 또는 사용자 visual 선택이 필요하면 즉시 멈추고 한국어로 요청한다.
+- Xcode build가 필요해지는 순간 scripts/notify_slack_user_required.py로 Slack 알림을 시도하고 사용자 승인을 기다린다.
+```
+
+### 17.2 현재 pre-Xcode-ready 상태에서 이어갈 Xcode Gate Prompt
+
+```txt
+cwd=/Users/wiseungcheol/Desktop/makeupAR
+
+목표:
+E7 in-app personalized Generate flow는 pre-Xcode-ready 상태다. 이제 사용자 승인 후 Xcode build/install/run을 수행하고, iPhone에서 실제 capture-first wizard가 native Vision/MediaPipe current-frame 후보를 생성, blendshape assist off/on 비교, 조정, 저장, Unity runtime apply까지 이어지는지 검증한다.
+
+필수 읽기:
+1. AGENTS.md
+2. TECH_VALIDATION_RESULT.md > Current Session Snapshot
+3. docs/roadmaps/active/E7_FULL_FACE_REGION_GENERATE_COMPLETE_IMPLEMENTATION_PLAN_KO.md > 13.5
+
+빌드 전 확인:
+- 사용자에게 Xcode build/install/run 승인 요청
+- Slack alert 시도: "이제 Xcode build만 하면 됩니다. 빌드 진행 승인이 필요합니다."
+- 기기 unlock/camera permission이 필요하면 즉시 멈춤
+
+실행:
+- bash scripts/build_m3_unityframework.sh
+- cd rn/MakeupARValidation
+- npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK
+
+실기기 검증:
+- wizard 기본 진입: old validation HUD가 기본 화면에 없음
+- Start -> Align -> Capture -> Extract -> Compare -> Adjust -> Save -> Runtime Ready 강제 흐름
+- neutral capture가 frame.png / arface_export.json / blendShapes를 남기는지
+- n-shot capture의 captureSetId / captureShotKind / purpose가 arface_export.json, capture_summary.json, RN capture event에 유지되는지
+- capture quality summary가 trackingState, frame size, mesh vertex/index/uv count, projectedVertexCount, stable UV 여부를 남기는지
+- native Vision ready 여부와 boundary preview
+- native MediaPipe ready 여부와 boundary preview
+- Vision/off, Vision/blend, MediaPipe/off, MediaPipe/blend 비교 카드
+- adjustment 변경 후 stale, regenerate 후 save 가능
+- saved package에 captureSetId/providerResults/adjustment/blendshapeAssist/privacyFlags 포함
+- Unity runtime apply 로그와 얼굴 중앙을 가리지 않는 debug drawer
+- FPS/frame-time/latency/memory/thermal 기본 기록
+
+완료 조건:
+- 빌드/install/launch 결과와 실패 로그를 TECH_VALIDATION_RESULT.md에 기록
+- 성공하더라도 Green/product-ready로 올리지 말고 runtime evidence와 visual acceptance를 분리 기록
+- 실패 시 blocker와 fallback을 기록
 ```

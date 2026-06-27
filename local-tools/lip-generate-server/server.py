@@ -544,6 +544,7 @@ def build_package(
     runtime_payload = {
         "schemaVersion": "e7-generated-lip-mask-runtime-payload-v0",
         "generatedMaskId": generated_mask_id,
+        "captureSetId": payload.get("captureSetId") or fixture["capturePairId"],
         "provider": provider,
         "expressionMode": expression_mode,
         "adjustment": payload["adjustment"],
@@ -568,8 +569,32 @@ def build_package(
     generated_package = {
         "schemaVersion": "e7-personalized-lip-generate-package-v0",
         "generatedMaskId": generated_mask_id,
+        "captureSetId": payload.get("captureSetId") or fixture["capturePairId"],
         "provider": provider,
+        "providerResults": {
+            provider: {
+                "status": "partial",
+                "provider": provider,
+                "capturePairId": fixture["capturePairId"],
+                "captureShotKind": "fixture",
+                "frameWidth": frame.width,
+                "frameHeight": frame.height,
+                "outerPointCount": len(read_json(repo_path(mask_outputs["boundary"])).get("outerPoints", [])),
+                "innerPointCount": len(read_json(repo_path(mask_outputs["boundary"])).get("innerPoints", [])),
+                "generationMethod": read_json(repo_path(mask_outputs["boundary"])).get("generationMethod"),
+                "warnings": sorted(set(warnings)),
+            }
+        },
         "expressionMode": expression_mode,
+        "blendshapeAssist": {
+            "mode": expression_mode,
+            "enabled": expression_mode == "blendshapeAssist",
+            "source": "arface-blendshapes",
+            "materialFeatherUvNormalized": 0.09
+            if expression_mode == "blendshapeAssist"
+            else 0.07,
+            "warning": "fixture_blendshape_values_unavailable",
+        },
         "adjustment": payload["adjustment"],
         "sourceFrameMetadata": {
             "capturePairId": fixture["capturePairId"],

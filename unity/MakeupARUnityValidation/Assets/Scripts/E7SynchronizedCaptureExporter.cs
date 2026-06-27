@@ -19,6 +19,8 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
     private sealed class CaptureRequestPayload
     {
         public string capturePairId;
+        public string captureSetId;
+        public string captureShotKind;
         public double requestedAtMs;
         public string requestedBy;
         public string purpose;
@@ -82,7 +84,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         {
             SendCaptureEvent(
                 "busy",
-                request.capturePairId,
+                request,
                 string.Empty,
                 "capture_already_in_progress",
                 0,
@@ -102,7 +104,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
 
         SendCaptureEvent(
             "requested",
-            request.capturePairId,
+            request,
             string.Empty,
             "pending_end_of_frame_capture",
             0,
@@ -112,6 +114,8 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         Debug.Log(
             "[E7] reference_capture_requested"
             + " capturePairId=" + request.capturePairId
+            + " captureSetId=" + SanitizeLogValue(request.captureSetId)
+            + " captureShotKind=" + SanitizeLogValue(request.captureShotKind)
             + " purpose=" + SanitizeLogValue(request.purpose)
             + " requestedBy=" + SanitizeLogValue(request.requestedBy));
 
@@ -144,7 +148,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         {
             SendCaptureEvent(
                 "exported",
-                request.capturePairId,
+                request,
                 result.RelativeDirectory,
                 "pending_projected_mesh_overlay_review",
                 result.VertexCount,
@@ -154,6 +158,8 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
             Debug.Log(
                 "[E7] reference_capture_exported"
                 + " capturePairId=" + request.capturePairId
+                + " captureSetId=" + SanitizeLogValue(request.captureSetId)
+                + " captureShotKind=" + SanitizeLogValue(request.captureShotKind)
                 + " exportPath=" + SanitizeLogValue(result.ExportDirectory)
                 + " frameWidth=" + result.FrameWidth.ToString(CultureInfo.InvariantCulture)
                 + " frameHeight=" + result.FrameHeight.ToString(CultureInfo.InvariantCulture)
@@ -167,7 +173,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         {
             SendCaptureEvent(
                 "failed",
-                request.capturePairId,
+                request,
                 result != null ? result.RelativeDirectory : string.Empty,
                 result != null ? result.Error : "capture_result_missing",
                 result != null ? result.VertexCount : 0,
@@ -241,7 +247,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
 
             File.WriteAllText(
                 Path.Combine(exportDirectory, "capture_summary.json"),
-                BuildCaptureSummaryJson(request, face, frameWidth, frameHeight),
+                BuildCaptureSummaryJson(request, face, projectedVertices, frameWidth, frameHeight),
                 Encoding.UTF8);
 
             Destroy(frameTexture);
@@ -624,9 +630,11 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         builder.Append("{");
         AppendJsonField(builder, "schemaVersion", "e7-arface-frame-export-v1", true);
         AppendJsonField(builder, "capturePairId", request.capturePairId, false);
+        AppendJsonField(builder, "captureSetId", request.captureSetId, false);
+        AppendJsonField(builder, "captureShotKind", request.captureShotKind, false);
         AppendJsonField(builder, "frameId", request.capturePairId + "_frame", false);
         AppendJsonField(builder, "capturedAtUtc", DateTimeOffset.UtcNow.ToString("o", CultureInfo.InvariantCulture), false);
-        AppendJsonField(builder, "purpose", "synchronized_capture_one_frame_common_lip_eye_cheek", false);
+        AppendJsonField(builder, "purpose", request.purpose, false);
         builder.Append(",\"regions\":[\"lip\",\"eye\",\"cheek\"]");
         builder.Append(",\"annotationFrameClean\":true");
         builder.Append(",\"hudIncludedInFrame\":false");
@@ -638,6 +646,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         AppendJsonField(builder, "projectedMeshOverlayPath", "projected_mesh_overlay.png", false);
         AppendDisplayMetadata(builder, frameWidth, frameHeight);
         AppendFaceMetadata(builder, face);
+        AppendCaptureQuality(builder, face, projectedVertices, frameWidth, frameHeight);
         AppendVectorArray(builder, "localVertices", projectedVertices, "local");
         AppendVectorArray(builder, "worldVertices", projectedVertices, "world");
         AppendScreenVertices(builder, projectedVertices);
@@ -652,6 +661,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
     private string BuildCaptureSummaryJson(
         CaptureRequestPayload request,
         ARFace face,
+        ProjectedVertex[] projectedVertices,
         int frameWidth,
         int frameHeight)
     {
@@ -659,6 +669,9 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         builder.Append("{");
         AppendJsonField(builder, "type", "e7_reference_capture_summary", true);
         AppendJsonField(builder, "capturePairId", request.capturePairId, false);
+        AppendJsonField(builder, "captureSetId", request.captureSetId, false);
+        AppendJsonField(builder, "captureShotKind", request.captureShotKind, false);
+        AppendJsonField(builder, "purpose", request.purpose, false);
         builder.Append(",\"regions\":[\"lip\",\"eye\",\"cheek\"]");
         builder.Append(",\"frameWidth\":").Append(frameWidth.ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"frameHeight\":").Append(frameHeight.ToString(CultureInfo.InvariantCulture));
@@ -668,6 +681,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         builder.Append(",\"annotationFrameClean\":true");
         builder.Append(",\"coordinateSpaceValidated\":false");
         AppendJsonField(builder, "coordinateSpaceValidationStatus", "pending_projected_mesh_overlay_review", false);
+        AppendCaptureQuality(builder, face, projectedVertices, frameWidth, frameHeight);
         builder.Append(",\"files\":[\"frame.png\",\"arface_export.json\",\"projected_mesh_overlay.png\",\"capture_summary.json\"]");
         builder.Append("}");
         return builder.ToString();
@@ -710,6 +724,37 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         builder.Append(",\"meshIndexCount\":").Append(GetIndexCount(face).ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"meshUvCount\":").Append(GetUvCount(face).ToString(CultureInfo.InvariantCulture));
         builder.Append(",\"hasStableUv\":").Append((GetUvCount(face) > 0).ToString().ToLowerInvariant());
+        builder.Append("}");
+    }
+
+    private static void AppendCaptureQuality(
+        StringBuilder builder,
+        ARFace face,
+        ProjectedVertex[] projectedVertices,
+        int frameWidth,
+        int frameHeight)
+    {
+        int vertexCount = GetVertexCount(face);
+        int indexCount = GetIndexCount(face);
+        int uvCount = GetUvCount(face);
+        int projectedVertexCount = projectedVertices != null ? projectedVertices.Length : 0;
+        bool isTracking = face != null && face.trackingState == TrackingState.Tracking;
+
+        builder.Append(",\"quality\":{");
+        AppendJsonField(builder, "trackingState", face != null ? face.trackingState.ToString() : "None", true);
+        builder.Append(",\"isTracking\":").Append(isTracking.ToString().ToLowerInvariant());
+        builder.Append(",\"frameWidth\":").Append(frameWidth.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"frameHeight\":").Append(frameHeight.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"meshVertexCount\":").Append(vertexCount.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"meshIndexCount\":").Append(indexCount.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"meshUvCount\":").Append(uvCount.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"projectedVertexCount\":").Append(projectedVertexCount.ToString(CultureInfo.InvariantCulture));
+        builder.Append(",\"hasStableUv\":").Append((uvCount > 0).ToString().ToLowerInvariant());
+        builder.Append(",\"hasFrameImage\":true");
+        builder.Append(",\"hudIncludedInFrame\":false");
+        builder.Append(",\"rawFrameScope\":\"single_selected_calibration_frame\"");
+        AppendJsonField(builder, "blendShapeCapture", "arface_export.blendShapes", false);
+        AppendJsonField(builder, "qualityGate", "pending_visual_review", false);
         builder.Append("}");
     }
 
@@ -1125,6 +1170,12 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         request.capturePairId = string.IsNullOrWhiteSpace(request.capturePairId)
             ? DefaultCapturePairId
             : request.capturePairId.Trim();
+        request.captureSetId = string.IsNullOrWhiteSpace(request.captureSetId)
+            ? request.capturePairId
+            : request.captureSetId.Trim();
+        request.captureShotKind = string.IsNullOrWhiteSpace(request.captureShotKind)
+            ? "neutral"
+            : request.captureShotKind.Trim();
         request.requestedBy = string.IsNullOrWhiteSpace(request.requestedBy)
             ? "rn"
             : request.requestedBy.Trim();
@@ -1136,7 +1187,7 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
 
     private void SendCaptureEvent(
         string status,
-        string capturePairId,
+        CaptureRequestPayload request,
         string relativeDirectory,
         string detail,
         int vertexCount,
@@ -1152,7 +1203,9 @@ public sealed class E7SynchronizedCaptureExporter : MonoBehaviour
         string json = "{"
             + "\"type\":\"e7_reference_capture\""
             + ",\"status\":\"" + EscapeJsonString(status) + "\""
-            + ",\"capturePairId\":\"" + EscapeJsonString(capturePairId) + "\""
+            + ",\"capturePairId\":\"" + EscapeJsonString(request.capturePairId) + "\""
+            + ",\"captureSetId\":\"" + EscapeJsonString(request.captureSetId) + "\""
+            + ",\"captureShotKind\":\"" + EscapeJsonString(request.captureShotKind) + "\""
             + ",\"regions\":[\"lip\",\"eye\",\"cheek\"]"
             + ",\"relativeDirectory\":\"" + EscapeJsonString(relativeDirectory) + "\""
             + ",\"detail\":\"" + EscapeJsonString(detail) + "\""

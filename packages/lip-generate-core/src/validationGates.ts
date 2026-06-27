@@ -100,6 +100,18 @@ export function validateGeneratedPackage(
   if (!generatedPackage.roundTripPreview) {
     blockers.push('missing_round_trip_preview');
   }
+  if (!generatedPackage.captureSetId) {
+    blockers.push('missing_captureSetId');
+  }
+  if (!generatedPackage.providerResults?.[generatedPackage.provider]) {
+    blockers.push('missing_provider_result_for_selected_provider');
+  }
+  if (
+    generatedPackage.blendshapeAssist?.enabled !==
+    (generatedPackage.expressionMode === 'blendshapeAssist')
+  ) {
+    blockers.push('blendshapeAssist.enabled_must_match_expressionMode');
+  }
   addPrivacyBlockers(
     'runtime_payload',
     validatePrivacyFlags(runtimePayload),
