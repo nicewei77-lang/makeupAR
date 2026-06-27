@@ -1,6 +1,6 @@
 # Eyebrow Makeup Feature
 
-Status: Daily flat PNG A/B implemented locally; iPhone rebuild pending
+Status: Daily flat PNG A/B installed on CloudsiPhone; visual QA pending
 Date: 2026-06-27
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
@@ -219,8 +219,13 @@ or bridge rewrite.
   `Daily flat`, `Flat sharp`, and `Flat multiply`; defaults brow mask selection
   to `Flat sharp`; raises default `Texture Detail` to `0.68`; strengthens the
   shader's thin-hair detail response; and keeps `Flat multiply` as an explicit
-  multiply comparison path. This is local only and requires a new iPhone build
-  before visual QA.
+  multiply comparison path.
+- 2026-06-27: User approved the daily-flat iPhone build/install. Regenerated
+  and synced `UnityFramework.framework` with
+  `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`, rebuilt the RN Debug app,
+  installed it on `CloudsiPhone (26.5)`, and launched
+  `com.celeste.makeupar.validation`. User visual QA on this daily-flat build is
+  pending.
 
 ## Local Verification
 
@@ -275,14 +280,25 @@ or bridge rewrite.
   The elevated retry passed with `Tundra build success`, imported the three
   `brow-png-dailyflat-*` textures, and exited successfully:
   `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627-r2.log`.
+- UnityFramework regeneration/sync passed for the latest daily-flat brow build
+  with `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`. Artifact verification
+  recorded `126M` UnityFramework copies and `30M` `Data` folders in both RN and
+  package-local locations:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-dailyflat-20260627-ufw-r1.log`.
+- RN/Xcode Debug build passed with
+  `evidence/logs/eyebrow-rn-xcodebuild-device-dailyflat-20260627-r1.log`.
+  The built app bundle is `205M`, including `126M`
+  `UnityFramework.framework` and `30M` `UnityFramework.framework/Data`.
+- `devicectl` install and launch passed on `CloudsiPhone (26.5)` with
+  `evidence/logs/eyebrow-rn-devicectl-install-dailyflat-20260627-r1.log` and
+  `evidence/logs/eyebrow-rn-devicectl-launch-dailyflat-20260627-r1.log`.
 
 ## QA Status
 
-The latest installed iPhone build is still the PNG/bright brow build. The newer
-daily-flat A/B texture loop is implemented locally but not installed yet. Product
-quality is still not accepted until the daily-flat build is installed and the
-user visually checks visibility, hair texture fidelity, curve shape, color,
-multiply-vs-normal behavior, and tracking recovery.
+The latest installed iPhone build is the daily-flat A/B brow build. Product
+quality is still not accepted until the user visually checks visibility, hair
+texture fidelity, curve shape, color, multiply-vs-normal behavior, and tracking
+recovery.
 
 ## Risks
 

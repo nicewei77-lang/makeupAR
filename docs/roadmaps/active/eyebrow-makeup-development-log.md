@@ -602,5 +602,27 @@ Remaining:
     success`, imported the three `brow-png-dailyflat-*` textures, and exited
     successfully:
     `evidence/logs/eyebrow-dailyflat-png-unity6000-batchmode-20260627-r2.log`.
-  - No UnityFramework/RN iPhone build was started in this loop. A device build
-    is required before user visual QA can judge the new texture fidelity.
+  - User approved the real-device daily-flat build/install.
+  - Pre-build checks passed again: full RN Jest (`29` tests), TypeScript, RN
+    lint, `verify_brow_png_hair_textures.py`,
+    `verify_brow_unity_contract.py`, `verify_brow_mask_texture.py`,
+    `verify_region_renderer_routes.py`, and
+    `verify_unityframework_build_contract.py`.
+  - UnityFramework regeneration/sync passed with
+    `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`.
+  - Artifact verification recorded `126M` UnityFramework copies and `30M`
+    `Data` folders in both RN and package-local locations:
+    `evidence/logs/m3-repro-artifact-verification-eyebrow-dailyflat-20260627-ufw-r1.log`.
+  - RN/Xcode Debug build passed:
+    `evidence/logs/eyebrow-rn-xcodebuild-device-dailyflat-20260627-r1.log`.
+  - Built app bundle:
+    `unity-builds/xcode-derived-data/RNDevice-eyebrow-dailyflat-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+    `205M`, including `126M` `UnityFramework.framework` and `30M`
+    `UnityFramework.framework/Data`.
+  - `devicectl` installed and launched `com.celeste.makeupar.validation` on
+    `CloudsiPhone (26.5)`:
+    `evidence/logs/eyebrow-rn-devicectl-install-dailyflat-20260627-r1.log` and
+    `evidence/logs/eyebrow-rn-devicectl-launch-dailyflat-20260627-r1.log`.
+  - No face screenshots, recordings, or raw camera frames were captured.
+  - Next gate: user iPhone visual QA on the installed daily-flat A/B build.
+    Any quality feedback starts a new agreement proposal before implementation.

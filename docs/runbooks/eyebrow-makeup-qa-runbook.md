@@ -1,6 +1,6 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Daily flat PNG A/B implemented locally; iPhone rebuild pending
+Status: Daily flat PNG A/B installed on CloudsiPhone; visual QA pending
 Date: 2026-06-27
 
 ## Scope
@@ -168,6 +168,39 @@ Latest approved build before the next visual QA loop:
 
 No face screenshots, recordings, or raw frames were captured by default.
 
+## 2026-06-27 Daily Flat PNG A/B Build Evidence
+
+Latest approved build for the next visual QA loop:
+
+- Branch/commit before build: `feature/brow-0626` / `9751510`.
+- Device: `CloudsiPhone (26.5)`.
+- Bundle id: `com.celeste.makeupar.validation`.
+- Signing team: `X5C5U3T6B4`.
+- Pre-build checks passed: full RN Jest (`29` tests), TypeScript, RN lint,
+  daily-flat PNG brow hair verifier, brow Unity contract verifier, compatibility
+  brow mask verifier, region renderer route verifier, and UnityFramework build
+  contract verifier.
+- UnityFramework regenerated and synced:
+  `TIMESTAMP=eyebrow-dailyflat-20260627-ufw-r1`.
+- UnityFramework artifact verification:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-dailyflat-20260627-ufw-r1.log`;
+  RN/package frameworks were `126M`, with `30M` `Data` folders.
+- RN/Xcode device build:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-dailyflat-20260627-r1.log`,
+  `** BUILD SUCCEEDED **`.
+- Built app bundle:
+  `unity-builds/xcode-derived-data/RNDevice-eyebrow-dailyflat-20260627-r1/Build/Products/Debug-iphoneos/MakeupARValidation.app`,
+  `205M`, including `126M` `UnityFramework.framework` and `30M`
+  `UnityFramework.framework/Data`.
+- Install:
+  `evidence/logs/eyebrow-rn-devicectl-install-dailyflat-20260627-r1.log`,
+  installed `com.celeste.makeupar.validation`.
+- Launch:
+  `evidence/logs/eyebrow-rn-devicectl-launch-dailyflat-20260627-r1.log`,
+  launched `com.celeste.makeupar.validation`.
+
+No face screenshots, recordings, or raw frames were captured by default.
+
 ## Device QA
 
 Start in HUD mode with `lip` active by default, then select `brow`.
@@ -214,7 +247,7 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
   `Flat multiply` from the flatter user-authored `brow_dailyflat.png`. `Flat
   sharp` is the new local default, `Texture Detail` starts at `0.68`, and
   `Flat multiply` is an explicit multiply comparison path. This daily-flat loop
-  is not installed on the iPhone yet.
+  is now installed and launched on `CloudsiPhone (26.5)` for visual QA.
 
 ## Brow Parameter Tuning Guide
 
