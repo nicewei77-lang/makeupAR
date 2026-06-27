@@ -130,14 +130,104 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     label: 'soft blush',
     region: 'cheek',
     textureMode: 'sample',
-    blendMode: 'normal',
+    blendMode: 'multiply',
     secondaryColor: '#F5A49B',
-    intensity: 0.64,
-    feather: 0.46,
-    coverage: 1,
+    intensity: 0.46,
+    feather: 0.58,
+    coverage: 0.82,
     finish: 'powder',
     roughness: 0.92,
     specular: 0.02,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_daily',
+    label: 'daily blush',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#F2A59A',
+    intensity: 0.48,
+    feather: 0.64,
+    coverage: 0.84,
+    finish: 'powder',
+    roughness: 0.96,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_lovely',
+    label: 'lovely blush',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#F3A1A6',
+    intensity: 0.5,
+    feather: 0.68,
+    coverage: 0.9,
+    finish: 'powder',
+    roughness: 0.96,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_sunkissed1',
+    label: 'sunkissed spot',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#EFA07F',
+    intensity: 0.42,
+    feather: 0.7,
+    coverage: 0.78,
+    finish: 'powder',
+    roughness: 0.98,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_sunkissed2',
+    label: 'sunkissed wash',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#EAA07A',
+    intensity: 0.38,
+    feather: 0.74,
+    coverage: 0.72,
+    finish: 'powder',
+    roughness: 0.98,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_under_eye',
+    label: 'under-eye blush',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#F0A0B0',
+    intensity: 0.36,
+    feather: 0.62,
+    coverage: 0.68,
+    finish: 'powder',
+    roughness: 0.98,
+    specular: 0,
     specularPower: 6,
     glossBoost: 0,
     gradientAmount: 0,
@@ -168,9 +258,9 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Debug' },
 ] as const;
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
-const E7_EVIDENCE_MODE = 'lip-makeup-validation-v1';
-const E7_LIP_LOOK_ID = 'lip_makeup_validation_v1';
-const E7_RECIPE_PREFIX = 'lip-style-v1';
+const E7_EVIDENCE_MODE = 'cheek-blush-validation-v1';
+const E7_LOOK_ID = 'cheek_blush_validation_v1';
+const E7_RECIPE_PREFIX = 'cheek-blush-v1';
 
 export type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
 export type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
@@ -184,6 +274,26 @@ export const LIP_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
         textureSample.name === 'gloss_lip' ||
         textureSample.name === 'gradient_lip'),
   );
+export const CHEEK_BLUSH_REGION_OPTIONS: RecipeTextureSample[] =
+  RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureSample =>
+      textureSample.region === 'cheek' &&
+      (textureSample.name === 'blush_daily' ||
+        textureSample.name === 'blush_lovely' ||
+        textureSample.name === 'blush_sunkissed1' ||
+        textureSample.name === 'blush_sunkissed2' ||
+        textureSample.name === 'blush_under_eye'),
+  );
+const TEXTURE_STYLE_OPTIONS_BY_REGION: Record<
+  RecipeRegion,
+  RecipeTextureSample[]
+> = {
+  lip: LIP_TEXTURE_STYLE_OPTIONS,
+  cheek: CHEEK_BLUSH_REGION_OPTIONS,
+  eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureSample => textureSample.region === 'eye',
+  ),
+};
 export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
   | 'lip-vision-boundary-v1'
@@ -191,6 +301,11 @@ type MaskTextureId =
   | 'lip-drawn-gradient-density-atlas-v1'
   | 'lip-drawn-mask-v1'
   | 'cheek-drawn-mask-v1'
+  | 'cheek-lovely-mask-v1'
+  | 'cheek-daily-mask-v1'
+  | 'cheek-sunkissed-mask1-v1'
+  | 'cheek-sunkissed-mask2-v1'
+  | 'cheek-under-eye-mask-v1'
   | 'eye-drawn-mask-v1'
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
@@ -205,7 +320,7 @@ export type RegionRecipe = {
 };
 export type ActiveRegionMap = Record<RecipeRegion, boolean>;
 
-const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
+const DEFAULT_RECIPE_REGION: RecipeRegion = 'cheek';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
 const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
@@ -215,7 +330,7 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
     textureSample => textureSample.name === 'matte_lip',
   ) as RecipeTextureSample,
   cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
-    textureSample => textureSample.name === 'soft_blush',
+    textureSample => textureSample.name === 'blush_daily',
   ) as RecipeTextureSample,
   eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
     textureSample => textureSample.name === 'shimmer_eye',
@@ -243,7 +358,7 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
-  cheek: 'cheek-drawn-mask-v1',
+  cheek: 'cheek-daily-mask-v1',
   eye: 'eye-drawn-mask-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
@@ -257,10 +372,25 @@ function resolveMaskTextureIdForRecipe(
     return GRADIENT_LIP_MASK_TEXTURE_ID;
   }
 
+  if (region === 'cheek') {
+    switch (textureSample.name) {
+      case 'blush_lovely':
+        return 'cheek-lovely-mask-v1';
+      case 'blush_daily':
+        return 'cheek-daily-mask-v1';
+      case 'blush_sunkissed1':
+        return 'cheek-sunkissed-mask1-v1';
+      case 'blush_sunkissed2':
+        return 'cheek-sunkissed-mask2-v1';
+      case 'blush_under_eye':
+        return 'cheek-under-eye-mask-v1';
+    }
+  }
+
   return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
 }
 export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
-  lip: true,
+  lip: false,
   cheek: false,
   eye: false,
 };
@@ -285,15 +415,14 @@ export function buildValidationRecipeBatchPayload(
   rendererMode: RendererMode,
   sentAtMs: number,
 ) {
-  const lookId = E7_LIP_LOOK_ID;
+  const lookId = E7_LOOK_ID;
   const recipeBatchId = `${E7_RECIPE_PREFIX}-batch-${Math.round(sentAtMs)}`;
   const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
   const enabledLayerCount = countActiveRegions(enabledRegions);
   const layers = RECIPE_REGION_OPTIONS.map(region => {
     const recipe = recipes[region];
     const sample = recipe.textureSample;
-    const layerIntensity =
-      region === 'lip' ? recipe.intensity : sample.intensity;
+    const layerIntensity = recipe.intensity;
     const maskTextureId = resolveMaskTextureIdForRecipe(region, sample);
     const layerRecipeId = `${E7_RECIPE_PREFIX}-${region}-${
       sample.name
@@ -338,7 +467,9 @@ export function buildValidationRecipeBatchPayload(
       shaderMode:
         region === 'lip'
           ? 'lip-style-atlas-validation'
-          : 'unlit-alpha-validation',
+          : region === 'cheek'
+            ? 'cheek-blush-powder-validation'
+            : 'unlit-alpha-validation',
       passCount: sample.name === 'gloss_lip' ? 2 : 1,
       maskTextureId,
       cameraBackdropAvailable: false,
@@ -351,9 +482,7 @@ export function buildValidationRecipeBatchPayload(
     focusSample,
   );
   const focusIntensity =
-    focusRegion === 'lip'
-      ? recipes[focusRegion].intensity
-      : focusSample.intensity;
+    recipes[focusRegion].intensity;
 
   return {
     version: 1,
@@ -389,7 +518,9 @@ export function buildValidationRecipeBatchPayload(
     shaderMode:
       focusRegion === 'lip'
         ? 'lip-style-atlas-validation'
-        : 'unlit-alpha-validation',
+        : focusRegion === 'cheek'
+          ? 'cheek-blush-powder-validation'
+          : 'unlit-alpha-validation',
     passCount: focusSample.name === 'gloss_lip' ? 2 : 1,
     maskTextureId: focusMaskTextureId,
     cameraBackdropAvailable: false,
@@ -602,6 +733,7 @@ type UnityEventRecord = {
 
 type UnityEventType = (typeof UNITY_EVENT_TYPES)[number];
 type UnityEventStatusMap = Partial<Record<UnityEventType, UnityEventRecord>>;
+type RecipeEventStatusByRegion = Partial<Record<RecipeRegion, UnityEventRecord>>;
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -742,6 +874,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const unityRef = useRef<UnityView>(null);
   const [validationViewMode, setValidationViewMode] =
     useState<ValidationViewMode>('compact');
+  const [controlsCollapsed, setControlsCollapsed] = useState(true);
   const selectedRendererMode = DEFAULT_RENDERER_MODE;
   const [focusedRegion, setFocusedRegion] = useState<RecipeRegion>(
     DEFAULT_RECIPE_REGION,
@@ -762,6 +895,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [unityEventStatus, setUnityEventStatus] = useState<UnityEventStatusMap>(
     {},
   );
+  const [recipeEventStatusByRegion, setRecipeEventStatusByRegion] =
+    useState<RecipeEventStatusByRegion>({});
   const [captureRequestSequence, setCaptureRequestSequence] = useState(1);
   const [pendingCapturePairId, setPendingCapturePairId] = useState<
     string | null
@@ -826,15 +961,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'lip',
         recipes.lip.textureSample,
       );
+      const cheekMaskTextureId = resolveMaskTextureIdForRecipe(
+        'cheek',
+        recipes.cheek.textureSample,
+      );
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
-        `lookId=${E7_LIP_LOOK_ID}`,
+        `lookId=${E7_LOOK_ID}`,
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
         `focusMaskTextureId=${focusMaskTextureId}`,
         `lipMaskTextureId=${lipMaskTextureId}`,
+        `cheekMaskTextureId=${cheekMaskTextureId}`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );
@@ -856,7 +996,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         runId: payload.runId ?? E7_RECIPE_PREFIX,
         phase: payload.phase ?? 'smooth_mask',
         rendererMode: payload.rendererMode ?? DEFAULT_RENDERER_MODE,
-        lookId: payload.lookId ?? E7_LIP_LOOK_ID,
+        lookId: payload.lookId ?? E7_LOOK_ID,
         recipeId: payload.recipeId ?? 'none',
         recipeBatchId: payload.recipeBatchId ?? payload.recipeId ?? 'none',
         activeRegions:
@@ -986,6 +1126,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             logE7RecipeLatency(parsed, receivedAtMs);
           }
           postRecipeAck(parsed, receivedAtMs);
+          const recipeRegion = getRecipeRegionFromEvent(parsed);
+          if (recipeRegion) {
+            setRecipeEventStatusByRegion(currentStatus => ({
+              ...currentStatus,
+              [recipeRegion]: record,
+            }));
+          }
         }
 
         if (parsed.type === 'e7_reference_capture') {
@@ -1078,14 +1225,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     return () => clearTimeout(initialPostTimer);
   }, [postRecipeBatch]);
 
-  const lipRecipe = regionRecipes.lip;
-  const selectedColor = lipRecipe.color;
-  const selectedTextureSample = lipRecipe.textureSample;
+  const focusedRecipe = regionRecipes[focusedRegion];
+  const selectedColor = focusedRecipe.color;
+  const selectedTextureSample = focusedRecipe.textureSample;
+  const focusedTextureOptions = TEXTURE_STYLE_OPTIONS_BY_REGION[focusedRegion];
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
-  const lipIntensity = lipRecipe.intensity;
+  const focusedIntensity = focusedRecipe.intensity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
-  const latestRecipe = unityEventStatus.recipe_applied?.parsed;
+  const latestRecipeRecord =
+    recipeEventStatusByRegion[focusedRegion] ?? unityEventStatus.recipe_applied;
+  const latestRecipe = latestRecipeRecord?.parsed;
   const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
   const unityInitializedAt =
     unityEventStatus.unity_initialized?.receivedAtMs ?? 0;
@@ -1097,7 +1247,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     );
   }, [postRegionOverlayVisibility, validationViewMode, unityInitializedAt]);
 
-  const latestRecipeRecord = unityEventStatus.recipe_applied;
   const recipeLatencyMs = getRecipeAckLatencyMs(
     latestRecipe,
     latestRecipeRecord?.receivedAtMs,
@@ -1152,74 +1301,89 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectColor = useCallback(
     (color: RecipeColor) => {
       const nextRecipe = {
-        ...regionRecipes.lip,
+        ...regionRecipes[focusedRegion],
         color,
       };
       const nextRecipes = {
         ...regionRecipes,
-        lip: nextRecipe,
+        [focusedRegion]: nextRecipe,
       };
 
-      setFocusedRegion('lip');
       setRegionRecipes(nextRecipes);
-      postRecipeBatch(nextRecipes, activeRegions, 'lip');
+      postRecipeBatch(nextRecipes, activeRegions, focusedRegion);
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
-  const updateLipIntensity = useCallback(
+  const updateFocusedIntensity = useCallback(
     (nextIntensity: number) => {
       const nextRecipe = {
-        ...regionRecipes.lip,
+        ...regionRecipes[focusedRegion],
         intensity: nextIntensity,
       };
       const nextRecipes = {
         ...regionRecipes,
-        lip: nextRecipe,
+        [focusedRegion]: nextRecipe,
       };
 
-      setFocusedRegion('lip');
       setRegionRecipes(nextRecipes);
-      postRecipeBatch(nextRecipes, activeRegions, 'lip');
+      postRecipeBatch(nextRecipes, activeRegions, focusedRegion);
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
   const selectTextureSample = useCallback(
     (textureSample: RecipeTextureSample) => {
-      if (textureSample.region !== 'lip') {
+      if (textureSample.region !== focusedRegion) {
         return;
       }
 
       const nextRecipe = {
-        ...regionRecipes.lip,
+        ...regionRecipes[focusedRegion],
         textureSample,
       };
       const nextRecipes = {
         ...regionRecipes,
-        lip: nextRecipe,
+        [focusedRegion]: nextRecipe,
       };
       const nextActiveRegions = {
         ...activeRegions,
-        lip: true,
+        [focusedRegion]: true,
       };
 
-      setFocusedRegion('lip');
       setRegionRecipes(nextRecipes);
       setActiveRegions(nextActiveRegions);
-      postRecipeBatch(nextRecipes, nextActiveRegions, 'lip');
+      postRecipeBatch(nextRecipes, nextActiveRegions, focusedRegion);
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
-  const intensityPercent = Math.round(lipIntensity * 100);
-  const formatLipTextureLabel = useCallback(
+  const intensityPercent = Math.round(focusedIntensity * 100);
+  const focusedTextureControlLabel =
+    focusedRegion === 'cheek'
+      ? 'Blush Region'
+      : focusedRegion === 'lip'
+        ? 'Lip Finish'
+        : 'Eye Style';
+  const formatTextureLabel = useCallback(
     (textureSample: RecipeTextureSample) => {
       switch (textureSample.name) {
         case 'gloss_lip':
           return 'Glow';
         case 'gradient_lip':
           return 'Gradient';
+        case 'blush_daily':
+          return 'Daily';
+        case 'blush_lovely':
+          return 'Lovely';
+        case 'blush_sunkissed1':
+          return 'Sun 1';
+        case 'blush_sunkissed2':
+          return 'Sun 2';
+        case 'blush_under_eye':
+          return 'Under';
+        case 'shimmer_eye':
+          return 'Shimmer';
         default:
           return 'Matte';
       }
@@ -1341,7 +1505,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             <E7StatusPanel
               currentRegions={activeRegionSummary}
               metricRecord={unityEventStatus.e7_metric_sample}
-              recipeRecord={unityEventStatus.recipe_applied}
+              recipeRecord={latestRecipeRecord}
             />
             <View style={styles.debugStatus}>
               <Text style={styles.debugSubLabel}>Last by type</Text>
@@ -1382,137 +1546,166 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             style={[
               styles.recipePanel,
               !showFullControls && styles.recipePanelCompact,
+              controlsCollapsed && styles.recipePanelCollapsed,
             ]}
           >
             <View style={styles.recipePanelHeader}>
-              <Text style={styles.recipePanelLabel}>Regions</Text>
+              <Text style={styles.recipePanelLabel}>Controls</Text>
               <Text style={styles.recipePanelMetaText} numberOfLines={1}>
                 {`active=${activeRegionSummary} / focus=${focusedRegion}`}
               </Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded: !controlsCollapsed }}
+                testID="recipe-panel-collapse-toggle"
+                style={({ pressed }) => [
+                  styles.panelToggleButton,
+                  pressed && styles.colorButtonPressed,
+                ]}
+                onPress={() =>
+                  setControlsCollapsed(collapsed => !collapsed)
+                }
+              >
+                <Text style={styles.panelToggleButtonText}>
+                  {controlsCollapsed ? 'Show' : 'Hide'}
+                </Text>
+              </Pressable>
             </View>
 
-            <CompactEvidenceHud
-              validationViewMode={validationViewMode}
-              activeRegionSummary={activeRegionSummary}
-              focusedRegion={focusedRegion}
-              latestMetric={latestMetric}
-              latestLifecycle={latestLifecycle}
-              latestRecipe={latestRecipe}
-              recipeLatencyMs={recipeLatencyMs}
-            />
+            {!controlsCollapsed && (
+              <>
+                <CompactEvidenceHud
+                  validationViewMode={validationViewMode}
+                  activeRegionSummary={activeRegionSummary}
+                  focusedRegion={focusedRegion}
+                  latestMetric={latestMetric}
+                  latestLifecycle={latestLifecycle}
+                  latestRecipe={latestRecipe}
+                  recipeLatencyMs={recipeLatencyMs}
+                />
 
-            <View style={styles.regionButtonRow}>
-              {RECIPE_REGION_OPTIONS.map(regionOption => {
-                const isActive = activeRegions[regionOption];
-                const isFocused = regionOption === focusedRegion;
+                <View style={styles.regionButtonRow}>
+                  {RECIPE_REGION_OPTIONS.map(regionOption => {
+                    const isActive = activeRegions[regionOption];
+                    const isFocused = regionOption === focusedRegion;
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{
-                      checked: isActive,
-                      selected: isFocused,
-                    }}
-                    key={regionOption}
-                    testID={`region-toggle-${regionOption}`}
-                    style={({ pressed }) => [
-                      styles.regionButton,
-                      isActive && styles.regionButtonSelected,
-                      isFocused && styles.regionButtonFocused,
-                      pressed && styles.colorButtonPressed,
-                    ]}
-                    onPress={() => toggleRegion(regionOption)}
-                  >
-                    <Text
-                      style={[
-                        styles.regionButtonText,
-                        isActive && styles.regionButtonTextSelected,
-                      ]}
-                    >
-                      {regionOption}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{
+                          checked: isActive,
+                          selected: isFocused,
+                        }}
+                        key={regionOption}
+                        testID={`region-toggle-${regionOption}`}
+                        style={({ pressed }) => [
+                          styles.regionButton,
+                          isActive && styles.regionButtonSelected,
+                          isFocused && styles.regionButtonFocused,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => toggleRegion(regionOption)}
+                      >
+                        <Text
+                          style={[
+                            styles.regionButtonText,
+                            isActive && styles.regionButtonTextSelected,
+                          ]}
+                        >
+                          {regionOption}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            <View style={styles.colorButtonRow}>
-              {RECIPE_COLOR_OPTIONS.map(colorOption => {
-                const isSelected = colorOption.name === selectedColor.name;
+                <View style={styles.colorButtonRow}>
+                  {RECIPE_COLOR_OPTIONS.map(colorOption => {
+                    const isSelected = colorOption.name === selectedColor.name;
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    key={colorOption.name}
-                    testID={`lip-color-${colorOption.name}`}
-                    style={({ pressed }) => [
-                      styles.colorButton,
-                      { backgroundColor: colorOption.color },
-                      isSelected && styles.colorButtonSelected,
-                      pressed && styles.colorButtonPressed,
-                    ]}
-                    onPress={() => selectColor(colorOption)}
-                  >
-                    <Text style={styles.colorButtonText}>
-                      {colorOption.name}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={colorOption.name}
+                        testID={`${focusedRegion}-color-${colorOption.name}`}
+                        style={({ pressed }) => [
+                          styles.colorButton,
+                          { backgroundColor: colorOption.color },
+                          isSelected && styles.colorButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => selectColor(colorOption)}
+                      >
+                        <Text style={styles.colorButtonText}>
+                          {colorOption.name}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            <View style={styles.textureButtonRow}>
-              {LIP_TEXTURE_STYLE_OPTIONS.map(textureOption => {
-                const isSelected =
-                  textureOption.name === selectedTextureSample.name;
+                <View style={styles.controlSectionHeader}>
+                  <Text style={styles.controlSectionLabel}>
+                    {focusedTextureControlLabel}
+                  </Text>
+                </View>
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    key={textureOption.name}
-                    testID={`lip-finish-${textureOption.name}`}
-                    style={({ pressed }) => [
-                      styles.textureButton,
-                      isSelected && styles.textureButtonSelected,
-                      pressed && styles.colorButtonPressed,
-                    ]}
-                    onPress={() => selectTextureSample(textureOption)}
-                  >
-                    <Text
-                      style={[
-                        styles.textureButtonText,
-                        isSelected && styles.textureButtonTextSelected,
-                      ]}
-                    >
-                      {formatLipTextureLabel(textureOption)}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+                <View style={styles.textureButtonRow}>
+                  {focusedTextureOptions.map(textureOption => {
+                    const isSelected =
+                      textureOption.name === selectedTextureSample.name;
 
-            <ValueSlider
-              label="Intensity"
-              value={lipIntensity}
-              width={sliderWidth}
-              fillColor={selectedColor.color}
-              onLayoutWidth={setSliderWidth}
-              onChange={updateLipIntensity}
-            />
+                    return (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityState={{ selected: isSelected }}
+                        key={textureOption.name}
+                        testID={
+                          textureOption.region === 'cheek'
+                            ? `cheek-region-${textureOption.name}`
+                            : `${textureOption.region}-finish-${textureOption.name}`
+                        }
+                        style={({ pressed }) => [
+                          styles.textureButton,
+                          isSelected && styles.textureButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() => selectTextureSample(textureOption)}
+                      >
+                        <Text
+                          style={[
+                            styles.textureButtonText,
+                            isSelected && styles.textureButtonTextSelected,
+                          ]}
+                        >
+                          {formatTextureLabel(textureOption)}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
 
-            <Text style={styles.recipeValueText} numberOfLines={3}>
-              active {activeRegionSummary} / focus {focusedRegion} / lip{' '}
-              {selectedColor.name} {selectedColor.color} / intensity{' '}
-              {intensityPercent}% / finish {selectedTextureSample.name}
-            </Text>
+                <ValueSlider
+                  label="Intensity"
+                  value={focusedIntensity}
+                  width={sliderWidth}
+                  fillColor={selectedColor.color}
+                  onLayoutWidth={setSliderWidth}
+                  onChange={updateFocusedIntensity}
+                />
 
-            <Text style={styles.recipeAppliedText} numberOfLines={2}>
-              {formatRecipeAppliedSummary(
-                unityEventStatus.recipe_applied?.parsed,
-              )}
-            </Text>
+                <Text style={styles.recipeValueText} numberOfLines={3}>
+                  active {activeRegionSummary} / focus {focusedRegion} /{' '}
+                  {selectedColor.name} {selectedColor.color} / intensity{' '}
+                  {intensityPercent}% / shape {selectedTextureSample.name}
+                </Text>
+
+                <Text style={styles.recipeAppliedText} numberOfLines={2}>
+                  {formatRecipeAppliedSummary(latestRecipe)}
+                </Text>
+              </>
+            )}
           </View>
         )}
       </View>
@@ -1675,12 +1868,12 @@ function E7StatusPanel({
       </View>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `look=${String(metric.lookId ?? E7_LIP_LOOK_ID)} active=${String(
+          ? `look=${String(metric.lookId ?? E7_LOOK_ID)} active=${String(
               metric.activeRegionSummary ??
                 metric.activeRegions ??
                 currentRegions,
             )}`
-          : `look=${E7_LIP_LOOK_ID} active=${currentRegions}`}
+          : `look=${E7_LOOK_ID} active=${currentRegions}`}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
@@ -1843,7 +2036,7 @@ function buildEvidenceMetadataLines({
   return [
     `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
-    `rendererMode=${selectedRendererMode} look=${E7_LIP_LOOK_ID}`,
+    `rendererMode=${selectedRendererMode} look=${E7_LOOK_ID}`,
     `activeRegions=${activeRegionSummary} focusRegion=${focusedRegion}`,
     `metricRegion=${formatLifecycleValue(latestMetric?.region)}`,
     `trackingState=${readTrackingState(
@@ -1928,6 +2121,16 @@ function getKnownUnityEventType(type: unknown): UnityEventType | null {
   return UNITY_EVENT_TYPES.includes(type as UnityEventType)
     ? (type as UnityEventType)
     : null;
+}
+
+function getRecipeRegionFromEvent(
+  event: UnityEventPayload,
+): RecipeRegion | undefined {
+  const region = String(event.region ?? event.layer ?? '').toLowerCase();
+
+  return RECIPE_REGION_OPTIONS.includes(region as RecipeRegion)
+    ? (region as RecipeRegion)
+    : undefined;
 }
 
 function formatUnityEventTypeStatus(
@@ -2020,7 +2223,7 @@ function formatE7MetricSummary(event: UnityEventPayload) {
   )} thermal=${String(event.thermalEvidenceType ?? 'n/a')} phase=${String(
     event.phase ?? 'smooth_mask',
   )} mode=${String(event.rendererMode ?? 'smooth-region-mask')} look=${String(
-    event.lookId ?? E7_LIP_LOOK_ID,
+    event.lookId ?? E7_LOOK_ID,
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
   )} enabled=${String(event.enabledLayerCount ?? 'n/a')} topology=${String(
@@ -2043,7 +2246,7 @@ function logE7RecipeLatency(event: UnityEventPayload, receivedAtMs: number) {
     `phase=${String(event.phase ?? 'smooth_mask')}`,
     `timestampMs=${receivedAtMs}`,
     `rendererMode=${String(event.rendererMode ?? 'smooth-region-mask')}`,
-    `lookId=${String(event.lookId ?? E7_LIP_LOOK_ID)}`,
+    `lookId=${String(event.lookId ?? E7_LOOK_ID)}`,
     `recipeId=${String(event.recipeId ?? 'none')}`,
     `recipeBatchId=${String(event.recipeBatchId ?? event.recipeId ?? 'none')}`,
     `activeRegions=${String(
@@ -2832,6 +3035,14 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     gap: 8,
   },
+  recipePanelCollapsed: {
+    alignSelf: 'center',
+    minWidth: 260,
+    maxWidth: '92%',
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    gap: 0,
+  },
   recipePanelHeader: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2852,6 +3063,34 @@ const styles = StyleSheet.create({
     lineHeight: 14,
     letterSpacing: 0,
     textAlign: 'right',
+  },
+  panelToggleButton: {
+    minWidth: 52,
+    minHeight: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.32)',
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    paddingHorizontal: 8,
+  },
+  panelToggleButtonText: {
+    color: '#F9FAFB',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  controlSectionHeader: {
+    marginTop: -2,
+  },
+  controlSectionLabel: {
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
   },
   modeButtonRow: {
     flexDirection: 'row',

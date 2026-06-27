@@ -20,6 +20,7 @@ Shader "MakeupAR/SmoothRegionMask"
         _GradientAmount ("Gradient Amount", Range(0, 1)) = 0
         _PreserveDetail ("Preserve Detail", Range(0, 1)) = 1
         _LipStyleMode ("Lip Style Mode", Float) = -1
+        [HideInInspector] _CheekBlushMode ("Cheek Blush Mode", Float) = 0
         [HideInInspector] _PigmentMultiply ("Pigment Multiply", Float) = 0
         [HideInInspector] _UseScreenSpaceMask ("Use Screen Space Mask", Float) = 0
         [HideInInspector] _SrcBlend ("Source Blend", Float) = 5
@@ -68,6 +69,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _GradientAmount;
             float _PreserveDetail;
             float _LipStyleMode;
+            float _CheekBlushMode;
             float _PigmentMultiply;
             float _UseScreenSpaceMask;
 
@@ -200,7 +202,31 @@ Shader "MakeupAR/SmoothRegionMask"
                     pigmentColor * 0.82,
                     0.28));
 
-                if (_LipStyleMode > -0.5)
+                if (_CheekBlushMode > 0.5)
+                {
+                    float cheekAlphaSeed = max(max(mask.r, softMask.r), max(mask.a * 0.96, softMask.a * 0.92));
+                    float cheekSoft = SoftMaskAlpha(cheekAlphaSeed, _Threshold, _Feather);
+                    float cheekCore = CoreMaskAlpha(max(mask.r, mask.a), _Threshold, _Feather);
+                    float cheekDensityRaw = max(mask.b, softMask.b * 0.86);
+                    float cheekDensityBlurred = saturate(GradientDensityBlur(maskUv) * 1.16);
+                    float cheekDensity = saturate(max(cheekDensityRaw, cheekDensityBlurred * 0.76));
+                    float cheekDensityRamp = smoothstep(0.08, 0.78, cheekDensity);
+                    float cheekDensityCore = saturate(pow(cheekDensityRamp * cheekSoft, 1.16));
+                    float cheekCenter = saturate(cheekDensityCore * lerp(0.36, 1.0, cheekCore));
+                    float cheekEdge = saturate(cheekSoft - cheekCore);
+                    float cheekSkinFade = saturate(pow(cheekDensityRamp * lerp(0.18, 1.0, cheekCore), 1.08));
+                    float cheekEdgeTint = cheekEdge * cheekDensityRamp * 0.004;
+
+                    maskStrength = saturate(
+                        cheekCenter * coverage * 0.58
+                        + cheekDensityCore * coverage * 0.18
+                        + cheekEdgeTint * coverage);
+                    float3 cheekBlushPigment = saturate(lerp(_RegionColor.rgb, _SecondaryColor.rgb, 0.14));
+                    float3 cheekSkinTint = float3(1.0, 1.0, 1.0);
+                    pigmentColor = saturate(lerp(cheekSkinTint, cheekBlushPigment, cheekSkinFade));
+                    alphaColor = pigmentColor;
+                }
+                else if (_LipStyleMode > -0.5)
                 {
                     if (_LipStyleMode < 0.5)
                     {
@@ -253,12 +279,16 @@ Shader "MakeupAR/SmoothRegionMask"
 
                 if (_PigmentMultiply > 0.5)
                 {
-                    float styleCapBoost = _LipStyleMode < 0.5
-                        ? 0.18
-                        : (_LipStyleMode >= 0.5 && _LipStyleMode < 1.5
-                            ? 0.10
-                            : (_LipStyleMode < 3.5 && _LipStyleMode >= 2.5 ? 0.14 : 0.0));
-                    float maxPigmentStrength = saturate(lerp(0.42, 0.66, saturate(_Coverage)) + styleCapBoost);
+                    float styleCapBoost = _CheekBlushMode > 0.5
+                        ? 0.0
+                        : (_LipStyleMode < 0.5
+                            ? 0.18
+                            : (_LipStyleMode >= 0.5 && _LipStyleMode < 1.5
+                                ? 0.10
+                                : (_LipStyleMode < 3.5 && _LipStyleMode >= 2.5 ? 0.14 : 0.0)));
+                    float maxPigmentStrength = _CheekBlushMode > 0.5
+                        ? saturate(lerp(0.24, 0.38, saturate(_Coverage)))
+                        : saturate(lerp(0.42, 0.66, saturate(_Coverage)) + styleCapBoost);
                     float pigmentStrength = min(saturate(maskStrength * opacity * preserveScale), maxPigmentStrength);
                     float3 pigmentFilter = lerp(float3(1.0, 1.0, 1.0), pigmentColor, pigmentStrength);
                     return fixed4(saturate(pigmentFilter), 1.0);

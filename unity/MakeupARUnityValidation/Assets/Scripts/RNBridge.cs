@@ -194,7 +194,7 @@ public sealed class RNBridge : MonoBehaviour
         public float Intensity;
         public float Feather;
         public string RecipeBatchId = "none";
-        public string LookId = "lip_makeup_validation_v1";
+        public string LookId = "cheek_blush_validation_v1";
         public string ActiveRegions = "none";
         public int LayerCount;
         public int EnabledLayerCount;
@@ -1390,7 +1390,7 @@ public sealed class RNBridge : MonoBehaviour
         string applied = result.Applied ? "true" : "false";
         string phase = GetPhaseForRenderer(layer.RendererMode);
         string runId = GetRunIdForRenderer(layer.RendererMode);
-        string visualLatencyObservation = "pending_lip_makeup_visual_review";
+        string visualLatencyObservation = "pending_cheek_blush_visual_review";
         Debug.Log(
             "[E4] recipe_applied"
             + " source=" + source
@@ -1458,6 +1458,10 @@ public sealed class RNBridge : MonoBehaviour
             + " maskTextureGt8Bbox=" + result.MaskTextureActiveBbox
             + " maskTextureThresholdPixels=" + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
             + " maskTextureThresholdCoverage=" + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Pixels=" + result.MaskTextureDensityPixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Coverage=" + result.MaskTextureDensityCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Bbox=" + result.MaskTextureDensityBbox
+            + " maskTextureDensityMax=" + result.MaskTextureDensityMax.ToString(CultureInfo.InvariantCulture)
             + " trackingState=" + result.TrackingState
             + " stateAction=" + result.StateAction
             + " faceCount=" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
@@ -1592,6 +1596,14 @@ public sealed class RNBridge : MonoBehaviour
             + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
             + ",\"maskTextureThresholdCoverage\":"
             + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
+            + ",\"maskTextureDensityPixelCountGt8\":"
+            + result.MaskTextureDensityPixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + ",\"maskTextureDensityCoverageGt8\":"
+            + result.MaskTextureDensityCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + ",\"maskTextureDensityBbox\":\""
+            + EscapeJsonString(result.MaskTextureDensityBbox)
+            + "\",\"maskTextureDensityMax\":"
+            + result.MaskTextureDensityMax.ToString(CultureInfo.InvariantCulture)
             + ",\"trackingState\":\""
             + EscapeJsonString(result.TrackingState)
             + "\",\"stateAction\":\""
@@ -1608,7 +1620,7 @@ public sealed class RNBridge : MonoBehaviour
             + appliedFrame.ToString(CultureInfo.InvariantCulture)
             + ",\"visualLatencyConfirmedByRecording\":false"
             + ",\"visualLatencyObservation\":\""
-            + EscapeJsonString("pending_lip_makeup_visual_review")
+            + EscapeJsonString("pending_cheek_blush_visual_review")
             + "\""
             + ",\"faceCount\":"
             + result.FaceCount.ToString(CultureInfo.InvariantCulture)
@@ -1868,7 +1880,7 @@ public sealed class RNBridge : MonoBehaviour
             return secondaryRecipeId.Trim();
         }
 
-        return "lip-style-v1-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
+        return "cheek-blush-v1-" + region + "-" + index.ToString(CultureInfo.InvariantCulture);
     }
 
     private static string NormalizeRecipeBatchId(params string[] values)
@@ -1930,7 +1942,7 @@ public sealed class RNBridge : MonoBehaviour
             return secondaryLookId.Trim();
         }
 
-        return "lip_makeup_validation_v1";
+        return "cheek_blush_validation_v1";
     }
 
     private static double NormalizeSentAtMs(double preferred, double secondarySentAtMs)
@@ -1964,7 +1976,7 @@ public sealed class RNBridge : MonoBehaviour
                     || value == "full_lip"
                     || value == "gradient_lip"
                     || value == "overline_lip"))
-            || (region == "cheek" && value == "soft_blush")
+            || (region == "cheek" && IsCheekBlushTextureSample(value))
             || (region == "eye" && value == "shimmer_eye"))
         {
             return value;
@@ -2060,17 +2072,16 @@ public sealed class RNBridge : MonoBehaviour
     private static string GetRunIdForRenderer(string rendererMode)
     {
         string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        return "lip-style-v1-" + date;
+        return "cheek-blush-v1-" + date;
     }
 
     private static string NormalizeMaskTextureId(string preferred, string secondary, string region)
     {
-        if (string.IsNullOrWhiteSpace(preferred))
-        {
-            throw new ArgumentException("Recipe mask texture id is missing for region " + region + ".");
-        }
-
-        string value = preferred.Trim();
+        string value = !string.IsNullOrWhiteSpace(preferred)
+            ? preferred.Trim()
+            : !string.IsNullOrWhiteSpace(secondary)
+            ? secondary.Trim()
+            : GetDefaultMaskTextureId(region);
         string expected = GetDefaultMaskTextureId(region);
         if (value == expected
             || (region == "lip" && (value == "lip-vision-boundary-v1"
@@ -2079,7 +2090,9 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
-            || (region == "cheek" && value == "cheek-smooth-mask-v1")
+            || (region == "cheek" && (value == "cheek-smooth-mask-v1"
+                || value == "cheek-drawn-mask-v1"
+                || IsCheekBlushMaskTextureId(value)))
             || (region == "eye" && value == "eye-smooth-mask-v1"))
         {
             return value;
@@ -2094,12 +2107,31 @@ public sealed class RNBridge : MonoBehaviour
         switch (region)
         {
             case "cheek":
-                return "cheek-drawn-mask-v1";
+                return "cheek-daily-mask-v1";
             case "eye":
                 return "eye-drawn-mask-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }
+    }
+
+    private static bool IsCheekBlushTextureSample(string value)
+    {
+        return value == "soft_blush"
+            || value == "blush_daily"
+            || value == "blush_lovely"
+            || value == "blush_sunkissed1"
+            || value == "blush_sunkissed2"
+            || value == "blush_under_eye";
+    }
+
+    private static bool IsCheekBlushMaskTextureId(string value)
+    {
+        return value == "cheek-daily-mask-v1"
+            || value == "cheek-lovely-mask-v1"
+            || value == "cheek-sunkissed-mask1-v1"
+            || value == "cheek-sunkissed-mask2-v1"
+            || value == "cheek-under-eye-mask-v1";
     }
 
     private static double CalculateLatencyMs(double startMs, double endMs)

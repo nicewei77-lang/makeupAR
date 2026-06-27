@@ -6,6 +6,7 @@
 - Derive the current milestone from `TECH_VALIDATION_RESULT.md` > `Next Milestone Boundary` unless the user explicitly names a different milestone.
 - Use `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` only after the M6/M7/M8 foundation path is in scope, or when the user explicitly asks about AR engine validation planning.
 - Do not start product implementation, AI/backend/admin/payment/community work, commercial SDK integration, Android work, or product-quality makeup rendering unless the milestone or user explicitly asks.
+- Current default scope: treat E7 lip as complete/frozen unless explicitly reopened; next work is E7 cheek/blush validation planning only, not product-quality completion.
 - AI readiness in this repo means schema/evidence handoff only, such as `FaceFeatureSnapshot`; it does not mean AI model inference, recommendation, backend upload, or raw-frame storage.
 
 ## Required Reading
@@ -13,12 +14,12 @@
 - Treat the result snapshot as latest status, active docs, evidence summary, stop rules, and next boundary.
 - For AR engine validation, read only the current milestone section of `docs/roadmaps/active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md`; if it conflicts with the result snapshot, the snapshot wins.
 - For E7, lazy-load research by milestone: E7.3 uses `E7_AXIS1_*`, E7.4/E7.5 uses `E7_AXIS2_*`, E7.6 uses `docs/roadmaps/active/E7_PERFORMANCE_EVIDENCE_SUBSPIKE_PLAN.md`, and fallback/SDK decisions use base/benchmark reports.
+- Put detailed cheek/blush implementation steps in a temporary `E*_..._PLAN.md` from Plan mode; AGENTS.md only carries boundary and validation criteria.
 
 ## Build Loop
 - Before Unity/RN real-device builds, stop and report the build question, primary path, compare-only paths, validation contract, evidence matrix, and out-of-scope items; build only after user approval.
 - Before builds, exhaust buildless checks first: static tests, Unity batchmode import/compile, existing recording/capture-pair frame analysis, and ARFace export projection/contact-sheet previews.
-- Every approved Unity/RN validation session should regenerate and sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh` from the repo root.
-- The script exports Unity iOS, verifies ARKit links, builds `UnityFramework` with signing disabled, copies Unity `Data`, and syncs RN/package framework paths.
+- Every approved Unity/RN validation session should regenerate/sync `UnityFramework.framework` with `bash scripts/build_m3_unityframework.sh`, which exports Unity iOS, verifies ARKit links, builds signing-disabled `UnityFramework`, copies Unity `Data`, and syncs RN/package framework paths.
 - After sync, run from `rn/MakeupARValidation`: `npm run ios -- --udid 00008110-0001794E0CD9801E --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK` (`202268054(여서진)`).
 - Before Unity builds, close Unity/Hub and ensure no Unity/Licensing processes remain; stale Licensing Client IPC can block export (`Unsupported protocol version '1.18.1'`).
 - Keep the package-local `RNUnityView.mm` timing patch caveat in mind until it is made durable; stale package frameworks previously caused missing Unity objects/events.
@@ -27,8 +28,7 @@
 - Keep this file at 50 lines or fewer.
 - Keep root active docs limited to `AGENTS.md`, `TECH_VALIDATION_TEST_PLAN.md`, and `TECH_VALIDATION_RESULT.md`.
 - Do not update `TECH_VALIDATION_TEST_PLAN.md` for progress/status unless correcting the validation contract itself.
-- Create `M*_..._PLAN.md` or `E*_..._PLAN.md` only as temporary session plans.
-- After a session completes, absorb the result into `TECH_VALIDATION_RESULT.md` and delete the temporary plan.
+- Create `M*_..._PLAN.md` or `E*_..._PLAN.md` only as temporary session plans; after completion, absorb results into `TECH_VALIDATION_RESULT.md` and delete the plan.
 - Put reusable procedures in `docs/runbooks/`; keep roadmap/research docs under `docs/roadmaps/`.
 
 ## Milestone Boundaries
@@ -38,12 +38,12 @@
 - E1 must prove camera/feed/face mesh alignment before region/texture work; E3 validates only `lip`, `cheek`, and `eye`, with other regions future scope unless explicitly added.
 - E5 AI readiness is a no-inference feature snapshot handoff, not AI product work.
 - E7 is validation/hardening only: keep `lip`/`cheek`/`eye` decisions separate, require visual/performance evidence, and never promote M7 or product readiness without matching evidence.
+- E7 cheek/blush planning must validate natural face attachment, center-strong/edge-feathered gradient or density masks, style-specific density maps, ARFace/mesh no-delay motion, and scaling across face proportions.
 
 ## Evidence and Cleanup
 - Before marking a milestone complete, cite concrete evidence: command output, logs, screenshots, or real-device confirmation; E7 also needs FPS/frame-time, thermal, memory, latency, region G/Y/R, and demo-look evidence.
 - A milestone is not complete until `TECH_VALIDATION_RESULT.md` records the decision, evidence, known limitations, and next boundary.
-- Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`, but do not record video by default.
-- Save recordings only when motion, elapsed time, or a continuous scenario is core evidence; then keep metadata/contact sheets/representative frames and delete the raw recording when no longer needed.
+- Store evidence under `evidence/logs/`, `evidence/screenshots/`, or `evidence/screen-recordings/`; record video only for motion/elapsed/continuous evidence, then keep metadata/contact sheets/representative frames and delete raw video when no longer needed.
 - For local video inspection, prefer Homebrew `/opt/homebrew/bin/ffmpeg` and `/opt/homebrew/bin/ffprobe` when available.
 - When runtime console output is decision evidence, capture the full stream to `evidence/logs/` with `tee` or an equivalent method; summary-only logs must be labeled as summaries.
 - Store feature snapshot examples as logs or runbook-linked text artifacts; do not store raw camera frames by default.

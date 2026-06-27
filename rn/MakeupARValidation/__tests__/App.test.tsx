@@ -6,7 +6,7 @@ import React from 'react';
 import ReactTestRenderer from 'react-test-renderer';
 import App, {
   buildValidationRecipeBatchPayload,
-  DEFAULT_ACTIVE_REGIONS,
+  CHEEK_BLUSH_REGION_OPTIONS,
   DEFAULT_REGION_RECIPES,
   DEFAULT_RENDERER_MODE,
   LIP_TEXTURE_STYLE_OPTIONS,
@@ -165,6 +165,18 @@ function pressByText(
   });
 }
 
+function expandRecipePanel(renderer: ReactTestRenderer.ReactTestRenderer) {
+  if (!collectText(renderer).includes('Show')) {
+    return;
+  }
+
+  ReactTestRenderer.act(() => {
+    renderer.root
+      .findByProps({ testID: 'recipe-panel-collapse-toggle' })
+      .props.onPress();
+  });
+}
+
 function sendUnityMessage(
   renderer: ReactTestRenderer.ReactTestRenderer,
   payload: object,
@@ -226,43 +238,59 @@ test('keeps validation modes visually compact before build', async () => {
     renderer = ReactTestRenderer.create(<App />);
   });
   enterUnityScreen(renderer!);
-
   const hudText = collectText(renderer!);
   expect(hudText).toContain('Clean');
   expect(hudText).toContain('HUD');
   expect(hudText).toContain('Debug');
-  expect(hudText).toContain('Regions');
-  expect(hudText).toContain('AR Status');
-  expect(hudText.indexOf('Regions')).toBeLessThan(hudText.indexOf('AR Status'));
-  expect(hudText).toContain('active=lip');
+  expect(hudText).toContain('Controls');
+  expect(hudText).toContain('Show');
+  expect(hudText).not.toContain('AR Status');
+  expect(hudText).toContain('active=none');
   expect(hudText).not.toContain('E7.03 HUD');
 
   pressByText(renderer!, 'Clean');
-  expect(collectText(renderer!)).not.toContain('Regions');
+  expect(collectText(renderer!)).not.toContain('Controls');
   expect(collectText(renderer!)).not.toContain('E7.03 HUD');
 
   pressByText(renderer!, 'Debug');
+  expect(collectText(renderer!)).toContain('Controls');
+  expect(collectText(renderer!)).toContain('Show');
+
+  expandRecipePanel(renderer!);
   expect(collectText(renderer!)).toContain('Evidence metadata');
-  expect(collectText(renderer!)).toContain('Regions');
 });
 
-test('shows lip color, finish, and intensity controls in HUD mode', async () => {
+test('shows blush region, style, and intensity controls in HUD mode', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
   enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
 
   const hudText = collectText(renderer!);
 
   expect(hudText).toContain('rose');
   expect(hudText).toContain('coral');
-  expect(hudText).toContain('Matte');
-  expect(hudText).toContain('Glow');
-  expect(hudText).toContain('Gradient');
+  expect(hudText).toContain('Blush Region');
+  expect(hudText).toContain('Daily');
+  expect(hudText).toContain('Lovely');
+  expect(hudText).toContain('Sun 1');
+  expect(hudText).toContain('Sun 2');
+  expect(hudText).toContain('Under');
   expect(hudText).toContain('Intensity');
-  expect(hudText).toContain('matte_lip');
+  expect(hudText).toContain('blush_daily');
+
+  pressByText(renderer!, 'Lovely');
+
+  expect(collectText(renderer!)).toContain('blush_lovely');
+  expect(collectText(renderer!)).toContain('active=cheek');
+
+  pressByText(renderer!, 'lip');
+  expect(collectText(renderer!)).toContain('Matte');
+  expect(collectText(renderer!)).toContain('Glow');
+  expect(collectText(renderer!)).toContain('Gradient');
 
   pressByText(renderer!, 'Glow');
 
@@ -271,6 +299,90 @@ test('shows lip color, finish, and intensity controls in HUD mode', async () => 
   pressByText(renderer!, 'Gradient');
 
   expect(collectText(renderer!)).toContain('gradient_lip');
+});
+
+test('keeps focused cheek recipe summary when later eye ack arrives', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'cheek',
+    layer: 'cheek',
+    texture: 'blush_lovely',
+    sample: 'blush_lovely',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    finish: 'powder',
+    maskTextureId: 'cheek-lovely-mask-v1',
+    maskSoftSampleMode: 'feather_scaled_13tap_near_far',
+    maskSource: 'cheek_blush_v1_uv_back_projection',
+    color: '#D94B74',
+    opacity: 0.52,
+    intensity: 0.95,
+    applied: true,
+    faceCount: 1,
+    uvAvailable: true,
+  });
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'eye',
+    layer: 'eye',
+    texture: 'shimmer_eye',
+    sample: 'shimmer_eye',
+    textureMode: 'sample',
+    blendMode: 'screen',
+    finish: 'shimmer',
+    maskTextureId: 'eye-drawn-mask-v1',
+    applied: false,
+  });
+
+  const text = collectText(renderer!);
+
+  expect(text).toContain('recipe_applied region=cheek texture=blush_lovely');
+  expect(text).toContain('maskTex=cheek-lovely-mask-v1');
+  expect(text).not.toContain('recipe_applied region=eye texture=shimmer_eye');
+});
+
+test('collapses AR makeup control panel to keep face visible', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  expect(collectText(renderer!)).toContain('Show');
+  expect(collectText(renderer!)).not.toContain('Blush Region');
+  expect(collectText(renderer!)).not.toContain('Daily');
+
+  const collapseToggle = renderer!.root.findByProps({
+    testID: 'recipe-panel-collapse-toggle',
+  });
+
+  ReactTestRenderer.act(() => {
+    collapseToggle.props.onPress();
+  });
+
+  expect(collectText(renderer!)).toContain('Hide');
+  expect(collectText(renderer!)).toContain('Blush Region');
+  expect(collectText(renderer!)).toContain('Daily');
+  expect(collectText(renderer!)).toContain('Intensity');
+
+  ReactTestRenderer.act(() => {
+    renderer!.root
+      .findByProps({ testID: 'recipe-panel-collapse-toggle' })
+      .props.onPress();
+  });
+
+  expect(collectText(renderer!)).toContain('Show');
+  expect(collectText(renderer!)).not.toContain('Blush Region');
 });
 
 test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', async () => {
@@ -328,6 +440,7 @@ test('surfaces Apple Vision lip boundary diagnostics from Unity recipe events', 
     maskTextureActiveCoverageGt8: 1,
     maskTextureActiveBbox: 'left=0,top=0,right=0,bottom=0,width=1,height=1',
   });
+  expandRecipePanel(renderer!);
 
   const text = collectText(renderer!);
 
@@ -443,6 +556,7 @@ test('keeps thin wet-line diagnostics off matte lip recipe events', async () => 
     maskTextureActiveBbox:
       'left=207,top=292,right=302,bottom=347,width=96,height=56',
   });
+  expandRecipePanel(renderer!);
 
   const text = collectText(renderer!);
 
@@ -473,9 +587,12 @@ test('posts smooth mask renderer by default before build', async () => {
 
   expect(recipePostCall).toBeTruthy();
   expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
-  expect(recipePostCall).toContain('focusRegion=lip');
-  expect(recipePostCall).toContain('focusMaskTextureId=lip-drawn-style-atlas-v1');
+  expect(recipePostCall).toContain('activeRegions=none');
+  expect(recipePostCall).toContain('enabledLayerCount=0');
+  expect(recipePostCall).toContain('focusRegion=cheek');
+  expect(recipePostCall).toContain('focusMaskTextureId=cheek-daily-mask-v1');
   expect(recipePostCall).toContain('lipMaskTextureId=lip-drawn-style-atlas-v1');
+  expect(recipePostCall).toContain('cheekMaskTextureId=cheek-daily-mask-v1');
   expect(recipePostCall).not.toContain('lipMaskTextureId=lip-vision-boundary-v1');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
@@ -503,7 +620,11 @@ test('builds five lip style recipe payloads with preset material fields', () => 
           textureSample,
         },
       },
-      DEFAULT_ACTIVE_REGIONS,
+      {
+        lip: true,
+        cheek: false,
+        eye: false,
+      },
       'lip',
       DEFAULT_RENDERER_MODE,
       12345,
@@ -514,7 +635,7 @@ test('builds five lip style recipe payloads with preset material fields', () => 
 
     expect(payload.layers).toHaveLength(3);
     expect(payload.rendererMode).toBe('smooth-region-mask');
-    expect(payload.lookId).toBe('lip_makeup_validation_v1');
+    expect(payload.lookId).toBe('cheek_blush_validation_v1');
     expect(payload.activeRegions).toBe('lip');
     expect(payload.enabledLayerCount).toBe(1);
     expect(lipLayer.texture).toBe(textureSample.name);
@@ -555,8 +676,8 @@ test('builds five lip style recipe payloads with preset material fields', () => 
       expect(lipLayer.gradientAmount).toBe(1);
       expect(lipLayer.passCount).toBe(1);
     }
-    expect(cheekLayer.texture).toBe('soft_blush');
-    expect(cheekLayer.maskTextureId).toBe('cheek-drawn-mask-v1');
+    expect(cheekLayer.texture).toBe('blush_daily');
+    expect(cheekLayer.maskTextureId).toBe('cheek-daily-mask-v1');
     expect(cheekLayer.enabled).toBe(false);
     expect(eyeLayer.texture).toBe('shimmer_eye');
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
@@ -581,7 +702,11 @@ test('passes selected lip color, finish, and intensity through payload', () => {
         textureSample: selectedTextureSample,
       },
     },
-    DEFAULT_ACTIVE_REGIONS,
+    {
+      lip: true,
+      cheek: false,
+      eye: false,
+    },
     'lip',
     DEFAULT_RENDERER_MODE,
     12345,
@@ -597,6 +722,61 @@ test('passes selected lip color, finish, and intensity through payload', () => {
   expect(lipLayer.finish).toBe('gloss');
   expect(lipLayer.blendMode).toBe('multiply');
   expect(lipLayer.passCount).toBe(2);
+});
+
+test('selects exactly one cheek blush region mask per cheek layer', () => {
+  const expectedMaskIds: Record<string, string> = {
+    blush_daily: 'cheek-daily-mask-v1',
+    blush_lovely: 'cheek-lovely-mask-v1',
+    blush_sunkissed1: 'cheek-sunkissed-mask1-v1',
+    blush_sunkissed2: 'cheek-sunkissed-mask2-v1',
+    blush_under_eye: 'cheek-under-eye-mask-v1',
+  };
+
+  expect(CHEEK_BLUSH_REGION_OPTIONS.map(option => option.name)).toEqual([
+    'blush_daily',
+    'blush_lovely',
+    'blush_sunkissed1',
+    'blush_sunkissed2',
+    'blush_under_eye',
+  ]);
+
+  CHEEK_BLUSH_REGION_OPTIONS.forEach(regionMaskOption => {
+    const payload = buildValidationRecipeBatchPayload(
+      {
+        ...DEFAULT_REGION_RECIPES,
+        cheek: {
+          ...DEFAULT_REGION_RECIPES.cheek,
+          textureSample: regionMaskOption,
+        },
+      },
+      {
+        lip: false,
+        cheek: true,
+        eye: false,
+      },
+      'cheek',
+      DEFAULT_RENDERER_MODE,
+      12345,
+    );
+    const cheekLayers = payload.layers.filter(layer => layer.region === 'cheek');
+    const cheekLayer = cheekLayers[0];
+
+    expect(payload.layers).toHaveLength(3);
+    expect(cheekLayers).toHaveLength(1);
+    expect(payload.activeRegions).toBe('cheek');
+    expect(payload.enabledLayerCount).toBe(1);
+    expect(payload.texture).toBe(regionMaskOption.name);
+    expect(payload.maskTextureId).toBe(expectedMaskIds[regionMaskOption.name]);
+    expect(cheekLayer.texture).toBe(regionMaskOption.name);
+    expect(cheekLayer.maskTextureId).toBe(
+      expectedMaskIds[regionMaskOption.name],
+    );
+    expect(cheekLayer.enabled).toBe(true);
+    expect(cheekLayer.blendMode).toBe('multiply');
+    expect(cheekLayer.finish).toBe('powder');
+    expect(cheekLayer.shaderMode).toBe('cheek-blush-powder-validation');
+  });
 });
 
 test('keeps Unity face debug surface disabled across view modes', async () => {
@@ -630,13 +810,14 @@ test('keeps Unity face debug surface disabled across view modes', async () => {
   expect(latestVisibilityPostCall).toContain('validationViewMode=clean');
 });
 
-test('allows cheek and eye toggles for placement validation while preserving 3-layer batch', async () => {
+test('allows lip and eye toggles for placement validation while preserving 3-layer batch', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
   enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
 
   const cheekToggle = renderer!.root.findByProps({
     testID: 'region-toggle-cheek',
@@ -650,17 +831,7 @@ test('allows cheek and eye toggles for placement validation while preserving 3-l
   expect(eyeToggle.props.accessibilityState.disabled).toBeUndefined();
   expect(eyeToggle.props.accessibilityState.checked).toBe(false);
 
-  expect(collectText(renderer!)).toContain('active=lip');
-
-  ReactTestRenderer.act(() => {
-    cheekToggle.props.onPress();
-  });
-
-  expect(
-    renderer!.root.findByProps({ testID: 'region-toggle-cheek' }).props
-      .accessibilityState.checked,
-  ).toBe(true);
-  expect(collectText(renderer!)).toContain('active=lip,cheek');
+  expect(collectText(renderer!)).toContain('active=none');
 
   ReactTestRenderer.act(() => {
     renderer!.root.findByProps({ testID: 'region-toggle-eye' }).props.onPress();
@@ -670,7 +841,7 @@ test('allows cheek and eye toggles for placement validation while preserving 3-l
     renderer!.root.findByProps({ testID: 'region-toggle-eye' }).props
       .accessibilityState.checked,
   ).toBe(true);
-  expect(collectText(renderer!)).toContain('active=lip,cheek,eye');
+  expect(collectText(renderer!)).toContain('active=eye');
 
   const payload = buildValidationRecipeBatchPayload(
     DEFAULT_REGION_RECIPES,
@@ -696,22 +867,17 @@ test('allows cheek and eye toggles for placement validation while preserving 3-l
   );
 });
 
-test('toggles lip region on and off', async () => {
+test('toggles lip region alongside default cheek blush', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
     renderer = ReactTestRenderer.create(<App />);
   });
   enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
 
   const getToggle = () =>
     renderer!.root.findByProps({ testID: 'region-toggle-lip' });
-
-  expect(getToggle().props.accessibilityState.checked).toBe(true);
-
-  ReactTestRenderer.act(() => {
-    getToggle().props.onPress();
-  });
 
   expect(getToggle().props.accessibilityState.checked).toBe(false);
   expect(collectText(renderer!)).toContain('active=none');
@@ -722,4 +888,11 @@ test('toggles lip region on and off', async () => {
 
   expect(getToggle().props.accessibilityState.checked).toBe(true);
   expect(collectText(renderer!)).toContain('active=lip');
+
+  ReactTestRenderer.act(() => {
+    getToggle().props.onPress();
+  });
+
+  expect(getToggle().props.accessibilityState.checked).toBe(false);
+  expect(collectText(renderer!)).toContain('active=none');
 });

@@ -59,6 +59,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string MaskTextureActiveBbox;
         public int MaskTextureThresholdPixelCount;
         public float MaskTextureThresholdCoverage;
+        public int MaskTextureDensityPixelCountGt8;
+        public float MaskTextureDensityCoverageGt8;
+        public string MaskTextureDensityBbox;
+        public int MaskTextureDensityMax;
         public string VisionBoundaryStatus;
         public string VisionBoundarySource;
         public string VisionBoundaryCoordinateMode;
@@ -154,6 +158,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string ActiveBbox = "none";
         public int ThresholdPixelCount;
         public float ThresholdCoverage;
+        public int DensityPixelCountGt8;
+        public float DensityCoverageGt8;
+        public string DensityBbox = "none";
+        public int DensityMax;
     }
 
     private sealed class MaskTextureSampleData
@@ -191,6 +199,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string VisionLipBoundaryMaskId = "lip-vision-boundary-v1";
     private const string LipDrawnStyleAtlasMaskId = "lip-drawn-style-atlas-v1";
     private const string LipDrawnGradientDensityAtlasMaskId = "lip-drawn-gradient-density-atlas-v1";
+    private const string CheekDailyMaskId = "cheek-daily-mask-v1";
+    private const string CheekLovelyMaskId = "cheek-lovely-mask-v1";
+    private const string CheekSunkissedMask1Id = "cheek-sunkissed-mask1-v1";
+    private const string CheekSunkissedMask2Id = "cheek-sunkissed-mask2-v1";
+    private const string CheekUnderEyeMaskId = "cheek-under-eye-mask-v1";
+    private const string CheekBlushMaskSource = "cheek_blush_v1_uv_back_projection";
+    private const string CheekBlushBoundaryRenderer = "rgba_cheek_blush_density_feather_powder";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -508,6 +523,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             MaskTextureActiveBbox = "none",
             MaskTextureThresholdPixelCount = 0,
             MaskTextureThresholdCoverage = 0.0f,
+            MaskTextureDensityPixelCountGt8 = 0,
+            MaskTextureDensityCoverageGt8 = 0.0f,
+            MaskTextureDensityBbox = "none",
+            MaskTextureDensityMax = 0,
             VisionBoundaryStatus = "not_requested",
             VisionBoundarySource = "none",
             VisionBoundaryCoordinateMode = "none",
@@ -543,6 +562,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.MaskTextureId = recipe.MaskTextureId;
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
+        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
         bool lipLogicalMultilayer = lipStyleAtlas || visionLipBoundary;
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
@@ -554,6 +574,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? VisionLipBoundarySource
             : lipStyleAtlas
             ? "lip_style_atlas_v1_uv_back_projection"
+            : cheekBlushMask
+            ? CheekBlushMaskSource
             : MaskSource;
         result.BoundaryRenderer = visionLipBoundary
             ? VisionLipBoundaryRenderer
@@ -561,10 +583,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? (recipe.BlendMode == "multiply"
                 ? "rgba_style_atlas_logical_multilayer_sdf_feather"
                 : "rgba_style_atlas_soft_alpha_sdf_feather")
+            : cheekBlushMask
+            ? CheekBlushBoundaryRenderer
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
-        result.MaskSoftSampleMode = lipLogicalMultilayer
+        result.MaskSoftSampleMode = lipLogicalMultilayer || cheekBlushMask
             ? WideFeatherSoftSampleMode
             : LegacySoftSampleMode;
         result.MaskFeatherNearRadiusPx = ResolveShaderFeatherNearRadiusPx(result.MaskFeatherUvNormalized);
@@ -924,6 +948,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.MaskTextureActiveBbox = diagnostics.ActiveBbox;
         result.MaskTextureThresholdPixelCount = diagnostics.ThresholdPixelCount;
         result.MaskTextureThresholdCoverage = diagnostics.ThresholdCoverage;
+        result.MaskTextureDensityPixelCountGt8 = diagnostics.DensityPixelCountGt8;
+        result.MaskTextureDensityCoverageGt8 = diagnostics.DensityCoverageGt8;
+        result.MaskTextureDensityBbox = diagnostics.DensityBbox;
+        result.MaskTextureDensityMax = diagnostics.DensityMax;
     }
 
     private static bool ApplyVisionBoundaryUvMask(
@@ -2039,16 +2067,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string maskTextureId = NormalizeMaskTextureId(region, requestedMaskTextureId);
         bool lipStyleAtlas = region == "lip" && IsLipStyleAtlasMask(maskTextureId);
         bool visionLipBoundary = region == "lip" && IsVisionLipBoundaryMask(maskTextureId);
+        bool cheekBlushMask = region == "cheek" && IsCheekBlushMask(maskTextureId);
         return new MaskDefinition
         {
             Region = region,
             MaskTextureId = maskTextureId,
             ResourcePath = "SmoothRegionMasks/" + maskTextureId,
-            Threshold = lipStyleAtlas || visionLipBoundary ? 0.025f : 0.04f,
+            Threshold = lipStyleAtlas || visionLipBoundary || cheekBlushMask ? 0.025f : 0.04f,
             FeatherUvNormalized = lipStyleAtlas
                 ? 0.32f
                 : visionLipBoundary
                 ? 0.34f
+                : cheekBlushMask
+                ? 0.64f
                 : 0.56f
         };
     }
@@ -2077,6 +2108,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 Mathf.Max(0.22f, recipe.Feather)));
         }
 
+        if (recipe != null
+            && recipe.Region == "cheek"
+            && IsCheekBlushMask(recipe.MaskTextureId))
+        {
+            return Mathf.Clamp01(Mathf.Min(
+                mask.FeatherUvNormalized,
+                Mathf.Max(0.54f, recipe.Feather)));
+        }
+
         return mask.FeatherUvNormalized;
     }
 
@@ -2100,7 +2140,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "lip":
                 return LipDrawnStyleAtlasMaskId;
             case "cheek":
-                return "cheek-drawn-mask-v1";
+                return CheekDailyMaskId;
             case "eye":
                 return "eye-drawn-mask-v1";
             default:
@@ -2172,6 +2212,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.MaskTextureActiveBbox = diagnostics.ActiveBbox;
         result.MaskTextureThresholdPixelCount = diagnostics.ThresholdPixelCount;
         result.MaskTextureThresholdCoverage = diagnostics.ThresholdCoverage;
+        result.MaskTextureDensityPixelCountGt8 = diagnostics.DensityPixelCountGt8;
+        result.MaskTextureDensityCoverageGt8 = diagnostics.DensityCoverageGt8;
+        result.MaskTextureDensityBbox = diagnostics.DensityBbox;
+        result.MaskTextureDensityMax = diagnostics.DensityMax;
     }
 
     private static bool ShouldCullMeshToMask(RegionRecipeState recipe)
@@ -2320,6 +2364,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             int maxY = -1;
             int activeCount = 0;
             int thresholdCount = 0;
+            int densityMinX = diagnostics.Width;
+            int densityMinY = diagnostics.Height;
+            int densityMaxX = -1;
+            int densityMaxY = -1;
+            int densityCount = 0;
+            int densityMax = 0;
 
             for (int y = 0; y < diagnostics.Height; y++)
             {
@@ -2332,9 +2382,21 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     }
 
                     int value = pixels[pixelIndex].r;
+                    int densityValue = pixels[pixelIndex].b;
+                    densityMax = Mathf.Max(densityMax, densityValue);
                     if (value > thresholdByte)
                     {
                         thresholdCount++;
+                    }
+
+                    int topLeftY = diagnostics.Height - 1 - y;
+                    if (densityValue > 8)
+                    {
+                        densityCount++;
+                        densityMinX = Mathf.Min(densityMinX, x);
+                        densityMaxX = Mathf.Max(densityMaxX, x);
+                        densityMinY = Mathf.Min(densityMinY, topLeftY);
+                        densityMaxY = Mathf.Max(densityMaxY, topLeftY);
                     }
 
                     if (value <= 8)
@@ -2342,7 +2404,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                         continue;
                     }
 
-                    int topLeftY = diagnostics.Height - 1 - y;
                     activeCount++;
                     minX = Mathf.Min(minX, x);
                     maxX = Mathf.Max(maxX, x);
@@ -2356,6 +2417,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             diagnostics.ActiveCoverageGt8 = activeCount / (float)totalPixels;
             diagnostics.ThresholdPixelCount = thresholdCount;
             diagnostics.ThresholdCoverage = thresholdCount / (float)totalPixels;
+            diagnostics.DensityPixelCountGt8 = densityCount;
+            diagnostics.DensityCoverageGt8 = densityCount / (float)totalPixels;
+            diagnostics.DensityMax = densityMax;
             diagnostics.ActiveBbox = activeCount == 0
                 ? "none"
                 : "left=" + minX.ToString(CultureInfo.InvariantCulture)
@@ -2364,6 +2428,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     + ",bottom=" + maxY.ToString(CultureInfo.InvariantCulture)
                     + ",width=" + (maxX - minX + 1).ToString(CultureInfo.InvariantCulture)
                     + ",height=" + (maxY - minY + 1).ToString(CultureInfo.InvariantCulture);
+            diagnostics.DensityBbox = densityCount == 0
+                ? "none"
+                : "left=" + densityMinX.ToString(CultureInfo.InvariantCulture)
+                    + ",top=" + densityMinY.ToString(CultureInfo.InvariantCulture)
+                    + ",right=" + densityMaxX.ToString(CultureInfo.InvariantCulture)
+                    + ",bottom=" + densityMaxY.ToString(CultureInfo.InvariantCulture)
+                    + ",width=" + (densityMaxX - densityMinX + 1).ToString(CultureInfo.InvariantCulture)
+                    + ",height=" + (densityMaxY - densityMinY + 1).ToString(CultureInfo.InvariantCulture);
         }
         catch (Exception exception)
         {
@@ -2503,6 +2575,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     ? ResolveLipStyleMode(recipe.TextureSample)
                     : -1.0f);
         }
+
+        if (material.HasProperty("_CheekBlushMode"))
+        {
+            material.SetFloat(
+                "_CheekBlushMode",
+                recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId)
+                    ? 1.0f
+                    : 0.0f);
+        }
     }
 
     private static Material GetOrCreateMaskMaterial(RegionOverlayView view, string region)
@@ -2569,8 +2650,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 brightnessScale = 0.96f;
                 break;
             case "soft_blush":
-                sampleAlphaScale = Mathf.Lerp(0.32f, 0.52f, recipe.Intensity);
-                brightnessScale = 1.02f;
+            case "blush_daily":
+            case "blush_lovely":
+            case "blush_sunkissed1":
+            case "blush_sunkissed2":
+            case "blush_under_eye":
+                sampleAlphaScale = Mathf.Lerp(0.18f, 0.42f, recipe.Intensity);
+                brightnessScale = 0.98f;
                 break;
             case "shimmer_eye":
                 sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);
@@ -2799,7 +2885,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "full_lip"
                     || textureSample == "gradient_lip"
                     || textureSample == "overline_lip"))
-            || (region == "cheek" && textureSample == "soft_blush")
+            || (region == "cheek"
+                && (textureSample == "soft_blush"
+                    || textureSample == "blush_daily"
+                    || textureSample == "blush_lovely"
+                    || textureSample == "blush_sunkissed1"
+                    || textureSample == "blush_sunkissed2"
+                    || textureSample == "blush_under_eye"))
             || (region == "eye" && textureSample == "shimmer_eye"))
         {
             return textureSample;
@@ -2850,7 +2942,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-style-atlas-v1"
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
-            || (region == "cheek" && maskTextureId == "cheek-smooth-mask-v1")
+            || (region == "cheek"
+                && (maskTextureId == "cheek-smooth-mask-v1"
+                    || maskTextureId == "cheek-drawn-mask-v1"
+                    || IsCheekBlushMask(maskTextureId)))
             || (region == "eye" && maskTextureId == "eye-smooth-mask-v1"))
         {
             return maskTextureId;
@@ -2878,6 +2973,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : maskTextureId.Trim();
 
         return maskTextureId == VisionLipBoundaryMaskId;
+    }
+
+    private static bool IsCheekBlushMask(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        return maskTextureId == CheekDailyMaskId
+            || maskTextureId == CheekLovelyMaskId
+            || maskTextureId == CheekSunkissedMask1Id
+            || maskTextureId == CheekSunkissedMask2Id
+            || maskTextureId == CheekUnderEyeMaskId;
     }
 
     private static string NormalizeOptional(string value)
@@ -2968,6 +3076,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 ? VisionLipBoundarySource
                 : IsLipStyleAtlasMask(recipe.MaskTextureId)
                 ? "lip_style_atlas_v1_uv_back_projection"
+                : IsCheekBlushMask(recipe.MaskTextureId)
+                ? CheekBlushMaskSource
                 : MaskSource)
             + " region=" + region
             + " trackingState=" + face.trackingState
@@ -3013,6 +3123,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " maskTextureGt8Bbox=" + result.MaskTextureActiveBbox
             + " maskTextureThresholdPixels=" + result.MaskTextureThresholdPixelCount.ToString(CultureInfo.InvariantCulture)
             + " maskTextureThresholdCoverage=" + result.MaskTextureThresholdCoverage.ToString("0.######", CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Pixels=" + result.MaskTextureDensityPixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Coverage=" + result.MaskTextureDensityCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + " maskTextureDensityGt8Bbox=" + result.MaskTextureDensityBbox
+            + " maskTextureDensityMax=" + result.MaskTextureDensityMax.ToString(CultureInfo.InvariantCulture)
             + " visionBoundaryStatus=" + result.VisionBoundaryStatus
             + " visionBoundarySource=" + result.VisionBoundarySource
             + " visionBoundaryCoordinateMode=" + result.VisionBoundaryCoordinateMode
