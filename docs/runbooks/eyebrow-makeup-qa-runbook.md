@@ -128,11 +128,13 @@ switching to a darker swatch. `Warmth` below `0.50` moves the result toward ash;
 above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
 darkens. Good first QA probes are `Warmth 0.40..0.60` and `Depth 0.55..0.75`.
 
-For placement, leave `Brow X` and `Brow Y` at `0.50` first. If the brows still
-look too centered, move `Brow X` slightly above `0.50`; this shifts both brows
-outward through the Unity mask offset path. If the brows still sit low, move
-`Brow Y` slightly above `0.50`. Use small steps such as `0.55`, then `0.60`,
-and record the best value before changing the mask asset again.
+For placement, leave `Brow Spread` and `Brow Y` at `0.50` first. If the brows
+still look too centered, move `Brow Spread` slightly above `0.50`; this expands
+both brows outward around the Unity mask centerline. If the brows still sit low,
+move `Brow Y` slightly above `0.50`. Use small steps such as `0.55`, then
+`0.60`, and record the best value before changing the mask asset again. The RN
+`recipe_applied` HUD summary should show the applied values as `spread=` and
+`y=` after Unity acknowledges the recipe.
 
 If the brow is too faint, raise opacity first to `0.74..0.80`. If it is still
 too faint, raise intensity to `0.74..0.82`. Adjust coverage last, usually no

@@ -70,6 +70,10 @@ First-loop presets use natural brow colors rather than lip colors:
   UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
   QA can correct small centered/low placement errors live without regenerating
   PNG masks.
+- Unity `recipe_applied` diagnostics emit the applied `maskSpreadX` and
+  `maskOffsetY` values, and the RN HUD summarizes them as `spread=` and `y=` so
+  device QA can confirm placement control delivery without collecting raw
+  camera frames.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. The first brow mask should be
@@ -152,6 +156,9 @@ or bridge rewrite.
 - 2026-06-27: Added brow `Brow Spread` and `Brow Y` placement parameters
   through the RN recipe, Unity bridge, overlay material, and smooth mask shader.
   This local tuning is not yet installed on-device.
+- 2026-06-27: Added applied brow placement diagnostics to Unity
+  `recipe_applied` events and the RN HUD summary (`spread=`/`y=`) for the next
+  iPhone QA loop.
 
 ## Local Verification
 

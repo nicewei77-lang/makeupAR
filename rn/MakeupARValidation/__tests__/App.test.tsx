@@ -894,6 +894,50 @@ test('keeps thin wet-line diagnostics off matte lip recipe events', async () => 
   expect(text).not.toContain('matte_base_wet_sheen');
 });
 
+test('surfaces eyebrow placement diagnostics from Unity recipe events', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'brow',
+    layer: 'brow',
+    texture: 'natural_brow',
+    sample: 'natural_brow',
+    rendererId: 'brow-smooth-region-mask-renderer',
+    textureMode: 'sample',
+    blendMode: 'normal',
+    finish: 'matte',
+    maskTextureId: 'brow-soft-arch-fine-hair-v1',
+    color: '#4A342B',
+    opacity: 0.68,
+    intensity: 0.68,
+    coverage: 0.62,
+    maskSpreadX: 0.12,
+    maskOffsetY: 0.024,
+    applied: true,
+    faceCount: 1,
+    meshTriangles: 512,
+    maskTriangles: 512,
+    uvAvailable: true,
+    stateAction: 'tracking_render',
+    topologyAuditStatus: 'pass_uv_topology_ready',
+    maskSource: 'brow-soft-arch-fine-hair-v1',
+    boundaryRenderer: 'brow_smooth_region_mask',
+  });
+
+  const text = collectText(renderer!);
+
+  expect(text).toContain('recipe_applied region=brow');
+  expect(text).toContain('maskTex=brow-soft-arch-fine-hair-v1');
+  expect(text).toContain('spread=0.120');
+  expect(text).toContain('y=0.024');
+});
+
 test('posts smooth mask renderer by default before build', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 

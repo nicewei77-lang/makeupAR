@@ -163,6 +163,26 @@ def main() -> None:
         "MaskOffsetY = NormalizeMaskOffset(layer.maskOffsetY)",
         "RNBridge must normalize layer maskOffsetY into parsed layers.",
     )
+    require_contains(
+        rn_bridge,
+        '",\\\"maskSpreadX\\\":"',
+        "RNBridge recipe_applied event must emit applied maskSpreadX for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"maskOffsetY\\\":"',
+        "RNBridge recipe_applied event must emit applied maskOffsetY for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied maskSpreadX.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied maskOffsetY.",
+    )
 
     require_match(
         overlay,

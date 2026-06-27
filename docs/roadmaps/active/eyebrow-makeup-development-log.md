@@ -377,3 +377,15 @@ Remaining:
     `6000.3.18f1` batchmode import/compile passed with
     `evidence/logs/eyebrow-mask-spread-unity-batchmode-20260627.log`. This
     local spread correction is not yet installed on-device.
+- 2026-06-27: Added brow placement diagnostics before reinstall.
+  - RED: focused Jest failed because the RN `recipe_applied` summary did not
+    show `spread=`/`y=`, and `verify_brow_unity_contract.py` failed because
+    Unity `recipe_applied` events/logs did not emit applied `maskSpreadX` and
+    `maskOffsetY`.
+  - Unity now emits the post-clamp applied placement values in `recipe_applied`
+    JSON and Debug logs; RN summarizes them as `spread=` and `y=` so device QA
+    can confirm control delivery without raw frame capture.
+  - GREEN: focused Jest passed with 26 tests; lint, TypeScript, brow Unity
+    contract, renderer routes, UnityFramework build contract, scoped
+    `git diff --check`, and Unity `6000.3.18f1` batchmode import/compile passed
+    with `evidence/logs/eyebrow-placement-diagnostics-unity-batchmode-20260627.log`.

@@ -3635,6 +3635,12 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} coverage=${String(
     event.coverage ?? 'n/a',
+  )} spread=${formatMetricNumber(
+    event.maskSpreadX,
+    3,
+  )} y=${formatMetricNumber(
+    event.maskOffsetY,
+    3,
   )} specular=${String(
     event.specular ?? 'n/a',
   )} gloss=${String(event.glossBoost ?? 'n/a')} gradient=${String(

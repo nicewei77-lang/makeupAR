@@ -1602,6 +1602,8 @@ public sealed class RNBridge : MonoBehaviour
             + " passCount=" + layer.PassCount.ToString(CultureInfo.InvariantCulture)
             + " maskTextureId=" + layer.MaskTextureId
             + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
             + " finish=" + layer.Finish
             + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + " roughness=" + layer.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1841,6 +1843,10 @@ public sealed class RNBridge : MonoBehaviour
             + EscapeJsonString(layer.MaskTextureId)
             + "\",\"coverage\":"
             + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"maskSpreadX\":"
+            + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskOffsetY\":"
+            + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"finish\":\""
             + EscapeJsonString(layer.Finish)
             + "\",\"textureAmount\":"
