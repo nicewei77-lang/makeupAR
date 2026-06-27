@@ -512,12 +512,17 @@ Remaining:
     `npm run lint`, `verify_brow_png_hair_textures.py`,
     `verify_brow_mask_texture.py`, `verify_brow_unity_contract.py`, and
     `verify_region_renderer_routes.py`.
-  - Unity `2022.3.62f1` batchmode import/compile was attempted twice but
-    failed before C# compile during package resolution:
-    AR Foundation `6.3.5` requested `com.unity.ugui 2.0.0`, while the editor
-    resolved builtin `1.0.0`. Logs:
+  - Initial Unity batchmode attempts accidentally used Unity `2022.3.62f1` and
+    failed before C# compile during package resolution because the project is
+    pinned to Unity `6000.3.18f1` and AR Foundation `6.3.5` expects Unity 6-era
+    package dependencies. Logs:
     `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627.log` and
     `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627-rerun.log`.
-    The automatic `packages-lock.json` downgrade produced by the failed
-    attempts was restored.
+    The automatic `packages-lock.json` downgrade from those failed attempts was
+    restored.
+  - GREEN: rerunning with the project editor, Unity `6000.3.18f1`, passed
+    batchmode import/compile. Log:
+    `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`.
+    It includes `Tundra build success`, `CompileScripts: 4786.690ms`, imports
+    for all four `brow-png-*` textures, and `Exiting batchmode successfully now!`.
   - No UnityFramework/iPhone build was run in this loop.

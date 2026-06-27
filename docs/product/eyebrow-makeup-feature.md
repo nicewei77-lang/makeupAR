@@ -211,13 +211,14 @@ or bridge rewrite.
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - UnityFramework build contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py`.
-- Unity `6000.3.18f1` batchmode import/compile exited `0`; log showed
-  `Tundra build success` and imported
-  `Assets/Resources/SmoothRegionMasks/brow-drawn-mask-v1.png`.
-- Unity `2022.3.62f1` batchmode import/compile for the PNG hair loop was
-  attempted twice and failed before C# compile during package resolution:
-  `com.unity.xr.arfoundation@6.3.5` requested `com.unity.ugui 2.0.0`, while
-  the editor resolved builtin `com.unity.ugui 1.0.0`. Logs:
+- Unity `6000.3.18f1` batchmode import/compile exited `0` for the PNG hair
+  loop. Log `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
+  shows `Tundra build success`, `CompileScripts: 4786.690ms`, imports for all
+  four `brow-png-*` textures, and `Exiting batchmode successfully now!`.
+- Earlier PNG hair batchmode attempts used the wrong editor,
+  Unity `2022.3.62f1`, and failed before C# compile during package resolution
+  because AR Foundation `6.3.5` requires Unity 6-era package dependencies. Logs
+  remain as negative evidence:
   `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627.log` and
   `evidence/logs/eyebrow-png-hair-texture-unity-batchmode-20260627-rerun.log`.
 - After the follow-up QA tuning, Unity batchmode was retried twice but failed

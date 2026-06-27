@@ -222,14 +222,15 @@ Local checks before any real-device build:
 - PNG-derived brow hair texture inspection:
   `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py`
   passed for `Daily hair`, `Natural hair`, `Narrow hair`, and `Light brown`.
-- Unity batchmode import/compile passed with Unity `6000.3.18f1` for the prior
-  installed tuning. The follow-up visibility/spread tuning was attempted twice
-  but failed before compile at Unity Licensing Client IPC initialization; the
-  spawned Unity/Licensing processes were terminated.
-- Unity `2022.3.62f1` batchmode import/compile for the PNG hair loop was
-  attempted twice and failed before C# compile during package resolution
-  because AR Foundation `6.3.5` requested `com.unity.ugui 2.0.0` while the
-  editor resolved builtin `1.0.0`. No iPhone build was attempted.
+- Unity batchmode import/compile passed with Unity `6000.3.18f1` for the PNG
+  hair loop. Log
+  `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
+  shows `Tundra build success`, `CompileScripts: 4786.690ms`, all four
+  `brow-png-*` texture imports, and `Exiting batchmode successfully now!`.
+- Two earlier PNG hair attempts used Unity `2022.3.62f1`, which is not the
+  project editor version and failed during package resolution because AR
+  Foundation `6.3.5` requires Unity 6-era package dependencies. No iPhone build
+  was attempted.
 - UnityFramework build contract verifier passed and now guards Swift
   compatibility link flags plus Unity export failure detection.
 - UnityFramework regeneration/sync passed for the prior installed tuning with

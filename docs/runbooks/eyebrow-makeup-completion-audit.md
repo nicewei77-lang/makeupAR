@@ -38,7 +38,7 @@ Fresh local checks recorded on 2026-06-27:
 | `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 26 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
-| Unity `6000.3.18f1` batchmode import/compile | Latest follow-up attempts failed before compile from Licensing Client IPC timeout; prior successful compile remains `evidence/logs/eyebrow-prebuild-refresh-unity-batchmode-20260627.log` |
+| Unity `6000.3.18f1` batchmode import/compile | Latest PNG hair loop compile passed: `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log` |
 | `scripts/build_m3_unityframework.sh` | Passed for latest tuning, `TIMESTAMP=eyebrow-rebuild-20260627-ufw-r1` |
 | RN/Xcode real-device Debug build | First attempt failed from stale ignored CocoaPods VFS paths; passed on retry after `pod install --no-repo-update`, `evidence/logs/eyebrow-rn-xcodebuild-device-rebuild-20260627-r2.log` |
 | `devicectl` install | Passed for `com.celeste.makeupar.validation` on retry, `evidence/logs/eyebrow-rn-devicectl-install-rebuild-20260627-r2.log` |
