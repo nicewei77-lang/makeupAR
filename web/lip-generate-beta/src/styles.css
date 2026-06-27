@@ -432,6 +432,33 @@ figure img,
   place-items: center;
 }
 
+.boundary-mask-preview,
+.live-adjusted-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 14;
+  overflow: hidden;
+  background: #000;
+}
+
+.boundary-mask-preview svg,
+.live-adjusted-preview svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.boundary-mask-preview svg {
+  padding: 0;
+}
+
+.live-adjusted-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .compare-section,
 .save-section,
 .payload-section {

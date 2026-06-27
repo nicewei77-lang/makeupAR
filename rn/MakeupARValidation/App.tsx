@@ -1886,36 +1886,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     wizardStepIndex >= getWizardStepIndex('extract');
   const showCompactControls = false;
 
-  useEffect(() => {
-    if (
-      wizardStep !== 'adjust' ||
-      !generatedCandidatesStale ||
-      generatedCandidates.length === 0 ||
-      !canGenerateCandidates ||
-      isGeneratingCandidates ||
-      isSavingGeneratedPackage
-    ) {
-      return;
-    }
-
-    const timeoutId = setTimeout(() => {
-      void generateWizardCandidates({
-        stayOnStep: true,
-        reason: 'auto-adjustment',
-      });
-    }, 450);
-
-    return () => clearTimeout(timeoutId);
-  }, [
-    canGenerateCandidates,
-    generateWizardCandidates,
-    generatedCandidates.length,
-    generatedCandidatesStale,
-    isGeneratingCandidates,
-    isSavingGeneratedPackage,
-    wizardStep,
-  ]);
-
   const toggleRegion = useCallback(
     (region: RecipeRegion) => {
       const nextActiveRegions = {
@@ -2034,11 +2004,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         [field]: roundedValue,
       };
       const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+      const providerResult = nativeProviderResults[lipGenerateProvider];
 
       setLipUserAdjustment(nextAdjustment);
-      setGeneratedCandidatesStale(true);
       setSavedGeneratedPackage(null);
-      setWizardNotice('조정값이 바뀌었습니다. 저장 전에 다시 생성해야 합니다.');
+      if (providerResult?.boundary && providerResult.arFaceExport) {
+        const rebuiltCandidates = LIP_GENERATE_EXPRESSION_OPTIONS.map(
+          expressionOption =>
+            buildGeneratedLipPackage({
+              nativeResult: providerResult,
+              providerResults: [providerResult],
+              expressionMode: expressionOption.name,
+              adjustment: nextAdjustment,
+            }),
+        );
+        const selectedCandidateStillAvailable = rebuiltCandidates.some(
+          candidate =>
+            candidate.candidateKey === selectedGeneratedCandidateKey &&
+            candidate.package,
+        );
+
+        setGeneratedCandidates(rebuiltCandidates);
+        setSelectedGeneratedCandidateKey(
+          selectedCandidateStillAvailable
+            ? selectedGeneratedCandidateKey
+            : rebuiltCandidates.find(candidate => candidate.package)
+                ?.candidateKey ?? `${lipGenerateProvider}/uvOnly`,
+        );
+        setGeneratedCandidatesStale(false);
+        setWizardNotice('조정값이 현재 사진과 저장 후보에 바로 반영되었습니다.');
+      } else {
+        setGeneratedCandidatesStale(generatedCandidates.length > 0);
+        setWizardNotice('추출 결과가 없어 조정 preview를 다시 만들 수 없습니다.');
+      }
       setFocusedRegion('lip');
       setActiveRegions(nextActiveRegions);
       postRecipeBatch(
@@ -2052,9 +2050,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
     },
     [
+      generatedCandidates.length,
       lipUserAdjustment,
+      lipGenerateProvider,
+      nativeProviderResults,
       postRecipeBatch,
       regionRecipes,
+      selectedGeneratedCandidateKey,
       selectedLipSample,
       selectedLipRuntimeCandidate,
       selectedRendererMode,
@@ -3073,8 +3075,8 @@ function E7GenerateWizard({
             />
             <Text style={styles.generateWizardBodyText}>
               {generatedCandidatesStale
-                ? '조정값 변경됨: 다시 생성해야 저장 가능'
-                : `현재 후보: ${selectedCandidateKey}`}
+                ? '추출 결과가 없어 조정 preview를 만들 수 없습니다.'
+                : `즉시 반영 중: ${selectedCandidateKey}`}
             </Text>
             <Text style={styles.generateWizardBodyText}>
               look {selectedLipSample.name} / finish {selectedLipSample.finish}
@@ -3086,7 +3088,7 @@ function E7GenerateWizard({
                 style={styles.generateWizardSecondaryButton}
                 onPress={onGenerateCandidates}
               >
-                <Text style={styles.generateWizardSecondaryText}>다시 생성</Text>
+                <Text style={styles.generateWizardSecondaryText}>경계 다시 추출</Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"

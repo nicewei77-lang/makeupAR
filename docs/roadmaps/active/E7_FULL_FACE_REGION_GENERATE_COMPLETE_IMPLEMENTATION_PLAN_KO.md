@@ -2157,6 +2157,54 @@ RN npm run lint
 git diff --check
 ```
 
+### 13.7 2026-06-27 Immediate adjustment sync correction
+
+사용자 리뷰에서 조정 UX 기준을 다시 고정했다.
+
+```txt
+슬라이더 조정 후 "다시 생성"을 기다리는 UX는 목표와 맞지 않는다.
+조정 화면의 사진 preview는 딜레이 없이 바로 바뀌어야 한다.
+무거운 Vision/MediaPipe 추출은 다시 돌리지 않는다.
+이미 추출된 lip boundary를 같은 조정식으로 변형하고, 그 결과를 preview/package에 반영한다.
+```
+
+반영한 것:
+
+```txt
+web functional beta:
+  현재 slider state로 lip boundary를 즉시 변형
+  원본 사진 위 SVG mask-on-face preview를 즉시 갱신
+  stale 상태에서도 저장 버튼을 막지 않음
+  저장을 누르면 최신 조정값으로 local server package를 다시 생성한 뒤 저장
+
+RN app:
+  adjustment 변경 시 native provider 재호출/timeout debounce 제거
+  이미 추출한 native boundary + ARFace export에서 후보 package를 즉시 재계산
+  UV raw RGBA 생성 전에 lip boundary adjustment를 적용
+  stale state를 해제하고 현재 package를 저장 가능 상태로 유지
+```
+
+검증:
+
+```txt
+web npm run typecheck
+web npm run lint
+web npm run build
+browser check:
+  Generate 후 cornerReach slider 0 -> 0.35 변경
+  live preview SVG path 즉시 변경 확인
+  stale save 클릭 후 saved record에 cornerReach 0.35 저장 확인
+local server smoke:
+  Vision adjusted delta 6763
+  MediaPipe adjusted delta 8275
+RN npm test -- --runInBand --watchman=false
+RN ./node_modules/.bin/tsc --noEmit
+RN npm run lint
+shared-core npm run typecheck
+shared-core npm run test
+git diff --check
+```
+
 ## 14. User-Required Gates
 
 반드시 사용자 도움을 요청해야 하는 경우:

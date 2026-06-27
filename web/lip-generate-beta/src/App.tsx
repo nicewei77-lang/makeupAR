@@ -3,11 +3,16 @@ import {
   buildUnityMessageFromPackage,
   ExpressionAssistMode,
   LipAdjustment,
+  LipBoundary2D,
   LipGenerateState,
   LipMaskProvider,
   INITIAL_LIP_GENERATE_STATE,
   lipGenerateReducer,
 } from '../../../packages/lip-generate-core/src';
+import {
+  adjustLipBoundaryFromPrevious,
+  buildLipBoundarySvgPath,
+} from '../../../packages/lip-generate-core/src/lipBoundaryAdjustment';
 import {
   LipGenerateFixture,
   LipGenerateFixtureInventory,
@@ -205,14 +210,24 @@ function App() {
   }
 
   async function saveCurrentResult() {
-    if (!lastResult || !isLastResultCurrent) {
-      setSaveMessage('현재 조정값으로 다시 생성한 뒤 저장할 수 있습니다.');
+    if (!lastResult) {
+      setSaveMessage('먼저 입술 마스크를 생성해야 저장할 수 있습니다.');
       return;
     }
     setIsBusy(true);
-    setSaveMessage('선택 패키지 저장 중');
+    setSaveMessage(
+      isLastResultCurrent
+        ? '선택 패키지 저장 중'
+        : '최신 조정값 package 갱신 후 저장 중',
+    );
     try {
-      const record = await saveGeneratedPackage(lastResult);
+      let resultToSave = lastResult;
+      if (!isLastResultCurrent) {
+        resultToSave = await generateLipMask(currentRequest);
+        dispatch({ type: 'completeGenerate', result: resultToSave });
+        setCompareResults([]);
+      }
+      const record = await saveGeneratedPackage(resultToSave);
       setSavedRecords(previous => [
         record,
         ...previous.filter(
@@ -235,6 +250,17 @@ function App() {
   const lastPackage = lastResult?.package;
   const isLastResultCurrent = isGeneratedForCurrentControls(lastResult, state);
   const warnings = lastResult?.warnings ?? state.warnings;
+  const livePreviewBoundary = useMemo(() => {
+    if (!lastPackage?.lipBoundary2D) {
+      return undefined;
+    }
+    return adjustLipBoundaryFromPrevious(
+      lastPackage.lipBoundary2D,
+      lastPackage.adjustment,
+      state.adjustment,
+      frameSizeFromPackage(lastPackage),
+    );
+  }, [lastPackage, state.adjustment]);
   const payloadPreview = {
     request: currentRequest,
     lastPackage: compactPayloadForDisplay(lastPackage ?? null),
@@ -391,18 +417,21 @@ function App() {
           />
           {lastResult && !isLastResultCurrent ? (
             <section className="stale-callout">
-              <strong>조정값이 아직 이미지에 반영되지 않았습니다.</strong>
+              <strong>사진 preview는 즉시 반영 중입니다.</strong>
               <span>
-                슬라이더 변경 후에는 `입술 마스크 생성` 또는 `4가지 후보 비교`를
-                다시 눌러야 mask / UV / round-trip이 갱신됩니다.
+                저장을 누르면 현재 조정값으로 package를 갱신한 뒤 local-only로
+                저장합니다.
               </span>
             </section>
           ) : null}
-          <PreviewGrid fixture={selectedFixture} result={lastResult} />
+          <PreviewGrid
+            fixture={selectedFixture}
+            result={lastResult}
+            livePreviewBoundary={livePreviewBoundary}
+          />
           <CompareGrid results={compareResults} />
           <SavePanel
             result={lastResult}
-            isCurrent={isLastResultCurrent}
             isBusy={isBusy}
             message={saveMessage}
             records={savedRecords}
@@ -428,7 +457,7 @@ function ResultSummary({
   const title = isBusy
     ? '생성 중'
     : isStale
-      ? '조정값 미적용'
+      ? '프리뷰 즉시 반영'
       : result
         ? buildStatusTitle(result)
         : '생성 대기';
@@ -436,7 +465,7 @@ function ResultSummary({
     ? [
         `${PROVIDER_LABELS[result.provider]}`,
         `${EXPRESSION_LABELS[result.expressionMode]}`,
-        isStale ? '다시 생성 필요' : '현재 조정값 반영됨',
+        isStale ? '저장 시 package 갱신' : '현재 조정값 반영됨',
         result.runtimeApplyReady ? 'Unity 적용 완료' : 'iPhone 적용 검증 전',
       ]
     : ['로컬 fixture 준비', 'no upload', 'raw frame 장기 저장 없음'];
@@ -461,20 +490,18 @@ function ResultSummary({
 
 function SavePanel({
   result,
-  isCurrent,
   isBusy,
   message,
   records,
   onSave,
 }: {
   result?: ServerGenerateResult;
-  isCurrent: boolean;
   isBusy: boolean;
   message: string;
   records: SavedLipPackageRecord[];
   onSave: () => void;
 }) {
-  const canSave = Boolean(result?.package && result.runDirectory && isCurrent);
+  const canSave = Boolean(result?.package && result.runDirectory);
 
   return (
     <section className="save-section">
@@ -495,8 +522,8 @@ function SavePanel({
       <p className="save-message">{message}</p>
       {!canSave ? (
         <p className="save-hint">
-          Provider, 표정 보정, 조정값을 바꾼 뒤에는 다시 Generate 해야 저장할 수
-          있습니다.
+          Provider나 표정 보정을 바꾼 뒤에는 다시 Generate 해야 합니다. 조정값만
+          바뀐 경우 저장 시 최신 package로 갱신됩니다.
         </p>
       ) : null}
       <div className="saved-list">
@@ -617,6 +644,22 @@ function isGeneratedForCurrentControls(
   );
 }
 
+function frameSizeFromPackage(packageData?: ServerGenerateResult['package']):
+  | { width: number; height: number }
+  | undefined {
+  const width = packageData?.sourceFrameMetadata?.frameWidth;
+  const height = packageData?.sourceFrameMetadata?.frameHeight;
+  if (
+    typeof width === 'number' &&
+    typeof height === 'number' &&
+    width > 0 &&
+    height > 0
+  ) {
+    return { width, height };
+  }
+  return undefined;
+}
+
 function formatAdjustment(adjustment: LipAdjustment): string {
   return ADJUSTMENT_FIELDS.map(key => `${ADJUSTMENT_LABELS[key]} ${adjustment[key].toFixed(2)}`).join(
     ' / ',
@@ -694,25 +737,47 @@ function AdjustmentPanel({
 function PreviewGrid({
   fixture,
   result,
+  livePreviewBoundary,
 }: {
   fixture?: LipGenerateFixture;
   result?: ServerGenerateResult;
+  livePreviewBoundary?: LipBoundary2D;
 }) {
+  const frameSrc = artifactUrl(fixture?.framePath);
+  const frameSize = frameSizeFromPackage(result?.package);
+
   return (
     <section className="preview-grid">
-      <PreviewFigure title="원본 얼굴" src={artifactUrl(fixture?.framePath)} />
-      <PreviewFigure
-        title="입술 경계 마스크"
-        src={artifactUrl(result?.maskOutputs?.mask)}
-      />
+      <PreviewFigure title="원본 얼굴" src={frameSrc} />
+      {livePreviewBoundary && frameSize ? (
+        <BoundaryMaskFigure
+          title="입술 경계 마스크"
+          boundary={livePreviewBoundary}
+          frameSize={frameSize}
+        />
+      ) : (
+        <PreviewFigure
+          title="입술 경계 마스크"
+          src={artifactUrl(result?.maskOutputs?.mask)}
+        />
+      )}
       <PreviewFigure
         title="ARFace용 UV 마스크"
         src={artifactUrl(result?.package?.uvMaskTexture)}
       />
-      <PreviewFigure
-        title="되돌려보기"
-        src={artifactUrl(result?.package?.roundTripPreview)}
-      />
+      {livePreviewBoundary && frameSrc && frameSize ? (
+        <LiveAdjustedPreviewFigure
+          title="되돌려보기"
+          frameSrc={frameSrc}
+          boundary={livePreviewBoundary}
+          frameSize={frameSize}
+        />
+      ) : (
+        <PreviewFigure
+          title="되돌려보기"
+          src={artifactUrl(result?.package?.roundTripPreview)}
+        />
+      )}
     </section>
   );
 }
@@ -722,6 +787,69 @@ function PreviewFigure({ title, src }: { title: string; src: string }) {
     <figure>
       <figcaption>{title}</figcaption>
       {src ? <img src={src} alt={title} /> : <div className="image-empty" />}
+    </figure>
+  );
+}
+
+function BoundaryMaskFigure({
+  title,
+  boundary,
+  frameSize,
+}: {
+  title: string;
+  boundary: LipBoundary2D;
+  frameSize: { width: number; height: number };
+}) {
+  const path = buildLipBoundarySvgPath(boundary);
+
+  return (
+    <figure>
+      <figcaption>{title}</figcaption>
+      <div className="boundary-mask-preview">
+        <svg
+          viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
+          preserveAspectRatio="none"
+          aria-label={title}
+        >
+          <path d={path} fill="#fff" fillRule="evenodd" />
+        </svg>
+      </div>
+    </figure>
+  );
+}
+
+function LiveAdjustedPreviewFigure({
+  title,
+  frameSrc,
+  boundary,
+  frameSize,
+}: {
+  title: string;
+  frameSrc: string;
+  boundary: LipBoundary2D;
+  frameSize: { width: number; height: number };
+}) {
+  const path = buildLipBoundarySvgPath(boundary);
+
+  return (
+    <figure>
+      <figcaption>{title}</figcaption>
+      <div className="live-adjusted-preview">
+        <img src={frameSrc} alt={title} />
+        <svg
+          viewBox={`0 0 ${frameSize.width} ${frameSize.height}`}
+          preserveAspectRatio="none"
+          aria-label="실시간 조정 마스크"
+        >
+          <path
+            d={path}
+            fill="rgba(217, 75, 116, 0.68)"
+            fillRule="evenodd"
+            stroke="rgba(255, 255, 255, 0.82)"
+            strokeWidth="2"
+          />
+        </svg>
+      </div>
     </figure>
   );
 }

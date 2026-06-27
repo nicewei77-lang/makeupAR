@@ -133,6 +133,113 @@ function isInLipMask(point: E7Point2D, outer: E7Point2D[], inner: E7Point2D[]) {
   return inner.length < 3 || !pointInPolygon(point, inner);
 }
 
+function adjustNativeLipBoundary(
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>,
+  adjustment: LipAdjustment,
+  frameSize: { width: number; height: number },
+): NonNullable<E7NativeBoundaryResult['boundary']> {
+  const referenceBounds = bounds(boundary.outerPoints);
+  if (!referenceBounds) {
+    return { ...boundary, outerPoints: [], innerPoints: [] };
+  }
+
+  return {
+    ...boundary,
+    outerPoints: applyLipAdjustmentToPoints(
+      boundary.outerPoints,
+      adjustment,
+      referenceBounds,
+      frameSize,
+    ),
+    innerPoints: applyLipAdjustmentToPoints(
+      boundary.innerPoints,
+      adjustment,
+      referenceBounds,
+      frameSize,
+      { inner: true },
+    ),
+  };
+}
+
+function applyLipAdjustmentToPoints(
+  points: E7Point2D[],
+  adjustment: LipAdjustment,
+  referenceBounds: [number, number, number, number],
+  frameSize: { width: number; height: number },
+  options: { inner?: boolean } = {},
+): E7Point2D[] {
+  const [minX, minY, maxX, maxY] = referenceBounds;
+  const width = Math.max(maxX - minX, 1);
+  const height = Math.max(maxY - minY, 1);
+  const centerX = minX + width * 0.5;
+  const centerY = minY + height * 0.5;
+  const cornerScale = options.inner ? 0.45 : 1;
+  const tightnessScale = options.inner ? 0.35 : 1;
+
+  return points.map(point => {
+    const dx = point.x - centerX;
+    const dy = point.y - centerY;
+    const cornerWeight = Math.min(1, Math.abs(dx) / (width * 0.5));
+    const verticalWeight = Math.min(1, Math.abs(dy) / (height * 0.5));
+
+    let x =
+      centerX +
+      dx *
+        (1 +
+          adjustment.cornerReach *
+            0.22 *
+            cornerWeight *
+            cornerScale);
+    let y = point.y + adjustment.verticalOffset * height * 0.38;
+
+    if (dy < 0) {
+      y +=
+        adjustment.upperLipTightness *
+        height *
+        0.24 *
+        verticalWeight *
+        tightnessScale;
+    } else if (dy > 0) {
+      y -=
+        adjustment.lowerLipTightness *
+        height *
+        0.24 *
+        verticalWeight *
+        tightnessScale;
+    }
+
+    return {
+      x: clamp(x, 0, Math.max(0, frameSize.width - 1)),
+      y: clamp(y, 0, Math.max(0, frameSize.height - 1)),
+    };
+  });
+}
+
+function bounds(points: E7Point2D[]): [number, number, number, number] | null {
+  if (!points.length) {
+    return null;
+  }
+
+  return points.reduce(
+    ([minX, minY, maxX, maxY], point) => [
+      Math.min(minX, point.x),
+      Math.min(minY, point.y),
+      Math.max(maxX, point.x),
+      Math.max(maxY, point.y),
+    ],
+    [
+      Number.POSITIVE_INFINITY,
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    ] as [number, number, number, number],
+  );
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value));
+}
+
 function barycentric(
   px: number,
   py: number,
@@ -324,8 +431,16 @@ export function buildGeneratedLipPackage(input: {
     };
   }
 
+  const adjustedBoundary = adjustNativeLipBoundary(
+    nativeResult.boundary,
+    adjustment,
+    {
+      width: nativeResult.frameWidth,
+      height: nativeResult.frameHeight,
+    },
+  );
   const uv = buildUvMaskRawRgba({
-    boundary: nativeResult.boundary,
+    boundary: adjustedBoundary,
     arFaceExport: nativeResult.arFaceExport,
   });
   const generatedMaskId = [
@@ -401,7 +516,7 @@ export function buildGeneratedLipPackage(input: {
         : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable',
       values: nativeResult.blendShapes?.keySignals,
     },
-    lipBoundary2D: nativeResult.boundary,
+    lipBoundary2D: adjustedBoundary,
     uvMaskTexture: `${generatedMaskId}.raw-rgba-${uv.width}x${uv.height}`,
     uvCoverageMetadata: {
       uvResolution: uv.width,
