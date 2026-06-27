@@ -13,6 +13,8 @@ Shader "MakeupAR/SmoothRegionMask"
         _Coverage ("Coverage", Range(0, 1)) = 0.62
         _MaskOffset ("Mask UV Offset", Vector) = (0, 0, 0, 0)
         _MaskSpreadX ("Mask Spread X", Float) = 0
+        _BrowAngle ("Brow Angle", Float) = 0
+        _BrowArch ("Brow Arch", Float) = 0
         _Roughness ("Roughness", Range(0, 1)) = 0.88
         _Specular ("Specular", Range(0, 1)) = 0.04
         _SpecularPower ("Specular Power", Range(1, 64)) = 8
@@ -68,6 +70,8 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Coverage;
             float4 _MaskOffset;
             float _MaskSpreadX;
+            float _BrowAngle;
+            float _BrowArch;
             float _Roughness;
             float _Specular;
             float _SpecularPower;
@@ -178,6 +182,29 @@ Shader "MakeupAR/SmoothRegionMask"
                 return saturate(maskAlpha * max(horizontal * mouthProximity, lowerCenter * 0.68));
             }
 
+            float2 ApplyBrowWarp(float2 uv)
+            {
+                float angle = clamp(_BrowAngle, -0.16, 0.16);
+                float arch = clamp(_BrowArch, -0.05, 0.05);
+                if (abs(angle) + abs(arch) < 0.0001)
+                {
+                    return uv;
+                }
+
+                float rightSide = step(0.5, uv.x);
+                float leftTail = saturate((0.43 - uv.x) / 0.34);
+                float rightTail = saturate((uv.x - 0.57) / 0.34);
+                float innerToTail = lerp(leftTail, rightTail, rightSide);
+                float archCurve =
+                    smoothstep(0.10, 0.48, innerToTail) *
+                    (1.0 - smoothstep(0.58, 0.98, innerToTail));
+                float angleCurve = innerToTail - 0.42;
+                float yShift = angle * angleCurve * 0.42 + arch * archCurve;
+
+                uv.y = saturate(uv.y - yShift);
+                return uv;
+            }
+
             fixed4 frag(v2f input) : SV_Target
             {
                 float2 maskUv = input.uv;
@@ -188,6 +215,7 @@ Shader "MakeupAR/SmoothRegionMask"
                 }
                 maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));
                 maskUv.y = saturate(maskUv.y - _MaskOffset.y);
+                maskUv = ApplyBrowWarp(maskUv);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);
@@ -346,6 +374,8 @@ Shader "MakeupAR/SmoothRegionMask"
             float _Coverage;
             float4 _MaskOffset;
             float _MaskSpreadX;
+            float _BrowAngle;
+            float _BrowArch;
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
@@ -432,6 +462,29 @@ Shader "MakeupAR/SmoothRegionMask"
                 return center + nearAxis + nearDiagonal + farAxis;
             }
 
+            float2 ApplyBrowWarp(float2 uv)
+            {
+                float angle = clamp(_BrowAngle, -0.16, 0.16);
+                float arch = clamp(_BrowArch, -0.05, 0.05);
+                if (abs(angle) + abs(arch) < 0.0001)
+                {
+                    return uv;
+                }
+
+                float rightSide = step(0.5, uv.x);
+                float leftTail = saturate((0.43 - uv.x) / 0.34);
+                float rightTail = saturate((uv.x - 0.57) / 0.34);
+                float innerToTail = lerp(leftTail, rightTail, rightSide);
+                float archCurve =
+                    smoothstep(0.10, 0.48, innerToTail) *
+                    (1.0 - smoothstep(0.58, 0.98, innerToTail));
+                float angleCurve = innerToTail - 0.42;
+                float yShift = angle * angleCurve * 0.42 + arch * archCurve;
+
+                uv.y = saturate(uv.y - yShift);
+                return uv;
+            }
+
             float SoftMaskAlpha(float value, float threshold, float feather)
             {
                 float soft = max(feather, 0.00001);
@@ -464,6 +517,7 @@ Shader "MakeupAR/SmoothRegionMask"
                 }
                 maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));
                 maskUv.y = saturate(maskUv.y - _MaskOffset.y);
+                maskUv = ApplyBrowWarp(maskUv);
 
                 float4 mask = tex2D(_MaskTex, maskUv);
                 float4 softMask = SampleMaskSoft(maskUv);

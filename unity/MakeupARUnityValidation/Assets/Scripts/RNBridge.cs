@@ -39,6 +39,9 @@ public sealed class RNBridge : MonoBehaviour
         public float coverage;
         public float maskSpreadX;
         public float maskOffsetY;
+        public float browGap;
+        public float browAngle;
+        public float browArch;
         public string finish;
         public float textureAmount;
         public float roughness;
@@ -87,6 +90,9 @@ public sealed class RNBridge : MonoBehaviour
         public float coverage;
         public float maskSpreadX;
         public float maskOffsetY;
+        public float browGap;
+        public float browAngle;
+        public float browArch;
         public string finish;
         public float textureAmount;
         public float roughness;
@@ -175,6 +181,9 @@ public sealed class RNBridge : MonoBehaviour
         public float Coverage;
         public float MaskSpreadX;
         public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
         public string Finish;
         public float TextureAmount;
         public float Roughness;
@@ -221,6 +230,9 @@ public sealed class RNBridge : MonoBehaviour
         public float Coverage;
         public float MaskSpreadX;
         public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
         public float Roughness;
@@ -1010,6 +1022,9 @@ public sealed class RNBridge : MonoBehaviour
             layer.Coverage,
             layer.MaskSpreadX,
             layer.MaskOffsetY,
+            layer.BrowGap,
+            layer.BrowAngle,
+            layer.BrowArch,
             layer.Finish,
             layer.Roughness,
             layer.Specular,
@@ -1050,6 +1065,9 @@ public sealed class RNBridge : MonoBehaviour
             Coverage = layer.Coverage,
             MaskSpreadX = result.MaskSpreadX,
             MaskOffsetY = result.MaskOffsetY,
+            BrowGap = result.BrowGap,
+            BrowAngle = result.BrowAngle,
+            BrowArch = result.BrowArch,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
             Roughness = layer.Roughness,
@@ -1411,6 +1429,9 @@ public sealed class RNBridge : MonoBehaviour
             + " secondaryColor=" + (state != null ? state.SecondaryColorHex : "none")
             + " opacity=" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + " coverage=" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " browGap=" + (state != null ? state.BrowGap : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " browAngle=" + (state != null ? state.BrowAngle : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArch=" + (state != null ? state.BrowArch : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " finish=" + (state != null ? state.Finish : "none")
             + " roughness=" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + " specular=" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
@@ -1491,6 +1512,9 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"secondaryColor\":\"" + EscapeJsonString(state != null ? state.SecondaryColorHex : "none") + "\""
             + ",\"opacity\":" + opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"coverage\":" + (state != null ? state.Coverage : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browGap\":" + (state != null ? state.BrowGap : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browAngle\":" + (state != null ? state.BrowAngle : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArch\":" + (state != null ? state.BrowArch : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"finish\":\"" + EscapeJsonString(state != null ? state.Finish : "none") + "\""
             + ",\"roughness\":" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"specular\":" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
@@ -1619,6 +1643,9 @@ public sealed class RNBridge : MonoBehaviour
             + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
             + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browGap=" + result.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browAngle=" + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArch=" + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
             + " finish=" + layer.Finish
             + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + " roughness=" + layer.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1863,6 +1890,12 @@ public sealed class RNBridge : MonoBehaviour
             + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"maskOffsetY\":"
             + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browGap\":"
+            + result.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browAngle\":"
+            + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArch\":"
+            + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"finish\":\""
             + EscapeJsonString(layer.Finish)
             + "\",\"textureAmount\":"
@@ -1966,6 +1999,9 @@ public sealed class RNBridge : MonoBehaviour
             colorHex);
         float opacity = Mathf.Clamp01(layer.opacity);
         string textureSample = NormalizeTextureSample(region, layer.texture, layer.sample);
+        float maskSpread = NormalizeMaskSpread(layer.maskSpreadX);
+        float rawBrowGap = Mathf.Abs(layer.browGap) > 0.0001f ? layer.browGap : recipe.browGap;
+        float browGap = NormalizeBrowGap(rawBrowGap, maskSpread, region);
 
         if (!ColorUtility.TryParseHtmlString(colorHex, out Color parsedColor))
         {
@@ -2006,8 +2042,15 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode, region),
             Enabled = layer.enabled,
             Coverage = Mathf.Max(0.0f, layer.coverage),
-            MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX),
+            MaskSpreadX = region == "brow" ? browGap : maskSpread,
             MaskOffsetY = NormalizeMaskOffset(layer.maskOffsetY),
+            BrowGap = browGap,
+            BrowAngle = NormalizeBrowAngle(
+                Mathf.Abs(layer.browAngle) > 0.0001f ? layer.browAngle : recipe.browAngle,
+                region),
+            BrowArch = NormalizeBrowArch(
+                Mathf.Abs(layer.browArch) > 0.0001f ? layer.browArch : recipe.browArch,
+                region),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
             TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
             Roughness = Mathf.Max(0.0f, layer.roughness),
@@ -2237,6 +2280,27 @@ public sealed class RNBridge : MonoBehaviour
     private static float NormalizeMaskSpread(float maskSpread)
     {
         return Mathf.Clamp(maskSpread, -0.34f, 0.34f);
+    }
+
+    private static float NormalizeBrowGap(float browGap, float fallbackMaskSpread, string region)
+    {
+        if (region != "brow")
+        {
+            return 0.0f;
+        }
+
+        float source = Mathf.Abs(browGap) > 0.0001f ? browGap : fallbackMaskSpread;
+        return NormalizeMaskSpread(source);
+    }
+
+    private static float NormalizeBrowAngle(float browAngle, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(browAngle, -0.16f, 0.16f) : 0.0f;
+    }
+
+    private static float NormalizeBrowArch(float browArch, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(browArch, -0.05f, 0.05f) : 0.0f;
     }
 
     private static string NormalizeBlendMode(string blendMode, string textureSample)

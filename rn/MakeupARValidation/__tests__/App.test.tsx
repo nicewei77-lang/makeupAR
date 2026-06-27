@@ -37,8 +37,21 @@ jest.mock('react-native', () => {
   const ReactRuntime = require('react');
 
   const createComponent = (name: string) =>
-    ReactRuntime.forwardRef(({ children, style, ...props }: any, ref: any) =>
-      ReactRuntime.createElement(name, { ...props, ref, style }, children),
+    ReactRuntime.forwardRef(
+      (
+        { children, style, onAccessibilityAction, ...props }: any,
+        ref: any,
+      ) =>
+        ReactRuntime.createElement(
+          name,
+          {
+            ...props,
+            accessibilityActionHandler: onAccessibilityAction,
+            ref,
+            style,
+          },
+          children,
+        ),
     );
 
   const View = createComponent('View');
@@ -197,6 +210,31 @@ function pressByTestID(
 
   ReactTestRenderer.act(() => {
     button.props.onPress();
+  });
+}
+
+function incrementSliderByTestID(
+  renderer: ReactTestRenderer.ReactTestRenderer,
+  testID: string,
+  count = 1,
+) {
+  const slider = renderer.root.findByProps({ testID });
+
+  expect(slider).toBeTruthy();
+
+  ReactTestRenderer.act(() => {
+    let sliderValue = slider.props.value;
+
+    Array.from({ length: count }).forEach(() => {
+      sliderValue = Number(
+        Math.min(
+          1,
+          (Math.round(sliderValue / 0.05) + 1) * 0.05,
+        ).toFixed(2),
+      );
+
+      slider.props.onChange(sliderValue);
+    });
   });
 }
 
@@ -568,6 +606,9 @@ test('posts eyebrow as a fourth independent region layer', () => {
   );
   expect(DEFAULT_REGION_TUNING.brow.detailAmount).toBe(0.68);
   expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.28);
+  expect((DEFAULT_REGION_TUNING.brow as any).browGap).toBe(0.28);
+  expect((DEFAULT_REGION_TUNING.brow as any).browAngle).toBe(0);
+  expect((DEFAULT_REGION_TUNING.brow as any).browArch).toBe(0);
 
   const payload = buildValidationRecipeBatchPayload(
     {
@@ -594,6 +635,9 @@ test('posts eyebrow as a fourth independent region layer', () => {
         coverage: browSample!.coverage,
         maskSpreadX: DEFAULT_REGION_TUNING.brow.maskSpreadX,
         maskOffsetY: 0,
+        browGap: (DEFAULT_REGION_TUNING.brow as any).browGap,
+        browAngle: 0,
+        browArch: 0,
         roughness: browSample!.roughness,
         specular: browSample!.specular,
         glossBoost: 0,
@@ -623,12 +667,15 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.coverage).toBe(0.62);
   expect(browLayer.maskSpreadX).toBe(0.28);
   expect(browLayer.maskOffsetY).toBe(0);
+  expect((browLayer as any).browGap).toBe(0.28);
+  expect((browLayer as any).browAngle).toBe(0);
+  expect((browLayer as any).browArch).toBe(0);
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
 
-test('passes eyebrow symmetric spread and vertical offset parameters to payload', () => {
+test('passes eyebrow gap, angle, arch, and vertical offset parameters to payload', () => {
   const payload = buildValidationRecipeBatchPayload(
     DEFAULT_REGION_RECIPES,
     {
@@ -644,6 +691,9 @@ test('passes eyebrow symmetric spread and vertical offset parameters to payload'
         ...DEFAULT_REGION_TUNING.brow,
         maskSpreadX: 0.12,
         maskOffsetY: 0.024,
+        browGap: 0.12,
+        browAngle: -0.12,
+        browArch: 0.027,
       },
     },
     DEFAULT_DEBUG_DISPLAY_OPTIONS,
@@ -653,8 +703,14 @@ test('passes eyebrow symmetric spread and vertical offset parameters to payload'
 
   expect(payload.maskSpreadX).toBe(0.12);
   expect(payload.maskOffsetY).toBe(0.024);
+  expect((payload as any).browGap).toBe(0.12);
+  expect((payload as any).browAngle).toBe(-0.12);
+  expect((payload as any).browArch).toBe(0.027);
   expect(browLayer.maskSpreadX).toBe(0.12);
   expect(browLayer.maskOffsetY).toBe(0.024);
+  expect((browLayer as any).browGap).toBe(0.12);
+  expect((browLayer as any).browAngle).toBe(-0.12);
+  expect((browLayer as any).browArch).toBe(0.027);
 });
 
 test('applies eyebrow color warmth and depth parameters to payload color', () => {
@@ -1110,6 +1166,9 @@ test('surfaces eyebrow placement diagnostics from Unity recipe events', async ()
     coverage: 0.62,
     maskSpreadX: 0.12,
     maskOffsetY: 0.024,
+    browGap: 0.12,
+    browAngle: -0.12,
+    browArch: 0.027,
     applied: true,
     faceCount: 1,
     meshTriangles: 512,
@@ -1126,8 +1185,10 @@ test('surfaces eyebrow placement diagnostics from Unity recipe events', async ()
   expect(text).toContain('Renderer brow-smooth-region-mask-renderer');
   expect(text).toContain('recipe_applied region=brow');
   expect(text).toContain('maskTex=brow-back-arch-soft-mix-v1');
-  expect(text).toContain('spread=0.120');
+  expect(text).toContain('gap=0.120');
   expect(text).toContain('y=0.024');
+  expect(text).toContain('angle=-0.120');
+  expect(text).toContain('arch=0.027');
 });
 
 test('posts smooth mask renderer by default before build', async () => {
@@ -1371,9 +1432,10 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('Placement');
   expect(text).toContain('Temperature');
   expect(text).toContain('Depth');
-  expect(text).not.toContain('Ash/Warm');
-  expect(text).not.toContain('Light/Dark');
-  expect(text).toContain('Brow Spread');
+  expect(text).toContain('Gap');
+  expect(text).toContain('Angle');
+  expect(text).toContain('Arch');
+  expect(text).not.toContain('Brow Spread');
   expect(text).not.toContain('Brow X');
   expect(text).toContain('Brow Y');
   expect(text).toContain('Soft flat');
@@ -1391,7 +1453,47 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).not.toContain('LEGACY DRAWN');
 });
 
-test('keeps selected brow mask when switching natural and soft brow presets', async () => {
+test('shows region-specific tuning controls for lip and brow', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'lip');
+  const lipText = collectText(renderer!);
+
+  expect(lipText).toContain('focus lip');
+  expect(lipText).toContain('Normal');
+  expect(lipText).toContain('Matte');
+  expect(lipText).toContain('Glossy');
+  expect(lipText).toContain('Full');
+  expect(lipText).toContain('Gradient');
+  expect(lipText).toContain('Overlip');
+  expect(lipText).not.toContain('Brow QA');
+  expect(lipText).not.toContain('natural_brow');
+  expect(lipText).not.toContain('soft_brow');
+  expect(lipText).not.toContain('Gap');
+  expect(lipText).not.toContain('Angle');
+  expect(lipText).not.toContain('Arch');
+  expect(lipText).not.toContain('Texture Detail');
+
+  pressByText(renderer!, 'brow');
+  const browText = collectText(renderer!);
+
+  expect(browText).toContain('focus brow');
+  expect(browText).toContain('natural_brow');
+  expect(browText).toContain('soft_brow');
+  expect(browText).toContain('Gap');
+  expect(browText).toContain('Angle');
+  expect(browText).toContain('Arch');
+  expect(browText).toContain('Texture Detail');
+  expect(browText).not.toContain('Normal');
+  expect(browText).not.toContain('Overlip');
+});
+
+test('keeps selected brow mask and placement warp when switching natural and soft brow presets', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -1401,6 +1503,9 @@ test('keeps selected brow mask when switching natural and soft brow presets', as
 
   pressByText(renderer!, 'brow');
   pressByTestID(renderer!, 'brow-mask-brow-png-daily-hair-v1');
+  incrementSliderByTestID(renderer!, 'brow-gap-slider');
+  incrementSliderByTestID(renderer!, 'brow-angle-slider', 5);
+  incrementSliderByTestID(renderer!, 'brow-arch-slider', 5);
 
   let dailyHairButton = renderer!.root.findByProps({
     testID: 'brow-mask-brow-png-daily-hair-v1',
@@ -1418,7 +1523,12 @@ test('keeps selected brow mask when switching natural and soft brow presets', as
 
   expect(dailyHairButton.props.accessibilityState?.selected).toBe(true);
   expect(flatSharpButton.props.accessibilityState?.selected).toBe(false);
-  expect(collectText(renderer!)).toContain('sample soft_brow');
+  const text = collectText(renderer!);
+
+  expect(text).toContain('sample soft_brow');
+  expect(text).toContain('gap 0.306');
+  expect(text).toContain('angle 0.080');
+  expect(text).toContain('arch 0.025');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {

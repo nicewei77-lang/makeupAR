@@ -81,8 +81,12 @@ const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
 const DEFAULT_BROW_MASK_SPREAD_X = 0.28;
 const DEFAULT_BROW_DETAIL_AMOUNT = 0.68;
+const DEFAULT_BROW_ANGLE = 0;
+const DEFAULT_BROW_ARCH = 0;
 const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
+const BROW_ANGLE_RANGE = 0.16;
+const BROW_ARCH_RANGE_UV = 0.05;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
   id: LipFinishType;
@@ -445,6 +449,9 @@ export type RegionTuningParameters = {
   coverage: number;
   maskSpreadX: number;
   maskOffsetY: number;
+  browGap?: number;
+  browAngle?: number;
+  browArch?: number;
   roughness: number;
   specular: number;
   specularPower: number;
@@ -692,6 +699,9 @@ function buildDefaultRegionTuningForSample(
     coverage: textureSample.coverage,
     maskSpreadX: region === 'brow' ? DEFAULT_BROW_MASK_SPREAD_X : 0,
     maskOffsetY: 0,
+    browGap: region === 'brow' ? DEFAULT_BROW_MASK_SPREAD_X : 0,
+    browAngle: region === 'brow' ? DEFAULT_BROW_ANGLE : 0,
+    browArch: region === 'brow' ? DEFAULT_BROW_ARCH : 0,
     roughness: textureSample.roughness,
     specular: textureSample.specular,
     specularPower: textureSample.specularPower,
@@ -722,38 +732,64 @@ function clampUnitInterval(value: number | undefined) {
   return Math.max(0, Math.min(1, value ?? DEFAULT_COLOR_WARMTH));
 }
 
-function maskOffsetToSliderValue(offset: number | undefined) {
-  const normalizedOffset = Math.max(
-    -BROW_MASK_OFFSET_RANGE_UV,
-    Math.min(BROW_MASK_OFFSET_RANGE_UV, offset ?? 0),
-  );
+function clampSignedRange(value: number | undefined, range: number) {
+  return Math.max(-range, Math.min(range, value ?? 0));
+}
 
-  return 0.5 + normalizedOffset / (BROW_MASK_OFFSET_RANGE_UV * 2);
+function signedValueToSliderValue(value: number | undefined, range: number) {
+  const normalizedValue = clampSignedRange(value, range);
+
+  return 0.5 + normalizedValue / (range * 2);
+}
+
+function sliderValueToSignedValue(value: number, range: number) {
+  const signedValue = (Math.max(0, Math.min(1, value)) - 0.5) * range * 2;
+
+  return Number(signedValue.toFixed(4));
+}
+
+function maskOffsetToSliderValue(offset: number | undefined) {
+  return signedValueToSliderValue(offset, BROW_MASK_OFFSET_RANGE_UV);
 }
 
 function sliderValueToMaskOffset(value: number) {
-  const offset = (Math.max(0, Math.min(1, value)) - 0.5) *
-    BROW_MASK_OFFSET_RANGE_UV *
-    2;
-
-  return Number(offset.toFixed(4));
+  return sliderValueToSignedValue(value, BROW_MASK_OFFSET_RANGE_UV);
 }
 
 function maskSpreadToSliderValue(spread: number | undefined) {
-  const normalizedSpread = Math.max(
-    -BROW_MASK_SPREAD_RANGE,
-    Math.min(BROW_MASK_SPREAD_RANGE, spread ?? 0),
-  );
-
-  return 0.5 + normalizedSpread / (BROW_MASK_SPREAD_RANGE * 2);
+  return signedValueToSliderValue(spread, BROW_MASK_SPREAD_RANGE);
 }
 
 function sliderValueToMaskSpread(value: number) {
-  const spread = (Math.max(0, Math.min(1, value)) - 0.5) *
-    BROW_MASK_SPREAD_RANGE *
-    2;
+  return sliderValueToSignedValue(value, BROW_MASK_SPREAD_RANGE);
+}
 
-  return Number(spread.toFixed(4));
+function browAngleToSliderValue(angle: number | undefined) {
+  return signedValueToSliderValue(angle, BROW_ANGLE_RANGE);
+}
+
+function sliderValueToBrowAngle(value: number) {
+  return sliderValueToSignedValue(value, BROW_ANGLE_RANGE);
+}
+
+function browArchToSliderValue(arch: number | undefined) {
+  return signedValueToSliderValue(arch, BROW_ARCH_RANGE_UV);
+}
+
+function sliderValueToBrowArch(value: number) {
+  return sliderValueToSignedValue(value, BROW_ARCH_RANGE_UV);
+}
+
+function resolveBrowGap(tuning: RegionTuningParameters) {
+  return tuning.browGap ?? tuning.maskSpreadX;
+}
+
+function resolveBrowAngle(tuning: RegionTuningParameters) {
+  return clampSignedRange(tuning.browAngle, BROW_ANGLE_RANGE);
+}
+
+function resolveBrowArch(tuning: RegionTuningParameters) {
+  return clampSignedRange(tuning.browArch, BROW_ARCH_RANGE_UV);
 }
 
 function parseHexColor(hexColor: string) {
@@ -879,6 +915,9 @@ export function buildValidationRecipeBatchPayload(
     const recipe = recipes[region];
     const sample = recipe.textureSample;
     const tuning = resolveRegionTuning(region, sample, regionTuning);
+    const browGap = region === 'brow' ? resolveBrowGap(tuning) : 0;
+    const browAngle = region === 'brow' ? resolveBrowAngle(tuning) : 0;
+    const browArch = region === 'brow' ? resolveBrowArch(tuning) : 0;
     const layerIntensity = recipe.intensity;
     const layerColor = resolveRecipeColorHex(recipe);
     const maskTextureId = tuning.maskTextureId;
@@ -915,8 +954,11 @@ export function buildValidationRecipeBatchPayload(
       blendMode: layerBlendMode,
       enabled: enabledRegions[region],
       coverage: tuning.coverage,
-      maskSpreadX: tuning.maskSpreadX,
+      maskSpreadX: region === 'brow' ? browGap : tuning.maskSpreadX,
       maskOffsetY: tuning.maskOffsetY,
+      browGap,
+      browAngle,
+      browArch,
       finish: sample.finish,
       textureAmount: layerIntensity,
       roughness: tuning.roughness,
@@ -950,6 +992,13 @@ export function buildValidationRecipeBatchPayload(
   const focusMaskTextureId = focusTuning.maskTextureId;
   const focusIntensity = recipes[focusRegion].intensity;
   const focusColor = resolveRecipeColorHex(recipes[focusRegion]);
+  const focusBrowGap = focusRegion === 'brow' ? resolveBrowGap(focusTuning) : 0;
+  const focusBrowAngle = focusRegion === 'brow'
+    ? resolveBrowAngle(focusTuning)
+    : 0;
+  const focusBrowArch = focusRegion === 'brow'
+    ? resolveBrowArch(focusTuning)
+    : 0;
 
   return {
     version: 1,
@@ -969,8 +1018,13 @@ export function buildValidationRecipeBatchPayload(
     color: focusColor,
     secondaryColor: focusSample.secondaryColor,
     coverage: focusTuning.coverage,
-    maskSpreadX: focusTuning.maskSpreadX,
+    maskSpreadX: focusRegion === 'brow'
+      ? focusBrowGap
+      : focusTuning.maskSpreadX,
     maskOffsetY: focusTuning.maskOffsetY,
+    browGap: focusBrowGap,
+    browAngle: focusBrowAngle,
+    browArch: focusBrowArch,
     finish: focusSample.finish,
     textureAmount: focusIntensity,
     roughness: focusTuning.roughness,
@@ -1907,6 +1961,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             maskTextureId: currentTuning.maskTextureId,
             maskSpreadX: currentTuning.maskSpreadX,
             maskOffsetY: currentTuning.maskOffsetY,
+            browGap: resolveBrowGap(currentTuning),
+            browAngle: resolveBrowAngle(currentTuning),
+            browArch: resolveBrowArch(currentTuning),
             detailAmount: currentTuning.detailAmount,
             preserveDetail: currentTuning.preserveDetail,
           }
@@ -2033,15 +2090,33 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     ],
   );
 
-  const updateFocusedMaskOffset = useCallback(
-    (key: 'maskSpreadX' | 'maskOffsetY', sliderValue: number) => {
+  const updateFocusedBrowPlacement = useCallback(
+    (
+      key: 'gap' | 'y' | 'angle' | 'arch',
+      sliderValue: number,
+    ) => {
+      const placementUpdate =
+        key === 'gap'
+          ? {
+              maskSpreadX: sliderValueToMaskSpread(sliderValue),
+              browGap: sliderValueToMaskSpread(sliderValue),
+            }
+          : key === 'y'
+          ? {
+              maskOffsetY: sliderValueToMaskOffset(sliderValue),
+            }
+          : key === 'angle'
+          ? {
+              browAngle: sliderValueToBrowAngle(sliderValue),
+            }
+          : {
+              browArch: sliderValueToBrowArch(sliderValue),
+            };
       const nextTuning = {
         ...regionTuning,
         [focusedRegion]: {
           ...regionTuning[focusedRegion],
-          [key]: key === 'maskSpreadX'
-            ? sliderValueToMaskSpread(sliderValue)
-            : sliderValueToMaskOffset(sliderValue),
+          ...placementUpdate,
         },
       };
 
@@ -2883,24 +2958,52 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                     />
 
                     <ValueSlider
-                      label="Brow Spread"
-                      value={maskSpreadToSliderValue(focusedTuning.maskSpreadX)}
+                      label="Gap"
+                      testID="brow-gap-slider"
+                      value={maskSpreadToSliderValue(
+                        resolveBrowGap(focusedTuning),
+                      )}
                       width={sliderWidth}
                       fillColor="#BAE6FD"
                       onLayoutWidth={setSliderWidth}
                       onChange={value =>
-                        updateFocusedMaskOffset('maskSpreadX', value)
+                        updateFocusedBrowPlacement('gap', value)
                       }
                     />
 
                     <ValueSlider
                       label="Brow Y"
+                      testID="brow-y-slider"
                       value={maskOffsetToSliderValue(focusedTuning.maskOffsetY)}
                       width={sliderWidth}
                       fillColor="#BAE6FD"
                       onLayoutWidth={setSliderWidth}
                       onChange={value =>
-                        updateFocusedMaskOffset('maskOffsetY', value)
+                        updateFocusedBrowPlacement('y', value)
+                      }
+                    />
+
+                    <ValueSlider
+                      label="Angle"
+                      testID="brow-angle-slider"
+                      value={browAngleToSliderValue(focusedTuning.browAngle)}
+                      width={sliderWidth}
+                      fillColor="#FBCFE8"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedBrowPlacement('angle', value)
+                      }
+                    />
+
+                    <ValueSlider
+                      label="Arch"
+                      testID="brow-arch-slider"
+                      value={browArchToSliderValue(focusedTuning.browArch)}
+                      width={sliderWidth}
+                      fillColor="#D8B4FE"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedBrowPlacement('arch', value)
                       }
                     />
                   </>
@@ -3026,7 +3129,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / detail ${Math.round(focusedTuning.detailAmount * 100)}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
+                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / detail ${Math.round(focusedTuning.detailAmount * 100)}% / gap ${resolveBrowGap(focusedTuning).toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)} / angle ${resolveBrowAngle(focusedTuning).toFixed(3)} / arch ${resolveBrowArch(focusedTuning).toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(
@@ -3340,10 +3443,16 @@ function CompactEvidenceHud({
         {`Renderer ${rendererId}`}
       </Text>
       <Text style={styles.compactHudText} numberOfLines={1}>
-        {`mask=${maskTextureId} spread=${formatMetricNumber(
-          latestRecipe?.maskSpreadX,
+        {`mask=${maskTextureId} gap=${formatMetricNumber(
+          latestRecipe?.browGap ?? latestRecipe?.maskSpreadX,
           3,
-        )} y=${formatMetricNumber(latestRecipe?.maskOffsetY, 3)}`}
+        )} y=${formatMetricNumber(
+          latestRecipe?.maskOffsetY,
+          3,
+        )} angle=${formatMetricNumber(
+          latestRecipe?.browAngle,
+          3,
+        )} arch=${formatMetricNumber(latestRecipe?.browArch, 3)}`}
       </Text>
     </View>
   );
@@ -3789,11 +3898,17 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.opacity,
   )} intensity=${String(event.intensity ?? 'n/a')} coverage=${String(
     event.coverage ?? 'n/a',
-  )} spread=${formatMetricNumber(
-    event.maskSpreadX,
+  )} gap=${formatMetricNumber(
+    event.browGap ?? event.maskSpreadX,
     3,
   )} y=${formatMetricNumber(
     event.maskOffsetY,
+    3,
+  )} angle=${formatMetricNumber(
+    event.browAngle,
+    3,
+  )} arch=${formatMetricNumber(
+    event.browArch,
     3,
   )} specular=${String(
     event.specular ?? 'n/a',
@@ -3908,6 +4023,7 @@ function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
 
 type ValueSliderProps = {
   label: string;
+  testID?: string;
   value: number;
   width: number;
   fillColor: string;
@@ -3917,6 +4033,7 @@ type ValueSliderProps = {
 
 function ValueSlider({
   label,
+  testID,
   value,
   width,
   fillColor,
@@ -3965,16 +4082,39 @@ function ValueSlider({
     [onLayoutWidth],
   );
 
+  const handleAccessibilityAction = useCallback(
+    (event: { nativeEvent: { actionName: string } }) => {
+      const stepBase =
+        event.nativeEvent.actionName === 'increment'
+          ? Math.floor(value / INTENSITY_STEP) * INTENSITY_STEP +
+            INTENSITY_STEP
+          : Math.ceil(value / INTENSITY_STEP) * INTENSITY_STEP -
+            INTENSITY_STEP;
+      const steppedValue = Number(
+        Math.max(0, Math.min(1, stepBase)).toFixed(2),
+      );
+
+      onChange(steppedValue);
+    },
+    [onChange, value],
+  );
+
   return (
     <View style={styles.opacityControl}>
       <Text style={styles.opacityLabel} numberOfLines={1}>
         {label}
       </Text>
       <View
+        testID={testID}
         accessibilityRole="adjustable"
+        accessibilityActions={[
+          { name: 'increment', label: 'Increase' },
+          { name: 'decrement', label: 'Decrease' },
+        ]}
         accessibilityValue={{ min: 0, max: 1, now: value }}
         style={styles.sliderTrack}
         onLayout={handleLayout}
+        onAccessibilityAction={handleAccessibilityAction}
         {...panResponder.panHandlers}
       >
         <View

@@ -185,17 +185,21 @@ PNG hair detail is separate from color: RN sends `detailAmount`, Unity stores
 it in `RegionRecipeState.DetailAmount`, and `SmoothRegionMask.shader` exposes
 `_DetailAmount` to strengthen extracted hair strokes after the chosen brow
 color is applied.
-RN also exposes brow-only `Brow Spread` and `Brow Y` placement sliders. `Brow
-Spread` becomes signed `maskSpreadX` and expands/contracts the two brow masks
-symmetrically around the UV centerline; `Brow Y` becomes signed `maskOffsetY`.
-Both are clamped in `RNBridge` and `E3RegionMaskOverlay`, now to `±0.34` for
-horizontal spread and `±0.08` for vertical offset, then applied in
-`SmoothRegionMask.shader` through `_MaskSpreadX` and `_MaskOffset.y`.
+RN also exposes brow-only `Gap`, `Brow Y`, `Angle`, and `Arch` placement
+sliders. `Gap` is the user-facing midline spacing control; RN sends it as both
+`maskSpreadX` and `browGap` so older Unity spread logic and the new brow-specific
+diagnostics stay aligned. `Brow Y` becomes signed `maskOffsetY`, `Angle` becomes
+signed `browAngle`, and `Arch` becomes signed `browArch`. `RNBridge` and
+`E3RegionMaskOverlay` clamp these to `±0.34` for gap/spread, `±0.08` for
+vertical offset, `±0.16` for angle, and `±0.05` for arch. The shader applies
+gap through `_MaskSpreadX`, vertical offset through `_MaskOffset.y`, and the
+new angle/arch sampling warp through `_BrowAngle` and `_BrowArch`.
 For QA, raise opacity first, intensity second, and coverage last to improve
 visibility without immediately making the brow sticker-like; use `Temperature`
-and `Depth` to fine-tune color after visibility is readable, then use `Brow Spread`
-for brows that are too centered or too wide and `Brow Y` for vertical placement
-before generating another mask texture.
+and `Depth` to fine-tune color after visibility is readable, then use `Gap` for
+brows that are too centered or too wide, `Brow Y` for vertical placement,
+`Angle` for an angry/upturned pose, and `Arch` for localized brow mountain
+height before generating another mask texture.
 
 The QA panel now treats `RAW`, `PROCESSED`, and `FINAL` as debug view stages
 instead of product mask candidates. `LEGACY DRAWN` remains a compatibility
@@ -232,6 +236,12 @@ Local checks before any real-device build:
   `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
   shows `Tundra build success`, `CompileScripts: 4786.690ms`, all four
   `brow-png-*` texture imports, and `Exiting batchmode successfully now!`.
+- Gap/Angle/Arch local loop checks passed on 2026-06-28: RN Jest
+  `31/31`, TypeScript, RN lint, brow PNG verifier, brow Unity contract verifier,
+  brow mask texture verifier, region renderer route verifier, UnityFramework
+  build contract verifier, and Unity `6000.3.18f1` batchmode import/compile in
+  `evidence/logs/eyebrow-gap-angle-arch-unity6000-batchmode-20260628.log`.
+  This was not installed on iPhone.
 - Two earlier PNG hair attempts used Unity `2022.3.62f1`, which is not the
   project editor version and failed during package resolution because AR
   Foundation `6.3.5` requires Unity 6-era package dependencies. No iPhone build

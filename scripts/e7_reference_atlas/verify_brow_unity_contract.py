@@ -172,13 +172,43 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
-        "MaskSpreadX = NormalizeMaskSpread(layer.maskSpreadX)",
+        "public float browGap;",
+        "RNBridge recipe payloads must accept browGap.",
+    )
+    require_contains(
+        rn_bridge,
+        "public float browAngle;",
+        "RNBridge recipe payloads must accept browAngle.",
+    )
+    require_contains(
+        rn_bridge,
+        "public float browArch;",
+        "RNBridge recipe payloads must accept browArch.",
+    )
+    require_contains(
+        rn_bridge,
+        "float maskSpread = NormalizeMaskSpread(layer.maskSpreadX);",
         "RNBridge must normalize layer maskSpreadX into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        'MaskSpreadX = region == "brow" ? browGap : maskSpread',
+        "RNBridge must use browGap as the brow-facing gap placement value.",
     )
     require_contains(
         rn_bridge,
         "return Mathf.Clamp(maskSpread, -0.34f, 0.34f);",
         "RNBridge must preserve the wider brow spread tuning range.",
+    )
+    require_contains(
+        rn_bridge,
+        "return region == \"brow\" ? Mathf.Clamp(browAngle, -0.16f, 0.16f) : 0.0f;",
+        "RNBridge must clamp browAngle to the conservative brow warp range.",
+    )
+    require_contains(
+        rn_bridge,
+        "return region == \"brow\" ? Mathf.Clamp(browArch, -0.05f, 0.05f) : 0.0f;",
+        "RNBridge must clamp browArch to the conservative brow warp range.",
     )
     require_contains(
         rn_bridge,
@@ -212,6 +242,21 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        '",\\\"browGap\\\":"',
+        "RNBridge recipe_applied event must emit applied browGap for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browAngle\\\":"',
+        "RNBridge recipe_applied event must emit applied browAngle for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browArch\\\":"',
+        "RNBridge recipe_applied event must emit applied browArch for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
         ' + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)',
         "RNBridge recipe_applied log must include applied maskSpreadX.",
     )
@@ -219,6 +264,21 @@ def main() -> None:
         rn_bridge,
         ' + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)',
         "RNBridge recipe_applied log must include applied maskOffsetY.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browGap=" + result.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied browGap.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browAngle=" + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied browAngle.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browArch=" + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied browArch.",
     )
     require_contains(
         rn_bridge,
@@ -322,13 +382,38 @@ def main() -> None:
     )
     require_contains(
         overlay,
-        "MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f)",
+        "public float BrowGap;",
+        "E3RegionMaskOverlay result must expose browGap.",
+    )
+    require_contains(
+        overlay,
+        "public float BrowAngle;",
+        "E3RegionMaskOverlay result must expose browAngle.",
+    )
+    require_contains(
+        overlay,
+        "public float BrowArch;",
+        "E3RegionMaskOverlay result must expose browArch.",
+    )
+    require_contains(
+        overlay,
+        "float normalizedMaskSpread = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f);",
         "E3RegionMaskOverlay must clamp mask spread X.",
     )
     require_contains(
         overlay,
         "MaskOffsetY = Mathf.Clamp(maskOffsetY, -0.08f, 0.08f)",
         "E3RegionMaskOverlay must clamp mask offset Y.",
+    )
+    require_contains(
+        overlay,
+        "BrowAngle = isBrow ? Mathf.Clamp(browAngle, -0.16f, 0.16f) : 0.0f",
+        "E3RegionMaskOverlay must clamp browAngle.",
+    )
+    require_contains(
+        overlay,
+        "BrowArch = isBrow ? Mathf.Clamp(browArch, -0.05f, 0.05f) : 0.0f",
+        "E3RegionMaskOverlay must clamp browArch.",
     )
     require_contains(
         overlay,
@@ -339,6 +424,16 @@ def main() -> None:
         overlay,
         'material.SetFloat("_MaskSpreadX", recipe.MaskSpreadX)',
         "E3RegionMaskOverlay must pass symmetric mask spread to the shader.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_BrowAngle", recipe.Region == "brow" ? recipe.BrowAngle : 0.0f)',
+        "E3RegionMaskOverlay must pass browAngle to the shader for brow only.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_BrowArch", recipe.Region == "brow" ? recipe.BrowArch : 0.0f)',
+        "E3RegionMaskOverlay must pass browArch to the shader for brow only.",
     )
     require_contains(
         overlay,
@@ -367,6 +462,26 @@ def main() -> None:
     )
     require_contains(
         shader,
+        '_BrowAngle ("Brow Angle", Float) = 0',
+        "SmoothRegionMask shader must define a brow angle property.",
+    )
+    require_contains(
+        shader,
+        '_BrowArch ("Brow Arch", Float) = 0',
+        "SmoothRegionMask shader must define a brow arch property.",
+    )
+    require_contains(
+        shader,
+        "float _BrowAngle;",
+        "SmoothRegionMask shader must expose _BrowAngle to shader code.",
+    )
+    require_contains(
+        shader,
+        "float _BrowArch;",
+        "SmoothRegionMask shader must expose _BrowArch to shader code.",
+    )
+    require_contains(
+        shader,
         '_DetailAmount ("Detail Amount", Range(0, 1)) = 0',
         "SmoothRegionMask shader must define a PNG brow detail amount property.",
     )
@@ -384,6 +499,16 @@ def main() -> None:
         shader,
         "maskUv.y = saturate(maskUv.y - _MaskOffset.y);",
         "SmoothRegionMask shader must still apply vertical mask offset before sampling.",
+    )
+    require_contains(
+        shader,
+        "float2 ApplyBrowWarp(float2 uv)",
+        "SmoothRegionMask shader must define the brow placement warp.",
+    )
+    require_contains(
+        shader,
+        "maskUv = ApplyBrowWarp(maskUv);",
+        "SmoothRegionMask shader must apply brow angle/arch warp before sampling.",
     )
     require_contains(
         shader,

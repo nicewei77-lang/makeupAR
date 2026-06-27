@@ -88,16 +88,21 @@ First-loop presets use natural brow colors rather than lip colors:
   keeping `detailAmount` active. Darker PNG brow colors keep multiply
   composition. This prevents the light brow option from being darkened by a
   full multiply pass while preserving hair texture contrast.
-- Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.
-  `Brow Spread` symmetrically expands/contracts the two brow masks around the
-  UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
-  QA can correct small centered/low placement errors live without regenerating
-  PNG masks. The current local default starts `maskSpreadX` at `0.28` to reduce
-  the too-narrow midline look observed on the previous installed build.
-- Unity `recipe_applied` diagnostics emit the applied `maskSpreadX` and
-  `maskOffsetY` values, and the RN HUD summarizes them as `spread=` and `y=` so
-  device QA can confirm placement control delivery without collecting raw
-  camera frames.
+- Brow placement is parameterized with `Gap`, `Brow Y`, `Angle`, and `Arch`
+  controls. `Gap` is the user-facing name for the brow midline spacing control;
+  internally RN keeps compatibility by sending the same value through
+  `maskSpreadX` and `browGap`. `Brow Y` shifts vertical sampling, `Angle`
+  applies a conservative brow-tail tilt correction, and `Arch` warps the brow
+  mountain area without changing the whole brow pose. The current local default
+  starts `maskSpreadX`/`browGap` at `0.28` to reduce the too-narrow midline look
+  observed on the previous installed build.
+- Unity `recipe_applied` diagnostics emit the applied `browGap`, `maskOffsetY`,
+  `browAngle`, and `browArch` values, and the RN HUD summarizes them as
+  `gap=`, `y=`, `angle=`, and `arch=` so device QA can confirm placement
+  control delivery without collecting raw camera frames.
+- The RN tuning panel is scoped by focused region: lip-focused editing shows
+  lip finish/area controls, while brow-focused editing shows brow texture,
+  mask, color, detail, and placement controls.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. Current brow assets are

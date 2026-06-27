@@ -40,6 +40,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Coverage;
         public float MaskSpreadX;
         public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
         public string Finish;
         public float Roughness;
         public float Specular;
@@ -97,6 +100,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float Coverage = 0.62f;
         public float MaskSpreadX;
         public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
         public string Finish = "matte";
         public float Roughness = 0.88f;
         public float Specular = 0.04f;
@@ -333,6 +339,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float coverage,
         float maskSpreadX,
         float maskOffsetY,
+        float browGap,
+        float browAngle,
+        float browArch,
         string finish,
         float roughness,
         float specular,
@@ -345,6 +354,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         region = NormalizeRegion(region);
         MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, region);
         opacity = Mathf.Clamp01(opacity);
+        bool isBrow = region == "brow";
+        float normalizedMaskSpread = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f);
+        float normalizedBrowGap = isBrow
+            ? Mathf.Clamp(Mathf.Abs(browGap) > 0.0001f ? browGap : normalizedMaskSpread, -0.34f, 0.34f)
+            : 0.0f;
+        float appliedMaskSpread = isBrow ? normalizedBrowGap : normalizedMaskSpread;
         recipes[region] = new RegionRecipeState
         {
             Region = region,
@@ -363,8 +378,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 : secondaryColorHex.Trim(),
             SecondaryColor = secondaryColor,
             Coverage = Mathf.Clamp01(coverage),
-            MaskSpreadX = Mathf.Clamp(maskSpreadX, -0.34f, 0.34f),
+            MaskSpreadX = appliedMaskSpread,
             MaskOffsetY = Mathf.Clamp(maskOffsetY, -0.08f, 0.08f),
+            BrowGap = normalizedBrowGap,
+            BrowAngle = isBrow ? Mathf.Clamp(browAngle, -0.16f, 0.16f) : 0.0f,
+            BrowArch = isBrow ? Mathf.Clamp(browArch, -0.05f, 0.05f) : 0.0f,
             Finish = NormalizeOptional(finish),
             Roughness = Mathf.Clamp01(roughness),
             Specular = Mathf.Clamp01(specular),
@@ -577,6 +595,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.Coverage = recipe.Coverage;
         result.MaskSpreadX = recipe.MaskSpreadX;
         result.MaskOffsetY = recipe.MaskOffsetY;
+        result.BrowGap = recipe.BrowGap;
+        result.BrowAngle = recipe.BrowAngle;
+        result.BrowArch = recipe.BrowArch;
         result.Finish = recipe.Finish;
         result.Roughness = recipe.Roughness;
         result.Specular = recipe.Specular;
@@ -2633,6 +2654,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_MaskSpreadX", recipe.MaskSpreadX);
         }
 
+        if (material.HasProperty("_BrowAngle"))
+        {
+            material.SetFloat("_BrowAngle", recipe.Region == "brow" ? recipe.BrowAngle : 0.0f);
+        }
+
+        if (material.HasProperty("_BrowArch"))
+        {
+            material.SetFloat("_BrowArch", recipe.Region == "brow" ? recipe.BrowArch : 0.0f);
+        }
+
         if (material.HasProperty("_Roughness"))
         {
             material.SetFloat("_Roughness", recipe.Roughness);
@@ -3301,6 +3332,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " visionBoundaryFaceScaleDelta=" + result.VisionBoundaryFaceScaleDelta.ToString("0.###", CultureInfo.InvariantCulture)
             + " visionBoundaryFaceMotionRisk=" + result.VisionBoundaryFaceMotionRisk
             + " coverage=" + result.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browGap=" + result.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browAngle=" + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArch=" + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
             + " finish=" + result.Finish
             + " lipRenderLayerMode=" + result.LipRenderLayerMode
             + " glossHighlightMode=" + result.GlossHighlightMode

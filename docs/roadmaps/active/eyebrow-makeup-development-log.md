@@ -754,3 +754,28 @@ Remaining:
   - This source-2 fix is local only. No UnityFramework regeneration, RN/Xcode
     device build, install, launch, screenshots, recordings, raw camera frames,
     or Slack messages were run/sent in this loop.
+- 2026-06-28: Gap/Angle/Arch placement controls and region-scoped tuning panel.
+  - User approved the loop to expose intuitive brow placement controls, preserve
+    them across `natural_brow`/`soft_brow` preset switches, and show only
+    region-relevant tuning controls while editing lip or brow.
+  - RN adds `Gap`, `Angle`, and `Arch` sliders beside the existing `Brow Y`
+    control. `Gap` is sent as both `maskSpreadX` and `browGap` for compatibility;
+    `Angle` and `Arch` are sent as `browAngle` and `browArch`. The selected brow
+    mask and all placement/detail values now survive brow preset switches.
+  - Unity `RNBridge` parses `browGap`, `browAngle`, and `browArch`, clamps them
+    conservatively, passes them into `E3RegionMaskOverlay`, and emits them back
+    through `recipe_applied` diagnostics. `SmoothRegionMask.shader` applies gap
+    through the existing spread path and applies a small brow-only UV sampling
+    warp for angle and arch.
+  - GREEN: RN Jest passed with `31/31` tests. TypeScript, RN lint,
+    `verify_brow_png_hair_textures.py`, `verify_brow_unity_contract.py`,
+    `verify_brow_mask_texture.py`, `verify_region_renderer_routes.py`, and
+    `verify_unityframework_build_contract.py` passed.
+  - Unity `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-gap-angle-arch-unity6000-batchmode-20260628.log`;
+    the log has no C# compiler error or shader error. Non-fatal shutdown
+    messages include Licensing token update, Curl callback abort, and usbmuxd
+    shutdown output after successful batchmode quit.
+  - This loop is local only. No UnityFramework regeneration, RN/Xcode device
+    build, install, launch, screenshots, recordings, raw camera frames, or Slack
+    messages were run/sent.
