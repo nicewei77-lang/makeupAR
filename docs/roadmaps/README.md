@@ -12,6 +12,8 @@ Token-safe reading rule:
 
 | File | Use |
 | --- | --- |
+| `active/product-development-documentation-loop.md` | 제품 리서치, 개발 과정, 학습 포인트, AI 루프/멀티에이전트 운영 기록 방식. |
+| `active/eyebrow-makeup-implementation-prompt.md` | 기존 AR 메이크업 앱 안의 눈썹 메이크업 기능만 구현하도록 scope를 잠근 ready-to-use 프롬프트. |
 | `active/AR_ENGINE_VALIDATION_IMPLEMENTATION_PLAN_KO.md` | M6-E6/E7 배경 지시서. 현재 boundary와 다음 세션 라우팅은 `../../TECH_VALIDATION_RESULT.md` snapshot을 우선한다. |
 | `active/E7_VISUAL_PRODUCT_READINESS_SPIKE_PLAN.md` | E7 전체 spike boundary, E7.3-E7.6 라우팅, cosmetic renderer 진입 조건. |
 | `active/E7_REGION_PRECISION_SUBSPIKE_PLAN.md` | E7.03/E7.3 region precision, Q3 overlay-ready 기준, Yellow boundary risk. |

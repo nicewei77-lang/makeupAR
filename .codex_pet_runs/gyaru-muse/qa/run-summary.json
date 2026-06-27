@@ -1,9 +1,0 @@
-{
-  "ok": true,
-  "run_dir": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse",
-  "spritesheet": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/final/spritesheet.webp",
-  "validation": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/final/validation.json",
-  "contact_sheet": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/qa/contact-sheet.png",
-  "review": "/Users/wiseungcheol/Desktop/makeupAR/.codex_pet_runs/gyaru-muse/qa/review.json",
-  "package": "/Users/wiseungcheol/.codex/pets/gyaru-muse"
-}
