@@ -7,9 +7,11 @@
 
 ## 1. 한 줄 결론
 
-이번 캡처는 정상적으로 들어왔고, 로컬에서 ARFace / Apple Vision / MediaPipe / 색 기반 비교 이미지를 생성했다. Apple Vision과 MediaPipe는 눈과 눈썹 landmark를 실제로 만들었고, 피부는 둘 다 semantic skin이 아니라 face contour 또는 face oval 기반의 approximate mask로 생성했다. Face parsing만 현재 Python 환경의 `torch` 부재로 blocked다.
+이번 캡처는 정상적으로 들어왔고, 로컬에서 ARFace / Apple Vision / Face parsing / MediaPipe / 색 기반 비교 이미지를 생성했다. Apple Vision과 MediaPipe는 눈과 눈썹 landmark를 실제로 만들었고, 피부는 둘 다 semantic skin이 아니라 face contour 또는 face oval 기반의 approximate mask로 생성했다. Face parsing은 별도 Python 3.12 Torch 환경에서 복구되어 눈, 피부, 눈썹 semantic label을 실제로 생성했다.
 
 2026-06-27 추가 체크포인트: Apple Vision은 sandbox 안에서는 Vision/ANE 리소스 접근 문제로 실패했지만, sandbox 밖 local Swift 실행에서는 `vision_face_landmarks.json`을 생성했다. MediaPipe는 Codex shell에서는 macOS GL/Metal helper 문제로 abort됐지만, GUI-capable Terminal 세션에서는 `mediapipe_face_landmarks.json`을 생성했다. 따라서 이번 보고서는 iPhone 앱 실행 없이 local-only 생성 결과를 기준으로 정리한다.
+
+2026-06-27 face parsing 복구 체크포인트: 최초 실패 원인은 얼굴 인식 실패가 아니라 repo 기본 `.venv`에 `torch`가 없었던 것이다. `/private/tmp/makeupar-faceparsing-py312`에 임시 Python 3.12 venv를 만들고 `torch`, `numpy`, `pillow`만 설치한 뒤 기존 `run_face_parsing.py`와 로컬 `79999_iter.pth` 체크포인트를 실행했다. repo 기본 `.venv`와 앱 코드는 건드리지 않았다.
 
 ## 2. 왜 이 실험을 했나
 
@@ -23,7 +25,7 @@
 | --- | --- | --- |
 | ARFace / ARKit | 얼굴 mesh와 UV 좌표를 이용한 안정적인 위치 기준 | 실행됨. 단, 직접 인식이 아니라 geometry 기반 추론 |
 | Apple Vision | 눈, 눈썹 landmark 직접 추출 | 실행됨. 눈/눈썹 available, 피부는 face contour 기반 approximate |
-| Face parsing | 피부, 눈, 눈썹 semantic label 추출 | 현재 Python 환경에 `torch`가 없어 blocked |
+| Face parsing | 피부, 눈, 눈썹 semantic label 추출 | 실행됨. eye/skin/brow available, offline silver reference |
 | 색 / 밝기 / gradient | 피부색, 눈 흰자/어두운 눈, 눈썹 털 보조 추출 | 실행됨. 단, 보조 신호 수준 |
 | MediaPipe | face landmark로 눈/눈썹/face oval 추출 | GUI Terminal 우회로 실행됨. 눈/눈썹 available, 피부는 face oval 기반 approximate |
 
@@ -60,7 +62,7 @@
 | `approximate` | 직접 인식이 아니라 geometry, UV prior, 색 등의 추론 결과 |
 | `blocked` | 현재 로컬 실행 환경에서 실행 실패 또는 필수 dependency 없음 |
 
-이번 결과에서 `available`은 Vision eye/brow, MediaPipe eye/brow다. 단, 피부는 Vision/MediaPipe 모두 true skin semantic label이 아니라 얼굴 윤곽 기반 approximate다. 이 결과는 제품 품질 승인이나 iPhone runtime 증거가 아니라, 로컬 단일 프레임 비교용이다.
+이번 결과에서 `available`은 Vision eye/brow, MediaPipe eye/brow, Face parsing eye/skin/brow다. 단, 피부는 Vision/MediaPipe 모두 true skin semantic label이 아니라 얼굴 윤곽 기반 approximate이고, Face parsing만 semantic skin label을 생성했다. 이 결과는 제품 품질 승인이나 iPhone runtime 증거가 아니라, 로컬 단일 프레임 비교용이다.
 
 ## 5. 후보별 상세 결과
 
@@ -163,7 +165,7 @@ sandbox doctor 결과:
 
 ### 5.4 Face parsing
 
-Face parsing은 피부, 눈, 눈썹 같은 semantic label을 직접 줄 수 있어서 비교 기준으로 매우 좋다. 하지만 현재 Python 실행 환경에는 `torch`가 없어 local BiSeNet runner를 실행하지 못했다.
+Face parsing은 피부, 눈, 눈썹 같은 semantic label을 직접 줄 수 있어서 비교 기준으로 매우 좋다. 최초 실행에서는 repo 기본 `.venv`에 `torch`가 없어 blocked였지만, 임시 Python 3.12 Torch 환경에서 local BiSeNet runner를 실행해 실제 label map과 overlay를 생성했다.
 
 <table>
   <tr>
@@ -172,15 +174,31 @@ Face parsing은 피부, 눈, 눈썹 같은 semantic label을 직접 줄 수 있�
     <th>눈썹</th>
   </tr>
   <tr>
-    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/eye_overlay.png" width="220" alt="parsing eye blocked panel"></td>
-    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/skin_overlay.png" width="220" alt="parsing skin blocked panel"></td>
-    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/brow_overlay.png" width="220" alt="parsing brow blocked panel"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/eye_overlay.png" width="220" alt="parsing eye overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/skin_overlay.png" width="220" alt="parsing skin overlay"></td>
+    <td><img src="assets/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/brow_overlay.png" width="220" alt="parsing brow overlay"></td>
   </tr>
 </table>
 
+직접 실행 결과:
+
+- `face_parsing_labels.json` 생성 완료
+- face parsing status: `silver`
+- eye label pixels: `7,245`
+- skin label pixels: `673,811`
+- brow label pixels: `32,521`
+- lip label도 함께 검출됨: upper/lower lip `16,640 / 20,551`
+- 실행 환경: `/private/tmp/makeupar-faceparsing-py312` 임시 venv, `torch 2.12.1`
+
+관찰:
+
+- 눈: Vision/MediaPipe보다 면적이 작고, 눈 opening 중심으로 잡힌다. 아이라인 seed로는 landmark 기반 후보와 함께 비교할 가치가 있다.
+- 피부: 이번 후보 중 유일하게 semantic skin label이다. 눈, 눈썹, 입술, 코 일부를 제외해 주므로 평가 기준으로 좋다. 다만 블러셔 placement 자체는 여전히 별도의 볼 위치 설계가 필요하다.
+- 눈썹: 실제 눈썹 위치를 넓게 덮는다. 털 위치 기준으로는 유용하지만, 제품 눈썹 마스크로 쓰기에는 두껍고 색 기반 refine 또는 사용자 조정이 필요하다.
+
 판단:
 
-Face parsing은 runtime primary로 쓰기보다는 offline silver reference나 평가 기준으로 쓰는 편이 맞다. 이번 단계에서 다시 살리려면 `torch`가 있는 로컬 환경을 별도로 준비해야 한다. 단, raw frame 장기 저장/업로드 없이 derived mask만 남기는 현재 privacy 원칙은 유지해야 한다.
+Face parsing은 runtime primary로 쓰기보다는 offline silver reference나 평가 기준으로 쓰는 편이 맞다. 이유는 semantic label이 강력하지만 iPhone runtime에 바로 넣기에는 모델/성능/라이선스/패키징 부담이 크기 때문이다. 이번 결과는 "파싱을 살릴 수 있다"는 증거이며, raw frame 장기 저장/업로드 없이 derived mask만 남기는 현재 privacy 원칙은 유지한다.
 
 ### 5.5 MediaPipe
 
@@ -233,7 +251,7 @@ Codex shell doctor 결과:
 | --- | ---: | ---: | ---: | --- |
 | ARFace | 31,479 | 733,128 | 9,562 | 전부 approximate |
 | Apple Vision | 11,404 | 473,674 | 21,150 | eye/brow available, skin approximate |
-| Face parsing | 0 | 0 | 0 | `torch` 없음 |
+| Face parsing | 7,245 | 673,811 | 32,521 | eye/skin/brow available, offline silver |
 | 색 기반 | 41,604 | 684,685 | 23,127 | 전부 approximate |
 | MediaPipe | 12,389 | 722,579 | 21,584 | eye/brow available, skin approximate |
 
@@ -246,11 +264,11 @@ Codex shell doctor 결과:
 이유:
 
 - 눈은 "눈 주변 영역" 정도는 잡았지만, 아이라인이나 아이섀도우 경계에 필요한 눈꺼풀/속눈썹 라인은 아니다.
-- 피부는 얼굴 표면이나 피부색 영역을 크게 잡았을 뿐, 볼/블러셔 영역처럼 의도된 cosmetic placement가 아니다.
+- 피부는 후보별 의미가 다르다. ARFace/MediaPipe/Vision은 얼굴 표면 또는 face contour에 가깝고, Face parsing은 semantic skin label이다. 하지만 어느 쪽도 곧바로 "블러셔 위치"는 아니다.
 - 눈썹은 Vision/MediaPipe landmark가 위치 기준으로 가장 안정적이고, 색 기반은 실제 털 영역 refine에 유용하다.
-- Face parsing semantic label은 아직 없어 피부/눈/눈썹을 semantic mask 기준으로 평가하지는 못했다.
+- Face parsing은 semantic 기준으로는 가장 좋지만, 눈썹은 두껍고 피부/눈은 제품 placement로 바로 쓰기에는 추가 조정이 필요하다.
 
-이번 실험의 핵심 인사이트는 역할 분리다. Vision/MediaPipe는 눈과 눈썹의 직접 landmark 기준으로 유리하고, ARFace는 runtime 고정/face surface substrate로 유리하며, 색 기반은 실제 털/피부색 refine에 유용하다. 피부/볼은 아직 "피부 전체 인식"보다 "ARFace substrate 위 cheek placement" 문제로 보는 편이 맞다.
+이번 실험의 핵심 인사이트는 역할 분리다. Vision/MediaPipe는 눈과 눈썹의 직접 landmark 기준으로 유리하고, Face parsing은 semantic silver reference로 유리하며, ARFace는 runtime 고정/face surface substrate로 유리하고, 색 기반은 실제 털/피부색 refine에 유용하다. 피부/볼은 아직 "피부 전체 인식"보다 "ARFace substrate 위 cheek placement" 문제로 보는 편이 맞다.
 
 ## 8. 부위별 유력 조합 가설
 
@@ -260,6 +278,7 @@ Codex shell doctor 결과:
 
 ```txt
 Vision 또는 MediaPipe eye landmarks
++ Face parsing eye label로 semantic sanity check
 + ARFace UV/mesh로 runtime 고정
 + 색 기반 dark/white pixel 보조
 + 사용자 조정: 위아래 위치, 두께, 눈꼬리, 부드러움
@@ -273,6 +292,7 @@ ARFace 단독은 눈 영역이 너무 넓다. 색 단독은 눈동자/흰자/그
 
 ```txt
 ARFace face surface
++ Face parsing skin label을 offline silver reference로 사용
 + cheek UV prior 또는 parametric cheek placement
 + 피부색 guard로 머리카락/옷/그림자 제외
 + smile/yaw capture로 볼 위치 안정성 확인
@@ -287,6 +307,7 @@ ARFace face surface
 
 ```txt
 Vision 또는 MediaPipe eyebrow landmarks
++ Face parsing brow label로 털 영역 silver reference 확인
 + 색 기반 dark-hair refine
 + ARFace로 얼굴 움직임에 고정
 + 사용자 조정: 높이, arch, tail 길이, 두께, 좌우 밸런스
@@ -303,7 +324,7 @@ Vision 또는 MediaPipe eyebrow landmarks
 1. 눈: Vision vs MediaPipe eye opening 중 어느 쪽이 아이라인/아이섀도우 seed로 더 좋은지 crop 기준으로 비교한다.
 2. 눈썹: Vision/MediaPipe brow landmark를 색 기반 dark-hair refine과 결합해 실제 털 두께에 가까운 후보를 만든다.
 3. 피부/볼: ARFace face surface를 substrate로 두고, cheek placement는 parametric/UV prior로 따로 만든다.
-4. Face parsing은 local research 기준으로 필요할 때만 `torch` 환경을 복구해 semantic reference로 쓴다.
+4. Face parsing은 이미 local research 기준으로 복구됐으므로, 다음 비교부터 semantic reference와 평가 기준으로 포함한다.
 5. 다음 비교는 `neutral` 한 장이 아니라 `neutral / smile / blink / yaw`까지 포함해 안정성을 본다.
 
 ## 10. 남은 한계
@@ -328,6 +349,8 @@ Vision 또는 MediaPipe eyebrow landmarks
 | MediaPipe local full-face helper | `scripts/e7_region_detection_compare/run_mediapipe_full_face_landmarker.py` |
 | MediaPipe GUI Terminal helper | `scripts/e7_region_detection_compare/run_mediapipe_full_face_gui_terminal.sh` |
 | MediaPipe local landmark JSON | `evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/mediapipe_face_landmarks.json` |
+| Face parsing label map | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/raw/face_parsing_label_map.png` |
+| Face parsing labels JSON | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/parsing/raw/face_parsing_labels.json` |
 | Apple Vision local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/local_doctor/vision_local_doctor.json` |
 | MediaPipe local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/local_doctor/mediapipe_local_doctor.md` |
 | iOS native provider source | `rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift` |
@@ -343,5 +366,5 @@ Vision 또는 MediaPipe eyebrow landmarks
 - Vision과 MediaPipe는 눈/눈썹 landmark 기준으로 실제 샘플을 만들 수 있다.
 - MediaPipe는 Codex shell에서는 막히지만 GUI Terminal local run으로 샘플 생성이 가능하다.
 - Vision은 sandbox 안에서는 막히지만 sandbox 밖 local Swift run으로 샘플 생성이 가능하다.
-- Face parsing은 runtime 후보보다 offline silver reference/평가 기준으로 살리는 편이 좋다.
+- Face parsing은 이번에 복구됐고, semantic skin/eye/brow reference로 매우 유용하다. 다만 runtime 후보보다 offline silver reference/평가 기준으로 쓰는 편이 좋다.
 - 제품 흐름에서는 자동 인식 후 사용자 조정축이 반드시 필요하다.
