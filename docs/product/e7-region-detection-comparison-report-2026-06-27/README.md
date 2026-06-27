@@ -9,6 +9,8 @@
 
 이번 캡처는 정상적으로 들어왔고 ARFace 기반 비교 이미지는 생성됐다. 다만 이번 Mac 로컬 실험에서 직접 자동 인식까지 성공한 후보는 아직 없고, 실제로 볼 수 있는 결과는 `ARFace 기반 추론`과 `색 기반 추론`이다. Apple Vision, face parsing, MediaPipe는 각각 현재 실행 환경 문제로 막혔기 때문에, iPhone 앱 안의 native provider 결과를 다시 저장해서 비교해야 한다.
 
+2026-06-27 추가 체크포인트: iOS native provider가 `vision_face_landmarks.json` / `mediapipe_face_landmarks.json`을 capture pair 폴더에 저장하는 경로는 구현됐고, `xcodebuild` generic iPhoneOS build는 통과했다. 아직 실제 iPhone에서 provider를 실행해 JSON을 가져오지는 않았으므로 Vision/MediaPipe 샘플은 계속 `blocked`로 표시한다.
+
 ## 2. 왜 이 실험을 했나
 
 입술은 이미 MediaPipe 또는 Apple Vision에 사용자 조정을 더하는 방향이 거의 잡혔다. 문제는 눈, 피부, 눈썹, 나중에는 볼/아이라인까지 같은 방식으로 갈 수 있느냐다.
@@ -118,7 +120,7 @@ ARFace는 runtime substrate로는 계속 유리하다. 다만 눈썹/아이라�
 
 ### 5.3 Apple Vision
 
-Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 있다. 하지만 이번 Mac buildless Swift 실행에서는 `VNDetectFaceLandmarksRequest`가 모든 orientation/revision에서 `Unspecified error`로 실패했다.
+Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 있다. 하지만 이번 Mac buildless Swift 실행에서는 `VNDetectFaceLandmarksRequest`가 모든 orientation에서 실패했다.
 
 <table>
   <tr>
@@ -132,6 +134,12 @@ Apple Vision은 이론적으로 눈과 눈썹 landmark를 직접 제공할 수 �
     <td><img src="../../../evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/brow_overlay.png" width="220" alt="vision brow blocked panel"></td>
   </tr>
 </table>
+
+로컬 doctor 결과:
+
+- `VNDetectFaceRectanglesRequest`: 모든 orientation에서 ANE model load 오류로 실패
+- `VNDetectFaceLandmarksRequest`: 모든 orientation에서 `Unspecified error`
+- `face rectangles -> inputFaceObservations -> landmarks`: rectangle 단계에서 먼저 실패
 
 중요한 해석:
 
@@ -185,6 +193,14 @@ MediaPipe는 얼굴 landmark를 촘촘히 주기 때문에 눈/눈썹/face oval�
 판단:
 
 이 실패는 Mac 로컬 실험 환경 문제에 가깝다. iOS 앱에는 이미 native MediaPipe provider 준비가 들어가 있으므로, 다음 비교는 앱이 저장한 native MediaPipe landmark 결과를 직접 가져오는 편이 더 현실적이다.
+
+로컬 doctor 결과:
+
+- MediaPipe Python import: 성공
+- 설치 버전: `0.10.35`
+- legacy `mp.solutions.face_mesh`: 현재 wheel에서 없음
+- Tasks Vision API: import 가능
+- Tasks FaceLandmarker retry: exit code `1`, macOS native helper 문제로 usable landmark 생성 실패
 
 ## 6. 숫자로 본 이번 결과
 
@@ -261,9 +277,10 @@ native Vision 또는 MediaPipe eyebrow landmarks
 
 1. iPhone 앱에서 native Vision 결과를 capture pair 폴더에 저장한다.
 2. iPhone 앱에서 native MediaPipe 결과를 capture pair 폴더에 저장한다.
-3. 이 보고서의 비교 스크립트가 그 JSON을 읽어 같은 contact sheet를 다시 만든다.
-4. face parsing은 local research 기준으로 필요할 때만 `torch` 환경을 복구한다.
-5. 다음 비교는 `neutral` 한 장이 아니라 `neutral / smile / blink / yaw`까지 포함해 안정성을 본다.
+3. `devicectl copy from`으로 앱 Documents의 capture pair 폴더를 가져온다.
+4. 이 보고서의 비교 스크립트가 그 JSON을 읽어 같은 contact sheet를 다시 만든다.
+5. face parsing은 local research 기준으로 필요할 때만 `torch` 환경을 복구한다.
+6. 다음 비교는 `neutral` 한 장이 아니라 `neutral / smile / blink / yaw`까지 포함해 안정성을 본다.
 
 ## 10. 남은 한계
 
@@ -282,6 +299,9 @@ native Vision 또는 MediaPipe eyebrow landmarks
 | 구조화 요약 JSON | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/summary.json` |
 | 비교 생성 스크립트 | `scripts/e7_region_detection_compare/build_capture_pair_region_masks.py` |
 | Apple Vision helper | `scripts/e7_region_detection_compare/extract_apple_vision_face_landmarks.swift` |
+| Apple Vision local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/local_doctor/vision_local_doctor.json` |
+| MediaPipe local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/local_doctor/mediapipe_local_doctor.md` |
+| iOS native provider source | `rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift` |
 
 ## 12. 최종 판단
 
@@ -294,4 +314,3 @@ native Vision 또는 MediaPipe eyebrow landmarks
 - Vision과 MediaPipe는 버릴 후보가 아니라, Mac 로컬이 아니라 iPhone native output으로 다시 비교해야 하는 후보이다.
 - Face parsing은 runtime 후보보다 offline silver reference/평가 기준으로 살리는 편이 좋다.
 - 제품 흐름에서는 자동 인식 후 사용자 조정축이 반드시 필요하다.
-
