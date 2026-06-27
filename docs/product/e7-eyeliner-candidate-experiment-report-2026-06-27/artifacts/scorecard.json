@@ -1,0 +1,847 @@
+{
+  "schemaVersion": "e7-eyeliner-candidate-scorecard-v0",
+  "createdAt": "2026-06-27T14:09:08.288989Z",
+  "status": "complete_buildless_local_only",
+  "capturePairId": "pair_face_20260627T091334Z_06",
+  "sourceFrame": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/frame.png",
+  "mediapipeLandmarks": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/mediapipe_face_landmarks.json",
+  "arfaceExport": "evidence/e7-reference-atlas/capture_pairs/pair_face_20260627T091334Z_06/arface_export.json",
+  "candidateCount": 11,
+  "generatedMediaPipeCandidateCount": 8,
+  "sameFrameLegacyBaselineCount": 3,
+  "selectedCandidateId": "mp-upper-balanced-v0",
+  "fallbackCandidateId": "mp-tail-only-v0",
+  "rankedCandidates": [
+    {
+      "candidateId": "mp-upper-balanced-v0",
+      "policy": "mp-upper-balanced",
+      "family": "mediapipe_upper_eyelid_parametric",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.5,
+        "upperLineOffset": -5.5,
+        "lineThickness": 6.0,
+        "innerStart": 0.1,
+        "innerCornerStart": 0.1,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.06,
+        "tailLength": 0.06,
+        "tailAngle": -12.0,
+        "tailLift": 0.0,
+        "taper": 0.64,
+        "softness": 3.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "balanced direct MediaPipe upper eyelid candidate",
+        "selected only if eye opening spill remains low"
+      ],
+      "metrics": {
+        "maskPixels": 1539,
+        "bbox": {
+          "minX": 236,
+          "minY": 1085,
+          "maxX": 852,
+          "maxY": 1112
+        },
+        "leftRight": {
+          "leftPixels": 765,
+          "rightPixels": 774,
+          "leftRightAbsDiffRatio": 0.005848,
+          "smallLargeRatio": 0.988372
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 4.382,
+        "upperLidP95DistancePx": 6.819,
+        "tailStartDistanceFromOuterCornerPx": 5.5,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.762055,
+        "uvRoundTrip": {
+          "iou": 0.081067,
+          "precision": 0.311475,
+          "recall": 0.098765,
+          "candidatePositivePixels": 488,
+          "referencePositivePixels": 1539
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-balanced-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-balanced-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-balanced-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-balanced-v0.trace.json"
+      },
+      "selectionScore": 0.571802
+    },
+    {
+      "candidateId": "mp-tail-only-v0",
+      "policy": "mp-tail-only",
+      "family": "mediapipe_upper_eyelid_tail_only",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.0,
+        "upperLineOffset": -4.0,
+        "lineThickness": 6.5,
+        "innerStart": 0.58,
+        "innerCornerStart": 0.58,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.1,
+        "tailLength": 0.1,
+        "tailAngle": -14.0,
+        "tailLift": 0.0,
+        "taper": 0.82,
+        "softness": 3.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "safe fallback for inner-eye instability",
+        "less full eyeliner coverage by design"
+      ],
+      "metrics": {
+        "maskPixels": 1028,
+        "bbox": {
+          "minX": 229,
+          "minY": 1085,
+          "maxX": 859,
+          "maxY": 1111
+        },
+        "leftRight": {
+          "leftPixels": 512,
+          "rightPixels": 516,
+          "leftRightAbsDiffRatio": 0.003891,
+          "smallLargeRatio": 0.992248
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 3.828,
+        "upperLidP95DistancePx": 6.907,
+        "tailStartDistanceFromOuterCornerPx": 4.0,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.945539,
+        "uvRoundTrip": {
+          "iou": 0.16472,
+          "precision": 0.309112,
+          "recall": 0.2607,
+          "candidatePositivePixels": 867,
+          "referencePositivePixels": 1028
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-tail-only-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-tail-only-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-tail-only-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-tail-only-v0.trace.json"
+      },
+      "selectionScore": 0.547438
+    },
+    {
+      "candidateId": "asset-fit-natural-local-style-v0",
+      "policy": "asset-fit-natural",
+      "family": "local_authored_style_prior_natural",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -6.0,
+        "upperLineOffset": -6.0,
+        "lineThickness": 5.8,
+        "innerStart": 0.18,
+        "innerCornerStart": 0.18,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.05,
+        "tailLength": 0.05,
+        "tailAngle": -10.0,
+        "tailLift": 0.0,
+        "taper": 1.05,
+        "softness": 3.3,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "local authored style prior; no external asset used",
+        "use as shape preset fitted to MediaPipe landmarks"
+      ],
+      "metrics": {
+        "maskPixels": 1601,
+        "bbox": {
+          "minX": 239,
+          "minY": 1084,
+          "maxX": 850,
+          "maxY": 1110
+        },
+        "leftRight": {
+          "leftPixels": 799,
+          "rightPixels": 802,
+          "leftRightAbsDiffRatio": 0.001874,
+          "smallLargeRatio": 0.996259
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 3.605,
+        "upperLidP95DistancePx": 6.279,
+        "tailStartDistanceFromOuterCornerPx": 3.801,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.739731,
+        "uvRoundTrip": {
+          "iou": 0.083118,
+          "precision": 0.323944,
+          "recall": 0.100562,
+          "candidatePositivePixels": 497,
+          "referencePositivePixels": 1601
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-natural-local-style-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-natural-local-style-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-natural-local-style-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-natural-local-style-v0.trace.json"
+      },
+      "selectionScore": 0.544918
+    },
+    {
+      "candidateId": "mp-upper-minimal-v0",
+      "policy": "mp-upper-minimal",
+      "family": "mediapipe_upper_eyelid_parametric",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -7.0,
+        "upperLineOffset": -7.0,
+        "lineThickness": 4.0,
+        "innerStart": 0.18,
+        "innerCornerStart": 0.18,
+        "outerReach": 0.98,
+        "outerCornerReach": 0.02,
+        "tailLength": 0.02,
+        "tailAngle": -8.0,
+        "tailLift": 0.0,
+        "taper": 0.7,
+        "softness": 2.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "most conservative direct MediaPipe upper eyelid candidate",
+        "blink/yaw iPhone test deferred"
+      ],
+      "metrics": {
+        "maskPixels": 629,
+        "bbox": {
+          "minX": 248,
+          "minY": 1087,
+          "maxX": 841,
+          "maxY": 1110
+        },
+        "leftRight": {
+          "leftPixels": 316,
+          "rightPixels": 313,
+          "leftRightAbsDiffRatio": 0.004769,
+          "smallLargeRatio": 0.990506
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 5.566,
+        "upperLidP95DistancePx": 7.117,
+        "tailStartDistanceFromOuterCornerPx": 8.252,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.730695,
+        "uvRoundTrip": {
+          "iou": 0.048193,
+          "precision": 0.233766,
+          "recall": 0.057234,
+          "candidatePositivePixels": 154,
+          "referencePositivePixels": 629
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-minimal-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-minimal-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-upper-minimal-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-upper-minimal-v0.trace.json"
+      },
+      "selectionScore": 0.520576
+    },
+    {
+      "candidateId": "mp-soft-lashline-shadow-v0",
+      "policy": "mp-soft-lashline-shadow",
+      "family": "mediapipe_upper_eyelid_soft_lashline",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.5,
+        "upperLineOffset": -3.5,
+        "lineThickness": 8.0,
+        "innerStart": 0.16,
+        "innerCornerStart": 0.16,
+        "outerReach": 0.98,
+        "outerCornerReach": 0.04,
+        "tailLength": 0.04,
+        "tailAngle": -8.0,
+        "tailLift": 0.0,
+        "taper": 0.52,
+        "softness": 7.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "soft lashline fallback; visible line is intentionally less strict",
+        "opacity should be lower in app material"
+      ],
+      "metrics": {
+        "maskPixels": 2137,
+        "bbox": {
+          "minX": 242,
+          "minY": 1082,
+          "maxX": 845,
+          "maxY": 1109
+        },
+        "leftRight": {
+          "leftPixels": 1066,
+          "rightPixels": 1071,
+          "leftRightAbsDiffRatio": 0.00234,
+          "smallLargeRatio": 0.995331
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 2.954,
+        "upperLidP95DistancePx": 5.98,
+        "tailStartDistanceFromOuterCornerPx": 5.688,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.736559,
+        "uvRoundTrip": {
+          "iou": 0.090354,
+          "precision": 0.409594,
+          "recall": 0.103884,
+          "candidatePositivePixels": 542,
+          "referencePositivePixels": 2137
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-soft-lashline-shadow-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-soft-lashline-shadow-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-soft-lashline-shadow-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-soft-lashline-shadow-v0.trace.json"
+      },
+      "selectionScore": 0.517304
+    },
+    {
+      "candidateId": "asset-fit-wing-local-style-v0",
+      "policy": "asset-fit-wing",
+      "family": "local_authored_style_prior_wing",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.0,
+        "upperLineOffset": -5.0,
+        "lineThickness": 6.2,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.18,
+        "tailLength": 0.18,
+        "tailAngle": -21.0,
+        "tailLift": -2.0,
+        "taper": 1.15,
+        "softness": 3.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "local authored wing style prior; expressive candidate only",
+        "not recommended as default unless user selects wing"
+      ],
+      "metrics": {
+        "maskPixels": 1913,
+        "bbox": {
+          "minX": 216,
+          "minY": 1082,
+          "maxX": 873,
+          "maxY": 1109
+        },
+        "leftRight": {
+          "leftPixels": 959,
+          "rightPixels": 954,
+          "leftRightAbsDiffRatio": 0.002614,
+          "smallLargeRatio": 0.994786
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 3.684,
+        "upperLidP95DistancePx": 10.696,
+        "tailStartDistanceFromOuterCornerPx": 2.571,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.744342,
+        "uvRoundTrip": {
+          "iou": 0.151548,
+          "precision": 0.333333,
+          "recall": 0.217459,
+          "candidatePositivePixels": 1248,
+          "referencePositivePixels": 1913
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-wing-local-style-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-wing-local-style-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/asset-fit-wing-local-style-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/asset-fit-wing-local-style-v0.trace.json"
+      },
+      "selectionScore": 0.513996
+    },
+    {
+      "candidateId": "mp-wing-soft-v0",
+      "policy": "mp-wing-soft",
+      "family": "mediapipe_upper_eyelid_parametric_wing",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.5,
+        "upperLineOffset": -4.5,
+        "lineThickness": 6.0,
+        "innerStart": 0.14,
+        "innerCornerStart": 0.14,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.14,
+        "tailLength": 0.14,
+        "tailAngle": -17.0,
+        "tailLift": -1.5,
+        "taper": 0.88,
+        "softness": 3.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "expressive wing candidate; likely preset not default",
+        "watch tail angle and asymmetry"
+      ],
+      "metrics": {
+        "maskPixels": 1779,
+        "bbox": {
+          "minX": 223,
+          "minY": 1084,
+          "maxX": 866,
+          "maxY": 1112
+        },
+        "leftRight": {
+          "leftPixels": 886,
+          "rightPixels": 893,
+          "leftRightAbsDiffRatio": 0.003935,
+          "smallLargeRatio": 0.992161
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 4.108,
+        "upperLidP95DistancePx": 6.83,
+        "tailStartDistanceFromOuterCornerPx": 4.5,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.751387,
+        "uvRoundTrip": {
+          "iou": 0.103335,
+          "precision": 0.278579,
+          "recall": 0.141091,
+          "candidatePositivePixels": 901,
+          "referencePositivePixels": 1779
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-wing-soft-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-wing-soft-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-wing-soft-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-wing-soft-v0.trace.json"
+      },
+      "selectionScore": 0.486143
+    },
+    {
+      "candidateId": "mp-edge-snap-hybrid-v0",
+      "policy": "mp-edge-snap-hybrid",
+      "family": "mediapipe_upper_eyelid_edge_snap_hybrid",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.0,
+        "upperLineOffset": -5.0,
+        "lineThickness": 5.5,
+        "innerStart": 0.12,
+        "innerCornerStart": 0.12,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.06,
+        "tailLength": 0.06,
+        "tailAngle": -12.0,
+        "tailLift": 0.0,
+        "taper": 0.7,
+        "softness": 3.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "edge/color is only a local correction, not the primary tracker",
+        "reject if snap pulls line into eye opening"
+      ],
+      "metrics": {
+        "maskPixels": 1410,
+        "bbox": {
+          "minX": 237,
+          "minY": 1085,
+          "maxX": 853,
+          "maxY": 1113
+        },
+        "leftRight": {
+          "leftPixels": 683,
+          "rightPixels": 727,
+          "leftRightAbsDiffRatio": 0.031206,
+          "smallLargeRatio": 0.939477
+        },
+        "eyeOpeningOverlapPixels": 0,
+        "eyeOpeningOverlapRatio": 0.0,
+        "upperLidMeanDistancePx": 4.532,
+        "upperLidP95DistancePx": 6.923,
+        "tailStartDistanceFromOuterCornerPx": 5.257,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.114432,
+        "uvRoundTrip": {
+          "iou": 0.08885,
+          "precision": 0.329032,
+          "recall": 0.108511,
+          "candidatePositivePixels": 465,
+          "referencePositivePixels": 1410
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-edge-snap-hybrid-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-edge-snap-hybrid-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/mp-edge-snap-hybrid-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/mp-edge-snap-hybrid-v0.trace.json"
+      },
+      "selectionScore": 0.466273
+    },
+    {
+      "candidateId": "baseline-legacy-safe-eye-prior-current-frame-v0",
+      "policy": "legacy-safe",
+      "family": "legacy_eye_prior_dark_pixel_upper_lashline",
+      "sourceSignals": [
+        "arfaceEyeUvPrior",
+        "darkPixelConfidence",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": 0.0,
+        "upperLineOffset": 0.0,
+        "lineThickness": 8.0,
+        "innerStart": 0.08,
+        "innerCornerStart": 0.08,
+        "outerReach": 1.12,
+        "outerCornerReach": 0.12,
+        "tailLength": 0.12,
+        "tailAngle": -12.0,
+        "tailLift": 0.0,
+        "taper": 0.5,
+        "softness": 0.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "baseline only; broad eye prior and dark pixels, not direct MediaPipe upper eyelid tracking",
+        "buildless static frame only; blink/yaw iPhone test deferred"
+      ],
+      "metrics": {
+        "maskPixels": 2619,
+        "bbox": {
+          "minX": 223,
+          "minY": 1062,
+          "maxX": 895,
+          "maxY": 1115
+        },
+        "leftRight": {
+          "leftPixels": 1279,
+          "rightPixels": 1340,
+          "leftRightAbsDiffRatio": 0.023291,
+          "smallLargeRatio": 0.954478
+        },
+        "eyeOpeningOverlapPixels": 512,
+        "eyeOpeningOverlapRatio": 0.195494,
+        "upperLidMeanDistancePx": 16.965,
+        "upperLidP95DistancePx": 45.056,
+        "tailStartDistanceFromOuterCornerPx": null,
+        "componentCount": 3,
+        "lineContinuityScore": 0.833333,
+        "smoothnessScore": null,
+        "uvRoundTrip": {
+          "iou": 0.393224,
+          "precision": 0.511801,
+          "recall": 0.629248,
+          "candidatePositivePixels": 3220,
+          "referencePositivePixels": 2619
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-safe-eye-prior-current-frame-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-safe-eye-prior-current-frame-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-safe-eye-prior-current-frame-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-safe-eye-prior-current-frame-v0.trace.json"
+      },
+      "selectionScore": 0.34696
+    },
+    {
+      "candidateId": "baseline-legacy-balanced-eye-prior-current-frame-v0",
+      "policy": "legacy-balanced",
+      "family": "legacy_eye_prior_dark_pixel_upper_lashline",
+      "sourceSignals": [
+        "arfaceEyeUvPrior",
+        "darkPixelConfidence",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -2.0,
+        "upperLineOffset": -2.0,
+        "lineThickness": 6.0,
+        "innerStart": 0.08,
+        "innerCornerStart": 0.08,
+        "outerReach": 1.08,
+        "outerCornerReach": 0.08,
+        "tailLength": 0.08,
+        "tailAngle": -12.0,
+        "tailLift": 0.0,
+        "taper": 0.5,
+        "softness": 0.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "baseline only; broad eye prior and dark pixels, not direct MediaPipe upper eyelid tracking",
+        "buildless static frame only; blink/yaw iPhone test deferred"
+      ],
+      "metrics": {
+        "maskPixels": 1780,
+        "bbox": {
+          "minX": 230,
+          "minY": 1065,
+          "maxX": 887,
+          "maxY": 1112
+        },
+        "leftRight": {
+          "leftPixels": 866,
+          "rightPixels": 914,
+          "leftRightAbsDiffRatio": 0.026966,
+          "smallLargeRatio": 0.947484
+        },
+        "eyeOpeningOverlapPixels": 343,
+        "eyeOpeningOverlapRatio": 0.192697,
+        "upperLidMeanDistancePx": 15.383,
+        "upperLidP95DistancePx": 38.56,
+        "tailStartDistanceFromOuterCornerPx": null,
+        "componentCount": 3,
+        "lineContinuityScore": 0.833333,
+        "smoothnessScore": null,
+        "uvRoundTrip": {
+          "iou": 0.352056,
+          "precision": 0.436952,
+          "recall": 0.644382,
+          "candidatePositivePixels": 2625,
+          "referencePositivePixels": 1780
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-balanced-eye-prior-current-frame-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-balanced-eye-prior-current-frame-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-balanced-eye-prior-current-frame-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-balanced-eye-prior-current-frame-v0.trace.json"
+      },
+      "selectionScore": 0.345981
+    },
+    {
+      "candidateId": "baseline-legacy-minimal-safe-eye-prior-current-frame-v0",
+      "policy": "legacy-minimal-safe",
+      "family": "legacy_eye_prior_dark_pixel_upper_lashline",
+      "sourceSignals": [
+        "arfaceEyeUvPrior",
+        "darkPixelConfidence",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.0,
+        "upperLineOffset": -3.0,
+        "lineThickness": 4.0,
+        "innerStart": 0.08,
+        "innerCornerStart": 0.08,
+        "outerReach": 1.05,
+        "outerCornerReach": 0.05,
+        "tailLength": 0.05,
+        "tailAngle": -12.0,
+        "tailLift": 0.0,
+        "taper": 0.5,
+        "softness": 0.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0
+      },
+      "warnings": [
+        "baseline only; broad eye prior and dark pixels, not direct MediaPipe upper eyelid tracking",
+        "buildless static frame only; blink/yaw iPhone test deferred"
+      ],
+      "metrics": {
+        "maskPixels": 1044,
+        "bbox": {
+          "minX": 236,
+          "minY": 1068,
+          "maxX": 882,
+          "maxY": 1110
+        },
+        "leftRight": {
+          "leftPixels": 506,
+          "rightPixels": 538,
+          "leftRightAbsDiffRatio": 0.030651,
+          "smallLargeRatio": 0.94052
+        },
+        "eyeOpeningOverlapPixels": 193,
+        "eyeOpeningOverlapRatio": 0.184866,
+        "upperLidMeanDistancePx": 14.928,
+        "upperLidP95DistancePx": 35.602,
+        "tailStartDistanceFromOuterCornerPx": null,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": null,
+        "uvRoundTrip": {
+          "iou": 0.300251,
+          "precision": 0.347889,
+          "recall": 0.686782,
+          "candidatePositivePixels": 2061,
+          "referencePositivePixels": 1044
+        }
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.mask.png",
+        "alpha": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.alpha.png",
+        "overlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.overlay.png",
+        "eyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.eye_crop.png",
+        "leftEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.left_eye_crop.png",
+        "rightEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.right_eye_crop.png",
+        "uvProbability": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.uv_probability.png",
+        "roundTripOverlay": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.round_trip_overlay.png",
+        "roundTripEyeCrop": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/uv_projection/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.round_trip_eye_crop.png",
+        "trace": "evidence/e7-eyeliner-candidate-experiment/experiment-20260627T140808Z/candidates/baseline-legacy-minimal-safe-eye-prior-current-frame-v0.trace.json"
+      },
+      "selectionScore": 0.31834
+    }
+  ],
+  "hardRejectRules": [
+    "empty mask",
+    "wrong side / mirrored",
+    "severe eye opening or eyeball spill",
+    "line jumps into brow or lower eye",
+    "tail detached from outer corner",
+    "missing source lineage",
+    "privacy flag missing"
+  ],
+  "privacy": {
+    "localOnly": true,
+    "offDeviceUpload": false,
+    "longTermRawFrameStored": false,
+    "derivedMasksOnly": true
+  },
+  "productClaim": {
+    "iphoneRuntimeGreen": false,
+    "productQualityReady": false,
+    "preXcodeBuildlessExperiment": true
+  }
+}

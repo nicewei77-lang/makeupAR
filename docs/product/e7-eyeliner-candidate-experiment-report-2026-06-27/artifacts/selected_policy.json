@@ -1,0 +1,15 @@
+{
+  "schemaVersion": "e7-eyeliner-selected-policy-v0",
+  "createdAt": "2026-06-27T14:09:08.292666Z",
+  "decision": "buildless_selected_for_app_implementation",
+  "selectedCandidateId": "mp-upper-balanced-v0",
+  "selectedPolicy": "mp-upper-balanced",
+  "fallbackCandidateId": "mp-tail-only-v0",
+  "fallbackPolicy": "mp-tail-only",
+  "primaryTracker": "MediaPipe upper eyelid landmarks",
+  "shapeModel": "parametric eyeliner curve",
+  "runtimeSubstrate": "ARFace UV",
+  "reason": "Balanced MediaPipe upper-eyelid candidate gives the best current mix of visibility, tracking lineage, zero eye-opening overlap, and app-default usability; tail-only is retained as fallback for inner-eye instability.",
+  "requiresHumanReview": true,
+  "iphoneEvidenceRequiredForGreen": true
+}

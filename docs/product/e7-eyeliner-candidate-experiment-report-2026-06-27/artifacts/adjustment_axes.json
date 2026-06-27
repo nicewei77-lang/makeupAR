@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "e7-eyeliner-adjustment-axes-v0",
+  "createdAt": "2026-06-27T14:09:08.292899Z",
+  "selectedCandidateId": "mp-upper-balanced-v0",
+  "axes": {
+    "lineHeight": -5.5,
+    "upperLineOffset": -5.5,
+    "lineThickness": 6.0,
+    "innerStart": 0.1,
+    "innerCornerStart": 0.1,
+    "outerReach": 1.0,
+    "outerCornerReach": 0.06,
+    "tailLength": 0.06,
+    "tailAngle": -12.0,
+    "tailLift": 0.0,
+    "taper": 0.64,
+    "softness": 3.2,
+    "blinkFade": 0.25,
+    "leftRightBalance": 0.0
+  },
+  "recommendedControlStyle": "slider_plus_quick_buttons",
+  "quickButtons": [
+    "얇게",
+    "조금 위로",
+    "조금 아래로",
+    "안쪽 비우기",
+    "꼬리 짧게",
+    "꼬리 올리기",
+    "바깥쪽만",
+    "좌우 맞추기",
+    "왼쪽만 조정",
+    "오른쪽만 조정"
+  ]
+}
