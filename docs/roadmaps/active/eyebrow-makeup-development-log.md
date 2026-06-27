@@ -470,3 +470,26 @@ Remaining:
     `evidence/logs/eyebrow-followup-unity-batchmode-20260627.log` and
     `evidence/logs/eyebrow-followup-unity-batchmode-20260627-r2.log`.
     The Unity/Licensing processes started by those attempts were terminated.
+- 2026-06-27: Brow QA panel and Guide/Mesh recovery loop.
+  - User clarified that the validation panel must work like an internal makeup
+    SDK console, not a pile of developer-only parameters. The user also
+    clarified that `Ash/Warm` and `Light/Dark` should not replace the visible
+    controls; the panel should say `Temperature` and `Depth`, and debug stages
+    should read `RAW`, `PROCESSED`, `FINAL` in that order.
+  - RED: focused RN Jest failed until the panel exposed `Debug View`,
+    `RAW/PROCESSED/FINAL` in order, `Brow QA`, `Color`, `Placement`,
+    `Temperature`, `Depth`, no legacy drawn option, and Guide/Mesh toggle logs
+    that no longer claim the face debug surface is suppressed while mesh is on.
+    The Unity contract verifier failed until `RNBridge` actually applied
+    `faceMeshVisible` instead of forcing mesh overlay off.
+  - Root cause for the non-working Mesh button: RN sent
+    `meshOverlayVisible=true`, but Unity `SetE7RegionOverlayVisibleJson` called
+    `SetFaceMeshOverlayVisible(false)`, and that method ignored its parameter.
+  - GREEN: RN focused Jest passed with 26 tests; `verify_brow_unity_contract.py`
+    and `verify_region_renderer_routes.py` passed; TypeScript and RN lint
+    passed. Unity `6000.3.18f1` batchmode import/compile passed with
+    `evidence/logs/eyebrow-qa-panel-guide-mesh-unity-batchmode-20260627.log`
+    (`CompileScripts: 2954.854ms`, `Exiting batchmode successfully now!`).
+  - Hand/occlusion handling is a real SDK requirement, but it is not part of
+    this loop. It needs a separate occlusion track so hand, hair, glasses, or
+    other foreground objects can remove makeup only where they cover the face.

@@ -370,9 +370,12 @@ test('renders collapsible per-region tuning controls in HUD mode', async () => {
   expect(text).toContain('Guide');
   expect(text).toContain('Mesh');
   expect(text).toContain('Diagnostics');
-  expect(text).toContain('Final');
-  expect(text).toContain('Raw');
-  expect(text).toContain('Processed');
+  expect(text).toContain('Debug View');
+  expect(text).toContain('RAW');
+  expect(text).toContain('PROCESSED');
+  expect(text).toContain('FINAL');
+  expect(text.indexOf('RAW')).toBeLessThan(text.indexOf('PROCESSED'));
+  expect(text.indexOf('PROCESSED')).toBeLessThan(text.indexOf('FINAL'));
   expect(text).toContain('Opacity');
   expect(text).toContain('Coverage');
   expect(text).toContain('Feather');
@@ -427,8 +430,9 @@ test('posts green guide and yellow mesh overlay visibility toggles immediately',
   expect(meshVisibilityCall).toContain('meshColor=yellow');
   expect(meshVisibilityCall).toContain('meshRenderMode=wireframe');
   expect(meshVisibilityCall).toContain('guideOverlayMode=mesh_landmarks');
+  expect(meshVisibilityCall).toContain('faceDebugSurfaceSuppressed=false');
 
-  pressByText(renderer!, 'Raw');
+  pressByText(renderer!, 'RAW');
 
   const rawMaskDebugCall = consoleLogSpy.mock.calls.find(
     call =>
@@ -1178,8 +1182,13 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('soft_black');
   expect(text).not.toContain('rose');
   expect(text).not.toContain('red');
-  expect(text).toContain('Ash/Warm');
-  expect(text).toContain('Light/Dark');
+  expect(text).toContain('Brow QA');
+  expect(text).toContain('Color');
+  expect(text).toContain('Placement');
+  expect(text).toContain('Temperature');
+  expect(text).toContain('Depth');
+  expect(text).not.toContain('Ash/Warm');
+  expect(text).not.toContain('Light/Dark');
   expect(text).toContain('Brow Spread');
   expect(text).not.toContain('Brow X');
   expect(text).toContain('Brow Y');
@@ -1187,6 +1196,7 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('Slim tail fine');
   expect(text).not.toContain('High arch fine');
   expect(text).not.toContain('Legacy drawn');
+  expect(text).not.toContain('LEGACY DRAWN');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {

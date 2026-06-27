@@ -86,8 +86,8 @@ Post-QA tuning notes:
 - Local follow-up tuning now defaults to `brow-back-arch-soft-mix-v1`
   (`Soft flat`), removes high-arch/legacy masks from the user-facing picker,
   raises `natural_brow` opacity/intensity to `0.75/0.75`, starts
-  `maskSpreadX` at `0.20`, widens spread clamp to `±0.34`, renames the visible
-  color sliders to `Ash/Warm` and `Light/Dark`, strengthens Unity brow alpha
+  `maskSpreadX` at `0.20`, widens spread clamp to `±0.34`, labels the visible
+  color sliders as `Temperature` and `Depth`, strengthens Unity brow alpha
   response, and shows `Renderer ...` as its own compact HUD row. This follow-up
   tuning is not rebuilt or installed yet.
 
@@ -124,7 +124,7 @@ Build notes:
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, tightened top-edge arch height, and overlap thresholds; RN/Unity now expose a wider `Brow Spread` range and default outward spread | Locally retuned; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Ash/Warm`/`Light/Dark` color parameters, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth` color parameters, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported earlier builds were too arched, too thick, sticker-like, too faint, too centered, slightly low, and then still too upward/angry; the local follow-up tuning switches to the flatter mask and stronger alpha response | Needs rebuild and user re-QA |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |

@@ -170,6 +170,16 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        "SetFaceMeshOverlayVisible(faceMeshVisible);",
+        "RNBridge overlay visibility must apply the requested face mesh visibility.",
+    )
+    require_contains(
+        rn_bridge,
+        "faceMeshOverlayVisible = visible;",
+        "RNBridge SetFaceMeshOverlayVisible must preserve the requested visible state.",
+    )
+    require_contains(
+        rn_bridge,
         "MaskOffsetY = NormalizeMaskOffset(layer.maskOffsetY)",
         "RNBridge must normalize layer maskOffsetY into parsed layers.",
     )

@@ -175,11 +175,11 @@ First QA result on the installed `eyebrow-20260627-ufw-r3` build:
 Use `neutral_brown` as the first color for natural dark brows. Start with
 opacity `0.75`, intensity `0.75`, coverage `0.62`, feather `0.48`.
 
-For color, keep `neutral_brown` first and use `Ash/Warm` and `Light/Dark`
-before switching to a darker swatch. `Ash/Warm` below `0.50` moves the result
-toward ash; above `0.50` makes it warmer. `Light/Dark` below `0.50` lightens;
-above `0.50` darkens. Good first QA probes are `Ash/Warm 0.40..0.60` and
-`Light/Dark 0.55..0.75`.
+For color, keep `neutral_brown` first and use `Temperature` and `Depth` before
+switching to a darker swatch. `Temperature` below `0.50` moves the result toward
+ash; above `0.50` makes it warmer. `Depth` below `0.50` lightens; above `0.50`
+darkens. Good first QA probes are `Temperature 0.40..0.60` and
+`Depth 0.55..0.75`.
 
 For placement, the follow-up tuning starts `Brow Spread` outward at `0.20`
 internally, which appears around `0.79` on the slider. If the brows still look
@@ -274,7 +274,7 @@ Minimum observations:
 | `natural_brow` preset | Does it read as soft makeup rather than a sticker? |  |  |
 | `soft_brow` preset | Is the lighter preset still visible but natural? |  |  |
 | Brow mask options | Does `Soft flat` work better than `Slim tail fine` as the default? |  |  |
-| `Ash/Warm` / `Light/Dark` | Do color changes apply immediately and stay natural once visibility is readable? |  |  |
+| `Temperature` / `Depth` | Do color changes apply immediately and stay natural once visibility is readable? |  |  |
 | `Brow Spread` / `Brow Y` | Do placement changes apply immediately and improve centering/height? |  |  |
 | Opacity/intensity change | Do changes apply immediately without AR restart? |  |  |
 | Temporary tracking loss | Does the brow hide/fade and recover without stale placement? |  |  |

@@ -163,8 +163,8 @@ feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
 brow alpha scaling is stronger than the previous installed build so `75%`
 should be visibly usable and `100%` can become deliberately heavy. The brow
 color palette is now separate from lip colors: `ash_brown`, `neutral_brown`,
-`dark_brown`, and `soft_black`. RN exposes brow-only `Ash/Warm` and
-`Light/Dark` sliders. These compute a final HTML hex color on the RN side and
+`dark_brown`, and `soft_black`. RN exposes brow-only `Temperature` and
+`Depth` sliders. These compute a final HTML hex color on the RN side and
 keep sending it through the existing Unity `color` field, so no Unity recipe
 schema change is required for color QA.
 RN also exposes brow-only `Brow Spread` and `Brow Y` placement sliders. `Brow
@@ -174,10 +174,14 @@ Both are clamped in `RNBridge` and `E3RegionMaskOverlay`, now to `±0.34` for
 horizontal spread and `±0.08` for vertical offset, then applied in
 `SmoothRegionMask.shader` through `_MaskSpreadX` and `_MaskOffset.y`.
 For QA, raise opacity first, intensity second, and coverage last to improve
-visibility without immediately making the brow sticker-like; use `Ash/Warm` and
-`Light/Dark` to fine-tune color after visibility is readable, then use `Brow Spread`
+visibility without immediately making the brow sticker-like; use `Temperature`
+and `Depth` to fine-tune color after visibility is readable, then use `Brow Spread`
 for brows that are too centered or too wide and `Brow Y` for vertical placement
 before generating another mask texture.
+
+The QA panel now treats `RAW`, `PROCESSED`, and `FINAL` as debug view stages
+instead of product mask candidates. `LEGACY DRAWN` remains a compatibility
+resource only and must not be surfaced in the user-facing QA controls.
 
 The shader does not need a new third-party dependency. If the generic shader
 cannot create a convincing brow result, a dedicated brow shader can be added in

@@ -63,7 +63,7 @@ First-loop presets use natural brow colors rather than lip colors:
 - Brow color choices are separate from lip colors: `ash_brown`,
   `neutral_brown`, `dark_brown`, and `soft_black`.
 - Brow color is also parameterized in the RN HUD with user-facing
-  `Ash/Warm` and `Light/Dark` sliders. Internally these remain
+  `Temperature` and `Depth` sliders. Internally these remain
   `colorWarmth` and `colorDepth`; RN sends the computed final hex through the
   existing Unity `color` field.
 - Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.

@@ -497,7 +497,7 @@ public sealed class RNBridge : MonoBehaviour
 
             regionMaskOverlay.SetOverlayRenderingSuppressed(!regionOverlayVisible);
             regionMaskOverlay.SetMaskDebugViewMode(maskDebugViewMode);
-            SetFaceMeshOverlayVisible(false);
+            SetFaceMeshOverlayVisible(faceMeshVisible);
 
             if (statusReporter != null)
             {
@@ -518,7 +518,7 @@ public sealed class RNBridge : MonoBehaviour
                 + " meshColor=yellow"
                 + " meshRenderMode=" + meshRenderMode
                 + " guideOverlayMode=" + guideOverlayMode
-                + " faceDebugSurfaceSuppressed=true"
+                + " faceDebugSurfaceSuppressed=" + (!faceMeshVisible).ToString().ToLowerInvariant()
                 + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
                 + " validationViewMode=" + validationViewMode
                 + " reason=" + NormalizeOptional(payload != null ? payload.reason : string.Empty));
@@ -738,7 +738,15 @@ public sealed class RNBridge : MonoBehaviour
     private void SetFaceMeshOverlayVisible(bool visible)
     {
         RefreshSceneReferences();
-        faceMeshOverlayVisible = false;
+        faceMeshOverlayVisible = visible;
+
+        if (visible)
+        {
+            lastSuppressedFaceTrackableCount = -1;
+            ApplyFaceMeshOverlay();
+            return;
+        }
+
         SetFaceRenderersSuppressed(true);
     }
 

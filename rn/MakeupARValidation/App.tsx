@@ -270,9 +270,9 @@ const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'full', label: 'Debug' },
 ] as const;
 const MASK_DEBUG_VIEW_MODE_OPTIONS = [
-  { id: 'final', label: 'Final' },
-  { id: 'raw', label: 'Raw' },
-  { id: 'processed', label: 'Processed' },
+  { id: 'raw', label: 'RAW' },
+  { id: 'processed', label: 'PROCESSED' },
+  { id: 'final', label: 'FINAL' },
 ] as const;
 const COLOR_OPTIONS_BY_REGION: Record<
   RecipeRegion,
@@ -1463,7 +1463,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'meshColor=yellow',
         `meshRenderMode=${DEBUG_MESH_RENDER_MODE}`,
         `guideOverlayMode=${DEBUG_GUIDE_OVERLAY_MODE}`,
-        'faceDebugSurfaceSuppressed=true',
+        `faceDebugSurfaceSuppressed=${String(!meshOverlayVisible)}`,
         `validationViewMode=${validationViewMode}`,
         `reason=${reason}`,
       );
@@ -2341,6 +2341,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             </View>
 
             <View style={styles.tuningToolbar}>
+              <Text style={styles.tuningToolbarLabel}>Debug View</Text>
               <Pressable
                 accessibilityRole="button"
                 accessibilityState={{ expanded: isTuningPanelExpanded }}
@@ -2545,6 +2546,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 ]}
                 contentContainerStyle={styles.tuningScrollContent}
               >
+                {focusedRegion === 'brow' && (
+                  <View style={styles.tuningSectionHeader}>
+                    <Text style={styles.tuningSectionTitle}>Brow QA</Text>
+                    <Text style={styles.tuningSectionHint}>
+                      auto anchor ready / sliders are fine-tune
+                    </Text>
+                  </View>
+                )}
+
+                <Text style={styles.tuningSectionTitle}>Color</Text>
                 <View style={styles.colorButtonRow}>
                   {colorOptionsForFocusedRegion.map(colorOption => {
                     const isSelected = colorOption.name === selectedColor.name;
@@ -2706,6 +2717,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   )}
                 </View>
 
+                <Text style={styles.tuningSectionTitle}>Render</Text>
                 <ValueSlider
                   label="Opacity"
                   value={focusedRecipe.opacity}
@@ -2728,8 +2740,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
                 {focusedRegion === 'brow' && (
                   <>
+                    <Text style={styles.tuningSectionTitle}>Placement</Text>
                     <ValueSlider
-                      label="Ash/Warm"
+                      label="Temperature"
                       value={focusedRecipe.colorWarmth ?? DEFAULT_COLOR_WARMTH}
                       width={sliderWidth}
                       fillColor={selectedDisplayColor}
@@ -2740,7 +2753,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                     />
 
                     <ValueSlider
-                      label="Light/Dark"
+                      label="Depth"
                       value={focusedRecipe.colorDepth ?? DEFAULT_COLOR_DEPTH}
                       width={sliderWidth}
                       fillColor={selectedDisplayColor}
@@ -2894,7 +2907,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / ash-warm ${colorWarmthPercent}% / light-dark ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
+                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / spread ${focusedTuning.maskSpreadX.toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(
@@ -4285,6 +4298,14 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 4,
   },
+  tuningToolbarLabel: {
+    width: '100%',
+    color: '#BAE6FD',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
   tuningToggleButton: {
     minHeight: 26,
     minWidth: 76,
@@ -4339,6 +4360,29 @@ const styles = StyleSheet.create({
   tuningScrollContent: {
     gap: 6,
     paddingBottom: 2,
+  },
+  tuningSectionHeader: {
+    borderRadius: 8,
+    backgroundColor: 'rgba(186, 230, 253, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(186, 230, 253, 0.24)',
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    gap: 2,
+  },
+  tuningSectionTitle: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+    textTransform: 'uppercase',
+  },
+  tuningSectionHint: {
+    color: '#BAE6FD',
+    fontSize: 9,
+    lineHeight: 12,
+    fontWeight: '700',
+    letterSpacing: 0,
   },
   modeButtonRow: {
     flexDirection: 'row',
