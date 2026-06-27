@@ -298,6 +298,7 @@ native Vision 또는 MediaPipe eyebrow landmarks
 | 전체 contact sheet | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/contact_sheet_eye_skin_brow.png` |
 | 구조화 요약 JSON | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/summary.json` |
 | 비교 생성 스크립트 | `scripts/e7_region_detection_compare/build_capture_pair_region_masks.py` |
+| iPhone capture pair pull helper | `scripts/e7_region_detection_compare/pull_ios_capture_pair_and_rebuild.py` |
 | Apple Vision helper | `scripts/e7_region_detection_compare/extract_apple_vision_face_landmarks.swift` |
 | Apple Vision local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/vision/local_doctor/vision_local_doctor.json` |
 | MediaPipe local doctor | `evidence/e7-region-detection-comparison/pair_face_20260627T091334Z_06/mediapipe/local_doctor/mediapipe_local_doctor.md` |
