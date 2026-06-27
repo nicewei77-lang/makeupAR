@@ -526,3 +526,13 @@ Remaining:
     It includes `Tundra build success`, `CompileScripts: 4786.690ms`, imports
     for all four `brow-png-*` textures, and `Exiting batchmode successfully now!`.
   - No UnityFramework/iPhone build was run in this loop.
+- 2026-06-27: Bright PNG brow blend split.
+  - RED: focused Jest failed because `light_brown` plus
+    `brow-png-daily-hair-v1` still emitted `blendMode="multiply"`.
+  - GREEN: RN now emits `blendMode="normal"` only for `light_brown` with
+    PNG-derived brow hair masks, while darker PNG brow colors continue to emit
+    `blendMode="multiply"`. `detailAmount` remains active in both paths.
+  - Verification passed: full RN Jest `28/28`, `npx tsc --noEmit`,
+    `npm run lint`, `verify_brow_unity_contract.py`, and
+    `verify_brow_png_hair_textures.py`.
+  - No UnityFramework/iPhone build was run in this loop.

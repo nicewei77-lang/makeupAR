@@ -74,6 +74,10 @@ First-loop presets use natural brow colors rather than lip colors:
 - Brow texture detail is parameterized with a `Texture Detail` slider that maps
   to `detailAmount`. This preserves the color layer while allowing a controlled
   multiply-like darkening of only the extracted hair detail.
+- `light_brown` with PNG-derived brow hair uses normal alpha composition while
+  keeping `detailAmount` active. Darker PNG brow colors keep multiply
+  composition. This prevents the light brow option from being darkened by a
+  full multiply pass while preserving hair texture contrast.
 - Brow placement is parameterized with `Brow Spread` and `Brow Y` controls.
   `Brow Spread` symmetrically expands/contracts the two brow masks around the
   UV centerline, while `Brow Y` shifts vertical mask sampling. The next iPhone
@@ -191,11 +195,15 @@ or bridge rewrite.
   `Light brown`) plus a brow-only `Texture Detail` slider. The implementation
   does not multiply the full source PNG over the face; it extracts alpha/detail
   channels and lets Unity apply the chosen brow color layer separately.
+- 2026-06-27: Local bright-brow tuning now routes `light_brown` plus PNG brow
+  hair masks through normal alpha composition, while retaining `detailAmount`
+  for extracted hair strokes. Darker PNG brow colors remain on multiply.
+  This is not installed on device yet.
 
 ## Local Verification
 
-- RN Jest focused test: `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand`
-  passed with 27 tests.
+- RN Jest: `npm test -- --runInBand` passed with 28 tests, including the
+  bright PNG brow blend split.
 - Brow mask verifier passed for the new default `brow-back-arch-soft-mix-v1`.
   The verifier now tightens the top-edge arch guard to reduce the angry
   `^ ^` read while still checking separation from eye/cheek/lip masks.

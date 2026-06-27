@@ -662,7 +662,7 @@ test('applies eyebrow color warmth and depth parameters to payload color', () =>
   expect(browLayer.color).toBe('#422C1E');
 });
 
-test('passes PNG eyebrow hair texture and detail layer controls to payload', () => {
+test('passes PNG eyebrow hair texture and light brow blend controls to payload', () => {
   const browSample = BROW_TEXTURE_STYLE_OPTIONS.find(
     textureSample => textureSample.name === 'natural_brow',
   )!;
@@ -707,8 +707,47 @@ test('passes PNG eyebrow hair texture and detail layer controls to payload', () 
   expect(payload.color).toBe('#A7836F');
   expect(browLayer.maskTextureId).toBe('brow-png-daily-hair-v1');
   expect(browLayer.detailAmount).toBe(0.68);
-  expect(browLayer.blendMode).toBe('multiply');
+  expect(browLayer.blendMode).toBe('normal');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
+});
+
+test('keeps darker PNG eyebrow hair textures on multiply blend', () => {
+  const browSample = BROW_TEXTURE_STYLE_OPTIONS.find(
+    textureSample => textureSample.name === 'natural_brow',
+  )!;
+
+  const payload = buildValidationRecipeBatchPayload(
+    {
+      ...DEFAULT_REGION_RECIPES,
+      brow: {
+        ...DEFAULT_REGION_RECIPES.brow,
+        color: BROW_COLOR_OPTIONS[1],
+        textureSample: browSample,
+      },
+    },
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24684,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        detailAmount: 0.68,
+        maskTextureId: 'brow-png-daily-hair-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(browLayer.maskTextureId).toBe('brow-png-daily-hair-v1');
+  expect(browLayer.detailAmount).toBe(0.68);
+  expect(browLayer.blendMode).toBe('multiply');
 });
 
 test('combines lip finish type and area style independently in payload', () => {

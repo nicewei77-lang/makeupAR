@@ -153,6 +153,11 @@ darken/detail only the hair signal inside the mask. This gives a controlled
 multiply-like effect without multiplying the full grey source image over the
 face.
 
+For bright PNG brows, RN now sends `normal` composition when the selected brow
+color is `light_brown`; darker PNG brows keep `multiply`. This keeps light brow
+color from being crushed by the destination-color multiply pass while preserving
+hair texture through `_DetailAmount`.
+
 - Separate left/right channels.
 - Asymmetry parameters.
 - Dedicated brow mesh culling.
@@ -163,8 +168,8 @@ face.
 ## Material Strategy
 
 First-loop brow should avoid glossy or glitter behavior. Use low specular,
-moderate feather, and multiply or normal alpha behavior depending on which looks
-more natural on device. Brow now has its own mask policy inside the shared
+moderate feather, multiply behavior for darker brows, and normal alpha behavior
+for the bright PNG `light_brown` path. Brow now has its own mask policy inside the shared
 smooth-mask backend: threshold `0.035`, default feather `0.42`, and recipe
 feather clamped to `0.34..0.48`. The RN defaults now send `natural_brow` with
 `brow-back-arch-soft-mix-v1` at opacity `0.75`, intensity `0.75`, coverage

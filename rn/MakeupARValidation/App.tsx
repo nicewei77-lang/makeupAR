@@ -757,7 +757,10 @@ function formatHexColor(r: number, g: number, b: number) {
 export function resolveRecipeColorHex(recipe: RegionRecipe) {
   const { r, g, b } = parseHexColor(recipe.color.color);
   const warmth = clampUnitInterval(recipe.colorWarmth);
-  const depth = Math.max(0, Math.min(1, recipe.colorDepth ?? DEFAULT_COLOR_DEPTH));
+  const depth = Math.max(
+    0,
+    Math.min(1, recipe.colorDepth ?? DEFAULT_COLOR_DEPTH),
+  );
   const warmthOffset = (warmth - DEFAULT_COLOR_WARMTH) * 2;
   const depthOffset = (depth - DEFAULT_COLOR_DEPTH) * 2;
   const warmed = {
@@ -783,6 +786,32 @@ export function resolveRecipeColorHex(recipe: RegionRecipe) {
     warmed.g + (255 - warmed.g) * lightenAmount,
     warmed.b + (255 - warmed.b) * lightenAmount,
   );
+}
+
+function isPngBrowHairMask(maskTextureId: MaskTextureId) {
+  return (
+    maskTextureId === 'brow-png-daily-hair-v1' ||
+    maskTextureId === 'brow-png-natural-hair-v1' ||
+    maskTextureId === 'brow-png-narrow-hair-v1' ||
+    maskTextureId === 'brow-png-lightbrown-hair-v1'
+  );
+}
+
+function resolveLayerBlendMode(
+  region: RecipeRegion,
+  recipe: RegionRecipe,
+  textureSample: RecipeTextureSample,
+  maskTextureId: MaskTextureId,
+) {
+  if (
+    region === 'brow' &&
+    recipe.color.name === 'light_brown' &&
+    isPngBrowHairMask(maskTextureId)
+  ) {
+    return 'normal';
+  }
+
+  return textureSample.blendMode;
 }
 export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: true,
@@ -824,6 +853,12 @@ export function buildValidationRecipeBatchPayload(
     const layerIntensity = recipe.intensity;
     const layerColor = resolveRecipeColorHex(recipe);
     const maskTextureId = tuning.maskTextureId;
+    const layerBlendMode = resolveLayerBlendMode(
+      region,
+      recipe,
+      sample,
+      maskTextureId,
+    );
     const layerRecipeId = `${E7_RECIPE_PREFIX}-${region}-${
       sample.name
     }-${Math.round(sentAtMs)}`;
@@ -848,7 +883,7 @@ export function buildValidationRecipeBatchPayload(
       textureMode: sample.textureMode,
       intensity: layerIntensity,
       feather: tuning.feather,
-      blendMode: sample.blendMode,
+      blendMode: layerBlendMode,
       enabled: enabledRegions[region],
       coverage: tuning.coverage,
       maskSpreadX: tuning.maskSpreadX,

@@ -1,6 +1,6 @@
 # Eyebrow Makeup Completion Audit
 
-Status: Follow-up brow QA tuning implemented locally; rebuild pending
+Status: Follow-up brow and bright PNG brow tuning implemented locally; rebuild pending
 Date: 2026-06-27
 
 This audit checks the current eyebrow makeup feature against the original module
@@ -35,7 +35,7 @@ Fresh local checks recorded on 2026-06-27:
 | `python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py` | Passed for the new default `brow-back-arch-soft-mix-v1` |
 | `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py` | Passed |
 | `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py` | Passed |
-| `npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand` | Passed, 26 tests |
+| `npm test -- --runInBand` | Passed, 28 tests |
 | `npm run lint` | Passed |
 | `npx tsc --noEmit` | Passed |
 | Unity `6000.3.18f1` batchmode import/compile | Latest PNG hair loop compile passed: `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log` |
@@ -90,6 +90,9 @@ Post-QA tuning notes:
   color sliders as `Temperature` and `Depth`, strengthens Unity brow alpha
   response, and shows `Renderer ...` as its own compact HUD row. This follow-up
   tuning is not rebuilt or installed yet.
+- Local bright-brow tuning now emits `blendMode="normal"` for `light_brown`
+  with PNG-derived brow hair masks while keeping `detailAmount` active; darker
+  PNG brow colors remain on `multiply`. This is not rebuilt or installed yet.
 
 Build notes:
 
@@ -124,7 +127,7 @@ Build notes:
 | Stable renderer structure that will not block later lip/cheek/eye/brow splits | `MakeupRegionRendererRoutes` exposes per-region renderer ids while preserving `region` as the RN contract | Locally verified |
 | In-house, shipping-safe brow mask asset | Current selected candidates come from the locally generated procedural variation sheet; docs record no third-party asset or unclear license path | Locally verified |
 | Brow placement avoids obvious eye/cheek/lip mask overlap | Mask verifier checks active pixels, bbox, two components, tightened top-edge arch height, and overlap thresholds; RN/Unity now expose a wider `Brow Spread` range and default outward spread | Locally retuned; device rebuild pending |
-| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth` color parameters, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
+| Color, opacity, intensity, feather, coverage, material response | RN payload and Unity renderer parse/apply these fields; focused Jest covers brow-specific colors, `Temperature`/`Depth` color parameters, bright PNG brow normal composition, darker PNG brow multiply composition, `Brow Spread`/`Brow Y` placement tuning, and the static contract verifiers cover the Unity acceptance path | Locally verified; visual quality pending |
 | Face-attached motion under head turns | User reported the brow follows well during left/right head turns and expression changes on the installed build | Visually proven for attachment |
 | Natural appearance under lighting and expression change | User reported earlier builds were too arched, too thick, sticker-like, too faint, too centered, slightly low, and then still too upward/angry; the local follow-up tuning switches to the flatter mask and stronger alpha response | Needs rebuild and user re-QA |
 | Tracking loss and low-FPS behavior does not leave stale brow artifacts | Existing renderer has tracking fade/hide behavior, but brow-specific real-device behavior has not been observed | Not visually proven |
@@ -148,7 +151,7 @@ work is to rebuild and visually QA the follow-up local tuning:
 4. Compare `Soft flat` (`brow-back-arch-soft-mix-v1`) and `Slim tail fine`
    (`brow-slim-tail-fine-hair-v1`) on device and choose the best default.
 5. Collect user visual observations for frontal neutral, left/right head turns,
-   expression change, color/Ash-Warm/Light-Dark/Brow Spread/Brow Y/intensity update,
+   expression change, color/Temperature/Depth/Brow Spread/Brow Y/intensity update,
    tracking recovery, and existing
    lip/cheek/eye smoke behavior using the observation template in
    `docs/runbooks/eyebrow-makeup-qa-runbook.md`.
@@ -162,9 +165,9 @@ first-loop eyebrow makeup module. Earlier iPhone QA confirmed
 attachment/control behavior and exposed the remaining product-quality issues:
 too faint, too centered, and too upward/angry. The local branch now includes a
 flatter default mask, stronger alpha response, clearer color labels, wider
-spread control, and explicit compact HUD renderer display. The full objective
-is not complete because this follow-up tuning still needs a real-device rebuild
-and user QA. Completion still needs:
+spread control, explicit compact HUD renderer display, and a bright PNG brow
+composition split. The full objective is not complete because this follow-up
+tuning still needs a real-device rebuild and user QA. Completion still needs:
 
 - UnityFramework/RN device rebuild with the follow-up brow tuning.
 - User visual QA confirming product-quality visibility, placement, shape, and
