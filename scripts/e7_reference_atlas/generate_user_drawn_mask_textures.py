@@ -598,17 +598,20 @@ def main() -> None:
         )
 
         unity_variant = "safe" if "safe" in variants else "soft"
-        unity_name = f"{region}-drawn-mask-v1.png"
-        unity_path = unity_dir / unity_name
-        save(unity_path, make_rgba_mask(variants[unity_variant]))
-        write_unity_meta(unity_path.with_suffix(".png.meta"), f"e7-user-drawn-{unity_name}")
+        unity_mask_path = "not_exported_current_cheek_blush_uses_style_masks"
+        if region != "cheek":
+            unity_name = f"{region}-drawn-mask-v1.png"
+            unity_path = unity_dir / unity_name
+            save(unity_path, make_rgba_mask(variants[unity_variant]))
+            write_unity_meta(unity_path.with_suffix(".png.meta"), f"e7-user-drawn-{unity_name}")
+            unity_mask_path = format_path(repo, unity_path)
 
         summaries[region] = {
             "sourcePath": format_path(repo, source_path),
             "sourceStats": mask_stats(clean),
             "componentStats": component_stats,
             "uvStats": uv_stats,
-            "unityMaskPath": format_path(repo, unity_path),
+            "unityMaskPath": unity_mask_path,
             "unityMaskVariant": unity_variant,
             "evidenceUvSoftPath": format_path(
                 repo, output_dir / "uv" / f"{region}_uv_soft_{args.resolution}.png"
@@ -649,9 +652,6 @@ def main() -> None:
             composite_alpha,
         ),
     )
-    composite_path = unity_dir / "drawn-makeup-composite-atlas-v1.png"
-    save(composite_path, composite)
-    write_unity_meta(composite_path.with_suffix(".png.meta"), "e7-user-drawn-composite-atlas-v1")
     save(output_dir / "uv" / "drawn_makeup_composite_rgba_v1.png", composite)
 
     reference = Image.open(reference_path).convert("RGB")
@@ -674,10 +674,8 @@ def main() -> None:
         "unityOutputDir": format_path(repo, unity_dir),
         "unityTextures": {
             "lipDrawnMask": format_path(repo, unity_dir / "lip-drawn-mask-v1.png"),
-            "cheekDrawnMask": format_path(repo, unity_dir / "cheek-drawn-mask-v1.png"),
             "eyeDrawnMask": format_path(repo, unity_dir / "eye-drawn-mask-v1.png"),
             "lipDrawnStyleAtlas": format_path(repo, lip_style_path),
-            "drawnMakeupCompositeAtlas": format_path(repo, composite_path),
         },
         "regions": summaries,
     }
@@ -703,10 +701,13 @@ def main() -> None:
             if path == zip_path or path.is_dir():
                 continue
             archive.write(path, path.relative_to(output_dir))
-        for path in sorted(unity_dir.glob("*drawn*mask-v1.png")) + sorted(
-            unity_dir.glob("*drawn*atlas-v1.png")
+        for path in (
+            unity_dir / "lip-drawn-mask-v1.png",
+            unity_dir / "eye-drawn-mask-v1.png",
+            unity_dir / "lip-drawn-style-atlas-v1.png",
         ):
-            archive.write(path, Path("unity") / path.name)
+            if path.exists():
+                archive.write(path, Path("unity") / path.name)
 
     print(json.dumps(summary, ensure_ascii=False))
 

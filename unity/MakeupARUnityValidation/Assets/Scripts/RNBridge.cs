@@ -2090,9 +2090,7 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
-            || (region == "cheek" && (value == "cheek-smooth-mask-v1"
-                || value == "cheek-drawn-mask-v1"
-                || IsCheekBlushMaskTextureId(value)))
+            || (region == "cheek" && IsCheekBlushMaskTextureId(value))
             || (region == "eye" && value == "eye-smooth-mask-v1"))
         {
             return value;
@@ -2117,8 +2115,7 @@ public sealed class RNBridge : MonoBehaviour
 
     private static bool IsCheekBlushTextureSample(string value)
     {
-        return value == "soft_blush"
-            || value == "blush_daily"
+        return value == "blush_daily"
             || value == "blush_lovely"
             || value == "blush_sunkissed1"
             || value == "blush_sunkissed2"

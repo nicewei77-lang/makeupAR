@@ -126,33 +126,15 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     preserveDetail: true,
   },
   {
-    name: 'soft_blush',
-    label: 'soft blush',
-    region: 'cheek',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#F5A49B',
-    intensity: 0.46,
-    feather: 0.58,
-    coverage: 0.82,
-    finish: 'powder',
-    roughness: 0.92,
-    specular: 0.02,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
     name: 'blush_daily',
     label: 'daily blush',
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#F2A59A',
-    intensity: 0.48,
+    intensity: 0.82,
     feather: 0.64,
-    coverage: 0.84,
+    coverage: 0.94,
     finish: 'powder',
     roughness: 0.96,
     specular: 0,
@@ -168,9 +150,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#F3A1A6',
-    intensity: 0.5,
-    feather: 0.68,
-    coverage: 0.9,
+    intensity: 0.84,
+    feather: 0.64,
+    coverage: 0.96,
     finish: 'powder',
     roughness: 0.96,
     specular: 0,
@@ -186,9 +168,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#EFA07F',
-    intensity: 0.42,
-    feather: 0.7,
-    coverage: 0.78,
+    intensity: 0.78,
+    feather: 0.64,
+    coverage: 0.90,
     finish: 'powder',
     roughness: 0.98,
     specular: 0,
@@ -204,9 +186,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#EAA07A',
-    intensity: 0.38,
-    feather: 0.74,
-    coverage: 0.72,
+    intensity: 0.74,
+    feather: 0.64,
+    coverage: 0.92,
     finish: 'powder',
     roughness: 0.98,
     specular: 0,
@@ -222,9 +204,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#F0A0B0',
-    intensity: 0.36,
-    feather: 0.62,
-    coverage: 0.68,
+    intensity: 0.76,
+    feather: 0.64,
+    coverage: 0.92,
     finish: 'powder',
     roughness: 0.98,
     specular: 0,
@@ -300,7 +282,6 @@ type MaskTextureId =
   | 'lip-drawn-style-atlas-v1'
   | 'lip-drawn-gradient-density-atlas-v1'
   | 'lip-drawn-mask-v1'
-  | 'cheek-drawn-mask-v1'
   | 'cheek-lovely-mask-v1'
   | 'cheek-daily-mask-v1'
   | 'cheek-sunkissed-mask1-v1'
@@ -309,7 +290,6 @@ type MaskTextureId =
   | 'eye-drawn-mask-v1'
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
-  | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type RegionRecipe = {
@@ -345,7 +325,7 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
-    opacity: 0.52,
+    opacity: 0.8,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
@@ -1906,7 +1886,15 @@ function E7StatusPanel({
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `mask=${String(
+          ? `attach=${formatCheekAttachmentModeFromFields(
+              recipe?.region ??
+                recipe?.layer ??
+                metric.region ??
+                metric.layer ??
+                (currentRegions === 'cheek' ? 'cheek' : undefined),
+              metric.maskSource ?? recipe?.maskSource,
+              recipe?.meshCullingMode ?? metric.meshCullingMode,
+            )} mask=${String(
               metric.maskSource ?? 'smooth_region_mask',
             )} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
@@ -2415,6 +2403,51 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value as Record<string, unknown>;
 }
 
+function formatCheekAttachmentModeFromFields(
+  regionValue?: unknown,
+  maskSourceValue?: unknown,
+  meshCullingModeValue?: unknown,
+) {
+  const region = String(regionValue ?? '');
+  const maskSource = String(maskSourceValue ?? '');
+  const meshCullingMode = String(meshCullingModeValue ?? '');
+  if (
+    maskSource.includes('static_arface_uv') ||
+    meshCullingMode.includes('static_arface_uv')
+  ) {
+    return 'staticUV';
+  }
+
+  if (region !== 'cheek') {
+    return 'n/a';
+  }
+
+  if (
+    maskSource.includes('runtime_drawing_template') ||
+    meshCullingMode.includes('runtime_drawing_template')
+  ) {
+    return 'dynamicTemplate';
+  }
+
+  if (maskSource.includes('screen') || meshCullingMode.includes('screen')) {
+    return 'screenSpace';
+  }
+
+  return 'unknown';
+}
+
+function formatCheekAttachmentMode(event?: UnityEventPayload) {
+  if (!event) {
+    return 'n/a';
+  }
+
+  return formatCheekAttachmentModeFromFields(
+    event.region ?? event.layer,
+    event.maskSource,
+    event.meshCullingMode,
+  );
+}
+
 function formatRecipeAppliedSummary(event?: UnityEventPayload) {
   if (!event) {
     return 'recipe_applied waiting';
@@ -2455,7 +2488,9 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.sourceTriangles ?? 'n/a',
   )} cullMode=${String(event.meshCullingMode ?? 'n/a')} uv=${String(
     event.uvAvailable ?? false,
-  )} state=${String(event.stateAction ?? 'n/a')} src=${String(
+  )} attach=${formatCheekAttachmentMode(event)} state=${String(
+    event.stateAction ?? 'n/a',
+  )} src=${String(
     event.maskSource ?? 'n/a',
   )} vision=${String(
     event.visionBoundaryStatus ?? 'n/a',

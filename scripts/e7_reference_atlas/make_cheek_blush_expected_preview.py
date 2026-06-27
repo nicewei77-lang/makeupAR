@@ -16,13 +16,14 @@ ARFACE_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_202606
 MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 EVIDENCE_ROOT = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1"
 OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260627"
+MASK_SUMMARY_PATH = EVIDENCE_ROOT / "summary.json"
 
 MASKS = (
-    ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.84, "#F2A59A"),
-    ("Lovely", "blush_lovely", "cheek-lovely-mask-v1", 0.90, "#F3A1A6"),
-    ("Sun 1", "blush_sunkissed1", "cheek-sunkissed-mask1-v1", 0.78, "#EFA07F"),
-    ("Sun 2", "blush_sunkissed2", "cheek-sunkissed-mask2-v1", 0.72, "#EAA07A"),
-    ("Under", "blush_under_eye", "cheek-under-eye-mask-v1", 0.68, "#F0A0B0"),
+    ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.94, "#F2A59A"),
+    ("Lovely", "blush_lovely", "cheek-lovely-mask-v1", 0.96, "#F3A1A6"),
+    ("Sun 1", "blush_sunkissed1", "cheek-sunkissed-mask1-v1", 0.90, "#EFA07F"),
+    ("Sun 2", "blush_sunkissed2", "cheek-sunkissed-mask2-v1", 0.92, "#EAA07A"),
+    ("Under", "blush_under_eye", "cheek-under-eye-mask-v1", 0.92, "#F0A0B0"),
 )
 SOURCE_DRAWINGS = {
     "cheek-daily-mask-v1": Path("/Users/yeoduchi/Downloads/cheek_daily_mask.png"),
@@ -34,10 +35,10 @@ SOURCE_DRAWINGS = {
 
 ROSE = np.array([0xD9, 0x4B, 0x74], dtype=np.float32) / 255.0
 CHEEK_SKIN_TINT = np.array([1.0, 1.0, 1.0], dtype=np.float32)
-CHEEK_OPACITY = 0.52
-CHEEK_INTENSITY = 0.95
+CHEEK_OPACITY = 0.80
+CHEEK_INTENSITY = 1.0
 PRESERVE_SCALE = 0.92
-MATERIAL_ALPHA = CHEEK_OPACITY * (0.18 + (0.42 - 0.18) * CHEEK_INTENSITY)
+MATERIAL_ALPHA = CHEEK_OPACITY * (0.34 + (0.60 - 0.34) * CHEEK_INTENSITY)
 CROP_BOX = (110, 710, 1060, 1460)
 
 
@@ -145,29 +146,50 @@ def render_expected(
     secondary_hex: str,
 ) -> Image.Image:
     base = np.asarray(frame.convert("RGB"), dtype=np.float32) / 255.0
+    alpha_raw = np.clip(alpha, 0.0, 1.0)
     alpha_image = Image.fromarray(np.rint(np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8), mode="L")
     alpha_image = alpha_image.filter(ImageFilter.GaussianBlur(radius=4.0))
+    alpha_wide_image = Image.fromarray(
+        np.rint(np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8),
+        mode="L",
+    )
+    alpha_wide_image = alpha_wide_image.filter(ImageFilter.GaussianBlur(radius=10.0))
     density_image = Image.fromarray(
         np.rint(np.clip(density, 0.0, 1.0) * 255).astype(np.uint8),
         mode="L",
     )
     density_image = density_image.filter(ImageFilter.GaussianBlur(radius=3.0))
-    soft = np.asarray(alpha_image, dtype=np.float32) / 255.0
-    density_soft = np.asarray(density_image, dtype=np.float32) / 255.0
-    full_soft = smoothstep(0.025 - 0.64 * 0.46, 0.025 + 0.64, soft)
-    full_core = smoothstep(0.025 + 0.64 * 0.18, 0.025 + 0.64 * 0.88, soft)
-    edge_band = np.clip(full_soft - full_core, 0.0, 1.0)
-    density_ramp = smoothstep(0.08, 0.78, density_soft)
-    density_core = np.clip((density_ramp * full_soft) ** 1.16, 0.0, 1.0)
-    cheek_center = np.clip(density_core * (0.36 + (1.0 - 0.36) * full_core), 0.0, 1.0)
-    skin_fade = np.clip((density_ramp * (0.18 + (1.0 - 0.18) * full_core)) ** 1.08, 0.0, 1.0)
-    edge_tint = edge_band * density_ramp * 0.004
-    mask_strength = (
-        cheek_center * coverage * 0.58
-        + density_core * coverage * 0.18
-        + edge_tint * coverage
+    density_wide_image = Image.fromarray(
+        np.rint(np.clip(density, 0.0, 1.0) * 255).astype(np.uint8),
+        mode="L",
     )
-    max_pigment_strength = 0.24 + (0.38 - 0.24) * np.clip(coverage, 0.0, 1.0)
+    density_wide_image = density_wide_image.filter(ImageFilter.GaussianBlur(radius=8.0))
+    soft = np.asarray(alpha_image, dtype=np.float32) / 255.0
+    alpha_wide = np.asarray(alpha_wide_image, dtype=np.float32) / 255.0
+    density_raw = np.clip(density, 0.0, 1.0)
+    density_soft = np.asarray(density_image, dtype=np.float32) / 255.0
+    density_wide = np.asarray(density_wide_image, dtype=np.float32) / 255.0
+    cheek_alpha_seed = np.maximum(soft, alpha_wide * 0.90)
+    full_soft = smoothstep(0.0, 0.025 + 0.64, cheek_alpha_seed)
+    cheek_body = smoothstep(0.055, 0.48, np.maximum(alpha_raw, soft * 0.82))
+    density_value = np.maximum(
+        density_raw * 0.50,
+        np.maximum(density_soft * 0.48, density_wide * 0.44),
+    )
+    density_guide = smoothstep(0.06, 0.72, density_value)
+    powder_strength = np.clip(
+        full_soft
+        * (0.28 + (1.0 - 0.28) * cheek_body)
+        * (0.82 + (1.0 - 0.82) * density_guide),
+        0.0,
+        1.0,
+    )
+    center_boost = np.clip(cheek_body * density_guide, 0.0, 1.0) * 0.12
+    mask_strength = (
+        powder_strength * coverage * 0.92
+        + center_boost * coverage
+    )
+    max_pigment_strength = 0.36 + (0.57 - 0.36) * np.clip(coverage, 0.0, 1.0)
     pigment_strength = np.clip(
         mask_strength * MATERIAL_ALPHA * PRESERVE_SCALE,
         0.0,
@@ -175,13 +197,45 @@ def render_expected(
     )
     secondary = parse_hex_color(secondary_hex)
     blush_pigment = np.clip(ROSE * (1.0 - 0.14) + secondary * 0.14, 0.0, 1.0)
-    pigment_color = (
-        CHEEK_SKIN_TINT.reshape((1, 1, 3)) * (1.0 - skin_fade[..., None])
-        + blush_pigment.reshape((1, 1, 3)) * skin_fade[..., None]
-    )
+    pigment_color = blush_pigment.reshape((1, 1, 3))
     pigment_filter = 1.0 + (pigment_color - 1.0) * pigment_strength[..., None]
     rendered = np.clip(base * pigment_filter, 0.0, 1.0)
     return Image.fromarray(np.rint(rendered * 255).astype(np.uint8), mode="RGB")
+
+
+def render_high_visibility_qa(
+    frame: Image.Image,
+    alpha: np.ndarray,
+    density: np.ndarray,
+) -> Image.Image:
+    base = np.asarray(frame.convert("RGB"), dtype=np.float32) / 255.0
+    soft = smoothstep(0.035, 0.52, alpha)
+    density_ramp = smoothstep(0.06, 0.70, density)
+    strength = np.clip(soft * 0.16 + density_ramp * 0.36, 0.0, 0.42)
+    pigment = ROSE.reshape((1, 1, 3))
+    rendered = base * (1.0 - strength[..., None]) + pigment * strength[..., None]
+    return Image.fromarray(np.rint(np.clip(rendered, 0.0, 1.0) * 255).astype(np.uint8), mode="RGB")
+
+
+def binary_edge_band(active: np.ndarray, radius_px: int = 15) -> tuple[np.ndarray, np.ndarray]:
+    size = max(3, radius_px * 2 + 1)
+    if size % 2 == 0:
+        size += 1
+    active_image = Image.fromarray(np.where(active, 255, 0).astype(np.uint8), mode="L")
+    inner = np.asarray(active_image.filter(ImageFilter.MinFilter(size)), dtype=np.uint8) > 0
+    edge = active & ~inner
+    return edge, inner
+
+
+def load_screen_field(mask_id: str, channel: str, frame_size: tuple[int, int]) -> np.ndarray:
+    suffix = "alpha" if channel == "alpha" else "density"
+    path = EVIDENCE_ROOT / "screen" / f"{mask_id}-face-anchor-{suffix}.png"
+    if not path.exists():
+        return np.zeros((frame_size[1], frame_size[0]), dtype=np.float32)
+    image = Image.open(path).convert("L")
+    if image.size != frame_size:
+        image = image.resize(frame_size, Image.Resampling.BILINEAR)
+    return np.asarray(image, dtype=np.float32) / 255.0
 
 
 def source_mask_overlay(frame: Image.Image, mask_id: str) -> Image.Image:
@@ -213,32 +267,62 @@ def crop_thumb(image: Image.Image, width: int = 320, height: int = 260) -> Image
 def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     frame = Image.open(FRAME_PATH).convert("RGB")
-    columns = ("source drawing", "projected alpha", "projected density", "expected render")
+    mask_summary = json.loads(MASK_SUMMARY_PATH.read_text(encoding="utf-8"))
+    columns = ("source drawing template", "projected alpha", "projected density", "expected render")
+    runtime_columns = (
+        "runtime field alpha",
+        "runtime field density",
+        "UV roundtrip alpha",
+        "UV roundtrip density",
+        "QA high-visibility render",
+    )
     tile_w, tile_h, label_h = 320, 260, 32
     sheet = Image.new(
         "RGB",
         (tile_w * len(columns), (tile_h + label_h) * (len(MASKS) + 1)),
         (245, 245, 245),
     )
+    runtime_sheet = Image.new(
+        "RGB",
+        (tile_w * len(runtime_columns), (tile_h + label_h) * (len(MASKS) + 1)),
+        (245, 245, 245),
+    )
     draw = ImageDraw.Draw(sheet)
+    runtime_draw = ImageDraw.Draw(runtime_sheet)
     for col, label in enumerate(columns):
         draw.text((col * tile_w + 8, 9), label, fill=(0, 0, 0))
+    for col, label in enumerate(runtime_columns):
+        runtime_draw.text((col * tile_w + 8, 9), label, fill=(0, 0, 0))
 
     summary: dict[str, object] = {
-        "previewId": "cheek-blush-expected-render-20260627-skin-fade",
+        "previewId": "cheek-blush-expected-render-20260627-skin-melt-edge",
+        "maskSource": "arface_face_proportion_anchor_density",
+        "drawingRole": "shape_template_for_face_proportion_warp_not_screen_sticker",
+        "referenceCalibrationRole": "shape_template_calibration_not_fixed_runtime_boundary",
+        "appleVisionAnchorRole": mask_summary.get(
+            "appleVisionAnchorRole",
+            "landmark_anchor_audit_not_cheek_boundary_source",
+        ),
+        "appleVisionAnchorAnalysisPath": mask_summary.get("appleVisionAnchorAnalysisPath", "none"),
+        "anatomyBoundaryContract": mask_summary.get(
+            "anatomyBoundaryContract",
+            "Final cheek alpha/density is regenerated from ARFace face structure and drawing-derived shape ratios.",
+        ),
         "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer",
         "color": "#D94B74",
         "opacity": CHEEK_OPACITY,
         "intensity": CHEEK_INTENSITY,
         "materialAlphaApprox": MATERIAL_ALPHA,
-        "edgeContract": "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
+        "edgeContract": "center pigment stays strong while outer blush edges return to white through GPU DstColor/Zero multiply filter strength",
+        "edgeFadeMetricsContract": "outer edge mean color change should stay below center mean color change, without reducing center pigment strength",
         "densityContract": {
             "blush_daily": "outer/high cheekbone peak; fades inward toward nose and lower cheek",
             "blush_lovely": "round apple-center radial peak; fades outward evenly",
-            "blush_sunkissed1": "cheek spots strongest; nose bridge/tip capped low",
+            "blush_sunkissed1": "cheek spots strongest; raised nose bridge/tip connector capped low",
             "blush_sunkissed2": "W wash with cheekbone ends strongest and nose bridge low",
             "blush_under_eye": "outer under-eye/high cheek peak; inner lower eyelid restrained",
         },
+        "runtimeAttachmentContract": "cheek mask is sampled on ARFace mesh UVs so motion follows mesh tracking instead of screen-sticker placement",
         "frame": str(FRAME_PATH.relative_to(ROOT)),
         "rows": [],
     }
@@ -248,24 +332,56 @@ def main() -> None:
         uv_mask = Image.open(mask_path).convert("RGBA")
         projected_alpha = project_uv_mask_to_screen(uv_mask, frame.size, "alpha")
         projected_density = project_uv_mask_to_screen(uv_mask, frame.size, "density")
+        runtime_alpha = load_screen_field(mask_id, "alpha", frame.size)
+        runtime_density = load_screen_field(mask_id, "density", frame.size)
         source = source_mask_overlay(frame, mask_id)
         alpha_overlay = overlay_alpha(frame, projected_alpha, (238, 111, 98))
         density_overlay = overlay_alpha(frame, projected_density, (196, 76, 110))
         expected = render_expected(frame, projected_alpha, projected_density, coverage, secondary_hex)
+        expected_diff = np.max(
+            np.abs(
+                np.asarray(expected.convert("RGB"), dtype=np.float32)
+                - np.asarray(frame.convert("RGB"), dtype=np.float32)
+            ),
+            axis=2,
+        ) / 255.0
+        qa_render = render_high_visibility_qa(frame, runtime_alpha, runtime_density)
 
         expected_path = OUTPUT_ROOT / f"expected_{mask_id}.png"
+        qa_path = OUTPUT_ROOT / f"qa_high_visibility_{mask_id}.png"
         alpha_path = OUTPUT_ROOT / f"projected_alpha_{mask_id}.png"
         density_path = OUTPUT_ROOT / f"projected_density_{mask_id}.png"
         expected.save(expected_path)
+        qa_render.save(qa_path)
         Image.fromarray(np.rint(np.clip(projected_alpha, 0.0, 1.0) * 255).astype(np.uint8), mode="L").save(alpha_path)
         Image.fromarray(np.rint(np.clip(projected_density, 0.0, 1.0) * 255).astype(np.uint8), mode="L").save(density_path)
 
         y = row * (tile_h + label_h)
         draw.text((8, y + 8), f"{label} / {sample_name}", fill=(0, 0, 0))
+        runtime_draw.text((8, y + 8), f"{label} / {sample_name}", fill=(0, 0, 0))
         for col, image in enumerate((source, alpha_overlay, density_overlay, expected)):
             sheet.paste(crop_thumb(image, tile_w, tile_h), (col * tile_w, y + label_h))
+        runtime_images = (
+            overlay_alpha(frame, runtime_alpha, (238, 111, 98)),
+            overlay_alpha(frame, runtime_density, (196, 76, 110)),
+            alpha_overlay,
+            density_overlay,
+            qa_render,
+        )
+        for col, image in enumerate(runtime_images):
+            runtime_sheet.paste(crop_thumb(image, tile_w, tile_h), (col * tile_w, y + label_h))
 
         active = projected_alpha > 0.03
+        outer_edge_region, inner_region = binary_edge_band(active)
+        center_region = inner_region & (projected_density > 0.45)
+        if not center_region.any():
+            center_region = projected_density > 0.45
+        if not outer_edge_region.any():
+            outer_edge_region = active & ~center_region
+        center_mean_delta = float(expected_diff[center_region].mean()) if center_region.any() else 0.0
+        outer_edge_mean_delta = float(expected_diff[outer_edge_region].mean()) if outer_edge_region.any() else 0.0
+        runtime_active = runtime_alpha > 0.03
+        runtime_density_active = runtime_density > 0.03
         rows = summary["rows"]
         assert isinstance(rows, list)
         rows.append(
@@ -276,15 +392,28 @@ def main() -> None:
                 "coverage": coverage,
                 "secondaryColor": secondary_hex,
                 "projectedAlphaActivePixelsGt003": int(active.sum()),
+                "runtimeFieldAlphaActivePixelsGt003": int(runtime_active.sum()),
+                "runtimeFieldDensityActivePixelsGt003": int(runtime_density_active.sum()),
+                "expectedRenderChangedPixelsGt006": int((expected_diff > 0.006).sum()),
+                "centerMeanDelta": round(center_mean_delta, 5),
+                "outerEdgeMeanDelta": round(outer_edge_mean_delta, 5),
+                "outerEdgeToCenterDeltaRatio": round(
+                    outer_edge_mean_delta / max(center_mean_delta, 1.0e-6),
+                    5,
+                ),
                 "expectedRender": str(expected_path.relative_to(ROOT)),
+                "qaHighVisibilityRender": str(qa_path.relative_to(ROOT)),
                 "projectedAlpha": str(alpha_path.relative_to(ROOT)),
                 "projectedDensity": str(density_path.relative_to(ROOT)),
             }
         )
 
     sheet_path = OUTPUT_ROOT / "cheek_blush_expected_render_sheet.png"
+    runtime_sheet_path = OUTPUT_ROOT / "cheek_blush_runtime_parity_qa_sheet.png"
     sheet.save(sheet_path)
+    runtime_sheet.save(runtime_sheet_path)
     summary["sheet"] = str(sheet_path.relative_to(ROOT))
+    summary["runtimeParityQaSheet"] = str(runtime_sheet_path.relative_to(ROOT))
     (OUTPUT_ROOT / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",

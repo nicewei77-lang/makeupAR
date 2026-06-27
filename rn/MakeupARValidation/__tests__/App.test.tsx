@@ -321,9 +321,10 @@ test('keeps focused cheek recipe summary when later eye ack arrives', async () =
     finish: 'powder',
     maskTextureId: 'cheek-lovely-mask-v1',
     maskSoftSampleMode: 'feather_scaled_13tap_near_far',
-    maskSource: 'cheek_blush_v1_uv_back_projection',
+    maskSource: 'cheek_blush_v1_static_arface_uv_attached_mask',
+    meshCullingMode: 'cheek_blush_static_arface_uv_attached',
     color: '#D94B74',
-    opacity: 0.52,
+    opacity: 0.8,
     intensity: 0.95,
     applied: true,
     faceCount: 1,
@@ -347,6 +348,7 @@ test('keeps focused cheek recipe summary when later eye ack arrives', async () =
 
   expect(text).toContain('recipe_applied region=cheek texture=blush_lovely');
   expect(text).toContain('maskTex=cheek-lovely-mask-v1');
+  expect(text).toContain('attach=staticUV');
   expect(text).not.toContain('recipe_applied region=eye texture=shimmer_eye');
 });
 

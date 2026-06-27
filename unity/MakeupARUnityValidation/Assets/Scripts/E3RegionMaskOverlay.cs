@@ -137,6 +137,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public int VisionUvMaskWidth;
         public int VisionUvMaskHeight;
         public MaskTextureDiagnostics VisionUvMaskDiagnostics;
+        public Texture2D CheekBlushUvMaskTexture;
+        public Color32[] CheekBlushUvMaskPixels;
+        public string CheekBlushUvMaskKey = string.Empty;
+        public int CheekBlushUvMaskWidth;
+        public int CheekBlushUvMaskHeight;
+        public MaskTextureDiagnostics CheekBlushUvMaskDiagnostics;
     }
 
     private sealed class MaskDefinition
@@ -173,6 +179,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public Color32[] Pixels = new Color32[0];
     }
 
+    private sealed class CheekBlushTemplateAtlasData
+    {
+        public string Status = "not_run";
+        public int Width;
+        public int Height;
+        public Color32[] Pixels = new Color32[0];
+    }
+
     private struct VisionBoundaryGateInfo
     {
         public string Status;
@@ -187,6 +201,55 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float FaceMotionCenterShiftPx;
         public float FaceMotionScaleDelta;
         public string FaceMotionRisk;
+    }
+
+    private struct FaceScreenMetrics
+    {
+        public float Left;
+        public float Top;
+        public float Right;
+        public float Bottom;
+        public float Width;
+        public float Height;
+        public float CenterX;
+        public float EyeLineY;
+        public bool UsedTopologyEyeAnchors;
+        public bool UsedTopologyNoseMidline;
+    }
+
+    private struct CheekFieldSample
+    {
+        public float Alpha;
+        public float Density;
+    }
+
+    private struct CheekTemplateComponent
+    {
+        public readonly string Role;
+        public readonly int TileColumn;
+        public readonly int TileRow;
+        public readonly float XRatio;
+        public readonly float YRatio;
+        public readonly float WidthRatio;
+        public readonly float HeightRatio;
+
+        public CheekTemplateComponent(
+            string role,
+            int tileColumn,
+            int tileRow,
+            float xRatio,
+            float yRatio,
+            float widthRatio,
+            float heightRatio)
+        {
+            Role = role;
+            TileColumn = tileColumn;
+            TileRow = tileRow;
+            XRatio = xRatio;
+            YRatio = yRatio;
+            WidthRatio = widthRatio;
+            HeightRatio = heightRatio;
+        }
     }
 
     [SerializeField] private ARFaceManager faceManager;
@@ -204,14 +267,51 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string CheekSunkissedMask1Id = "cheek-sunkissed-mask1-v1";
     private const string CheekSunkissedMask2Id = "cheek-sunkissed-mask2-v1";
     private const string CheekUnderEyeMaskId = "cheek-under-eye-mask-v1";
-    private const string CheekBlushMaskSource = "cheek_blush_v1_uv_back_projection";
-    private const string CheekBlushBoundaryRenderer = "rgba_cheek_blush_density_feather_powder";
+    private const string CheekBlushDrawingTemplateAtlasId = "cheek-blush-drawing-template-atlas-v1";
+    private const string CheekBlushMaskSource = "cheek_blush_v1_static_arface_uv_attached_mask";
+    private const string CheekBlushBoundaryRenderer = "static_arface_uv_gpu_dstcolor_zero_multiply_powder_fade";
+    private const string CheekBlushRuntimeMaskSource = "cheek_blush_v1_runtime_drawing_template_arface_uv_warp";
+    private const string CheekBlushRuntimeBoundaryRenderer = "runtime_drawing_template_warp_rgba_cheek_density_powder";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
     private const int VisionScreenMaskMaxDimension = 1024;
     private const int VisionUvMaskSize = 512;
     private const int VisionUvMaskSoftSplatRadius = 3;
+    private const bool CheekBlushDynamicProjectionEnabled = false;
+    private const string CheekBlushStaticMeshMode = "cheek_blush_static_arface_uv_attached";
+    private const string CheekBlushDynamicMeshMode = "cheek_blush_runtime_drawing_template_arface_uv_warp";
+    private const int CheekBlushTemplateTileSize = 128;
+    private const int CheekBlushUvMaskSize = 512;
+    private const int CheekBlushUvMaskSoftSplatRadius = 2;
+    private static readonly int[] CheekLeftEyeAnchorVertexIndices = { 1086, 1099, 1107, 1186, 1190, 1193 };
+    private static readonly int[] CheekRightEyeAnchorVertexIndices = { 504, 1061, 1064, 1070, 1078, 1081 };
+    private static readonly int[] CheekNoseMidlineAnchorVertexIndices = { 7, 10, 14, 15, 21, 25, 28, 38 };
+    private static readonly CheekTemplateComponent[] CheekDailyTemplateComponents =
+    {
+        new CheekTemplateComponent("left", 2, 0, 0.3419f, 0.1789f, 0.2836f, 0.1837f),
+        new CheekTemplateComponent("right", 3, 0, 0.3626f, 0.1789f, 0.2836f, 0.1837f)
+    };
+    private static readonly CheekTemplateComponent[] CheekLovelyTemplateComponents =
+    {
+        new CheekTemplateComponent("left", 0, 0, 0.2879f, 0.1873f, 0.2425f, 0.2069f),
+        new CheekTemplateComponent("right", 1, 0, 0.3043f, 0.1922f, 0.2425f, 0.2069f)
+    };
+    private static readonly CheekTemplateComponent[] CheekSunkissed1TemplateComponents =
+    {
+        new CheekTemplateComponent("left", 0, 1, 0.3848f, 0.2148f, 0.2292f, 0.2920f),
+        new CheekTemplateComponent("right", 1, 1, 0.4146f, 0.2030f, 0.2366f, 0.2932f),
+        new CheekTemplateComponent("center", 2, 1, 0.0001f, 0.1950f, 0.1308f, 0.0864f)
+    };
+    private static readonly CheekTemplateComponent[] CheekSunkissed2TemplateComponents =
+    {
+        new CheekTemplateComponent("global", 3, 1, 0.0075f, 0.1500f, 1.0242f, 0.1789f)
+    };
+    private static readonly CheekTemplateComponent[] CheekUnderEyeTemplateComponents =
+    {
+        new CheekTemplateComponent("left", 0, 2, 0.3302f, 0.1396f, 0.3350f, 0.2117f),
+        new CheekTemplateComponent("right", 1, 2, 0.3591f, 0.1396f, 0.3350f, 0.2117f)
+    };
     private const string WideFeatherSoftSampleMode = "feather_scaled_13tap_near_far";
     private const string LegacySoftSampleMode = "legacy_soft_alpha";
     private const float FeatherNearRadiusMinPx = 1.25f;
@@ -233,6 +333,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, MaskTextureDiagnostics>();
     private static readonly Dictionary<string, MaskTextureSampleData> MaskTextureSampleCache =
         new Dictionary<string, MaskTextureSampleData>();
+    private static CheekBlushTemplateAtlasData CheekBlushTemplateAtlasCache;
     private bool overlayRenderingSuppressed;
     private bool visionCaptureSuppressed;
 
@@ -706,7 +807,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         bool shouldCullToMask = ShouldCullMeshToMask(recipe);
         bool shouldCullToVisionBoundary = ShouldCullMeshToVisionBoundary(recipe);
+        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        bool shouldBakeDynamicCheekMask = cheekBlushMask && CheekBlushDynamicProjectionEnabled;
+        if (cheekBlushMask)
+        {
+            meshCullingMode = CheekBlushStaticMeshMode;
+        }
+
         Camera arCamera = Camera.main;
+        if (shouldBakeDynamicCheekMask && arCamera == null)
+        {
+            meshCullingMode = "cheek_blush_runtime_drawing_template_camera_missing_static_fallback";
+            shouldBakeDynamicCheekMask = false;
+        }
+
         MaskTextureSampleData sampleData = null;
         if (shouldCullToMask)
         {
@@ -779,6 +893,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             meshCullingMode = "apple_vision_lip_landmark_arface_uv_baked";
             visionBoundary = screenVisionBoundary;
             visionGateInfo = BuildVisionGateInfo(visionBoundary);
+        }
+
+        if (shouldBakeDynamicCheekMask)
+        {
+            if (!ApplyCheekBlushDynamicUvMask(
+                    face,
+                    arCamera,
+                    view,
+                    recipe,
+                    out dynamicMaskDiagnostics))
+            {
+                meshCullingMode = "cheek_blush_runtime_drawing_template_uv_warp_unavailable_static_fallback";
+            }
+            else
+            {
+                meshCullingMode = CheekBlushDynamicMeshMode;
+            }
         }
 
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
@@ -952,6 +1083,307 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.MaskTextureDensityCoverageGt8 = diagnostics.DensityCoverageGt8;
         result.MaskTextureDensityBbox = diagnostics.DensityBbox;
         result.MaskTextureDensityMax = diagnostics.DensityMax;
+        if (!string.IsNullOrWhiteSpace(diagnostics.Status)
+            && diagnostics.Status.StartsWith("cheek_blush_runtime_", StringComparison.Ordinal))
+        {
+            result.MaskSource = CheekBlushRuntimeMaskSource;
+            result.BoundaryRenderer = CheekBlushRuntimeBoundaryRenderer;
+        }
+    }
+
+    private static bool ApplyCheekBlushDynamicUvMask(
+        ARFace face,
+        Camera arCamera,
+        RegionOverlayView view,
+        RegionRecipeState recipe,
+        out MaskTextureDiagnostics diagnostics)
+    {
+        diagnostics = new MaskTextureDiagnostics
+        {
+            Status = "cheek_blush_runtime_drawing_template_unavailable"
+        };
+
+        if (face == null
+            || arCamera == null
+            || view == null
+            || view.MeshRenderer == null
+            || view.MeshRenderer.sharedMaterial == null
+            || recipe == null
+            || !IsCheekBlushMask(recipe.MaskTextureId)
+            || !HasUsableUv(face))
+        {
+            return false;
+        }
+
+        string maskKey = recipe.MaskTextureId + "|" + recipe.TextureSample;
+        EnsureCheekBlushUvMaskStorage(view, CheekBlushUvMaskSize, CheekBlushUvMaskSize, maskKey);
+        if (view.CheekBlushUvMaskTexture == null
+            || view.CheekBlushUvMaskPixels == null
+            || view.CheekBlushUvMaskPixels.Length != CheekBlushUvMaskSize * CheekBlushUvMaskSize)
+        {
+            diagnostics.Status = "cheek_blush_runtime_drawing_template_storage_failed";
+            return false;
+        }
+
+        if (!BuildCheekBlushUvMaskPixels(
+                face,
+                arCamera,
+                view,
+                recipe,
+                CheekBlushUvMaskSize,
+                CheekBlushUvMaskSize))
+        {
+            diagnostics = view.CheekBlushUvMaskDiagnostics ?? diagnostics;
+            return false;
+        }
+
+        Material material = view.MeshRenderer.sharedMaterial;
+        if (material.HasProperty("_MaskTex"))
+        {
+            material.SetTexture("_MaskTex", view.CheekBlushUvMaskTexture);
+        }
+
+        if (material.HasProperty("_UseScreenSpaceMask"))
+        {
+            material.SetFloat("_UseScreenSpaceMask", 0.0f);
+        }
+
+        diagnostics = view.CheekBlushUvMaskDiagnostics ?? new MaskTextureDiagnostics
+        {
+            Status = "cheek_blush_runtime_drawing_template_missing_diagnostics",
+            Width = CheekBlushUvMaskSize,
+            Height = CheekBlushUvMaskSize
+        };
+        return diagnostics.ActivePixelCountGt8 > 0 && diagnostics.DensityPixelCountGt8 > 0;
+    }
+
+    private static void EnsureCheekBlushUvMaskStorage(
+        RegionOverlayView view,
+        int width,
+        int height,
+        string maskKey)
+    {
+        if (view.CheekBlushUvMaskTexture != null
+            && view.CheekBlushUvMaskWidth == width
+            && view.CheekBlushUvMaskHeight == height
+            && view.CheekBlushUvMaskPixels != null
+            && view.CheekBlushUvMaskPixels.Length == width * height
+            && view.CheekBlushUvMaskKey == maskKey)
+        {
+            return;
+        }
+
+        if (view.CheekBlushUvMaskTexture != null)
+        {
+            UnityEngine.Object.Destroy(view.CheekBlushUvMaskTexture);
+        }
+
+        view.CheekBlushUvMaskTexture = new Texture2D(width, height, TextureFormat.RGBA32, false)
+        {
+            name = "E7 Cheek Blush Runtime ARFace UV Density Mask",
+            wrapMode = TextureWrapMode.Clamp,
+            filterMode = FilterMode.Bilinear
+        };
+        view.CheekBlushUvMaskPixels = new Color32[width * height];
+        view.CheekBlushUvMaskWidth = width;
+        view.CheekBlushUvMaskHeight = height;
+        view.CheekBlushUvMaskKey = maskKey;
+        view.CheekBlushUvMaskDiagnostics = new MaskTextureDiagnostics
+        {
+            Status = "cheek_blush_runtime_drawing_template_allocated",
+            Width = width,
+            Height = height
+        };
+    }
+
+    private static bool BuildCheekBlushUvMaskPixels(
+        ARFace face,
+        Camera arCamera,
+        RegionOverlayView view,
+        RegionRecipeState recipe,
+        int width,
+        int height)
+    {
+        Color32[] pixels = view.CheekBlushUvMaskPixels;
+        Array.Clear(pixels, 0, pixels.Length);
+
+        if (!TryCalculateFaceScreenMetrics(face, arCamera, out FaceScreenMetrics metrics))
+        {
+            view.CheekBlushUvMaskDiagnostics = new MaskTextureDiagnostics
+            {
+                Status = "cheek_blush_runtime_face_projection_unavailable",
+                Width = width,
+                Height = height
+            };
+            return false;
+        }
+
+        CheekBlushTemplateAtlasData templateAtlas = GetCheekBlushTemplateAtlasData();
+        CheekTemplateComponent[] templateComponents = GetCheekBlushTemplateComponents(recipe.MaskTextureId);
+        if (templateAtlas == null
+            || templateAtlas.Status != "ok"
+            || templateComponents == null
+            || templateComponents.Length == 0)
+        {
+            view.CheekBlushUvMaskDiagnostics = new MaskTextureDiagnostics
+            {
+                Status = "cheek_blush_runtime_drawing_template_unavailable",
+                Width = width,
+                Height = height
+            };
+            return false;
+        }
+
+        int fieldLeft;
+        int fieldTop;
+        int fieldRight;
+        int fieldBottom;
+        ResolveCheekFieldBbox(recipe.MaskTextureId, metrics, out fieldLeft, out fieldTop, out fieldRight, out fieldBottom);
+
+        int sampleStride = ResolveCheekUvBakeSampleStride(Screen.width, Screen.height);
+        int candidateTriangles = 0;
+        int hitTriangles = 0;
+        int testedSamples = 0;
+        int hitSamples = 0;
+        int skippedDegenerateTriangles = 0;
+
+        for (int index = 0; index + 2 < face.indices.Length; index += 3)
+        {
+            int sourceA = face.indices[index];
+            int sourceB = face.indices[index + 1];
+            int sourceC = face.indices[index + 2];
+            if (sourceA < 0 || sourceB < 0 || sourceC < 0
+                || sourceA >= face.vertices.Length
+                || sourceB >= face.vertices.Length
+                || sourceC >= face.vertices.Length
+                || sourceA >= face.uvs.Length
+                || sourceB >= face.uvs.Length
+                || sourceC >= face.uvs.Length
+                || !TryProjectVertexTopLeft(face, arCamera, sourceA, out Vector2 screenA)
+                || !TryProjectVertexTopLeft(face, arCamera, sourceB, out Vector2 screenB)
+                || !TryProjectVertexTopLeft(face, arCamera, sourceC, out Vector2 screenC)
+                || !CalculateTriangleBbox(
+                    screenA,
+                    screenB,
+                    screenC,
+                    Screen.width,
+                    Screen.height,
+                    out int triangleLeft,
+                    out int triangleTop,
+                    out int triangleRight,
+                    out int triangleBottom))
+            {
+                continue;
+            }
+
+            int left = Mathf.Max(triangleLeft, fieldLeft);
+            int top = Mathf.Max(triangleTop, fieldTop);
+            int right = Mathf.Min(triangleRight, fieldRight);
+            int bottom = Mathf.Min(triangleBottom, fieldBottom);
+            if (right < left || bottom < top)
+            {
+                continue;
+            }
+
+            candidateTriangles++;
+            Vector2 uvA = face.uvs[sourceA];
+            Vector2 uvB = face.uvs[sourceB];
+            Vector2 uvC = face.uvs[sourceC];
+            bool triangleHit = false;
+
+            for (int y = top; y <= bottom; y += sampleStride)
+            {
+                for (int x = left; x <= right; x += sampleStride)
+                {
+                    Vector2 point = new Vector2(x + 0.5f, y + 0.5f);
+                    if (!TryCalculateBarycentric(point, screenA, screenB, screenC, out Vector3 barycentric))
+                    {
+                        continue;
+                    }
+
+                    testedSamples++;
+                    float templateAlpha = SampleCheekBlushTemplateAlpha(
+                        point,
+                        metrics,
+                        templateComponents,
+                        templateAtlas);
+                    float alpha = SmoothStep(0.10f, 0.52f, templateAlpha);
+                    CheekFieldSample densityField = SampleCheekBlushField(recipe.MaskTextureId, point, metrics);
+                    float density = Mathf.Max(
+                        densityField.Density,
+                        alpha * CheekSilhouetteDensityFloor(recipe.MaskTextureId));
+                    density = Mathf.Clamp01(density) * SmoothStep(0.025f, 0.36f, alpha);
+                    if (alpha <= 0.018f && density <= 0.010f)
+                    {
+                        continue;
+                    }
+
+                    Vector2 uv = uvA * barycentric.x
+                        + uvB * barycentric.y
+                        + uvC * barycentric.z;
+                    if (!WriteCheekBlushUvMaskPixel(pixels, width, height, uv, alpha, density))
+                    {
+                        continue;
+                    }
+
+                    hitSamples++;
+                    triangleHit = true;
+                }
+            }
+
+            if (triangleHit)
+            {
+                hitTriangles++;
+            }
+            else if (IsTriangleDegenerate(screenA, screenB, screenC))
+            {
+                skippedDegenerateTriangles++;
+            }
+        }
+
+        view.CheekBlushUvMaskTexture.SetPixels32(pixels);
+        view.CheekBlushUvMaskTexture.Apply(false, false);
+        MaskTextureDiagnostics bakedDiagnostics = BuildRuntimeMaskDiagnosticsFromPixels(
+            hitSamples > 0
+                ? "cheek_blush_runtime_drawing_template_arface_uv_density"
+                : "cheek_blush_runtime_drawing_template_arface_uv_empty",
+            width,
+            height,
+            pixels);
+        view.CheekBlushUvMaskDiagnostics = bakedDiagnostics;
+
+        Debug.Log(
+            "[E7] cheek_blush_runtime_drawing_template_uv_bake"
+            + " maskTextureId=" + recipe.MaskTextureId
+            + " textureSample=" + recipe.TextureSample
+            + " templateAtlas=" + CheekBlushDrawingTemplateAtlasId
+            + " templateComponents=" + templateComponents.Length.ToString(CultureInfo.InvariantCulture)
+            + " uvSize=" + width.ToString(CultureInfo.InvariantCulture)
+            + "x" + height.ToString(CultureInfo.InvariantCulture)
+            + " faceBox=left=" + metrics.Left.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",top=" + metrics.Top.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",right=" + metrics.Right.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",bottom=" + metrics.Bottom.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",centerX=" + metrics.CenterX.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",eyeLineY=" + metrics.EyeLineY.ToString("0.0", CultureInfo.InvariantCulture)
+            + ",usedTopologyEyeAnchors=" + BoolToLower(metrics.UsedTopologyEyeAnchors)
+            + ",usedTopologyNoseMidline=" + BoolToLower(metrics.UsedTopologyNoseMidline)
+            + " fieldBox=left=" + fieldLeft.ToString(CultureInfo.InvariantCulture)
+            + ",top=" + fieldTop.ToString(CultureInfo.InvariantCulture)
+            + ",right=" + fieldRight.ToString(CultureInfo.InvariantCulture)
+            + ",bottom=" + fieldBottom.ToString(CultureInfo.InvariantCulture)
+            + " candidateTriangles=" + candidateTriangles.ToString(CultureInfo.InvariantCulture)
+            + " hitTriangles=" + hitTriangles.ToString(CultureInfo.InvariantCulture)
+            + " testedSamples=" + testedSamples.ToString(CultureInfo.InvariantCulture)
+            + " hitSamples=" + hitSamples.ToString(CultureInfo.InvariantCulture)
+            + " activePixels=" + bakedDiagnostics.ActivePixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " densityPixels=" + bakedDiagnostics.DensityPixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " densityMax=" + bakedDiagnostics.DensityMax.ToString(CultureInfo.InvariantCulture)
+            + " sampleStride=" + sampleStride.ToString(CultureInfo.InvariantCulture)
+            + " softSplatRadius=" + CheekBlushUvMaskSoftSplatRadius.ToString(CultureInfo.InvariantCulture)
+            + " skippedDegenerateTriangles=" + skippedDegenerateTriangles.ToString(CultureInfo.InvariantCulture));
+
+        return hitSamples > 0;
     }
 
     private static bool ApplyVisionBoundaryUvMask(
@@ -1716,6 +2148,551 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return Mathf.Clamp(Mathf.RoundToInt(largest / 900.0f), 1, 4);
     }
 
+    private static int ResolveCheekUvBakeSampleStride(int screenWidth, int screenHeight)
+    {
+        int largest = Mathf.Max(Mathf.Max(1, screenWidth), Mathf.Max(1, screenHeight));
+        return Mathf.Clamp(Mathf.RoundToInt(largest / 520.0f), 2, 5);
+    }
+
+    private static bool TryAverageProjectedVertices(
+        ARFace face,
+        Camera arCamera,
+        int[] indices,
+        out Vector2 average)
+    {
+        average = Vector2.zero;
+        if (face == null || arCamera == null || indices == null || indices.Length <= 0)
+        {
+            return false;
+        }
+
+        Vector2 sum = Vector2.zero;
+        int count = 0;
+        for (int itemIndex = 0; itemIndex < indices.Length; itemIndex++)
+        {
+            int vertexIndex = indices[itemIndex];
+            if (vertexIndex < 0
+                || vertexIndex >= face.vertices.Length
+                || !TryProjectVertexTopLeft(face, arCamera, vertexIndex, out Vector2 point))
+            {
+                continue;
+            }
+
+            if (point.x < -Screen.width * 0.5f
+                || point.x > Screen.width * 1.5f
+                || point.y < -Screen.height * 0.5f
+                || point.y > Screen.height * 1.5f)
+            {
+                continue;
+            }
+
+            sum += point;
+            count++;
+        }
+
+        if (count <= 0)
+        {
+            return false;
+        }
+
+        average = sum / count;
+        return true;
+    }
+
+    private static bool TryCalculateFaceScreenMetrics(
+        ARFace face,
+        Camera arCamera,
+        out FaceScreenMetrics metrics)
+    {
+        metrics = default;
+        if (face == null || arCamera == null || face.vertices.Length <= 0)
+        {
+            return false;
+        }
+
+        List<float> xs = new List<float>(face.vertices.Length);
+        List<float> ys = new List<float>(face.vertices.Length);
+        for (int index = 0; index < face.vertices.Length; index++)
+        {
+            if (!TryProjectVertexTopLeft(face, arCamera, index, out Vector2 point))
+            {
+                continue;
+            }
+
+            if (point.x < -Screen.width * 0.5f
+                || point.x > Screen.width * 1.5f
+                || point.y < -Screen.height * 0.5f
+                || point.y > Screen.height * 1.5f)
+            {
+                continue;
+            }
+
+            xs.Add(point.x);
+            ys.Add(point.y);
+        }
+
+        if (xs.Count < 32 || ys.Count < 32)
+        {
+            return false;
+        }
+
+        xs.Sort();
+        ys.Sort();
+        float left = PercentileSorted(xs, 0.02f);
+        float right = PercentileSorted(xs, 0.98f);
+        float top = PercentileSorted(ys, 0.02f);
+        float bottom = PercentileSorted(ys, 0.98f);
+        float width = Mathf.Max(1.0f, right - left);
+        float height = Mathf.Max(1.0f, bottom - top);
+        float centerX = (left + right) * 0.5f;
+        float eyeLineY = top + height * 0.331f;
+        bool usedTopologyEyeAnchors = false;
+        bool usedTopologyNoseMidline = false;
+        if (TryAverageProjectedVertices(face, arCamera, CheekLeftEyeAnchorVertexIndices, out Vector2 leftEye)
+            && TryAverageProjectedVertices(face, arCamera, CheekRightEyeAnchorVertexIndices, out Vector2 rightEye))
+        {
+            eyeLineY = Mathf.Clamp(
+                (leftEye.y + rightEye.y) * 0.5f,
+                top + height * 0.180f,
+                top + height * 0.450f);
+            usedTopologyEyeAnchors = true;
+        }
+
+        if (TryAverageProjectedVertices(face, arCamera, CheekNoseMidlineAnchorVertexIndices, out Vector2 noseMidline))
+        {
+            centerX = Mathf.Clamp(noseMidline.x, left + width * 0.420f, left + width * 0.580f);
+            usedTopologyNoseMidline = true;
+        }
+
+        metrics = new FaceScreenMetrics
+        {
+            Left = left,
+            Top = top,
+            Right = right,
+            Bottom = bottom,
+            Width = width,
+            Height = height,
+            CenterX = centerX,
+            EyeLineY = eyeLineY,
+            UsedTopologyEyeAnchors = usedTopologyEyeAnchors,
+            UsedTopologyNoseMidline = usedTopologyNoseMidline
+        };
+        return true;
+    }
+
+    private static float PercentileSorted(List<float> values, float percentile)
+    {
+        if (values == null || values.Count == 0)
+        {
+            return 0.0f;
+        }
+
+        float scaled = Mathf.Clamp01(percentile) * (values.Count - 1);
+        int lower = Mathf.Clamp(Mathf.FloorToInt(scaled), 0, values.Count - 1);
+        int upper = Mathf.Clamp(Mathf.CeilToInt(scaled), 0, values.Count - 1);
+        if (lower == upper)
+        {
+            return values[lower];
+        }
+
+        return Mathf.Lerp(values[lower], values[upper], scaled - lower);
+    }
+
+    private static void ResolveCheekFieldBbox(
+        string maskTextureId,
+        FaceScreenMetrics metrics,
+        out int left,
+        out int top,
+        out int right,
+        out int bottom)
+    {
+        float padX = metrics.Width * 0.18f;
+        float padY = metrics.Height * 0.14f;
+        float fieldTop = metrics.EyeLineY + metrics.Height * 0.035f;
+        float fieldBottom = metrics.EyeLineY + metrics.Height * 0.430f;
+        if (maskTextureId == CheekUnderEyeMaskId)
+        {
+            fieldTop = metrics.EyeLineY + metrics.Height * 0.020f;
+            fieldBottom = metrics.EyeLineY + metrics.Height * 0.325f;
+        }
+        else if (maskTextureId == CheekSunkissedMask2Id)
+        {
+            fieldTop = metrics.EyeLineY + metrics.Height * 0.035f;
+            fieldBottom = metrics.EyeLineY + metrics.Height * 0.300f;
+            padX = metrics.Width * 0.25f;
+        }
+        else if (maskTextureId == CheekSunkissedMask1Id)
+        {
+            fieldBottom = metrics.EyeLineY + metrics.Height * 0.480f;
+        }
+
+        left = Mathf.Clamp(Mathf.FloorToInt(metrics.Left - padX), 0, Mathf.Max(0, Screen.width - 1));
+        right = Mathf.Clamp(Mathf.CeilToInt(metrics.Right + padX), 0, Mathf.Max(0, Screen.width - 1));
+        top = Mathf.Clamp(Mathf.FloorToInt(fieldTop - padY), 0, Mathf.Max(0, Screen.height - 1));
+        bottom = Mathf.Clamp(Mathf.CeilToInt(fieldBottom + padY), 0, Mathf.Max(0, Screen.height - 1));
+    }
+
+    private static CheekBlushTemplateAtlasData GetCheekBlushTemplateAtlasData()
+    {
+        if (CheekBlushTemplateAtlasCache != null)
+        {
+            return CheekBlushTemplateAtlasCache;
+        }
+
+        CheekBlushTemplateAtlasData data = new CheekBlushTemplateAtlasData();
+        Texture2D texture = Resources.Load<Texture2D>("SmoothRegionMasks/" + CheekBlushDrawingTemplateAtlasId);
+        if (texture == null)
+        {
+            data.Status = "texture_missing";
+            CheekBlushTemplateAtlasCache = data;
+            return data;
+        }
+
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+        data.Width = texture.width;
+        data.Height = texture.height;
+        try
+        {
+            data.Pixels = texture.GetPixels32();
+            data.Status = data.Pixels != null && data.Pixels.Length > 0 ? "ok" : "empty_pixels";
+        }
+        catch (Exception exception)
+        {
+            data.Status = "error_" + SanitizeDiagnosticValue(exception.GetType().Name);
+        }
+
+        CheekBlushTemplateAtlasCache = data;
+        return data;
+    }
+
+    private static CheekTemplateComponent[] GetCheekBlushTemplateComponents(string maskTextureId)
+    {
+        if (maskTextureId == CheekDailyMaskId)
+        {
+            return CheekDailyTemplateComponents;
+        }
+
+        if (maskTextureId == CheekLovelyMaskId)
+        {
+            return CheekLovelyTemplateComponents;
+        }
+
+        if (maskTextureId == CheekSunkissedMask1Id)
+        {
+            return CheekSunkissed1TemplateComponents;
+        }
+
+        if (maskTextureId == CheekSunkissedMask2Id)
+        {
+            return CheekSunkissed2TemplateComponents;
+        }
+
+        if (maskTextureId == CheekUnderEyeMaskId)
+        {
+            return CheekUnderEyeTemplateComponents;
+        }
+
+        return Array.Empty<CheekTemplateComponent>();
+    }
+
+    private static float SampleCheekBlushTemplateAlpha(
+        Vector2 point,
+        FaceScreenMetrics metrics,
+        CheekTemplateComponent[] components,
+        CheekBlushTemplateAtlasData atlas)
+    {
+        float alpha = 0.0f;
+        for (int index = 0; index < components.Length; index++)
+        {
+            alpha = Mathf.Max(alpha, SampleCheekBlushTemplateComponent(point, metrics, components[index], atlas));
+        }
+
+        return alpha;
+    }
+
+    private static float SampleCheekBlushTemplateComponent(
+        Vector2 point,
+        FaceScreenMetrics metrics,
+        CheekTemplateComponent component,
+        CheekBlushTemplateAtlasData atlas)
+    {
+        float targetCenterX;
+        if (component.Role == "left" || component.Role == "right")
+        {
+            float side = component.Role == "left" ? -1.0f : 1.0f;
+            targetCenterX = metrics.CenterX + side * metrics.Width * component.XRatio;
+        }
+        else
+        {
+            targetCenterX = metrics.CenterX + metrics.Width * component.XRatio;
+        }
+
+        float targetCenterY = metrics.EyeLineY + metrics.Height * component.YRatio;
+        float targetWidth = Mathf.Max(metrics.Width * component.WidthRatio, 1.0f);
+        float targetHeight = Mathf.Max(metrics.Height * component.HeightRatio, 1.0f);
+        float localX = (point.x - (targetCenterX - targetWidth * 0.5f)) / targetWidth;
+        float localY = (point.y - (targetCenterY - targetHeight * 0.5f)) / targetHeight;
+        if (localX < 0.0f || localX > 1.0f || localY < 0.0f || localY > 1.0f)
+        {
+            return 0.0f;
+        }
+
+        return SampleCheekTemplateAtlasR(atlas, component.TileColumn, component.TileRow, localX, localY);
+    }
+
+    private static float SampleCheekTemplateAtlasR(
+        CheekBlushTemplateAtlasData atlas,
+        int tileColumn,
+        int tileRow,
+        float localX,
+        float localY)
+    {
+        if (atlas == null
+            || atlas.Status != "ok"
+            || atlas.Pixels == null
+            || atlas.Pixels.Length == 0
+            || atlas.Width <= 0
+            || atlas.Height <= 0)
+        {
+            return 0.0f;
+        }
+
+        float x = tileColumn * CheekBlushTemplateTileSize
+            + Mathf.Clamp01(localX) * (CheekBlushTemplateTileSize - 1);
+        float topY = tileRow * CheekBlushTemplateTileSize
+            + Mathf.Clamp01(localY) * (CheekBlushTemplateTileSize - 1);
+        int x0 = Mathf.Clamp(Mathf.FloorToInt(x), 0, atlas.Width - 1);
+        int x1 = Mathf.Clamp(x0 + 1, 0, atlas.Width - 1);
+        int topY0 = Mathf.Clamp(Mathf.FloorToInt(topY), 0, atlas.Height - 1);
+        int topY1 = Mathf.Clamp(topY0 + 1, 0, atlas.Height - 1);
+        float tx = x - x0;
+        float ty = topY - topY0;
+        float a = SampleTopLeftPixelR(atlas, x0, topY0);
+        float b = SampleTopLeftPixelR(atlas, x1, topY0);
+        float c = SampleTopLeftPixelR(atlas, x0, topY1);
+        float d = SampleTopLeftPixelR(atlas, x1, topY1);
+        return Mathf.Lerp(Mathf.Lerp(a, b, tx), Mathf.Lerp(c, d, tx), ty);
+    }
+
+    private static float SampleTopLeftPixelR(CheekBlushTemplateAtlasData atlas, int x, int topY)
+    {
+        int y = atlas.Height - 1 - Mathf.Clamp(topY, 0, atlas.Height - 1);
+        int pixelIndex = y * atlas.Width + Mathf.Clamp(x, 0, atlas.Width - 1);
+        if (pixelIndex < 0 || pixelIndex >= atlas.Pixels.Length)
+        {
+            return 0.0f;
+        }
+
+        return atlas.Pixels[pixelIndex].r / 255.0f;
+    }
+
+    private static CheekFieldSample SampleCheekBlushField(
+        string maskTextureId,
+        Vector2 point,
+        FaceScreenMetrics metrics)
+    {
+        CheekFieldSample output = new CheekFieldSample();
+        if (maskTextureId == CheekDailyMaskId)
+        {
+            AddSideCheekField(ref output, point, metrics, -1.0f, 0.300f, 0.178f, 0.145f, 0.083f, 0.20f, 0.30f, -0.26f, 1.0f);
+            AddSideCheekField(ref output, point, metrics, 1.0f, 0.300f, 0.178f, 0.145f, 0.083f, -0.20f, 0.30f, -0.26f, 1.0f);
+        }
+        else if (maskTextureId == CheekLovelyMaskId)
+        {
+            AddSideCheekField(ref output, point, metrics, -1.0f, 0.296f, 0.190f, 0.122f, 0.102f, 0.0f, 0.0f, 0.0f, 1.0f);
+            AddSideCheekField(ref output, point, metrics, 1.0f, 0.296f, 0.190f, 0.122f, 0.102f, 0.0f, 0.0f, 0.0f, 1.0f);
+        }
+        else if (maskTextureId == CheekSunkissedMask1Id)
+        {
+            AddSideCheekField(ref output, point, metrics, -1.0f, 0.400f, 0.209f, 0.118f, 0.146f, 0.0f, 0.0f, -0.04f, 1.0f);
+            AddSideCheekField(ref output, point, metrics, 1.0f, 0.400f, 0.209f, 0.118f, 0.146f, 0.0f, 0.0f, -0.04f, 1.0f);
+            float noseX = metrics.CenterX;
+            float noseY = metrics.EyeLineY + metrics.Height * 0.168f;
+            float noseAlpha = EllipseField(point, noseX, noseY, metrics.Width * 0.034f, metrics.Height * 0.030f, 0.0f, 1.0f) * 0.50f;
+            float noseDensity = EllipseField(point, noseX, noseY - metrics.Height * 0.012f, metrics.Width * 0.021f, metrics.Height * 0.017f, 0.0f, 1.0f) * 0.16f;
+            output.Alpha = Mathf.Max(output.Alpha, noseAlpha);
+            output.Density = Mathf.Max(output.Density, noseDensity);
+        }
+        else if (maskTextureId == CheekSunkissedMask2Id)
+        {
+            float centerX = metrics.CenterX;
+            float centerY = metrics.EyeLineY + metrics.Height * 0.148f;
+            AddSideCheekField(ref output, point, metrics, -1.0f, 0.360f, 0.168f, 0.185f, 0.078f, 0.13f, 0.18f, -0.06f, 1.0f);
+            AddSideCheekField(ref output, point, metrics, 1.0f, 0.360f, 0.168f, 0.185f, 0.078f, -0.13f, 0.18f, -0.06f, 1.0f);
+            float bridgeAlpha = EllipseField(point, centerX, centerY, metrics.Width * 0.360f, metrics.Height * 0.052f, 0.0f, 1.0f) * 0.50f;
+            float bridgeDensity = EllipseField(point, centerX, centerY, metrics.Width * 0.205f, metrics.Height * 0.025f, 0.0f, 1.0f) * 0.20f;
+            output.Alpha = Mathf.Max(output.Alpha, bridgeAlpha);
+            output.Density = Mathf.Max(output.Density, bridgeDensity);
+        }
+        else if (maskTextureId == CheekUnderEyeMaskId)
+        {
+            AddUnderEyeField(ref output, point, metrics, -1.0f, 0.345f, 0.140f, 0.168f, 0.106f, 0.12f);
+            AddUnderEyeField(ref output, point, metrics, 1.0f, 0.345f, 0.140f, 0.168f, 0.106f, -0.12f);
+        }
+
+        output.Alpha = SmoothStep(0.10f, 0.52f, Mathf.Clamp01(output.Alpha));
+        output.Density = Mathf.Max(
+            Mathf.Clamp01(output.Density),
+            output.Alpha * CheekSilhouetteDensityFloor(maskTextureId));
+        output.Density = Mathf.Clamp01(output.Density) * SmoothStep(0.025f, 0.36f, output.Alpha);
+        return output;
+    }
+
+    private static float CheekSilhouetteDensityFloor(string maskTextureId)
+    {
+        if (maskTextureId == CheekSunkissedMask1Id)
+        {
+            return 0.46f;
+        }
+
+        if (maskTextureId == CheekSunkissedMask2Id)
+        {
+            return 0.54f;
+        }
+
+        if (maskTextureId == CheekUnderEyeMaskId)
+        {
+            return 0.52f;
+        }
+
+        return 0.34f;
+    }
+
+    private static float SideCheekAnatomyGate(
+        Vector2 point,
+        FaceScreenMetrics metrics,
+        float side,
+        float centerX,
+        float centerY,
+        float radiusX,
+        float radiusY)
+    {
+        float topGate = SmoothStep(
+            metrics.EyeLineY + metrics.Height * 0.058f,
+            metrics.EyeLineY + metrics.Height * 0.092f,
+            point.y);
+        float bottomGate = 1.0f - SmoothStep(
+            metrics.EyeLineY + metrics.Height * 0.370f,
+            metrics.EyeLineY + metrics.Height * 0.445f,
+            point.y);
+        float noseClearance = SmoothStep(
+            metrics.Width * 0.150f,
+            metrics.Width * 0.245f,
+            side * (point.x - metrics.CenterX));
+        float outerLimit = 1.0f - SmoothStep(
+            metrics.Width * 0.470f,
+            metrics.Width * 0.565f,
+            Mathf.Abs(point.x - metrics.CenterX));
+        float cheekLift = 1.0f - SmoothStep(radiusY * 1.05f, radiusY * 1.85f, point.y - centerY);
+        float outwardSoftness = 1.0f - SmoothStep(radiusX * 1.10f, radiusX * 1.80f, Mathf.Abs(side * (point.x - centerX)));
+        return Mathf.Clamp01(topGate * bottomGate * noseClearance * outerLimit * cheekLift * outwardSoftness);
+    }
+
+    private static void AddSideCheekField(
+        ref CheekFieldSample output,
+        Vector2 point,
+        FaceScreenMetrics metrics,
+        float side,
+        float xRatio,
+        float yFromEyeRatio,
+        float radiusXRatio,
+        float radiusYRatio,
+        float angle,
+        float peakOffsetX,
+        float peakOffsetY,
+        float densityCap)
+    {
+        float centerX = metrics.CenterX + side * metrics.Width * xRatio;
+        float centerY = metrics.EyeLineY + metrics.Height * yFromEyeRatio;
+        float radiusX = metrics.Width * radiusXRatio;
+        float radiusY = metrics.Height * radiusYRatio;
+        float anatomyGate = SideCheekAnatomyGate(point, metrics, side, centerX, centerY, radiusX, radiusY);
+        float alpha = EllipseField(point, centerX, centerY, radiusX, radiusY, angle, 1.0f) * anatomyGate;
+        float peakX = centerX + side * radiusX * peakOffsetX;
+        float peakY = centerY + radiusY * peakOffsetY;
+        float densityCore = EllipseField(point, peakX, peakY, radiusX * 0.66f, radiusY * 0.70f, angle, 1.0f)
+            * densityCap;
+        float densityWash = EllipseField(point, peakX, peakY, radiusX * 1.08f, radiusY * 1.04f, angle, 1.0f)
+            * densityCap
+            * 0.50f;
+        float density = Mathf.Max(densityCore, densityWash) * anatomyGate;
+        output.Alpha = Mathf.Max(output.Alpha, alpha);
+        output.Density = Mathf.Max(output.Density, density);
+    }
+
+    private static void AddUnderEyeField(
+        ref CheekFieldSample output,
+        Vector2 point,
+        FaceScreenMetrics metrics,
+        float side,
+        float xRatio,
+        float yFromEyeRatio,
+        float radiusXRatio,
+        float radiusYRatio,
+        float angle)
+    {
+        float centerX = metrics.CenterX + side * metrics.Width * xRatio;
+        float centerY = metrics.EyeLineY + metrics.Height * yFromEyeRatio;
+        float radiusX = metrics.Width * radiusXRatio;
+        float radiusY = metrics.Height * radiusYRatio;
+        float topGate = SmoothStep(
+            metrics.EyeLineY + metrics.Height * 0.026f,
+            metrics.EyeLineY + metrics.Height * 0.048f,
+            point.y);
+        float bottomGate = 1.0f - SmoothStep(
+            metrics.EyeLineY + metrics.Height * 0.205f,
+            metrics.EyeLineY + metrics.Height * 0.270f,
+            point.y);
+        float noseClearance = SmoothStep(
+            metrics.Width * 0.185f,
+            metrics.Width * 0.290f,
+            side * (point.x - metrics.CenterX));
+        float lowerEyelidClearance = SmoothStep(
+            metrics.EyeLineY + metrics.Height * 0.036f,
+            metrics.EyeLineY + metrics.Height * 0.074f,
+            point.y);
+        float gate = Mathf.Clamp01(topGate * bottomGate * noseClearance);
+        gate *= lowerEyelidClearance;
+        float alpha = EllipseField(point, centerX, centerY, radiusX, radiusY, angle, 1.0f) * gate;
+        float peakX = centerX + side * radiusX * 0.46f;
+        float peakY = centerY - radiusY * 0.24f;
+        float outward = side * (point.x - centerX);
+        float outwardGate = SmoothStep(metrics.Width * 0.008f, metrics.Width * 0.086f, outward);
+        float densityCore = EllipseField(point, peakX, peakY, radiusX * 0.68f, radiusY * 0.72f, angle, 1.0f);
+        float densityWash = EllipseField(point, peakX, peakY, radiusX * 1.12f, radiusY * 1.04f, angle, 1.0f) * 0.74f;
+        float density = Mathf.Max(densityCore * outwardGate, densityWash * (0.52f + 0.48f * outwardGate)) * gate;
+        output.Alpha = Mathf.Max(output.Alpha, alpha);
+        output.Density = Mathf.Max(output.Density, density);
+    }
+
+    private static float EllipseField(
+        Vector2 point,
+        float centerX,
+        float centerY,
+        float radiusX,
+        float radiusY,
+        float angle,
+        float exponent)
+    {
+        float cos = Mathf.Cos(angle);
+        float sin = Mathf.Sin(angle);
+        float dx = point.x - centerX;
+        float dy = point.y - centerY;
+        float rotatedX = dx * cos + dy * sin;
+        float rotatedY = -dx * sin + dy * cos;
+        float norm = (rotatedX / Mathf.Max(radiusX, 1.0f)) * (rotatedX / Mathf.Max(radiusX, 1.0f))
+            + (rotatedY / Mathf.Max(radiusY, 1.0f)) * (rotatedY / Mathf.Max(radiusY, 1.0f));
+        float value = Mathf.Exp(-norm);
+        return exponent == 1.0f ? value : Mathf.Pow(value, exponent);
+    }
+
+    private static float SmoothStep(float edge0, float edge1, float value)
+    {
+        float t = Mathf.Clamp01((value - edge0) / Mathf.Max(edge1 - edge0, 0.000001f));
+        return t * t * (3.0f - 2.0f * t);
+    }
+
     private static bool CalculateTriangleBbox(
         Vector2 a,
         Vector2 b,
@@ -1844,6 +2821,80 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return wrote;
     }
 
+    private static bool WriteCheekBlushUvMaskPixel(
+        Color32[] pixels,
+        int width,
+        int height,
+        Vector2 uv,
+        float alpha,
+        float density)
+    {
+        if (pixels == null
+            || pixels.Length != width * height
+            || width <= 0
+            || height <= 0
+            || float.IsNaN(uv.x)
+            || float.IsNaN(uv.y)
+            || float.IsInfinity(uv.x)
+            || float.IsInfinity(uv.y))
+        {
+            return false;
+        }
+
+        int centerX = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.x) * (width - 1)),
+            0,
+            width - 1);
+        int centerY = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.y) * (height - 1)),
+            0,
+            height - 1);
+        int alphaByte = Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp01(alpha) * 255.0f), 0, 255);
+        int densityByte = Mathf.Clamp(Mathf.RoundToInt(Mathf.Clamp01(density) * 255.0f), 0, 255);
+        if (alphaByte == 0 && densityByte == 0)
+        {
+            return false;
+        }
+
+        bool wrote = false;
+        for (int offsetY = -CheekBlushUvMaskSoftSplatRadius; offsetY <= CheekBlushUvMaskSoftSplatRadius; offsetY++)
+        {
+            int y = centerY + offsetY;
+            if (y < 0 || y >= height)
+            {
+                continue;
+            }
+
+            for (int offsetX = -CheekBlushUvMaskSoftSplatRadius; offsetX <= CheekBlushUvMaskSoftSplatRadius; offsetX++)
+            {
+                int x = centerX + offsetX;
+                if (x < 0 || x >= width)
+                {
+                    continue;
+                }
+
+                float distance = Mathf.Sqrt(offsetX * offsetX + offsetY * offsetY);
+                float falloff = Mathf.Clamp01(1.0f - distance / (CheekBlushUvMaskSoftSplatRadius + 0.5f));
+                falloff = falloff * falloff * (3.0f - 2.0f * falloff);
+                byte splatAlpha = (byte)Mathf.RoundToInt(alphaByte * falloff);
+                byte splatDensity = (byte)Mathf.RoundToInt(densityByte * falloff);
+                if (splatAlpha == 0 && splatDensity == 0)
+                {
+                    continue;
+                }
+
+                int pixelIndex = y * width + x;
+                Color32 current = pixels[pixelIndex];
+                byte mergedAlpha = current.r > splatAlpha ? current.r : splatAlpha;
+                byte mergedDensity = current.b > splatDensity ? current.b : splatDensity;
+                pixels[pixelIndex] = new Color32(mergedAlpha, 0, mergedDensity, mergedAlpha);
+                wrote = true;
+            }
+        }
+
+        return wrote;
+    }
+
     private static MaskTextureDiagnostics BuildRuntimeMaskDiagnosticsFromPixels(
         string status,
         int width,
@@ -1869,6 +2920,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         int maxX = -1;
         int maxY = -1;
         int activeCount = 0;
+        int densityMinX = width;
+        int densityMinY = height;
+        int densityMaxX = -1;
+        int densityMaxY = -1;
+        int densityCount = 0;
+        int densityMax = 0;
         for (int y = 0; y < height; y++)
         {
             for (int x = 0; x < width; x++)
@@ -1877,12 +2934,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 int value = Mathf.Max(
                     Mathf.Max(pixel.r, pixel.g),
                     Mathf.Max(pixel.b, pixel.a));
+                int densityValue = pixel.b;
+                densityMax = Mathf.Max(densityMax, densityValue);
+                int topLeftY = height - 1 - y;
+                if (densityValue > 8)
+                {
+                    densityCount++;
+                    densityMinX = Mathf.Min(densityMinX, x);
+                    densityMaxX = Mathf.Max(densityMaxX, x);
+                    densityMinY = Mathf.Min(densityMinY, topLeftY);
+                    densityMaxY = Mathf.Max(densityMaxY, topLeftY);
+                }
+
                 if (value <= 8)
                 {
                     continue;
                 }
 
-                int topLeftY = height - 1 - y;
                 activeCount++;
                 minX = Mathf.Min(minX, x);
                 maxX = Mathf.Max(maxX, x);
@@ -1896,6 +2964,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         diagnostics.ActiveCoverageGt8 = activeCount / (float)totalPixels;
         diagnostics.ThresholdPixelCount = activeCount;
         diagnostics.ThresholdCoverage = activeCount / (float)totalPixels;
+        diagnostics.DensityPixelCountGt8 = densityCount;
+        diagnostics.DensityCoverageGt8 = densityCount / (float)totalPixels;
+        diagnostics.DensityMax = densityMax;
         diagnostics.ActiveBbox = activeCount == 0
             ? "none"
             : "left=" + minX.ToString(CultureInfo.InvariantCulture)
@@ -1904,6 +2975,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 + ",bottom=" + maxY.ToString(CultureInfo.InvariantCulture)
                 + ",width=" + (maxX - minX + 1).ToString(CultureInfo.InvariantCulture)
                 + ",height=" + (maxY - minY + 1).ToString(CultureInfo.InvariantCulture);
+        diagnostics.DensityBbox = densityCount == 0
+            ? "none"
+            : "left=" + densityMinX.ToString(CultureInfo.InvariantCulture)
+                + ",top=" + densityMinY.ToString(CultureInfo.InvariantCulture)
+                + ",right=" + densityMaxX.ToString(CultureInfo.InvariantCulture)
+                + ",bottom=" + densityMaxY.ToString(CultureInfo.InvariantCulture)
+                + ",width=" + (densityMaxX - densityMinX + 1).ToString(CultureInfo.InvariantCulture)
+                + ",height=" + (densityMaxY - densityMinY + 1).ToString(CultureInfo.InvariantCulture);
         return diagnostics;
     }
 
@@ -2649,14 +3728,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 sampleAlphaScale = Mathf.Lerp(0.28f, 0.42f, recipe.Intensity);
                 brightnessScale = 0.96f;
                 break;
-            case "soft_blush":
             case "blush_daily":
             case "blush_lovely":
             case "blush_sunkissed1":
             case "blush_sunkissed2":
             case "blush_under_eye":
-                sampleAlphaScale = Mathf.Lerp(0.18f, 0.42f, recipe.Intensity);
-                brightnessScale = 0.98f;
+                sampleAlphaScale = Mathf.Lerp(0.34f, 0.60f, recipe.Intensity);
+                brightnessScale = 0.88f;
                 break;
             case "shimmer_eye":
                 sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);
@@ -2886,8 +3964,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "gradient_lip"
                     || textureSample == "overline_lip"))
             || (region == "cheek"
-                && (textureSample == "soft_blush"
-                    || textureSample == "blush_daily"
+                && (textureSample == "blush_daily"
                     || textureSample == "blush_lovely"
                     || textureSample == "blush_sunkissed1"
                     || textureSample == "blush_sunkissed2"
@@ -2942,10 +4019,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-style-atlas-v1"
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
-            || (region == "cheek"
-                && (maskTextureId == "cheek-smooth-mask-v1"
-                    || maskTextureId == "cheek-drawn-mask-v1"
-                    || IsCheekBlushMask(maskTextureId)))
+            || (region == "cheek" && IsCheekBlushMask(maskTextureId))
             || (region == "eye" && maskTextureId == "eye-smooth-mask-v1"))
         {
             return maskTextureId;
@@ -3186,5 +4260,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ";uvs=" + GetUvCount(face).ToString(CultureInfo.InvariantCulture)
             + ";indexMod3=" + (GetIndexCount(face) % 3).ToString(CultureInfo.InvariantCulture)
             + ";stableUv=" + HasUsableUv(face).ToString().ToLowerInvariant();
+    }
+
+    private static string BoolToLower(bool value)
+    {
+        return value ? "true" : "false";
     }
 }
