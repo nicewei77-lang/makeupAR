@@ -774,6 +774,33 @@ function runMain() {
     `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${hasGeneratedValidationAnchor ? 'yes' : 'no'} nearApplied=${hasControlsNearAppliedState ? 'yes' : 'no'} ${patternPresenceDetail(rnAppSource, generatedValidationControlRequirements)}`,
   );
 
+  const userFacingDeveloperCopyRemoved = [
+    /fixture replay/,
+    /capture directory/,
+    /saved:\s*\{/,
+    /reason:\s*\{/,
+    /AR 립 적용 중/,
+    /입술 미세 조정/,
+    /native 경계 추출/,
+    /Debug에서 persisted ack/,
+    /새 frame\.png \/ arface_export\.json/,
+  ].every(pattern => !pattern.test(rnAppSource));
+  const userFacingArCopyPresent = matchesAll(rnAppSource, [
+    /AR 립 검증/,
+    /AR 립 적용됨/,
+    /AR 화면입니다/,
+    /AR 적용 응답이 늦습니다/,
+    /마스크 ON/,
+    /진하게 보기/,
+    /경계 보기/,
+    /농도/,
+  ]);
+  addCheck(
+    'v2.user_facing_ar_copy_no_developer_terms',
+    userFacingDeveloperCopyRemoved && userFacingArCopyPresent,
+    `User-facing Generate/AR copy must avoid developer terms and clearly communicate AR transition. oldTermsRemoved=${userFacingDeveloperCopyRemoved ? 'yes' : 'no'} arCopy=${userFacingArCopyPresent ? 'yes' : 'no'}`,
+  );
+
   addCheck(
     'v2.preview_images_show_full_face',
     /generateWizardCandidatePreviewImage:\s*{[\s\S]*?resizeMode:\s*['"]contain['"]/.test(
@@ -783,6 +810,17 @@ function runMain() {
         rnAppSource,
       ),
     'Generated candidate and adjustment previews must use contain, not cover, so full-face mask quality is inspectable before build.',
+  );
+
+  const candidatePreviewLargeEnough = matchesAll(rnAppSource, [
+    /generateWizardCandidateCard:\s*{[\s\S]*?width:\s*282/,
+    /generateWizardCandidatePreview:\s*{[\s\S]*?height:\s*286/,
+    /generatedAdjustmentPreviewImage:\s*{[\s\S]*?height:\s*300/,
+  ]);
+  addCheck(
+    'v2.preview_cards_large_enough_for_quality_judgment',
+    candidatePreviewLargeEnough,
+    `Candidate and adjustment previews should remain large enough for picky visual review. largePreview=${candidatePreviewLargeEnough ? 'yes' : 'no'}`,
   );
 
   addCheck(

@@ -3993,3 +3993,37 @@ Still not proven:
 - No new iPhone/Xcode build after this audit.
 - The runtime cost of calling native provider for every captured shot is not measured on device.
 - Device visual acceptance is still required for boundary smoothness, live adjustment reflection, blending difference, save/apply ack, AR transition, and AR validation controls.
+
+### 17.8 Picky-user UI audit: AR flow must feel real
+
+Status: **source/buildless UI gate passed, device visual acceptance still pending**.
+
+두 UI-sensitive subagent를 생성해 각각 최소 3회씩 `start -> align -> capture -> extract -> blending -> adjust -> save/apply -> AR validation controls` 흐름을 실제 사용자처럼 감사했다. 공통 결론은 로직은 많이 닫혔지만, 일반 화면에 개발자 단어와 작은 preview/control이 남으면 사용자가 다시 "촬영된 건지 모르겠다", "적용에서 안 넘어간다", "조정/블렌딩 차이가 없다"라고 느낄 수 있다는 것이었다.
+
+#### 17.8.1 Fixed before next build
+
+| Risk | Fix | Gate |
+| --- | --- | --- |
+| Apply 화면이 `saved`, `payload`, `Unity ack`, raw path, `reason`처럼 보여 사용자가 멈춘 것으로 느낄 수 있음 | Apply 화면을 사용자 언어의 진행 화면으로 바꾸고, timeout도 "AR 적용 응답이 늦습니다" / "다시 시도하거나 촬영부터 다시 진행"으로 표시한다. | RN Jest apply/timeout assertions |
+| Ack 성공 후에도 `맞춤 Generate` / `AR 립 적용 중`처럼 보여 실제 AR 화면 전환감이 약함 | Ack 성공 후 top title은 `AR 립 검증`, banner는 `AR 립 적용됨`으로 바꾸고 Generate wizard를 접는다. | RN Jest ack transition assertions |
+| AR validation controls가 작고 기술적으로 보임 | Controls를 키우고 `마스크 ON`, `진하게 보기`, `경계 보기`, `농도`, `다시 조정`으로 라벨을 바꾼다. | RN Jest controls assertions + `v2.user_facing_ar_copy_no_developer_terms` |
+| Start/extract/capture text에 raw `captureSetId`, `fixture`, `frame.png`, `arface_export.json` 등이 보임 | 일반 화면에서는 "촬영 데이터는 기기 안에서만 처리", "방금 촬영한 얼굴", "저장된 얼굴 프레임" 같은 제품 언어로 바꾼다. | RN Jest no-developer-copy assertions |
+| 후보/조정 preview가 작아 품질 판단이 어려움 | Candidate card/preview와 adjustment preview 높이를 키워 picky visual review가 가능하게 한다. | `v2.preview_cards_large_enough_for_quality_judgment` |
+
+#### 17.8.2 Verification evidence
+
+Passed:
+
+- `cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit`
+- `cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false`
+  - result: `2 passed`, `15 tests passed`
+- `cd rn/MakeupARValidation && npm run lint`
+- `cd rn/MakeupARValidation && npm run e7:prebuild:full`
+  - result: `33 pass / 0 fail / 0 warn`
+- `git diff --check`
+
+Still not proven:
+
+- No fresh iPhone build/install/run after this UI audit.
+- No real-device visual acceptance for actual camera latency, actual AR transition timing, actual capture feedback feel, or mask visibility under device lighting.
+- The alignment quality gate is still conservative wording around available face/camera signals, not a full yaw/pitch/blur/brightness scoring system.

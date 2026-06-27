@@ -601,7 +601,10 @@ test('uses one capture CTA and switches to captured-frame review after required 
   ]);
   expect(text).toContain('컷 완료');
   expect(text).toContain('캡처 프레임 검토');
-  expect(text).toContain('저장된 frame.png / arface_export.json 기준');
+  expect(text).toContain('저장된 얼굴 프레임');
+  expect(text).toContain('모든 컷이 저장되었습니다');
+  expect(text).not.toContain('frame.png');
+  expect(text).not.toContain('arface_export.json');
 });
 
 test('renders large two-option blending candidate previews from the captured frame', async () => {
@@ -739,7 +742,9 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
   const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
   expect(applyPayload.generatedMaskId).toContain('e7-generated-lip');
-  expect(collectText(renderer!)).toContain('Unity ack');
+  expect(collectText(renderer!)).toContain('AR 화면에서 적용 여부');
+  expect(collectText(renderer!)).not.toContain('ApplyGeneratedLipMaskJson');
+  expect(collectText(renderer!)).not.toContain('reason:');
   expect(collectText(renderer!)).not.toContain('AR 립 적용 중');
 
   emitGeneratedLipMaskApplied(renderer!, {
@@ -747,9 +752,16 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   });
 
   const text = collectText(renderer!);
-  expect(text).toContain('AR 립 적용 중');
-  expect(text).toContain('Unity 적용 ack 확인');
+  expect(text).toContain('AR 립 검증');
+  expect(text).toContain('AR 립 적용됨');
+  expect(text).toContain('AR 화면입니다');
+  expect(text).toContain('마스크 ON');
+  expect(text).toContain('진하게 보기');
+  expect(text).toContain('경계 보기');
+  expect(text).toContain('농도');
   expect(text).not.toContain('저장하고 AR 실행');
+  expect(text).not.toContain('Unity ack');
+  expect(text).not.toContain('triangles=');
 });
 
 test('updates generated package after adjustment and separates regenerate from retake', async () => {
@@ -790,7 +802,7 @@ test('updates generated package after adjustment and separates regenerate from r
   );
   expect(afterAdjustmentPackage.adjustment.cornerReach).toBe(0.05);
   expect(getLastUnityPostPayload('ApplyRecipeJson').cornerReach).toBe(0.05);
-  expect(collectText(renderer!)).toContain('즉시 반영 중');
+  expect(collectText(renderer!)).toContain('바로 반영됩니다');
 
   pressByTestID(renderer!, 'e7-wizard-retake-after-adjust');
 
@@ -816,7 +828,9 @@ test('shows apply timeout and retries from a user-readable blocked state', async
 
   const text = collectText(renderer!);
   expect(text).toContain('timeout');
-  expect(text).toContain('generated_lip_mask_applied_ack_timeout');
+  expect(text).toContain('AR 적용 응답이 늦습니다');
+  expect(text).toContain('다시 시도하거나 촬영부터 다시 진행');
+  expect(text).not.toContain('generated_lip_mask_applied_ack_timeout');
   expect(text).toContain('저장/적용 재시도');
 });
 
@@ -837,7 +851,7 @@ test('posts AR validation controls without resending texture after Unity ack', a
     provider: 'mediapipe',
   });
 
-  expect(collectText(renderer!)).toContain('AR 립 적용 중');
+  expect(collectText(renderer!)).toContain('AR 립 적용됨');
   pressByTestID(renderer!, 'generated-mask-toggle');
   pressByTestID(renderer!, 'generated-mask-color-hot');
   pressByTestID(renderer!, 'generated-mask-opacity-minus');

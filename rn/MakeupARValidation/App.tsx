@@ -1937,7 +1937,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           nextControls.maskVisible ? 'ON' : 'OFF'
         } / ${nextControls.strongMode ? '진하게' : '기본'} / ${
           nextControls.colorHex
-        } / opacity ${nextControls.opacity.toFixed(2)}`,
+        } / 농도 ${nextControls.opacity.toFixed(2)}`,
       );
     },
     [
@@ -2029,7 +2029,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             );
             setPendingGeneratedMaskId(null);
             setWizardNotice(
-              'Unity 적용 ack 확인. Generate UI를 접고 AR 립 화면에서 확인합니다.',
+              'AR 화면입니다. 마스크가 보이는지 아래 컨트롤로 확인하세요.',
             );
           } else {
             setGeneratedApplyState(
@@ -2193,7 +2193,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         });
       });
       setWizardNotice(
-        'Unity 적용 ack가 10초 안에 오지 않았습니다. 재시도하거나 Debug에서 persisted ack를 확인하세요.',
+        'AR 적용 응답이 늦습니다. 다시 시도하거나 Debug에서 원인을 확인하세요.',
       );
     }, remainingMs);
 
@@ -2296,18 +2296,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         : 'waiting',
     },
     {
-      label: '정면',
-      value: latestLifecycle ? 'tracked 기준' : '측정 대기',
+      label: '방향',
+      value: latestLifecycle ? '얼굴 인식 기준' : '측정 대기',
       state: latestLifecycle ? (faceAlignmentTracked ? 'ready' : 'blocked') : 'waiting',
     },
     {
-      label: '밝기',
-      value: latestMetric ? 'metric 수신' : '측정 대기',
+      label: '카메라',
+      value: latestMetric ? '신호 수신' : '측정 대기',
       state: latestMetric ? 'ready' : 'waiting',
     },
     {
-      label: '흔들림',
-      value: latestMetric ? 'frame 안정' : '측정 대기',
+      label: '프레임',
+      value: latestMetric ? '촬영 가능' : '측정 대기',
       state: latestMetric ? 'ready' : 'waiting',
     },
   ];
@@ -2554,7 +2554,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         <View pointerEvents="none" style={styles.capturedFrameShield}>
           <Text style={styles.capturedFrameShieldTitle}>캡처 프레임 검토</Text>
           <Text style={styles.capturedFrameShieldText}>
-            live camera 판단은 끝났고 저장된 frame.png / arface_export.json 기준으로 진행합니다.
+            촬영은 끝났고 저장된 얼굴 프레임으로 마스크를 만듭니다.
           </Text>
         </View>
       )}
@@ -2584,7 +2584,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           </View>
 
           <View style={styles.productTitlePill}>
-            <Text style={styles.productTitleText}>맞춤 Generate</Text>
+            <Text style={styles.productTitleText}>
+              {hasGeneratedMaskApplied ? 'AR 립 검증' : '맞춤 Generate'}
+            </Text>
             <Pressable
               accessibilityRole="button"
               testID="e7-debug-toggle"
@@ -2607,20 +2609,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         {hasGeneratedMaskApplied ? (
           <GeneratedRuntimeAppliedBanner
             notice={wizardNotice}
-            applyState={generatedApplyState}
             controls={generatedValidationControls}
             onChangeControls={updateGeneratedMaskValidationControls}
             onReopenGenerate={() => {
               resetGeneratedApplyFlow('reopen_generate_after_apply');
               setWizardStep('adjust');
-              setWizardNotice('Generate 조정 화면을 다시 열었습니다.');
+              setWizardNotice('마스크 조정 화면을 다시 열었습니다.');
             }}
           />
         ) : (
           <E7GenerateWizard
             activeStep={wizardStep}
             activeStepIndex={wizardStepIndex}
-            captureSetId={captureSetId}
             captureShots={captureShots}
             capturedShotCount={capturedShotCount}
             alignmentGates={alignmentGates}
@@ -2689,7 +2689,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               setSelectedGeneratedCandidateKey(`${lipGenerateProvider}/uvOnly`);
               resetGeneratedApplyFlow('retake_capture');
               setWizardStep('capture');
-              setWizardNotice('다시 촬영합니다. 새 frame.png / arface_export.json을 만든 뒤 추출하세요.');
+              setWizardNotice('다시 촬영합니다. 새 얼굴 프레임을 저장한 뒤 마스크를 만드세요.');
             }}
             onSelectCandidate={candidateKey => {
               setSelectedGeneratedCandidateKey(candidateKey);
@@ -3183,7 +3183,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 type E7GenerateWizardProps = {
   activeStep: E7WizardStep;
   activeStepIndex: number;
-  captureSetId: string;
   captureShots: Record<E7CaptureShotKind, E7CaptureShotState>;
   capturedShotCount: number;
   alignmentGates: E7AlignmentGate[];
@@ -3222,7 +3221,6 @@ type E7GenerateWizardProps = {
 function E7GenerateWizard({
   activeStep,
   activeStepIndex,
-  captureSetId,
   captureShots,
   capturedShotCount,
   alignmentGates,
@@ -3347,7 +3345,7 @@ function E7GenerateWizard({
               현재 얼굴에서 촬영하고, 기기 안에서만 입술 마스크를 만듭니다.
             </Text>
             <Text style={styles.generateWizardBodyText}>
-              capture set: {captureSetId}
+              촬영 데이터는 업로드하지 않고 이 기기 안에서만 처리합니다.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -3368,7 +3366,7 @@ function E7GenerateWizard({
               ))}
             </View>
             <Text style={styles.generateWizardBodyText}>
-              얼굴 추적 신호가 없으면 통과 체크를 표시하지 않습니다.
+              얼굴이 잡히고 카메라 신호가 안정되면 촬영으로 넘어갑니다.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -3393,6 +3391,15 @@ function E7GenerateWizard({
               {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length} 컷 완료.
               버튼 하나로 필요한 표정 큐를 순서대로 저장합니다.
             </Text>
+            {nextCaptureShot ? (
+              <Text style={styles.generateWizardBodyText}>
+                다음 컷: {nextCaptureShot.label} · {nextCaptureShot.guidance}
+              </Text>
+            ) : (
+              <Text style={styles.generateWizardBodyText}>
+                모든 컷이 저장되었습니다. 이제 저장된 얼굴 프레임으로 마스크를 만듭니다.
+              </Text>
+            )}
             <View style={styles.generateWizardShotGrid}>
               {E7_CAPTURE_SHOT_OPTIONS.map(shot => {
                 const state = captureShots[shot.kind];
@@ -3419,7 +3426,7 @@ function E7GenerateWizard({
                       {isCapturing
                         ? '촬영 중'
                         : isDone
-                          ? '완료'
+                          ? '저장됨'
                           : isNext
                             ? shot.guidance
                             : '대기'}
@@ -3472,8 +3479,7 @@ function E7GenerateWizard({
               />
             </View>
             <Text style={styles.generateWizardBodyText}>
-              둘 중 하나를 선택해 추출합니다. fixture replay가 아니라 capture
-              directory의 frame.png와 arface_export.json을 읽습니다.
+              둘 중 하나를 선택하면 방금 촬영한 얼굴에서 입술 경계를 만듭니다.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -3539,16 +3545,13 @@ function E7GenerateWizard({
                         {formatGeneratedCandidateTitle(candidate)}
                       </Text>
                       <Text style={styles.generateWizardCandidateMeta}>
-                        {formatProviderLabel(candidate.provider)} ·{' '}
-                        {candidate.status}
+                        {formatGeneratedCandidateMeta(candidate)}
                       </Text>
                       <Text
                         style={styles.generateWizardCandidateReason}
                         numberOfLines={2}
                       >
-                        {candidate.blockedReason ??
-                          candidate.warnings[0] ??
-                          'generated'}
+                        {formatGeneratedCandidateDescription(candidate)}
                       </Text>
                     </View>
                   </Pressable>
@@ -3614,7 +3617,7 @@ function E7GenerateWizard({
             <Text style={styles.generateWizardBodyText}>
               {generatedCandidatesStale
                 ? '추출 결과가 없어 조정 preview를 만들 수 없습니다.'
-                : `즉시 반영 중: ${selectedCandidateKey}`}
+                : '조정값이 미리보기와 저장 후보에 바로 반영됩니다.'}
             </Text>
             <Text style={styles.generateWizardBodyText}>
               look {selectedLipSample.name} / finish {selectedLipSample.finish}
@@ -3659,24 +3662,25 @@ function E7GenerateWizard({
         {activeStep === 'apply' && (
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
-              saved: {savedGeneratedPackage?.status ?? 'pending'} / apply:{' '}
-              {formatGeneratedApplyStatusLabel(generatedApplyState)}
+              {formatGeneratedApplyUserMessage(generatedApplyState)}
+            </Text>
+            <Text style={styles.generateWizardBodyText}>
+              저장 완료 후 AR 화면에서 마스크가 보일 때까지 확인합니다.
             </Text>
             <Text style={styles.generateWizardBodyText} numberOfLines={2}>
-              {savedGeneratedPackage?.packagePath ??
-                'saveGeneratedPackage -> ApplyGeneratedLipMaskJson 대기'}
-            </Text>
-            <Text style={styles.generateWizardBodyText} numberOfLines={2}>
-              reason: {generatedApplyState.blockedReason ?? 'waiting'}
+              {generatedApplyState.status === 'blocked' ||
+              generatedApplyState.status === 'timeout'
+                ? formatGeneratedApplyRecoveryMessage(generatedApplyState)
+                : '잠시만 기다려 주세요. 성공하면 조정 패널이 접히고 AR 검증 컨트롤이 표시됩니다.'}
             </Text>
             <View style={styles.generateWizardApplyGateGrid}>
               <ApplyGatePill
-                label="save"
+                label="저장"
                 value={savedGeneratedPackage ? '완료' : '대기'}
                 ready={Boolean(savedGeneratedPackage)}
               />
               <ApplyGatePill
-                label="payload"
+                label="전송"
                 value={
                   generatedApplyState.status === 'posting' ||
                   generatedApplyState.status === 'waitingAck' ||
@@ -3690,7 +3694,7 @@ function E7GenerateWizard({
                 }
               />
               <ApplyGatePill
-                label="Unity ack"
+                label="AR 확인"
                 value={
                   generatedApplyState.status === 'applied'
                     ? '확인'
@@ -3719,7 +3723,7 @@ function E7GenerateWizard({
               </Pressable>
             )}
             <Text style={styles.generateWizardBodyText}>
-              ack 성공 전에는 적용 완료로 표시하지 않습니다.
+              AR 화면 확인 전에는 적용 완료로 표시하지 않습니다.
             </Text>
           </View>
         )}
@@ -3781,13 +3785,11 @@ function ProviderStatusPill({
 
 function GeneratedRuntimeAppliedBanner({
   notice,
-  applyState,
   controls,
   onChangeControls,
   onReopenGenerate,
 }: {
   notice: string;
-  applyState: E7GeneratedApplyState;
   controls: GeneratedMaskValidationControls;
   onChangeControls: (patch: Partial<GeneratedMaskValidationControls>) => void;
   onReopenGenerate: () => void;
@@ -3799,7 +3801,7 @@ function GeneratedRuntimeAppliedBanner({
     >
       <View style={styles.generateAppliedHeader}>
         <View>
-          <Text style={styles.generateAppliedBannerTitle}>AR 립 적용 중</Text>
+          <Text style={styles.generateAppliedBannerTitle}>AR 립 적용됨</Text>
           <Text style={styles.generateAppliedBannerText} numberOfLines={2}>
             {notice}
           </Text>
@@ -3810,16 +3812,11 @@ function GeneratedRuntimeAppliedBanner({
           style={styles.generateAppliedSmallButton}
           onPress={onReopenGenerate}
         >
-          <Text style={styles.generateAppliedSmallButtonText}>Generate</Text>
+          <Text style={styles.generateAppliedSmallButtonText}>다시 조정</Text>
         </Pressable>
       </View>
       <Text style={styles.generateAppliedBannerText} numberOfLines={1}>
-        mask {applyState.generatedMaskId ?? 'unknown'} /{' '}
-        {applyState.ack
-          ? `triangles=${String(applyState.ack.maskTriangles ?? 'n/a')} uv=${String(
-              applyState.ack.uvAvailable ?? 'n/a',
-            )}`
-          : 'ack ready'}
+        마스크 ON/OFF, 진하게 보기, 색, 농도로 적용 상태를 확인하세요.
       </Text>
       <View style={styles.generateAppliedControlRow}>
         <Pressable
@@ -3834,7 +3831,7 @@ function GeneratedRuntimeAppliedBanner({
           }
         >
           <Text style={styles.generateAppliedControlText}>
-            {controls.maskVisible ? 'ON' : 'OFF'}
+            {controls.maskVisible ? '마스크 ON' : '마스크 OFF'}
           </Text>
         </Pressable>
         <Pressable
@@ -3846,7 +3843,7 @@ function GeneratedRuntimeAppliedBanner({
           ]}
           onPress={() => onChangeControls({ strongMode: !controls.strongMode })}
         >
-          <Text style={styles.generateAppliedControlText}>진하게</Text>
+          <Text style={styles.generateAppliedControlText}>진하게 보기</Text>
         </Pressable>
         <Pressable
           accessibilityRole="button"
@@ -3862,7 +3859,7 @@ function GeneratedRuntimeAppliedBanner({
             })
           }
         >
-          <Text style={styles.generateAppliedControlText}>boundary</Text>
+          <Text style={styles.generateAppliedControlText}>경계 보기</Text>
         </Pressable>
       </View>
       <View style={styles.generateAppliedColorRow}>
@@ -3894,7 +3891,7 @@ function GeneratedRuntimeAppliedBanner({
           <Text style={styles.generateAppliedControlText}>-</Text>
         </Pressable>
         <Text style={styles.generateAppliedOpacityText}>
-          opacity {controls.opacity.toFixed(2)}
+          농도 {controls.opacity.toFixed(2)}
         </Text>
         <Pressable
           accessibilityRole="button"
@@ -3950,23 +3947,30 @@ function ApplyGatePill({
   );
 }
 
-function formatGeneratedApplyStatusLabel(state: E7GeneratedApplyState) {
+function formatGeneratedApplyUserMessage(state: E7GeneratedApplyState) {
   switch (state.status) {
     case 'idle':
-      return 'idle';
+      return 'AR 실행을 준비합니다.';
     case 'saving':
-      return '저장 중';
+      return '마스크를 기기에 저장하는 중입니다.';
     case 'posting':
-      return 'Unity 전송 중';
+      return 'AR 화면에 마스크를 보내는 중입니다.';
     case 'waitingAck':
-      return 'Unity ack 대기';
+      return 'AR 화면에서 적용 여부를 확인하는 중입니다.';
     case 'applied':
-      return '적용 확인';
+      return 'AR 화면에 마스크가 적용되었습니다.';
     case 'blocked':
-      return `blocked${state.blockedReason ? `:${state.blockedReason}` : ''}`;
+      return 'AR 적용을 확인하지 못했습니다.';
     case 'timeout':
-      return `timeout${state.elapsedMs ? `:${Math.round(state.elapsedMs)}ms` : ''}`;
+      return 'AR 적용 응답이 늦습니다.';
   }
+}
+
+function formatGeneratedApplyRecoveryMessage(state: E7GeneratedApplyState) {
+  if (state.status === 'timeout') {
+    return '다시 시도하거나 촬영부터 다시 진행할 수 있습니다.';
+  }
+  return '다시 시도해도 안 되면 Debug에서 원인을 확인하세요.';
 }
 
 function GeneratedAdjustmentPreview({
@@ -4021,6 +4025,25 @@ function formatGeneratedCandidateTitle(candidate: E7GeneratedCandidate) {
   return '기본 블렌딩';
 }
 
+function formatGeneratedCandidateMeta(candidate: E7GeneratedCandidateWithPreview) {
+  if (candidate.previewStatus === 'blocked' || candidate.status === 'blocked') {
+    return '생성 실패';
+  }
+  return `${formatProviderLabel(candidate.provider)} 후보`;
+}
+
+function formatGeneratedCandidateDescription(
+  candidate: E7GeneratedCandidateWithPreview,
+) {
+  if (candidate.previewStatus === 'blocked' || candidate.status === 'blocked') {
+    return '다시 생성하거나 다른 방식을 선택하세요.';
+  }
+  if (candidate.expressionMode === 'blendshapeAssist') {
+    return '표정 촬영 신호를 함께 반영합니다.';
+  }
+  return '기본 경계와 색감을 먼저 확인합니다.';
+}
+
 function formatCandidatePreviewStatus(
   candidate: E7GeneratedCandidateWithPreview,
 ) {
@@ -4044,11 +4067,11 @@ function formatWizardStepLabel(step: E7WizardStep) {
     case 'extract':
       return '추출';
     case 'blend':
-      return '블렌딩';
+      return '블렌딩 선택';
     case 'adjust':
       return '조정';
     case 'apply':
-      return '적용';
+      return 'AR 실행';
   }
 }
 
@@ -4061,11 +4084,11 @@ function formatWizardStepTitle(step: E7WizardStep) {
     case 'capture':
       return '표정별 촬영';
     case 'extract':
-      return 'native 경계 추출';
+      return '경계 추출';
     case 'blend':
       return '블렌딩 선택';
     case 'adjust':
-      return '입술 미세 조정';
+      return '마스크 미세 조정';
     case 'apply':
       return '저장하고 AR 실행';
   }
@@ -5175,7 +5198,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   generateWizardCardAdjust: {
-    maxHeight: 620,
+    maxHeight: 700,
   },
   generateWizardStepRow: {
     flexDirection: 'row',
@@ -5409,8 +5432,8 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   generateWizardCandidateCard: {
-    width: 240,
-    minHeight: 322,
+    width: 282,
+    minHeight: 396,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
@@ -5428,7 +5451,7 @@ const styles = StyleSheet.create({
     borderColor: '#FCA5A5',
   },
   generateWizardCandidatePreview: {
-    height: 220,
+    height: 286,
     overflow: 'hidden',
     backgroundColor: 'rgba(15, 23, 42, 0.84)',
   },
@@ -5444,8 +5467,8 @@ const styles = StyleSheet.create({
     padding: 12,
   },
   generateWizardCandidateCopy: {
-    minHeight: 98,
-    padding: 10,
+    minHeight: 108,
+    padding: 12,
     gap: 5,
   },
   generateWizardCandidateTitle: {
@@ -5500,7 +5523,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   generatedAdjustmentPreview: {
-    minHeight: 220,
+    minHeight: 300,
     overflow: 'hidden',
     borderRadius: 8,
     borderWidth: 1,
@@ -5509,11 +5532,11 @@ const styles = StyleSheet.create({
   },
   generatedAdjustmentPreviewImage: {
     width: '100%',
-    height: 220,
+    height: 300,
     resizeMode: 'contain',
   },
   generatedAdjustmentPreviewEmpty: {
-    minHeight: 220,
+    minHeight: 300,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
@@ -5995,15 +6018,15 @@ const styles = StyleSheet.create({
   },
   generateAppliedBanner: {
     position: 'absolute',
-    left: 24,
-    right: 24,
-    bottom: 24,
+    left: 18,
+    right: 18,
+    bottom: 22,
     borderRadius: 8,
     backgroundColor: 'rgba(15, 23, 42, 0.74)',
     borderWidth: 1,
     borderColor: 'rgba(187, 247, 208, 0.52)',
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     zIndex: 2,
   },
   generateAppliedHeader: {
@@ -6015,21 +6038,21 @@ const styles = StyleSheet.create({
   },
   generateAppliedBannerTitle: {
     color: '#D1FAE5',
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '900',
     letterSpacing: 0,
   },
   generateAppliedBannerText: {
     marginTop: 3,
     color: '#F9FAFB',
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: '700',
     letterSpacing: 0,
   },
   generateAppliedSmallButton: {
-    minHeight: 34,
-    minWidth: 78,
+    minHeight: 40,
+    minWidth: 92,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -6040,20 +6063,20 @@ const styles = StyleSheet.create({
   },
   generateAppliedSmallButtonText: {
     color: '#D1FAE5',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0,
   },
   generateAppliedControlRow: {
     marginTop: 8,
-    minHeight: 34,
+    minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   generateAppliedControlButton: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 42,
     minWidth: 0,
     borderRadius: 8,
     alignItems: 'center',
@@ -6069,21 +6092,21 @@ const styles = StyleSheet.create({
   },
   generateAppliedControlText: {
     color: '#F9FAFB',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0,
     textAlign: 'center',
   },
   generateAppliedColorRow: {
     marginTop: 8,
-    minHeight: 34,
+    minHeight: 42,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
   generateAppliedColorButton: {
     flex: 1,
-    minHeight: 34,
+    minHeight: 42,
     minWidth: 0,
     borderRadius: 8,
     alignItems: 'center',
@@ -6098,22 +6121,22 @@ const styles = StyleSheet.create({
   },
   generateAppliedColorText: {
     color: '#FFFFFF',
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '900',
     letterSpacing: 0,
     textAlign: 'center',
   },
   generateAppliedOpacityText: {
     flex: 1.35,
-    minHeight: 34,
+    minHeight: 42,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: 'rgba(255, 255, 255, 0.06)',
     color: '#F9FAFB',
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0,
-    lineHeight: 34,
+    lineHeight: 42,
     textAlign: 'center',
   },
   regionButtonRow: {
