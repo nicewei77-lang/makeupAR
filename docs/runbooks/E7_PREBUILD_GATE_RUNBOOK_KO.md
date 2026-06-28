@@ -49,13 +49,26 @@ node scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs
 - `skip-unityframework-run-rn-xcode-only`: RN/Swift 쪽만 바뀌었고 UnityFramework가 sync됨. Unity export/build를 생략하고 RN Xcode 빌드만 간다.
 - `run-unityframework-build`: Unity 런타임 script, scene, shader, material, prefab, Resources, XR, iOS plugin이 바뀜. `bash scripts/build_m3_unityframework.sh`가 필요하다.
 - `sync-or-rebuild-unityframework-before-xcode`: RN reference framework와 package-local framework가 다르거나 필수 ack/capture 문자열이 빠짐. sync 또는 rebuild 후 prebuild gate를 다시 돌린다.
+- `skip-product-phone-build-legacy-debug-resource-only`: legacy/debug Unity resource만 바뀜. 제품 Generate 경로의 iPhone 빌드는 보통 불필요하며, 해당 legacy 후보를 일부러 시각 검증할 때만 UnityFramework/Xcode 승인을 요청한다.
 - `skip-unityframework-run-unity-import-if-needed`: Unity Editor smoke/tooling만 바뀜. player framework 재생성은 보통 불필요하다.
 - `manual-review-before-build`: 분류되지 않은 경로가 바뀜. Unity 생략 여부를 사람이 먼저 확인한다.
 
 이 판정은 "사용하지 않는 Unity 파일 삭제"를 대신하지 않는다. 도구가 함께 출력하는
-Unity asset audit은 `runtime-referenced`, `tooling-or-registry-referenced`,
-`no-static-reference`를 나눠 보여주는 참고 자료다. 삭제는 RN sample selector,
-Unity registry, scene/prefab 참조를 제거한 뒤 Unity import/compile까지 통과할 때만 한다.
+Unity asset audit은 파일 단위로 `product-runtime-required`, `product-runtime-fallback`,
+`product-runtime-reference`, `legacy-validation-debug`, `editor-only`, `xr-simulation-debug`를
+나눠 보여준다. 삭제/이동은 RN sample selector, Unity registry, scene/prefab 참조를
+제거한 뒤 Unity import/compile까지 통과할 때만 한다.
+
+가상 변경 파일로 판단만 재현할 수도 있다.
+
+```bash
+node ../../scripts/e7_build/decide_minimum_build.mjs --no-report \
+  --changed-file=unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-lip-validation-cv-vision-fill-v1.png
+```
+
+현재 기준으로 legacy/debug mask만 바뀌면 `skip-product-phone-build-legacy-debug-resource-only`,
+`lip-smooth-mask-v1.png` 같은 product fallback이나 `RNBridge.cs`가 바뀌면
+`run-unityframework-build`가 나와야 한다.
 
 ## 입력 Fixture
 

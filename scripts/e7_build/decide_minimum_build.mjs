@@ -7,9 +7,14 @@ import {fileURLToPath} from 'node:url';
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(scriptDir, '../..');
-const args = new Set(process.argv.slice(2));
+const rawArgs = process.argv.slice(2);
+const args = new Set(rawArgs);
 const writeReport = !args.has('--no-report');
 const jsonOnly = args.has('--json');
+const simulatedChangedFiles = rawArgs
+  .filter(arg => arg.startsWith('--changed-file='))
+  .map(arg => arg.slice('--changed-file='.length))
+  .filter(Boolean);
 
 const UNITY_PROJECT = 'unity/MakeupARUnityValidation';
 const RN_PROJECT = 'rn/MakeupARValidation';
@@ -68,9 +73,39 @@ const prebuildPrefixes = [
   'scripts/e7_prebuild_gate/',
   'scripts/e7_build/',
   'docs/runbooks/E7_PREBUILD_GATE_RUNBOOK_KO.md',
+  'docs/runbooks/E7_BUILD_MINIMIZATION_RUNBOOK_KO.md',
 ];
 
 const docsPrefixes = ['docs/', 'README.md', 'TECH_VALIDATION_RESULT.md', 'AGENTS.md'];
+
+const smoothRegionMaskPrefix = `${UNITY_PROJECT}/Assets/Resources/SmoothRegionMasks/`;
+const unityEditorPrefix = `${UNITY_PROJECT}/Assets/Editor/`;
+
+const productFallbackMaskIds = new Set([
+  'lip-smooth-mask-v1',
+  'cheek-smooth-mask-v1',
+  'eye-smooth-mask-v1',
+]);
+
+const fullFaceRegionMaskIds = new Set([
+  'e7-lip-balanced-uv-v0',
+  'e7-blush-balanced-uv-v0',
+  'e7-brow-balanced-uv-v0',
+  'e7-eyeliner-minimal-safe-uv-v0',
+  'e7-full-face-region-runtime-assets',
+]);
+
+const legacyValidationMaskIds = new Set([
+  'e7-lip-validation-tight-auto-v0',
+  'e7-lip-validation-tight-user-v0',
+  'e7-lip-validation-safe-v0',
+  'e7-lip-validation-cv-parsing-smooth-v1',
+  'e7-lip-validation-cv-vision-fill-v1',
+  'e7-lip-validation-cv-vision-color-v1',
+  'e7-lip-validation-cv-hybrid-safe-v1',
+  'e7-lip-validation-cv-hybrid-balanced-v1',
+  'e7-lip-validation-runtime-candidates',
+]);
 
 function repoPath(...parts) {
   return path.join(repoRoot, ...parts);
@@ -104,12 +139,146 @@ function startsWithAny(filePath, prefixes) {
   return prefixes.some(prefix => filePath === prefix || filePath.startsWith(prefix));
 }
 
-function classifyChangedFile(filePath) {
-  if (startsWithAny(filePath, runtimeUnityPrefixes)) {
-    return 'unity-runtime';
+function withoutMetaExtension(filePath) {
+  return filePath.endsWith('.meta') ? filePath.slice(0, -'.meta'.length) : filePath;
+}
+
+function fileStem(filePath) {
+  return path.basename(withoutMetaExtension(filePath), path.extname(withoutMetaExtension(filePath)));
+}
+
+function classifySmoothRegionMaskId(id) {
+  if (productFallbackMaskIds.has(id)) {
+    return {
+      profile: 'product-runtime-fallback',
+      buildImpact: 'unity-runtime',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'keep-required',
+      reason: 'Default region fallback mask still accepted by RN/Unity runtime.',
+    };
   }
+  if (fullFaceRegionMaskIds.has(id)) {
+    return {
+      profile: 'product-runtime-reference',
+      buildImpact: 'unity-runtime',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'keep-required',
+      reason: 'Full-face region Generate reference asset is part of the active roadmap path.',
+    };
+  }
+  if (legacyValidationMaskIds.has(id)) {
+    return {
+      profile: 'legacy-validation-debug',
+      buildImpact: 'unity-legacy-debug-resource',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'blocked-by-known-reference',
+      reason: 'Legacy validation candidate; product flow should not depend on it, but references remain.',
+    };
+  }
+  return {
+    profile: 'needs-review',
+    buildImpact: 'unity-runtime',
+    canExcludeFromProductBuild: false,
+    exclusionStatus: 'review-required',
+    reason: 'Unknown SmoothRegionMasks resource; keep until references and runtime role are reviewed.',
+  };
+}
+
+function classifyUnityAssetProfile(filePath) {
+  const basePath = withoutMetaExtension(filePath);
+  if (basePath.startsWith(unityEditorPrefix)) {
+    return {
+      profile: 'editor-only',
+      buildImpact: 'unity-editor',
+      canExcludeFromProductBuild: true,
+      exclusionStatus: 'already-editor-only',
+      reason: 'Assets/Editor is not part of the Unity player build.',
+    };
+  }
+  if (basePath.startsWith(smoothRegionMaskPrefix)) {
+    return classifySmoothRegionMaskId(fileStem(basePath));
+  }
+  if (basePath === `${UNITY_PROJECT}/Assets/Resources/SmoothRegionMaskMaterial.mat`) {
+    return {
+      profile: 'product-runtime-required',
+      buildImpact: 'unity-runtime',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'keep-required',
+      reason: 'Smooth region material is loaded by the Unity runtime overlay.',
+    };
+  }
+  if (
+    basePath.includes('/Assets/XR/UserSimulationSettings/')
+    || basePath.endsWith('/Assets/XR/Loaders/SimulationLoader.asset')
+    || basePath.endsWith('/Assets/XR/Resources/XRSimulationRuntimeSettings.asset')
+    || basePath.endsWith('/Assets/XR/Settings/XRSimulationSettings.asset')
+  ) {
+    return {
+      profile: 'xr-simulation-debug',
+      buildImpact: 'unity-editor',
+      canExcludeFromProductBuild: true,
+      exclusionStatus: 'exclude-candidate-after-unity-import-check',
+      reason: 'XR Simulation is editor/debug support; ARKit loader remains the iPhone runtime path.',
+    };
+  }
+  if (
+    basePath.startsWith(`${UNITY_PROJECT}/Assets/Scripts/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/Plugins/iOS/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/Shaders/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/Materials/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/Prefabs/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/Scenes/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Assets/XR/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/ProjectSettings/`)
+    || basePath.startsWith(`${UNITY_PROJECT}/Packages/`)
+  ) {
+    return {
+      profile: 'product-runtime-required',
+      buildImpact: 'unity-runtime',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'keep-required',
+      reason: 'Unity runtime source, scene, plugin, material, shader, XR, package, or project setting.',
+    };
+  }
+  if (basePath.startsWith(`${UNITY_PROJECT}/Assets/`)) {
+    return {
+      profile: 'needs-review',
+      buildImpact: 'manual-review',
+      canExcludeFromProductBuild: false,
+      exclusionStatus: 'review-required',
+      reason: 'Unity asset outside known product/debug buckets.',
+    };
+  }
+  return {
+    profile: 'not-unity-asset',
+    buildImpact: 'not-unity',
+    canExcludeFromProductBuild: false,
+    exclusionStatus: 'not-applicable',
+    reason: 'Not a Unity asset path.',
+  };
+}
+
+function classifyChangedFile(filePath) {
   if (startsWithAny(filePath, editorUnityPrefixes)) {
     return 'unity-editor';
+  }
+  if (filePath.startsWith(`${UNITY_PROJECT}/Assets/`)) {
+    const profile = classifyUnityAssetProfile(filePath);
+    if (profile.buildImpact === 'unity-legacy-debug-resource') {
+      return 'unity-legacy-debug-resource';
+    }
+    if (profile.buildImpact === 'unity-editor') {
+      return 'unity-editor';
+    }
+    if (profile.buildImpact === 'manual-review') {
+      return 'unknown';
+    }
+    if (profile.buildImpact === 'unity-runtime') {
+      return 'unity-runtime';
+    }
+  }
+  if (startsWithAny(filePath, runtimeUnityPrefixes)) {
+    return 'unity-runtime';
   }
   if (startsWithAny(filePath, rnNativePrefixes)) {
     return 'rn-native';
@@ -262,6 +431,14 @@ function findTextReferences(needle, files, selfFile) {
   });
 }
 
+function countBy(items, keyName) {
+  return items.reduce((acc, item) => {
+    const key = item[keyName] ?? 'unknown';
+    acc[key] = (acc[key] ?? 0) + 1;
+    return acc;
+  }, {});
+}
+
 function inspectUnityAssets() {
   const unityFiles = walkFiles(`${UNITY_PROJECT}/Assets`, {
     maxBytes: 1_500_000,
@@ -273,14 +450,29 @@ function inspectUnityAssets() {
     ...walkFiles('scripts', {maxBytes: 1_000_000, skipDirs: ['__pycache__']}),
   ]).filter(filePath => !filePath.endsWith('.png') && !filePath.endsWith('.jpg'));
 
+  const unityAssetProfiles = unityFiles.map(filePath => {
+    const profile = classifyUnityAssetProfile(filePath);
+    const fullPath = repoPath(filePath);
+    const sizeBytes = fs.existsSync(fullPath) ? fs.statSync(fullPath).size : 0;
+    return {
+      file: filePath,
+      sizeBytes,
+      ...profile,
+    };
+  });
+
   const runtimeScripts = unityFiles
     .filter(filePath => filePath.startsWith(`${UNITY_PROJECT}/Assets/Scripts/`))
     .map(filePath => {
       const className = path.basename(filePath, '.cs');
       const references = findTextReferences(className, textSearchFiles, filePath);
+      const profile = classifyUnityAssetProfile(filePath);
       return {
         file: filePath,
         className,
+        profile: profile.profile,
+        buildImpact: profile.buildImpact,
+        exclusionStatus: profile.exclusionStatus,
         status: references.some(
           reference =>
             reference.includes('/Scenes/') ||
@@ -309,38 +501,68 @@ function inspectUnityAssets() {
       const extension = path.extname(filePath);
       const id = path.basename(filePath, extension);
       const references = findTextReferences(id, textSearchFiles, filePath);
+      const profile = classifySmoothRegionMaskId(id);
       const runtimeReferences = references.filter(
         reference =>
           reference === `${RN_PROJECT}/App.tsx` ||
           reference.includes('/Assets/Scripts/'),
       );
+      const status =
+        runtimeReferences.length > 0
+          ? 'runtime-referenced'
+          : references.length > 0
+          ? 'tooling-or-registry-referenced'
+          : 'no-static-reference';
+      const exclusionStatus =
+        status === 'no-static-reference' && profile.profile === 'legacy-validation-debug'
+          ? 'exclude-ready-after-move'
+          : status === 'runtime-referenced' && profile.profile === 'legacy-validation-debug'
+          ? 'blocked-by-runtime-reference'
+          : profile.exclusionStatus;
       return {
         file: filePath,
         id,
-        status:
-          runtimeReferences.length > 0
-            ? 'runtime-referenced'
-            : references.length > 0
-            ? 'tooling-or-registry-referenced'
-            : 'no-static-reference',
+        profile: profile.profile,
+        buildImpact: profile.buildImpact,
+        status,
+        canExcludeFromProductBuild:
+          status === 'no-static-reference' && profile.profile === 'legacy-validation-debug',
+        exclusionStatus,
+        reason: profile.reason,
         references: references.slice(0, 8),
       };
     });
 
   return {
     summary: {
+      unityAssetProfiles: unityAssetProfiles.length,
+      profileCounts: countBy(unityAssetProfiles, 'profile'),
+      buildImpactCounts: countBy(unityAssetProfiles, 'buildImpact'),
+      exclusionStatusCounts: countBy(unityAssetProfiles, 'exclusionStatus'),
       runtimeScripts: runtimeScripts.length,
       editorOnlyScripts: editorScripts.length,
       smoothMaskResources: smoothMaskResources.length,
       noStaticReferenceResources: smoothMaskResources.filter(
         item => item.status === 'no-static-reference',
       ).length,
+      excludeReadyResources: smoothMaskResources.filter(
+        item => item.exclusionStatus === 'exclude-ready-after-move',
+      ).length,
+      legacyValidationResources: smoothMaskResources.filter(
+        item => item.profile === 'legacy-validation-debug',
+      ).length,
+      productRequiredOrFallbackResources: smoothMaskResources.filter(
+        item =>
+          item.profile === 'product-runtime-fallback'
+          || item.profile === 'product-runtime-reference',
+      ).length,
     },
+    unityAssetProfiles,
     runtimeScripts,
     editorScripts,
     smoothMaskResources,
     cleanupAdvice:
-      'Do not delete Unity assets solely from this static audit. Remove old RN sample selectors and registries first, then rerun this script and Unity import/compile.',
+      'Do not delete Unity assets solely from this static audit. Legacy validation resources can move out of Resources only after RN/Unity runtime references are removed and Unity import/compile passes.',
   };
 }
 
@@ -354,6 +576,9 @@ function decideBuild(changedFiles, frameworkSync) {
 
   const hasUnityRuntime = Boolean(buckets['unity-runtime']?.length);
   const hasUnityEditor = Boolean(buckets['unity-editor']?.length);
+  const hasUnityLegacyDebugResource = Boolean(
+    buckets['unity-legacy-debug-resource']?.length,
+  );
   const hasRnNative = Boolean(buckets['rn-native']?.length);
   const hasRnJs = Boolean(buckets['rn-js']?.length);
   const hasUnknown = Boolean(buckets.unknown?.length);
@@ -388,12 +613,28 @@ function decideBuild(changedFiles, frameworkSync) {
     return {
       decision: 'skip-unityframework-run-rn-xcode-only',
       reason:
-        'Only RN/iOS app-side files changed and UnityFramework reference/package hashes are synced.',
+        hasUnityLegacyDebugResource
+          ? 'RN/iOS app-side files changed; only additional Unity asset changes are legacy/debug resources, and UnityFramework hashes are synced.'
+          : 'Only RN/iOS app-side files changed and UnityFramework reference/package hashes are synced.',
       commands: [
         'cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit',
         'cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false',
         'cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report',
         'cd rn/MakeupARValidation && npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK',
+      ],
+      buckets,
+    };
+  }
+
+  if (hasUnityLegacyDebugResource) {
+    return {
+      decision: 'skip-product-phone-build-legacy-debug-resource-only',
+      reason:
+        'Only legacy/debug Unity resources changed. Product Generate path should not require an iPhone build; rebuild UnityFramework only if deliberately reviewing those legacy candidates.',
+      commands: [
+        'cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report',
+        'cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report',
+        'If legacy candidate visuals must be tested, ask the user before running UnityFramework/Xcode.',
       ],
       buckets,
     };
@@ -434,6 +675,26 @@ function writeJson(relativePath, value) {
   fs.writeFileSync(fullPath, `${JSON.stringify(value, null, 2)}\n`);
 }
 
+function renderCounts(counts) {
+  return Object.entries(counts)
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `- ${key}: ${value}`);
+}
+
+function renderSmoothMaskRows(items) {
+  if (items.length === 0) {
+    return ['_No SmoothRegionMasks resources found._'];
+  }
+  return [
+    '| id | profile | reference status | exclusion status |',
+    '| --- | --- | --- | --- |',
+    ...items.map(
+      item =>
+        `| \`${item.id}\` | \`${item.profile}\` | \`${item.status}\` | \`${item.exclusionStatus}\` |`,
+    ),
+  ];
+}
+
 function renderMarkdown(result) {
   const lines = [
     '# E7 Minimum Build Decision',
@@ -458,22 +719,42 @@ function renderMarkdown(result) {
   lines.push(
     '## Unity Asset Audit',
     '',
+    `- profiled Unity assets: ${result.unityAssetAudit.summary.unityAssetProfiles}`,
     `- runtime scripts: ${result.unityAssetAudit.summary.runtimeScripts}`,
     `- editor-only scripts: ${result.unityAssetAudit.summary.editorOnlyScripts}`,
     `- SmoothRegionMasks resources: ${result.unityAssetAudit.summary.smoothMaskResources}`,
     `- no static reference resources: ${result.unityAssetAudit.summary.noStaticReferenceResources}`,
+    `- legacy validation resources: ${result.unityAssetAudit.summary.legacyValidationResources}`,
+    `- product required/fallback resources: ${result.unityAssetAudit.summary.productRequiredOrFallbackResources}`,
+    `- exclude-ready resources: ${result.unityAssetAudit.summary.excludeReadyResources}`,
+    '',
+    '### Build Impact Counts',
+    '',
+    ...renderCounts(result.unityAssetAudit.summary.buildImpactCounts),
+    '',
+    '### Product/Debug Profile Counts',
+    '',
+    ...renderCounts(result.unityAssetAudit.summary.profileCounts),
+    '',
+    '### SmoothRegionMasks File Decisions',
+    '',
+    ...renderSmoothMaskRows(result.unityAssetAudit.smoothMaskResources),
     '',
     result.unityAssetAudit.cleanupAdvice,
+    '',
+    'Full file-level profile data is in `minimum-build-decision.json` under `unityAssetAudit.unityAssetProfiles`.',
     '',
   );
   return `${lines.join('\n')}\n`;
 }
 
-const changedFiles = unique([
-  ...runGit(['diff', '--name-only', 'HEAD', '--']),
-  ...runGit(['diff', '--name-only', '--cached', '--']),
-  ...runGit(['ls-files', '--others', '--exclude-standard']),
-]);
+const changedFiles = simulatedChangedFiles.length > 0
+  ? unique(simulatedChangedFiles)
+  : unique([
+      ...runGit(['diff', '--name-only', 'HEAD', '--']),
+      ...runGit(['diff', '--name-only', '--cached', '--']),
+      ...runGit(['ls-files', '--others', '--exclude-standard']),
+    ]);
 const referenceFramework = inspectFramework(RN_FRAMEWORK);
 const packageFramework = inspectFramework(PACKAGE_FRAMEWORK);
 const frameworkSync = compareFrameworks(referenceFramework, packageFramework);
@@ -483,6 +764,7 @@ const build = decideBuild(changedFiles, frameworkSync);
 const result = {
   schemaVersion: 'e7-minimum-build-decision-v1',
   generatedAt: new Date().toISOString(),
+  simulatedChangedFiles: simulatedChangedFiles.length > 0,
   changedFiles,
   framework: {
     reference: referenceFramework,
@@ -509,6 +791,9 @@ if (jsonOnly) {
   );
   console.log(
     `unityAssetAudit smoothRegionMasks=${unityAssetAudit.summary.smoothMaskResources} noStaticReference=${unityAssetAudit.summary.noStaticReferenceResources}`,
+  );
+  console.log(
+    `unityAssetProfiles=${unityAssetAudit.summary.unityAssetProfiles} legacyValidation=${unityAssetAudit.summary.legacyValidationResources} excludeReady=${unityAssetAudit.summary.excludeReadyResources}`,
   );
   console.log('nextCommands:');
   build.commands.forEach(command => console.log(`- ${command}`));

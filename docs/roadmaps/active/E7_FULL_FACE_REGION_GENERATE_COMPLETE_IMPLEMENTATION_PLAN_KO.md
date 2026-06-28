@@ -4135,3 +4135,82 @@ Still not proven:
 - No new RN/Xcode iPhone build after this audit.
 - No new Unity batchmode compile in this audit.
 - No real-device visual acceptance for capture preview, boundary smoothness, live adjustment reflection, blending difference, save/apply ack, or AR validation controls.
+
+### 17.11 Build-minimization file profile audit
+
+Status: **buildless tooling implemented, physical resource move deferred**.
+
+팀원이 말한 "필요한 파일만 빌드하면 빨라진다"는 방향을 파일 단위로 더 구체화했다. 이번 단계의 결론은
+Unity 파일을 바로 삭제/이동하는 것이 아니라, 제품 runtime 필수 파일과 legacy/debug 리소스를 먼저 도구가
+구분하게 만드는 것이다.
+
+#### 17.11.1 What changed
+
+| Area | Change | Result |
+| --- | --- | --- |
+| build-plan tool | `scripts/e7_build/decide_minimum_build.mjs`가 Unity asset을 `product-runtime-required`, `product-runtime-fallback`, `product-runtime-reference`, `legacy-validation-debug`, `editor-only`, `xr-simulation-debug`로 분류한다. | 파일 단위 profile이 JSON/Markdown report에 남는다. |
+| legacy/debug diff | legacy/debug mask resource만 바뀐 경우 `skip-product-phone-build-legacy-debug-resource-only`를 출력한다. | 제품 Generate 확인만 목적이면 iPhone build를 피할 수 있다. |
+| simulated checks | `--changed-file=<path>` 옵션을 추가해 가상 변경 파일로 build decision을 재현한다. | 실제 파일을 건드리지 않고 팀원 판단을 검증할 수 있다. |
+| runbook | `docs/runbooks/E7_BUILD_MINIMIZATION_RUNBOOK_KO.md` 추가, `E7_PREBUILD_GATE_RUNBOOK_KO.md` 갱신. | 필수 포함/제외 후보/보류 파일이 문서화된다. |
+
+#### 17.11.2 Current classification
+
+Current build-plan summary:
+
+```txt
+unityAssetProfiles=41
+SmoothRegionMasks resources=17
+legacyValidationResources=9
+productRequiredOrFallbackResources=8
+excludeReadyResources=0
+```
+
+Interpretation:
+
+- 실제 제품 path 필수: RNBridge, E3RegionMaskOverlay, E7SynchronizedCaptureExporter, FaceTrackingStatusReporter, FaceTrackingMarker, NativeCallProxy, SmoothRegionMask shader/material, scene/prefab, ARKit XR settings.
+- 제품 fallback/reference로 유지: `lip/cheek/eye-smooth-mask-v1`, `e7-lip/blush/brow/eyeliner-*-uv-v0`, `e7-full-face-region-runtime-assets.json`.
+- legacy/debug이지만 아직 이동 금지: `e7-lip-validation-*` 8개 PNG와 `e7-lip-validation-runtime-candidates.json`.
+- 이미 player 제외: `Assets/Editor/**`.
+- 제외 후보이나 import check 필요: XR Simulation assets.
+
+Physical move/delete in this step:
+
+```txt
+none
+```
+
+Reason:
+
+- RN `LIP_RUNTIME_CANDIDATE_OPTIONS`와 old Compact HUD/recipe path가 legacy mask id를 아직 참조한다.
+- Unity runtime은 `e7-lip-validation-*` prefix를 아직 허용한다.
+- build-plan 현재 결과가 `excludeReadyResources=0`이므로 `Assets/Resources` 밖으로 이동하면 debug/validation path가 깨질 수 있다.
+
+#### 17.11.3 Simulated decision checks
+
+Passed buildless decision checks:
+
+```sh
+node scripts/e7_build/decide_minimum_build.mjs --no-report --changed-file=unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-lip-validation-cv-vision-fill-v1.png
+# decision=skip-product-phone-build-legacy-debug-resource-only
+
+node scripts/e7_build/decide_minimum_build.mjs --no-report --changed-file=unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/lip-smooth-mask-v1.png
+# decision=run-unityframework-build
+
+node scripts/e7_build/decide_minimum_build.mjs --no-report --changed-file=rn/MakeupARValidation/App.tsx
+# decision=skip-unityframework-run-rn-xcode-only
+
+node scripts/e7_build/decide_minimum_build.mjs --no-report --changed-file=unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs
+# decision=run-unityframework-build
+```
+
+#### 17.11.4 Next cleanup boundary
+
+legacy/debug Resources를 실제로 빼는 다음 단계는 아래 조건이 만족될 때만 진행한다.
+
+1. RN old Compact HUD 후보 선택지 또는 debug entry가 제품 기본 path에서 분리된다.
+2. Unity runtime의 legacy prefix 허용이 제품 runtime에 필요 없다는 것이 확인된다.
+3. registry/scripts 참조가 player Resources에 남을 필요가 없어진다.
+4. `npm run e7:build-plan`에서 해당 리소스가 `exclude-ready-after-move`로 바뀐다.
+5. Unity import/compile과 RN/prebuild gates가 통과한다.
+
+이전과 동일하게 iPhone/Xcode build는 이번 buildless profile audit의 완료 조건이 아니다.
