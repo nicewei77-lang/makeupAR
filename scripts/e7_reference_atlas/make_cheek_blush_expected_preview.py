@@ -15,7 +15,7 @@ FRAME_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_2026062
 ARFACE_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json"
 MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 EVIDENCE_ROOT = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1"
-OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260628"
+OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260628_natural_v5"
 
 MASKS = (
     ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.84, "#F2A59A"),
@@ -37,7 +37,7 @@ CHEEK_SKIN_TINT = np.array([1.0, 1.0, 1.0], dtype=np.float32)
 CHEEK_OPACITY = 0.52
 CHEEK_INTENSITY = 0.95
 PRESERVE_SCALE = 0.92
-MATERIAL_ALPHA = CHEEK_OPACITY * (0.18 + (0.42 - 0.18) * CHEEK_INTENSITY)
+MATERIAL_ALPHA = CHEEK_OPACITY * (0.24 + (0.54 - 0.24) * CHEEK_INTENSITY)
 CROP_BOX = (110, 710, 1060, 1460)
 
 
@@ -157,34 +157,44 @@ def render_expected(
     full_soft = smoothstep(0.025 - 0.64 * 0.46, 0.025 + 0.64, soft)
     full_core = smoothstep(0.025 + 0.64 * 0.18, 0.025 + 0.64 * 0.88, soft)
     edge_band = np.clip(full_soft - full_core, 0.0, 1.0)
-    outer_ramp = smoothstep(0.025, 0.36, full_soft)
-    mid_ramp = smoothstep(0.12, 0.68, density_soft)
-    core_ramp = smoothstep(0.52, 0.92, density_soft)
-    outer_layer = np.clip(outer_ramp * (0.22 + mid_ramp * 0.30), 0.0, 1.0)
-    mid_layer = np.clip(mid_ramp * full_soft, 0.0, 1.0)
-    core_layer = np.clip((core_ramp * (0.34 + (1.0 - 0.34) * full_core)) ** 1.08, 0.0, 1.0)
+    outer_ramp = smoothstep(0.12, 0.72, full_soft)
+    mid_ramp = smoothstep(0.20, 0.76, density_soft)
+    core_ramp = smoothstep(0.42, 0.88, density_soft)
+    outer_layer = np.clip(outer_ramp * (0.018 + mid_ramp * 0.040), 0.0, 1.0)
+    mid_layer = np.clip(mid_ramp * smoothstep(0.18, 0.70, full_soft), 0.0, 1.0)
+    core_layer = np.clip((core_ramp * (0.62 + (1.0 - 0.62) * full_core)) ** 1.04, 0.0, 1.0)
     skin_fade = np.clip(
-        outer_layer * 0.22
-        + mid_layer * 0.58
-        + core_layer,
+        outer_layer * 0.0
+        + mid_layer * 0.22
+        + core_layer * 0.96,
         0.0,
         1.0,
     )
-    edge_tint = edge_band * outer_layer * 0.012
     mask_strength = (
-        outer_layer * coverage * 0.18
-        + mid_layer * coverage * 0.28
-        + core_layer * coverage * 0.44
-        + edge_tint * coverage
+        outer_layer * coverage * 0.004
+        + mid_layer * coverage * 0.18
+        + core_layer * coverage * 0.56
     )
-    max_pigment_strength = 0.24 + (0.38 - 0.24) * np.clip(coverage, 0.0, 1.0)
+    color_luma = float(np.dot(ROSE, np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)))
+    light_color_boost = float(smoothstep(0.66, 0.88, np.asarray(color_luma, dtype=np.float32)))
+    max_pigment_strength = (
+        0.28
+        + (0.46 - 0.28) * np.clip(coverage, 0.0, 1.0)
+        + light_color_boost * 0.08
+    )
     pigment_strength = np.clip(
         mask_strength * MATERIAL_ALPHA * PRESERVE_SCALE,
         0.0,
         max_pigment_strength,
     )
     secondary = parse_hex_color(secondary_hex)
-    blush_pigment = np.clip(ROSE * (1.0 - 0.14) + secondary * 0.14, 0.0, 1.0)
+    visible_primary = np.clip(
+        ROSE * (1.0 - 0.24 * light_color_boost)
+        + np.array([0.018, 0.0, 0.012], dtype=np.float32) * light_color_boost,
+        0.0,
+        1.0,
+    )
+    blush_pigment = np.clip(visible_primary * 0.90 + secondary * 0.10, 0.0, 1.0)
     pigment_color = (
         CHEEK_SKIN_TINT.reshape((1, 1, 3)) * (1.0 - skin_fade[..., None])
         + blush_pigment.reshape((1, 1, 3)) * skin_fade[..., None]
@@ -195,6 +205,14 @@ def render_expected(
 
 
 def source_mask_overlay(frame: Image.Image, mask_id: str) -> Image.Image:
+    generated_path = EVIDENCE_ROOT / "screen" / f"{mask_id}-source-clean.png"
+    if generated_path.exists():
+        source = Image.open(generated_path).convert("L")
+        if source.size != frame.size:
+            source = source.resize(frame.size, Image.Resampling.BILINEAR)
+        alpha = np.asarray(source, dtype=np.float32) / 255.0
+        return overlay_alpha(frame, alpha, (242, 112, 126))
+
     source_path = SOURCE_DRAWINGS.get(mask_id)
     if source_path is None or not source_path.exists():
         return frame.convert("RGB")
@@ -223,7 +241,7 @@ def crop_thumb(image: Image.Image, width: int = 320, height: int = 260) -> Image
 def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     frame = Image.open(FRAME_PATH).convert("RGB")
-    columns = ("source drawing", "projected alpha", "projected density", "expected render")
+    columns = ("generated source", "projected alpha", "projected density", "expected render")
     tile_w, tile_h, label_h = 320, 260, 32
     sheet = Image.new(
         "RGB",
@@ -235,19 +253,20 @@ def main() -> None:
         draw.text((col * tile_w + 8, 9), label, fill=(0, 0, 0))
 
     summary: dict[str, object] = {
-        "previewId": "cheek-blush-expected-render-20260628-three-stage",
+        "previewId": "cheek-blush-expected-render-20260628-natural-v5",
         "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer; each cheek mask encodes outer/mid/core gradient layers",
         "color": "#D94B74",
         "addedColor": "#F0CBD5",
         "opacity": CHEEK_OPACITY,
         "intensity": CHEEK_INTENSITY,
         "materialAlphaApprox": MATERIAL_ALPHA,
-        "edgeContract": "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
-        "layerContract": "outer soft wash + mid veil + core pigment are blended from one selected cheek mask",
+        "edgeContract": "cheek blush outer alpha stays wide for attachment, but visible pigment is density-gated inward and resolves toward unchanged camera skin",
+        "layerContract": "outer invisible safety wash + mid veil + core pigment are blended from one selected cheek mask",
+        "colorContract": "bright cheek colors are automatically darkened just enough for validation visibility while saturated colors keep their selected hue",
         "densityContract": {
             "blush_daily": "expanded outer/high cheekbone wash with mid veil and core peak",
             "blush_lovely": "expanded round apple-center wash with mid veil and core peak",
-            "blush_sunkissed1": "expanded cheek spots strongest; nose bridge/tip capped low",
+            "blush_sunkissed1": "horizontally filled round cheek blobs with visible nose blush",
             "blush_sunkissed2": "expanded W wash with cheekbone ends strongest and nose bridge low",
             "blush_under_eye": "starts directly below the lower eye area, then fades down into high cheek",
         },

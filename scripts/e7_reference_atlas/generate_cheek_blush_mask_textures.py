@@ -134,7 +134,35 @@ def overlay_source_masks_for_comparison(
 def build_soft_unity_mask(uv_hard: Image.Image) -> Image.Image:
     variants = make_region_variants(uv_hard)
     safe = trim_horizontal_uv_seams(variants["soft"])
-    return safe.filter(ImageFilter.GaussianBlur(radius=0.55))
+    return safe.filter(ImageFilter.GaussianBlur(radius=2.6))
+
+
+def paint_ellipse(
+    target: np.ndarray,
+    *,
+    cx: float,
+    cy: float,
+    radius_x: float,
+    radius_y: float,
+    value: int = 255,
+) -> None:
+    height, width = target.shape
+    left = max(int(np.floor(cx - radius_x)), 0)
+    right = min(int(np.ceil(cx + radius_x)), width - 1)
+    top = max(int(np.floor(cy - radius_y)), 0)
+    bottom = min(int(np.ceil(cy + radius_y)), height - 1)
+    if right < left or bottom < top:
+        return
+
+    grid_y, grid_x = np.mgrid[top : bottom + 1, left : right + 1]
+    ellipse = (
+        ((grid_x - cx) / max(radius_x, 1.0)) ** 2
+        + ((grid_y - cy) / max(radius_y, 1.0)) ** 2
+    ) <= 1.0
+    target[top : bottom + 1, left : right + 1] = np.maximum(
+        target[top : bottom + 1, left : right + 1],
+        ellipse.astype(np.uint8) * value,
+    )
 
 
 def expand_component_ellipse(
@@ -179,7 +207,42 @@ def expand_component_ellipse(
 def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarray:
     expanded = np.asarray(clean, dtype=np.uint8).copy()
     alpha = expanded.astype(np.float32) / 255.0
-    _, width = expanded.shape
+    height, width = expanded.shape
+
+    if mask_id == "cheek-sunkissed-mask1-v1":
+        rebuilt = np.zeros_like(expanded)
+        components = iter_components(alpha, min_pixels=24)
+        for component in components:
+            ys, xs = np.nonzero(component)
+            if len(xs) == 0:
+                continue
+
+            box_w = max(float(xs.max() - xs.min() + 1), 1.0)
+            box_h = max(float(ys.max() - ys.min() + 1), 1.0)
+            cx = float(xs.mean())
+            cy = float(ys.mean())
+            centered = abs(cx - width * 0.5) < width * 0.12
+            small = box_w < width * 0.16 and box_h < height * 0.06
+            if centered and small:
+                paint_ellipse(
+                    rebuilt,
+                    cx=cx,
+                    cy=cy + box_h * 0.02,
+                    radius_x=box_w * 1.16,
+                    radius_y=box_h * 1.08,
+                )
+                continue
+
+            direction = -1.0 if cx < width * 0.5 else 1.0
+            paint_ellipse(
+                rebuilt,
+                cx=cx - direction * box_w * 0.44,
+                cy=cy + box_h * 0.03,
+                radius_x=max(box_w * 0.98, box_h * 0.62),
+                radius_y=box_h * 0.54,
+            )
+
+        return rebuilt
 
     if mask_id == "cheek-under-eye-mask-v1":
         for component in iter_components(alpha, min_pixels=24):
@@ -207,10 +270,10 @@ def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarra
         return expanded
 
     growth_by_mask = {
-        "cheek-lovely-mask-v1": (1.52, 1.50, 0.0, 0.04),
-        "cheek-daily-mask-v1": (1.44, 1.42, 0.08, 0.02),
-        "cheek-sunkissed-mask1-v1": (1.34, 1.38, 0.04, 0.02),
-        "cheek-sunkissed-mask2-v1": (1.18, 1.68, 0.0, 0.10),
+        "cheek-lovely-mask-v1": (1.58, 1.54, 0.0, 0.04),
+        "cheek-daily-mask-v1": (1.48, 1.44, 0.02, 0.02),
+        "cheek-sunkissed-mask1-v1": (1.36, 1.40, 0.0, 0.02),
+        "cheek-sunkissed-mask2-v1": (1.22, 1.74, 0.0, 0.10),
     }
     scale_x, scale_y, outward_shift, shift_y = growth_by_mask.get(
         mask_id,
@@ -232,6 +295,32 @@ def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarra
         )
 
     return expanded
+
+
+def uv_face_edge_fade(shape: tuple[int, int], margin: float = 0.075, full: float = 0.26) -> np.ndarray:
+    height, width = shape
+    _, grid_x = np.indices((height, width))
+    denom = max(float(width - 1), 1.0)
+    left = grid_x / denom
+    right = (denom - grid_x) / denom
+    return (
+        smoothstep_array(margin, full, left)
+        * smoothstep_array(margin, full, right)
+    )
+
+
+def component_inner_fade(component: np.ndarray, edge_fraction: float = 0.18) -> np.ndarray:
+    ys, xs = np.nonzero(component)
+    if len(xs) == 0:
+        return np.zeros(component.shape, dtype=np.float32)
+
+    box_w = max(float(xs.max() - xs.min() + 1), 1.0)
+    box_h = max(float(ys.max() - ys.min() + 1), 1.0)
+    grid_y, grid_x = np.indices(component.shape)
+    x_distance = np.minimum(grid_x - xs.min(), xs.max() - grid_x) / box_w
+    y_distance = np.minimum(grid_y - ys.min(), ys.max() - grid_y) / box_h
+    edge_distance = np.minimum(x_distance, y_distance)
+    return smoothstep_array(0.018, edge_fraction, edge_distance) * component
 
 
 def iter_components(alpha: np.ndarray, min_pixels: int = 8) -> list[np.ndarray]:
@@ -307,14 +396,16 @@ def three_stage_density(
     cap: float = 1.0,
 ) -> np.ndarray:
     grid_y, grid_x = np.indices(alpha.shape)
-    alpha_gate = smoothstep_array(0.035, 0.62, alpha) * component
+    inner_fade = component_inner_fade(component)
+    safe_edge = uv_face_edge_fade(alpha.shape)
+    alpha_gate = smoothstep_array(0.22, 0.84, alpha) * inner_fade * safe_edge
     distance = np.sqrt(
         ((grid_x - peak_x) / max(sigma_x, 1.0)) ** 2
         + ((grid_y - peak_y) / max(sigma_y, 1.0)) ** 2
     )
-    outer = smoothstep_array(1.92, 0.70, distance) * 0.28
-    mid = smoothstep_array(1.24, 0.38, distance) * 0.36
-    core = np.exp(-(distance**2)) * 0.48
+    outer = smoothstep_array(1.86, 0.70, distance) * 0.08
+    mid = smoothstep_array(1.12, 0.34, distance) * 0.34
+    core = np.exp(-(distance**2) * 1.24) * 0.70
     layered = np.clip(base + outer + mid + core, 0.0, 1.0)
     return alpha_gate * np.clip(layered * cap, 0.0, 1.0)
 
@@ -350,13 +441,15 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
 
         if mask_id == "cheek-sunkissed-mask2-v1":
             half_width = max(box_w * 0.56, 1.0)
-            alpha_gate = smoothstep_array(0.035, 0.62, alpha) * component
+            inner_fade = component_inner_fade(component, edge_fraction=0.24)
+            safe_edge = uv_face_edge_fade(alpha.shape)
+            alpha_gate = smoothstep_array(0.26, 0.86, alpha) * inner_fade * safe_edge
             side_strength = np.clip(np.abs((grid_x - cx) / half_width), 0.0, 1.0)
-            outer = 0.16 * smoothstep_array(0.02, 0.48, alpha)
-            mid = 0.32 * smoothstep_array(0.15, 0.76, alpha)
-            ridge = 0.10 + 0.90 * np.power(side_strength, 1.35)
+            outer = 0.03 * smoothstep_array(0.22, 0.70, alpha)
+            mid = 0.22 * smoothstep_array(0.34, 0.84, alpha)
+            ridge = 0.18 + 0.82 * np.power(side_strength, 1.18)
             vertical_core = np.exp(-((grid_y - (cy + box_h * 0.08)) / max(box_h * 0.42, 1.0)) ** 2)
-            core = 0.46 * ridge * vertical_core
+            core = 0.40 * ridge * vertical_core
             component_density = alpha_gate * np.clip(outer + mid + core, 0.0, 1.0)
         else:
             direction = -1.0 if cx < width * 0.5 else 1.0
@@ -379,10 +472,10 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
                 base = 0.10
             elif mask_id == "cheek-sunkissed-mask1-v1":
                 is_nose = abs(cx - width * 0.5) < width * 0.10 and box_w < width * 0.18
-                sigma_x = box_w * (0.44 if is_nose else 0.40)
-                sigma_y = box_h * (0.44 if is_nose else 0.38)
-                base = 0.02 if is_nose else 0.09
-                cap = 0.28 if is_nose else 1.0
+                sigma_x = box_w * (0.58 if is_nose else 0.40)
+                sigma_y = box_h * (0.54 if is_nose else 0.38)
+                base = 0.12 if is_nose else 0.08
+                cap = 1.0
             elif mask_id == "cheek-under-eye-mask-v1":
                 peak_x = cx + direction * box_w * 0.24
                 peak_y = cy - box_h * 0.02
@@ -409,7 +502,7 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
 
 def make_cheek_rgba_mask(uv_soft: Image.Image, mask_id: str) -> tuple[Image.Image, Image.Image]:
     alpha = uv_soft.convert("L")
-    density = make_density_map(alpha, mask_id)
+    density = make_density_map(alpha, mask_id).filter(ImageFilter.GaussianBlur(radius=1.65))
     reserved = Image.new("L", alpha.size, 0)
     return Image.merge("RGBA", (alpha, reserved, density, alpha)), density
 

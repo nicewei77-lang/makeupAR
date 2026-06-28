@@ -2655,8 +2655,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "blush_sunkissed1":
             case "blush_sunkissed2":
             case "blush_under_eye":
-                sampleAlphaScale = Mathf.Lerp(0.18f, 0.42f, recipe.Intensity);
-                brightnessScale = 0.98f;
+                sampleAlphaScale = Mathf.Lerp(0.24f, 0.54f, recipe.Intensity);
+                brightnessScale = 0.96f;
                 break;
             case "shimmer_eye":
                 sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);

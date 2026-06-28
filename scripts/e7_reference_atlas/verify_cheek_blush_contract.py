@@ -15,7 +15,7 @@ MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionM
 SUMMARY_PATH = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/summary.json"
 EXPECTED_SUMMARY_PATH = (
     ROOT
-    / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/expected_render_20260628/summary.json"
+    / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/expected_render_20260628_natural_v5/summary.json"
 )
 APP_PATH = ROOT / "rn/MakeupARValidation/App.tsx"
 RNBRIDGE_PATH = ROOT / "unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs"
@@ -92,12 +92,16 @@ def main() -> None:
         "expected render must document single-mask runtime selection and encoded 3-stage layers",
     )
     require(
-        expected["edgeContract"] == "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
+        expected["edgeContract"] == "cheek blush outer alpha stays wide for attachment, but visible pigment is density-gated inward and resolves toward unchanged camera skin",
         "expected render must document the skin-fade edge contract",
     )
     require(
-        expected["layerContract"] == "outer soft wash + mid veil + core pigment are blended from one selected cheek mask",
+        expected["layerContract"] == "outer invisible safety wash + mid veil + core pigment are blended from one selected cheek mask",
         "expected render must document the 3-stage layer contract",
+    )
+    require(
+        expected["colorContract"] == "bright cheek colors are automatically darkened just enough for validation visibility while saturated colors keep their selected hue",
+        "expected render must document color differentiation behavior",
     )
     require(
         expected["addedColor"] == "#F0CBD5",
@@ -141,6 +145,8 @@ def main() -> None:
             "cheekOuterLayer",
             "cheekMidLayer",
             "cheekCoreLayer",
+            "cheekLightColorBoost",
+            "cheekVisiblePrimary",
             "cheekSkinFade",
             "cheekSkinTint",
         ),

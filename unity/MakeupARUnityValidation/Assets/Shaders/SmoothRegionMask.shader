@@ -201,34 +201,37 @@ Shader "MakeupAR/SmoothRegionMask"
                     pigmentColor,
                     pigmentColor * 0.82,
                     0.28));
+                float cheekLightColorBoost = 0.0;
 
                 if (_CheekBlushMode > 0.5)
                 {
                     float cheekAlphaSeed = max(max(mask.r, softMask.r), max(mask.a * 0.96, softMask.a * 0.92));
                     float cheekSoft = SoftMaskAlpha(cheekAlphaSeed, _Threshold, _Feather);
                     float cheekCore = CoreMaskAlpha(max(mask.r, mask.a), _Threshold, _Feather);
-                    float cheekDensityRaw = max(mask.b, softMask.b * 0.86);
-                    float cheekDensityBlurred = saturate(GradientDensityBlur(maskUv) * 1.24);
-                    float cheekDensity = saturate(max(cheekDensityRaw, cheekDensityBlurred * 0.82));
-                    float cheekOuterRamp = smoothstep(0.025, 0.36, cheekSoft);
-                    float cheekMidRamp = smoothstep(0.12, 0.68, cheekDensity);
-                    float cheekCoreRamp = smoothstep(0.52, 0.92, cheekDensity);
-                    float cheekOuterLayer = saturate(cheekOuterRamp * (0.22 + cheekMidRamp * 0.30));
-                    float cheekMidLayer = saturate(cheekMidRamp * cheekSoft);
-                    float cheekCoreLayer = saturate(pow(cheekCoreRamp * lerp(0.34, 1.0, cheekCore), 1.08));
-                    float cheekEdge = saturate(cheekSoft - cheekCore);
+                    float cheekDensityRaw = max(mask.b, softMask.b * 0.58);
+                    float cheekDensityBlurred = saturate(GradientDensityBlur(maskUv) * 0.82);
+                    float cheekDensity = saturate(max(cheekDensityRaw, cheekDensityBlurred * 0.36));
+                    float cheekOuterRamp = smoothstep(0.12, 0.72, cheekSoft);
+                    float cheekMidRamp = smoothstep(0.20, 0.76, cheekDensity);
+                    float cheekCoreRamp = smoothstep(0.42, 0.88, cheekDensity);
+                    float cheekOuterLayer = saturate(cheekOuterRamp * (0.018 + cheekMidRamp * 0.040));
+                    float cheekMidLayer = saturate(cheekMidRamp * smoothstep(0.18, 0.70, cheekSoft));
+                    float cheekCoreLayer = saturate(pow(cheekCoreRamp * lerp(0.62, 1.0, cheekCore), 1.04));
                     float cheekSkinFade = saturate(
-                        cheekOuterLayer * 0.22
-                        + cheekMidLayer * 0.58
-                        + cheekCoreLayer * 1.0);
-                    float cheekEdgeTint = cheekEdge * cheekOuterLayer * 0.012;
+                        cheekOuterLayer * 0.0
+                        + cheekMidLayer * 0.22
+                        + cheekCoreLayer * 0.96);
 
                     maskStrength = saturate(
-                        cheekOuterLayer * coverage * 0.18
-                        + cheekMidLayer * coverage * 0.28
-                        + cheekCoreLayer * coverage * 0.44
-                        + cheekEdgeTint * coverage);
-                    float3 cheekBlushPigment = saturate(lerp(_RegionColor.rgb, _SecondaryColor.rgb, 0.14));
+                        cheekOuterLayer * coverage * 0.004
+                        + cheekMidLayer * coverage * 0.18
+                        + cheekCoreLayer * coverage * 0.56);
+                    float cheekColorLuma = dot(_RegionColor.rgb, float3(0.2126, 0.7152, 0.0722));
+                    cheekLightColorBoost = smoothstep(0.66, 0.88, cheekColorLuma);
+                    float3 cheekVisiblePrimary = saturate(
+                        _RegionColor.rgb * lerp(1.0, 0.76, cheekLightColorBoost)
+                        + float3(0.018, 0.0, 0.012) * cheekLightColorBoost);
+                    float3 cheekBlushPigment = saturate(lerp(cheekVisiblePrimary, _SecondaryColor.rgb, 0.10));
                     float3 cheekSkinTint = float3(1.0, 1.0, 1.0);
                     pigmentColor = saturate(lerp(cheekSkinTint, cheekBlushPigment, cheekSkinFade));
                     alphaColor = pigmentColor;
@@ -294,7 +297,7 @@ Shader "MakeupAR/SmoothRegionMask"
                                 ? 0.10
                                 : (_LipStyleMode < 3.5 && _LipStyleMode >= 2.5 ? 0.14 : 0.0)));
                     float maxPigmentStrength = _CheekBlushMode > 0.5
-                        ? saturate(lerp(0.24, 0.38, saturate(_Coverage)))
+                        ? saturate(lerp(0.28, 0.46, saturate(_Coverage)) + cheekLightColorBoost * 0.08)
                         : saturate(lerp(0.42, 0.66, saturate(_Coverage)) + styleCapBoost);
                     float pigmentStrength = min(saturate(maskStrength * opacity * preserveScale), maxPigmentStrength);
                     float3 pigmentFilter = lerp(float3(1.0, 1.0, 1.0), pigmentColor, pigmentStrength);
