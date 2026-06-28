@@ -273,6 +273,7 @@ test('shows blush region, style, and intensity controls in HUD mode', async () =
 
   expect(hudText).toContain('rose');
   expect(hudText).toContain('coral');
+  expect(hudText).toContain('milk_pink');
   expect(hudText).toContain('Blush Region');
   expect(hudText).toContain('Daily');
   expect(hudText).toContain('Lovely');

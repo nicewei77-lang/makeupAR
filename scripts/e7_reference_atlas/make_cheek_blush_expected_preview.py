@@ -15,7 +15,7 @@ FRAME_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_2026062
 ARFACE_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json"
 MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 EVIDENCE_ROOT = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1"
-OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260627"
+OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260628"
 
 MASKS = (
     ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.84, "#F2A59A"),
@@ -157,14 +157,24 @@ def render_expected(
     full_soft = smoothstep(0.025 - 0.64 * 0.46, 0.025 + 0.64, soft)
     full_core = smoothstep(0.025 + 0.64 * 0.18, 0.025 + 0.64 * 0.88, soft)
     edge_band = np.clip(full_soft - full_core, 0.0, 1.0)
-    density_ramp = smoothstep(0.08, 0.78, density_soft)
-    density_core = np.clip((density_ramp * full_soft) ** 1.16, 0.0, 1.0)
-    cheek_center = np.clip(density_core * (0.36 + (1.0 - 0.36) * full_core), 0.0, 1.0)
-    skin_fade = np.clip((density_ramp * (0.18 + (1.0 - 0.18) * full_core)) ** 1.08, 0.0, 1.0)
-    edge_tint = edge_band * density_ramp * 0.004
+    outer_ramp = smoothstep(0.025, 0.36, full_soft)
+    mid_ramp = smoothstep(0.12, 0.68, density_soft)
+    core_ramp = smoothstep(0.52, 0.92, density_soft)
+    outer_layer = np.clip(outer_ramp * (0.22 + mid_ramp * 0.30), 0.0, 1.0)
+    mid_layer = np.clip(mid_ramp * full_soft, 0.0, 1.0)
+    core_layer = np.clip((core_ramp * (0.34 + (1.0 - 0.34) * full_core)) ** 1.08, 0.0, 1.0)
+    skin_fade = np.clip(
+        outer_layer * 0.22
+        + mid_layer * 0.58
+        + core_layer,
+        0.0,
+        1.0,
+    )
+    edge_tint = edge_band * outer_layer * 0.012
     mask_strength = (
-        cheek_center * coverage * 0.58
-        + density_core * coverage * 0.18
+        outer_layer * coverage * 0.18
+        + mid_layer * coverage * 0.28
+        + core_layer * coverage * 0.44
         + edge_tint * coverage
     )
     max_pigment_strength = 0.24 + (0.38 - 0.24) * np.clip(coverage, 0.0, 1.0)
@@ -225,19 +235,21 @@ def main() -> None:
         draw.text((col * tile_w + 8, 9), label, fill=(0, 0, 0))
 
     summary: dict[str, object] = {
-        "previewId": "cheek-blush-expected-render-20260627-skin-fade",
-        "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer",
+        "previewId": "cheek-blush-expected-render-20260628-three-stage",
+        "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer; each cheek mask encodes outer/mid/core gradient layers",
         "color": "#D94B74",
+        "addedColor": "#F0CBD5",
         "opacity": CHEEK_OPACITY,
         "intensity": CHEEK_INTENSITY,
         "materialAlphaApprox": MATERIAL_ALPHA,
         "edgeContract": "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
+        "layerContract": "outer soft wash + mid veil + core pigment are blended from one selected cheek mask",
         "densityContract": {
-            "blush_daily": "outer/high cheekbone peak; fades inward toward nose and lower cheek",
-            "blush_lovely": "round apple-center radial peak; fades outward evenly",
-            "blush_sunkissed1": "cheek spots strongest; nose bridge/tip capped low",
-            "blush_sunkissed2": "W wash with cheekbone ends strongest and nose bridge low",
-            "blush_under_eye": "outer under-eye/high cheek peak; inner lower eyelid restrained",
+            "blush_daily": "expanded outer/high cheekbone wash with mid veil and core peak",
+            "blush_lovely": "expanded round apple-center wash with mid veil and core peak",
+            "blush_sunkissed1": "expanded cheek spots strongest; nose bridge/tip capped low",
+            "blush_sunkissed2": "expanded W wash with cheekbone ends strongest and nose bridge low",
+            "blush_under_eye": "starts directly below the lower eye area, then fades down into high cheek",
         },
         "frame": str(FRAME_PATH.relative_to(ROOT)),
         "rows": [],

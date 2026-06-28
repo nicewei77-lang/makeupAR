@@ -208,18 +208,25 @@ Shader "MakeupAR/SmoothRegionMask"
                     float cheekSoft = SoftMaskAlpha(cheekAlphaSeed, _Threshold, _Feather);
                     float cheekCore = CoreMaskAlpha(max(mask.r, mask.a), _Threshold, _Feather);
                     float cheekDensityRaw = max(mask.b, softMask.b * 0.86);
-                    float cheekDensityBlurred = saturate(GradientDensityBlur(maskUv) * 1.16);
-                    float cheekDensity = saturate(max(cheekDensityRaw, cheekDensityBlurred * 0.76));
-                    float cheekDensityRamp = smoothstep(0.08, 0.78, cheekDensity);
-                    float cheekDensityCore = saturate(pow(cheekDensityRamp * cheekSoft, 1.16));
-                    float cheekCenter = saturate(cheekDensityCore * lerp(0.36, 1.0, cheekCore));
+                    float cheekDensityBlurred = saturate(GradientDensityBlur(maskUv) * 1.24);
+                    float cheekDensity = saturate(max(cheekDensityRaw, cheekDensityBlurred * 0.82));
+                    float cheekOuterRamp = smoothstep(0.025, 0.36, cheekSoft);
+                    float cheekMidRamp = smoothstep(0.12, 0.68, cheekDensity);
+                    float cheekCoreRamp = smoothstep(0.52, 0.92, cheekDensity);
+                    float cheekOuterLayer = saturate(cheekOuterRamp * (0.22 + cheekMidRamp * 0.30));
+                    float cheekMidLayer = saturate(cheekMidRamp * cheekSoft);
+                    float cheekCoreLayer = saturate(pow(cheekCoreRamp * lerp(0.34, 1.0, cheekCore), 1.08));
                     float cheekEdge = saturate(cheekSoft - cheekCore);
-                    float cheekSkinFade = saturate(pow(cheekDensityRamp * lerp(0.18, 1.0, cheekCore), 1.08));
-                    float cheekEdgeTint = cheekEdge * cheekDensityRamp * 0.004;
+                    float cheekSkinFade = saturate(
+                        cheekOuterLayer * 0.22
+                        + cheekMidLayer * 0.58
+                        + cheekCoreLayer * 1.0);
+                    float cheekEdgeTint = cheekEdge * cheekOuterLayer * 0.012;
 
                     maskStrength = saturate(
-                        cheekCenter * coverage * 0.58
-                        + cheekDensityCore * coverage * 0.18
+                        cheekOuterLayer * coverage * 0.18
+                        + cheekMidLayer * coverage * 0.28
+                        + cheekCoreLayer * coverage * 0.44
                         + cheekEdgeTint * coverage);
                     float3 cheekBlushPigment = saturate(lerp(_RegionColor.rgb, _SecondaryColor.rgb, 0.14));
                     float3 cheekSkinTint = float3(1.0, 1.0, 1.0);

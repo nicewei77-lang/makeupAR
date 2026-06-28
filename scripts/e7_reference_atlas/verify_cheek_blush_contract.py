@@ -15,7 +15,7 @@ MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionM
 SUMMARY_PATH = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/summary.json"
 EXPECTED_SUMMARY_PATH = (
     ROOT
-    / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/expected_render_20260627/summary.json"
+    / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1/expected_render_20260628/summary.json"
 )
 APP_PATH = ROOT / "rn/MakeupARValidation/App.tsx"
 RNBRIDGE_PATH = ROOT / "unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs"
@@ -87,19 +87,28 @@ def main() -> None:
     require(summary["channelContract"]["g"].startswith("reserved"), "summary must document reserved G")
     require(len(expected["rows"]) == 5, "expected render summary must contain five rows")
     require(
-        expected["runtimeSelectionRule"] == "one cheek blush region mask is selected per cheek layer",
-        "expected render must document single-mask runtime selection",
+        expected["runtimeSelectionRule"]
+        == "one cheek blush region mask is selected per cheek layer; each cheek mask encodes outer/mid/core gradient layers",
+        "expected render must document single-mask runtime selection and encoded 3-stage layers",
     )
     require(
         expected["edgeContract"] == "cheek blush edges resolve toward unchanged camera skin via neutral multiply filter",
         "expected render must document the skin-fade edge contract",
     )
     require(
-        expected["densityContract"]["blush_daily"].startswith("outer/high cheekbone peak"),
+        expected["layerContract"] == "outer soft wash + mid veil + core pigment are blended from one selected cheek mask",
+        "expected render must document the 3-stage layer contract",
+    )
+    require(
+        expected["addedColor"] == "#F0CBD5",
+        "expected render must document the added milk-pink color",
+    )
+    require(
+        expected["densityContract"]["blush_daily"].startswith("expanded outer/high cheekbone"),
         "expected render must document shape-specific density behavior",
     )
 
-    require_text(APP_PATH, MASK_IDS + TEXTURE_NAMES + ("cheek_blush_validation_v1", "cheek-blush-v1"))
+    require_text(APP_PATH, MASK_IDS + TEXTURE_NAMES + ("cheek_blush_validation_v1", "cheek-blush-v1", "#F0CBD5"))
     require_text(
         RNBRIDGE_PATH,
         MASK_IDS
@@ -126,7 +135,15 @@ def main() -> None:
     )
     require_text(
         SHADER_PATH,
-        ("_CheekBlushMode", "cheekDensity", "cheekEdge", "cheekSkinFade", "cheekSkinTint"),
+        (
+            "_CheekBlushMode",
+            "cheekDensity",
+            "cheekOuterLayer",
+            "cheekMidLayer",
+            "cheekCoreLayer",
+            "cheekSkinFade",
+            "cheekSkinTint",
+        ),
     )
 
     print(json.dumps({"status": "ok", "masks": verify_masks()}, indent=2, ensure_ascii=False))

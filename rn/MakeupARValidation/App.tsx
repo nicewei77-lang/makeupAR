@@ -31,6 +31,7 @@ export const RECIPE_COLOR_OPTIONS = [
   { name: 'nude', color: '#B9826B' },
   { name: 'berry', color: '#A8325F' },
   { name: 'red', color: '#C21F3A' },
+  { name: 'milk_pink', color: '#F0CBD5' },
 ] as const;
 
 const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;

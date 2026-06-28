@@ -137,6 +137,103 @@ def build_soft_unity_mask(uv_hard: Image.Image) -> Image.Image:
     return safe.filter(ImageFilter.GaussianBlur(radius=0.55))
 
 
+def expand_component_ellipse(
+    expanded: np.ndarray,
+    component: np.ndarray,
+    *,
+    scale_x: float,
+    scale_y: float,
+    shift_x: float,
+    shift_y: float,
+) -> None:
+    ys, xs = np.nonzero(component)
+    if len(xs) == 0:
+        return
+
+    height, width = expanded.shape
+    box_w = max(float(xs.max() - xs.min() + 1), 1.0)
+    box_h = max(float(ys.max() - ys.min() + 1), 1.0)
+    cx = float(xs.mean()) + shift_x * box_w
+    cy = float(ys.mean()) + shift_y * box_h
+    radius_x = max(box_w * scale_x * 0.5, 1.0)
+    radius_y = max(box_h * scale_y * 0.5, 1.0)
+
+    left = max(int(np.floor(cx - radius_x)), 0)
+    right = min(int(np.ceil(cx + radius_x)), width - 1)
+    top = max(int(np.floor(cy - radius_y)), 0)
+    bottom = min(int(np.ceil(cy + radius_y)), height - 1)
+    if right < left or bottom < top:
+        return
+
+    grid_y, grid_x = np.mgrid[top : bottom + 1, left : right + 1]
+    ellipse = (
+        ((grid_x - cx) / radius_x) ** 2
+        + ((grid_y - cy) / radius_y) ** 2
+    ) <= 1.0
+    expanded[top : bottom + 1, left : right + 1] = np.maximum(
+        expanded[top : bottom + 1, left : right + 1],
+        ellipse.astype(np.uint8) * 255,
+    )
+
+
+def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarray:
+    expanded = np.asarray(clean, dtype=np.uint8).copy()
+    alpha = expanded.astype(np.float32) / 255.0
+    _, width = expanded.shape
+
+    if mask_id == "cheek-under-eye-mask-v1":
+        for component in iter_components(alpha, min_pixels=24):
+            ys, xs = np.nonzero(component)
+            if len(xs) == 0:
+                continue
+
+            direction = -1.0 if float(xs.mean()) < width * 0.5 else 1.0
+            expand_component_ellipse(
+                expanded,
+                component,
+                scale_x=1.64,
+                scale_y=2.18,
+                shift_x=direction * 0.05,
+                shift_y=0.34,
+            )
+            expand_component_ellipse(
+                expanded,
+                component,
+                scale_x=1.32,
+                scale_y=1.24,
+                shift_x=direction * 0.02,
+                shift_y=-0.18,
+            )
+        return expanded
+
+    growth_by_mask = {
+        "cheek-lovely-mask-v1": (1.52, 1.50, 0.0, 0.04),
+        "cheek-daily-mask-v1": (1.44, 1.42, 0.08, 0.02),
+        "cheek-sunkissed-mask1-v1": (1.34, 1.38, 0.04, 0.02),
+        "cheek-sunkissed-mask2-v1": (1.18, 1.68, 0.0, 0.10),
+    }
+    scale_x, scale_y, outward_shift, shift_y = growth_by_mask.get(
+        mask_id,
+        (1.28, 1.28, 0.0, 0.0),
+    )
+    for component in iter_components(alpha, min_pixels=24):
+        ys, xs = np.nonzero(component)
+        if len(xs) == 0:
+            continue
+
+        direction = -1.0 if float(xs.mean()) < width * 0.5 else 1.0
+        expand_component_ellipse(
+            expanded,
+            component,
+            scale_x=scale_x,
+            scale_y=scale_y,
+            shift_x=direction * outward_shift,
+            shift_y=shift_y,
+        )
+
+    return expanded
+
+
 def iter_components(alpha: np.ndarray, min_pixels: int = 8) -> list[np.ndarray]:
     active = alpha > 0.03
     height, width = active.shape
@@ -199,8 +296,34 @@ def gaussian_density(
     return alpha_gate * np.clip((base + (1.0 - base) * gaussian) * cap, 0.0, 1.0)
 
 
+def three_stage_density(
+    alpha: np.ndarray,
+    component: np.ndarray,
+    peak_x: float,
+    peak_y: float,
+    sigma_x: float,
+    sigma_y: float,
+    base: float,
+    cap: float = 1.0,
+) -> np.ndarray:
+    grid_y, grid_x = np.indices(alpha.shape)
+    alpha_gate = smoothstep_array(0.035, 0.62, alpha) * component
+    distance = np.sqrt(
+        ((grid_x - peak_x) / max(sigma_x, 1.0)) ** 2
+        + ((grid_y - peak_y) / max(sigma_y, 1.0)) ** 2
+    )
+    outer = smoothstep_array(1.92, 0.70, distance) * 0.28
+    mid = smoothstep_array(1.24, 0.38, distance) * 0.36
+    core = np.exp(-(distance**2)) * 0.48
+    layered = np.clip(base + outer + mid + core, 0.0, 1.0)
+    return alpha_gate * np.clip(layered * cap, 0.0, 1.0)
+
+
 def smoothstep_array(edge0: float, edge1: float, values: np.ndarray) -> np.ndarray:
-    t = np.clip((values - edge0) / max(edge1 - edge0, 1.0e-6), 0.0, 1.0)
+    denominator = edge1 - edge0
+    if abs(denominator) < 1.0e-6:
+        denominator = 1.0e-6 if denominator >= 0 else -1.0e-6
+    t = np.clip((values - edge0) / denominator, 0.0, 1.0)
     return t * t * (3.0 - 2.0 * t)
 
 
@@ -227,11 +350,14 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
 
         if mask_id == "cheek-sunkissed-mask2-v1":
             half_width = max(box_w * 0.56, 1.0)
-            alpha_gate = smoothstep_array(0.045, 0.58, alpha) * component
+            alpha_gate = smoothstep_array(0.035, 0.62, alpha) * component
             side_strength = np.clip(np.abs((grid_x - cx) / half_width), 0.0, 1.0)
-            ridge = 0.03 + 0.97 * np.power(side_strength, 1.55)
-            vertical_core = np.exp(-((grid_y - cy) / max(box_h * 0.30, 1.0)) ** 2)
-            component_density = alpha_gate * np.clip(ridge * (0.55 + 0.45 * vertical_core), 0.0, 1.0)
+            outer = 0.16 * smoothstep_array(0.02, 0.48, alpha)
+            mid = 0.32 * smoothstep_array(0.15, 0.76, alpha)
+            ridge = 0.10 + 0.90 * np.power(side_strength, 1.35)
+            vertical_core = np.exp(-((grid_y - (cy + box_h * 0.08)) / max(box_h * 0.42, 1.0)) ** 2)
+            core = 0.46 * ridge * vertical_core
+            component_density = alpha_gate * np.clip(outer + mid + core, 0.0, 1.0)
         else:
             direction = -1.0 if cx < width * 0.5 else 1.0
             peak_x = cx
@@ -243,28 +369,28 @@ def make_density_map(uv_soft: Image.Image, mask_id: str) -> Image.Image:
 
             if mask_id == "cheek-daily-mask-v1":
                 peak_x = cx + direction * box_w * 0.22
-                peak_y = cy - box_h * 0.18
-                sigma_x = box_w * 0.34
-                sigma_y = box_h * 0.28
-                base = 0.02
+                peak_y = cy - box_h * 0.10
+                sigma_x = box_w * 0.42
+                sigma_y = box_h * 0.36
+                base = 0.08
             elif mask_id == "cheek-lovely-mask-v1":
-                sigma_x = box_w * 0.30
-                sigma_y = box_h * 0.30
-                base = 0.04
+                sigma_x = box_w * 0.40
+                sigma_y = box_h * 0.40
+                base = 0.10
             elif mask_id == "cheek-sunkissed-mask1-v1":
                 is_nose = abs(cx - width * 0.5) < width * 0.10 and box_w < width * 0.18
-                sigma_x = box_w * (0.40 if is_nose else 0.32)
-                sigma_y = box_h * (0.40 if is_nose else 0.30)
-                base = 0.01 if is_nose else 0.04
-                cap = 0.30 if is_nose else 1.0
+                sigma_x = box_w * (0.44 if is_nose else 0.40)
+                sigma_y = box_h * (0.44 if is_nose else 0.38)
+                base = 0.02 if is_nose else 0.09
+                cap = 0.28 if is_nose else 1.0
             elif mask_id == "cheek-under-eye-mask-v1":
-                peak_x = cx + direction * box_w * 0.30
-                peak_y = cy - box_h * 0.24
-                sigma_x = box_w * 0.30
-                sigma_y = box_h * 0.24
-                base = 0.015
+                peak_x = cx + direction * box_w * 0.24
+                peak_y = cy - box_h * 0.02
+                sigma_x = box_w * 0.46
+                sigma_y = box_h * 0.48
+                base = 0.06
 
-            component_density = gaussian_density(
+            component_density = three_stage_density(
                 alpha,
                 component,
                 peak_x,
@@ -324,6 +450,7 @@ def main() -> None:
 
         raw = load_dark_mask(source_path, args.dark_threshold)
         clean, component_stats = keep_components(raw, args.min_component_pixels)
+        clean = expand_screen_mask_for_runtime(clean, spec["id"])
         if expected_size is None:
             expected_size = clean.shape
         elif clean.shape != expected_size:
@@ -385,12 +512,12 @@ def main() -> None:
         "unityOutputDir": format_path(repo, unity_dir),
         "maskIds": [spec["id"] for spec in MASK_SPECS],
         "channelContract": {
-            "r": "soft blush alpha",
+            "r": "expanded soft blush outer alpha",
             "g": "reserved; must remain zero for cheek v1",
-            "b": "per-shape density map for center-strong powder pigment",
-            "a": "soft blush alpha",
+            "b": "per-shape three-stage density map for outer/mid/core powder pigment",
+            "a": "expanded soft blush outer alpha",
         },
-        "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer; generated masks are not stacked together",
+        "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer; generated masks are not stacked together; each mask encodes outer/mid/core gradient layers",
         "masks": summaries,
     }
     (output_dir / "summary.json").write_text(
