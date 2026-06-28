@@ -165,6 +165,30 @@ def paint_ellipse(
     )
 
 
+def erase_ellipse(
+    target: np.ndarray,
+    *,
+    cx: float,
+    cy: float,
+    radius_x: float,
+    radius_y: float,
+) -> None:
+    height, width = target.shape
+    left = max(int(np.floor(cx - radius_x)), 0)
+    right = min(int(np.ceil(cx + radius_x)), width - 1)
+    top = max(int(np.floor(cy - radius_y)), 0)
+    bottom = min(int(np.ceil(cy + radius_y)), height - 1)
+    if right < left or bottom < top:
+        return
+
+    grid_y, grid_x = np.mgrid[top : bottom + 1, left : right + 1]
+    ellipse = (
+        ((grid_x - cx) / max(radius_x, 1.0)) ** 2
+        + ((grid_y - cy) / max(radius_y, 1.0)) ** 2
+    ) <= 1.0
+    target[top : bottom + 1, left : right + 1][ellipse] = 0
+
+
 def expand_component_ellipse(
     expanded: np.ndarray,
     component: np.ndarray,
@@ -211,6 +235,7 @@ def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarra
 
     if mask_id == "cheek-sunkissed-mask1-v1":
         rebuilt = np.zeros_like(expanded)
+        nose_cutout: tuple[float, float, float, float] | None = None
         components = iter_components(alpha, min_pixels=24)
         for component in components:
             ys, xs = np.nonzero(component)
@@ -224,13 +249,7 @@ def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarra
             centered = abs(cx - width * 0.5) < width * 0.12
             small = box_w < width * 0.16 and box_h < height * 0.06
             if centered and small:
-                paint_ellipse(
-                    rebuilt,
-                    cx=cx,
-                    cy=cy + box_h * 0.02,
-                    radius_x=box_w * 1.16,
-                    radius_y=box_h * 1.08,
-                )
+                nose_cutout = (cx, cy + box_h * 0.02, box_w, box_h)
                 continue
 
             direction = -1.0 if cx < width * 0.5 else 1.0
@@ -240,6 +259,24 @@ def expand_screen_mask_for_runtime(clean: np.ndarray, mask_id: str) -> np.ndarra
                 cy=cy + box_h * 0.03,
                 radius_x=max(box_w * 0.98, box_h * 0.62),
                 radius_y=box_h * 0.54,
+            )
+
+        if nose_cutout is not None:
+            cx, cy, box_w, box_h = nose_cutout
+            for direction in (-1.0, 1.0):
+                erase_ellipse(
+                    rebuilt,
+                    cx=cx + direction * box_w * 0.58,
+                    cy=cy,
+                    radius_x=box_w * 0.18,
+                    radius_y=box_h * 1.08,
+                )
+            paint_ellipse(
+                rebuilt,
+                cx=cx,
+                cy=cy,
+                radius_x=box_w * 0.43,
+                radius_y=box_h * 0.74,
             )
 
         return rebuilt
