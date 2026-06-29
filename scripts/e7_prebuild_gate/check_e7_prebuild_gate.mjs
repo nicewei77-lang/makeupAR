@@ -196,6 +196,20 @@ function matchesAny(source, patterns) {
   return patterns.some(pattern => pattern.test(source));
 }
 
+function readStyleNumber(source, styleName, propertyName) {
+  const styleMatch = new RegExp(`${styleName}:\\s*{([\\s\\S]*?)\\n\\s*},`).exec(source);
+  if (!styleMatch) {
+    return undefined;
+  }
+  const propertyMatch = new RegExp(`${propertyName}:\\s*(\\d+)`).exec(styleMatch[1]);
+  return propertyMatch ? Number(propertyMatch[1]) : undefined;
+}
+
+function styleNumberAtLeast(source, styleName, propertyName, minimum) {
+  const value = readStyleNumber(source, styleName, propertyName);
+  return value !== undefined && value >= minimum;
+}
+
 function sourceWindows(source, anchorPatterns, radius = 1600) {
   const windows = [];
   for (const pattern of anchorPatterns) {
@@ -950,15 +964,44 @@ function runMain() {
     'Generated candidate and adjustment previews must use contain, not cover, so full-face mask quality is inspectable before build.',
   );
 
-  const candidatePreviewLargeEnough = matchesAll(rnAppSource, [
-    /generateWizardCandidateCard:\s*{[\s\S]*?width:\s*282/,
-    /generateWizardCandidatePreview:\s*{[\s\S]*?height:\s*286/,
-    /generatedAdjustmentPreviewImage:\s*{[\s\S]*?height:\s*300/,
-  ]);
+  const candidateCardWidth = readStyleNumber(
+    rnAppSource,
+    'generateWizardCandidateCard',
+    'width',
+  );
+  const candidatePreviewHeight = readStyleNumber(
+    rnAppSource,
+    'generateWizardCandidatePreview',
+    'height',
+  );
+  const adjustmentPreviewHeight = readStyleNumber(
+    rnAppSource,
+    'generatedAdjustmentPreviewImage',
+    'height',
+  );
+  const candidatePreviewLargeEnough =
+    styleNumberAtLeast(
+      rnAppSource,
+      'generateWizardCandidateCard',
+      'width',
+      282,
+    ) &&
+    styleNumberAtLeast(
+      rnAppSource,
+      'generateWizardCandidatePreview',
+      'height',
+      286,
+    ) &&
+    styleNumberAtLeast(
+      rnAppSource,
+      'generatedAdjustmentPreviewImage',
+      'height',
+      300,
+    );
   addCheck(
     'v2.preview_cards_large_enough_for_quality_judgment',
     candidatePreviewLargeEnough,
-    `Candidate and adjustment previews should remain large enough for picky visual review. largePreview=${candidatePreviewLargeEnough ? 'yes' : 'no'}`,
+    `Candidate and adjustment previews should remain large enough for picky visual review. largePreview=${candidatePreviewLargeEnough ? 'yes' : 'no'} cardWidth=${candidateCardWidth ?? 'missing'} candidateHeight=${candidatePreviewHeight ?? 'missing'} adjustmentHeight=${adjustmentPreviewHeight ?? 'missing'}`,
   );
 
   addCheck(

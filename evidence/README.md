@@ -12,6 +12,7 @@ This folder keeps a small, shareable visual history of the AR makeup validation 
 - `screenshots/`: canonical screenshots referenced by result docs.
 - `screenshots/e7-lip-generate-web-beta-2026-06-27/`: React web beta browser proof for local-only lip mask generation, Vision/MediaPipe comparison, Blendshape Assist Off/On comparison, UV projection preview, and round-trip preview. This is buildless `partial` evidence, not RN/Unity runtime proof.
 - `references/`: visual algorithm references, not runtime Green evidence.
+- `references/arcore-canonical-face-texture-v1/`: team-shared ARCore canonical UV face texture source manifest. The 104MB PSD is recorded by path/hash and should not be treated as runtime proof.
 - `e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/`: selected synchronized clean frame, ARFace export, and projected mesh overlay used as the best current gold-mask drawing input.
 - `e7-region-generate/session-20260626T195853Z/`: curated buildless E7 full-face region generate evidence for lip, blush, brow, and eyeliner candidate packages. This is pre-Xcode handoff evidence, not real-device Green proof.
 

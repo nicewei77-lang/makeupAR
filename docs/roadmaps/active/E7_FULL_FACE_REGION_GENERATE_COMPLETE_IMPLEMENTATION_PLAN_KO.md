@@ -6035,3 +6035,81 @@ Boundary:
 This proves the post-device fix build can be installed and launched on the iPhone.
 It does not yet prove adjustment latency, save/apply timing, generated-mask ack, blend visual quality, AR attachment, FPS/frame-time, memory/thermal, or pulled package/ack evidence.
 ```
+
+#### 18.9.13 Generate editor improvement protocol
+
+The next UX/mask-quality iteration should follow:
+
+```txt
+docs/runbooks/E7_GENERATE_EDITOR_IMPROVEMENT_PROTOCOL_KO.md
+```
+
+Key decisions:
+
+```txt
+- 팀 공용 UV 기준은 evidence/references/arcore-canonical-face-texture-v1/ manifest로 고정한다. 원본 PSD는 104MB라 직접 commit하지 않고 hash/path로 추적한다.
+- innerFill / upperInnerFill 샘플 contact sheet와 metrics를 먼저 생성했다: `evidence/e7-lip-inner-fill-samples/inner-fill-20260629T152646Z/` and `evidence/e7-lip-inner-fill-samples/mesh-roundtrip-review/`. 정적 샘플만으로 최종값을 고르기는 어렵기 때문에, 첫 app-facing 축은 `upperInnerFill`로 제한하고 최종 수치는 사용자가 앱에서 직접 조정한 값을 saved package/runtime payload/evidence에 저장한다.
+- Extract 이후에는 live Unity camera 배경을 숨기고 fixed-photo region editor로 전환한다.
+- 첫 구현은 lip-only fixed editor MVP로 자르고, 사용자는 전체 얼굴에서 lip을 탭해 자동 zoom한 뒤 정밀 조정한다.
+- lip/blush/brow/eyeliner는 같은 region editor 패턴을 공유하되, blush/brow/eyeliner UI 확장은 lip 검증 이후로 둔다.
+- blendshapeAssist는 default-off로 내리고, neutral/non-blend보다 품질 이득이 보일 때만 다시 노출한다.
+- AR에서는 색/농도/보기 모드만 즉시 조정하고, shape 수정은 "수정 -> editor 복귀 -> 다시 적용" loop로 1차 구현에 포함한다.
+```
+
+#### 18.9.14 Generate editor direct-tuning source gate
+
+Status: **source/buildless passed, next iPhone review should tune the value in-app**.
+
+What changed:
+
+```txt
+- Static inner-fill samples were not enough for final visual judgment.
+- The app now exposes one guarded lip shape axis: upperInnerFill.
+- innerFill remains hidden/default 0 until it proves a separate visual benefit.
+- User-chosen upperInnerFill is persisted into:
+  - shared LipAdjustment contract
+  - rebuilt adjustment preview/package
+  - generatedMaskId adjustment hash
+  - saved generated package
+  - AR runtime apply payload
+  - recipe/evidence metadata
+- Extract shows an explicit loading panel while candidates are being generated.
+- Adjustment preview starts as lip zoom and can be tapped back to full-face view.
+- Close after capture/apply preserves captured work and returns to extract/adjust instead of forcing all 6 captures again.
+- Candidate/adjustment preview-size prebuild gate now accepts values above the minimum threshold and records actual sizes.
+```
+
+Verification:
+
+```txt
+RN TypeScript: pass
+RN Jest: 35 passed
+RN ESLint: pass
+packages/lip-generate-core typecheck: pass
+packages/lip-generate-core test: pass
+npm run e7:build-plan -- --no-report: pass
+  decision=skip-unityframework-run-rn-xcode-only
+  unityFrameworkSync=true reason=frameworks_synced
+npm run e7:prebuild:full -- --no-report: pass
+  result=pass pass=38 fail=0 warn=0
+git diff --check: pass
+```
+
+UnityFramework decision:
+
+```txt
+No UnityFramework regeneration is required for this diff because it only changes
+RN/package/tooling/docs paths and build-plan reports synced framework artifacts.
+The next iPhone test still requires an iOS app build/install to prove the user
+tuning value, saved package, AR apply ack, and visual result.
+```
+
+Next iPhone review:
+
+```txt
+1. Capture/generate normally.
+2. In Adjust, tune upperInnerFill directly on the fixed-photo/lip-zoom preview.
+3. Save and run AR.
+4. Pull/inspect saved package and generated apply ack.
+5. Record whether the tuned value fixed the upper inner lip cover on real face motion.
+```

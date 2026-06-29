@@ -1,4 +1,4 @@
-import type { LipAdjustment, LipBoundary2D, LipPoint2D } from './contracts';
+import type { LipAdjustment, LipBoundary2D, LipPoint2D } from "./contracts";
 
 export type LipFrameSize = {
   width: number;
@@ -7,7 +7,7 @@ export type LipFrameSize = {
 
 export function adjustmentDelta(
   next: LipAdjustment,
-  previous?: LipAdjustment,
+  previous?: LipAdjustment
 ): LipAdjustment {
   return {
     cornerReach: next.cornerReach - (previous?.cornerReach ?? 0),
@@ -16,13 +16,15 @@ export function adjustmentDelta(
     lowerLipTightness:
       next.lowerLipTightness - (previous?.lowerLipTightness ?? 0),
     verticalOffset: next.verticalOffset - (previous?.verticalOffset ?? 0),
+    innerFill: next.innerFill - (previous?.innerFill ?? 0),
+    upperInnerFill: next.upperInnerFill - (previous?.upperInnerFill ?? 0),
   };
 }
 
 export function adjustLipBoundary<T extends LipBoundary2D>(
   boundary: T,
   adjustment: LipAdjustment,
-  frameSize?: LipFrameSize,
+  frameSize?: LipFrameSize
 ): T {
   const referenceBounds = bounds(boundary.outerPoints);
   if (!referenceBounds) {
@@ -39,7 +41,7 @@ export function adjustLipBoundary<T extends LipBoundary2D>(
       boundary.outerPoints,
       adjustment,
       referenceBounds,
-      frameSize,
+      frameSize
     ),
     innerPoints: applyLipAdjustmentToPoints(
       boundary.innerPoints,
@@ -47,6 +49,7 @@ export function adjustLipBoundary<T extends LipBoundary2D>(
       referenceBounds,
       frameSize,
       { inner: true },
+      bounds(boundary.innerPoints) ?? referenceBounds
     ),
   };
 }
@@ -55,33 +58,36 @@ export function adjustLipBoundaryFromPrevious<T extends LipBoundary2D>(
   boundary: T,
   previousAdjustment: LipAdjustment | undefined,
   nextAdjustment: LipAdjustment,
-  frameSize?: LipFrameSize,
+  frameSize?: LipFrameSize
 ): T {
   return adjustLipBoundary(
     boundary,
     adjustmentDelta(nextAdjustment, previousAdjustment),
-    frameSize,
+    frameSize
   );
 }
 
 export function buildClosedSvgPath(points: LipPoint2D[]): string {
   if (!points.length) {
-    return '';
+    return "";
   }
 
   const [first, ...rest] = points;
   const segments = [
     `M ${formatPoint(first.x)} ${formatPoint(first.y)}`,
-    ...rest.map(point => `L ${formatPoint(point.x)} ${formatPoint(point.y)}`),
-    'Z',
+    ...rest.map((point) => `L ${formatPoint(point.x)} ${formatPoint(point.y)}`),
+    "Z",
   ];
-  return segments.join(' ');
+  return segments.join(" ");
 }
 
 export function buildLipBoundarySvgPath(boundary: LipBoundary2D): string {
-  return [buildClosedSvgPath(boundary.outerPoints), buildClosedSvgPath(boundary.innerPoints)]
+  return [
+    buildClosedSvgPath(boundary.outerPoints),
+    buildClosedSvgPath(boundary.innerPoints),
+  ]
     .filter(Boolean)
-    .join(' ');
+    .join(" ");
 }
 
 function applyLipAdjustmentToPoints(
@@ -90,6 +96,7 @@ function applyLipAdjustmentToPoints(
   referenceBounds: [number, number, number, number],
   frameSize: LipFrameSize | undefined,
   options: { inner?: boolean } = {},
+  innerReferenceBounds?: [number, number, number, number]
 ): LipPoint2D[] {
   if (!points.length) {
     return [];
@@ -102,8 +109,14 @@ function applyLipAdjustmentToPoints(
   const centerY = minY + height * 0.5;
   const cornerScale = options.inner ? 0.45 : 1;
   const tightnessScale = options.inner ? 0.35 : 1;
+  const [innerMinX, innerMinY, innerMaxX, innerMaxY] =
+    innerReferenceBounds ?? referenceBounds;
+  const innerWidth = Math.max(innerMaxX - innerMinX, 1);
+  const innerHeight = Math.max(innerMaxY - innerMinY, 1);
+  const innerCenterX = innerMinX + innerWidth * 0.5;
+  const innerCenterY = innerMinY + innerHeight * 0.5;
 
-  return points.map(point => {
+  return points.map((point) => {
     const dx = point.x - centerX;
     const dy = point.y - centerY;
     const cornerWeight = Math.min(1, Math.abs(dx) / (width * 0.5));
@@ -111,12 +124,7 @@ function applyLipAdjustmentToPoints(
 
     let x =
       centerX +
-      dx *
-        (1 +
-          adjustment.cornerReach *
-            0.22 *
-            cornerWeight *
-            cornerScale);
+      dx * (1 + adjustment.cornerReach * 0.22 * cornerWeight * cornerScale);
     let y = point.y - adjustment.verticalOffset * height * 0.38;
 
     if (dy < 0) {
@@ -133,6 +141,24 @@ function applyLipAdjustmentToPoints(
         0.24 *
         verticalWeight *
         tightnessScale;
+    }
+
+    if (options.inner) {
+      const innerDx = x - innerCenterX;
+      const innerDy = y - innerCenterY;
+      const upperWeight =
+        innerDy < 0 ? Math.min(1, Math.abs(innerDy) / (innerHeight * 0.5)) : 0;
+      const overallFill = clamp(adjustment.innerFill * 0.45, -0.45, 0.65);
+      const upperFill = clamp(
+        adjustment.upperInnerFill * 0.58 * upperWeight,
+        -0.45,
+        0.72
+      );
+      const fill = clamp(overallFill + upperFill, -0.6, 0.78);
+      if (Math.abs(fill) > 0.0001) {
+        x = innerCenterX + innerDx * (1 - fill * 0.35);
+        y = innerCenterY + innerDy * (1 - fill);
+      }
     }
 
     if (frameSize) {
@@ -161,7 +187,7 @@ function bounds(points: LipPoint2D[]): [number, number, number, number] | null {
       Number.POSITIVE_INFINITY,
       Number.NEGATIVE_INFINITY,
       Number.NEGATIVE_INFINITY,
-    ] as [number, number, number, number],
+    ] as [number, number, number, number]
   );
 }
 

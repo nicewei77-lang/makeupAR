@@ -28,6 +28,7 @@ import {
 import {
   buildUnityMessageFromPackage,
   ExpressionAssistMode as GeneratedExpressionAssistMode,
+  LipAdjustment,
   LipGeneratePackage,
   LipMaskProvider as GeneratedLipMaskProvider,
 } from '../../packages/lip-generate-core/src';
@@ -169,6 +170,7 @@ const LIP_ADJUSTMENT_FIELD_OPTIONS = [
   { name: 'cornerReach', label: 'corner' },
   { name: 'upperLipTightness', label: 'upper' },
   { name: 'lowerLipTightness', label: 'lower' },
+  { name: 'upperInnerFill', label: 'inner' },
   { name: 'verticalOffset', label: 'y' },
 ] as const;
 const LIP_RUNTIME_CANDIDATE_OPTIONS = [
@@ -382,13 +384,11 @@ type LipColor = (typeof LIP_COLOR_OPTIONS)[number];
 type LipSampleName = (typeof LIP_SAMPLE_OPTIONS)[number]['name'];
 type LipFinish = (typeof LIP_FINISH_OPTIONS)[number]['name'];
 type LipTuningField = (typeof LIP_TUNING_FIELD_OPTIONS)[number]['name'];
-type LipAdjustmentField =
-  (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number]['name'];
+type LipAdjustmentField = (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number]['name'];
 type LipAdjustmentValueUpdate = number | ((currentValue: number) => number);
-type LipRuntimeCandidate =
-  (typeof LIP_RUNTIME_CANDIDATE_OPTIONS)[number];
+type LipRuntimeCandidate = (typeof LIP_RUNTIME_CANDIDATE_OPTIONS)[number];
 type LipRuntimeCandidateId = LipRuntimeCandidate['candidateId'];
-type LipUserAdjustment = Record<LipAdjustmentField, number>;
+type LipUserAdjustment = LipAdjustment;
 type LipSample = {
   name: LipSampleName;
   label: string;
@@ -541,6 +541,8 @@ const DEFAULT_LIP_USER_ADJUSTMENT: LipUserAdjustment = {
   upperLipTightness: 0,
   lowerLipTightness: 0,
   verticalOffset: 0,
+  innerFill: 0,
+  upperInnerFill: 0,
 };
 const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
@@ -577,8 +579,9 @@ const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   cheek: false,
   eye: false,
 };
-const E7_NATIVE_BOUNDARY_MODULE =
-  NativeModules.E7NativeLipBoundaryProviders as E7NativeBoundaryModule | undefined;
+const E7_NATIVE_BOUNDARY_MODULE = NativeModules.E7NativeLipBoundaryProviders as
+  | E7NativeBoundaryModule
+  | undefined;
 const OPACITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
 const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
@@ -882,6 +885,8 @@ type UnityEventPayload = {
   upperLipTightness?: number;
   lowerLipTightness?: number;
   verticalOffset?: number;
+  innerFill?: number;
+  upperInnerFill?: number;
   cameraBackdropAvailable?: boolean;
   lightEstimateAvailable?: boolean;
   sampleWindowMs?: number;
@@ -1052,7 +1057,7 @@ function HomeScreen({
         ]}
         onPress={onStart}
       >
-          <Text style={styles.primaryButtonText}>시작</Text>
+        <Text style={styles.primaryButtonText}>시작</Text>
       </Pressable>
     </View>
   );
@@ -1083,14 +1088,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [selectedLipSampleName, setSelectedLipSampleName] =
     useState<LipSampleName>(DEFAULT_LIP_SAMPLE.name);
   const [selectedLipRuntimeCandidateId, setSelectedLipRuntimeCandidateId] =
-    useState<LipRuntimeCandidateId>(
-      DEFAULT_LIP_RUNTIME_CANDIDATE.candidateId,
-    );
+    useState<LipRuntimeCandidateId>(DEFAULT_LIP_RUNTIME_CANDIDATE.candidateId);
   const [lipSampleSettings, setLipSampleSettings] = useState<
     Record<LipSampleName, LipSample>
   >(createDefaultLipSampleSettings);
-  const [lipUserAdjustment, setLipUserAdjustment] =
-    useState<LipUserAdjustment>(DEFAULT_LIP_USER_ADJUSTMENT);
+  const [lipUserAdjustment, setLipUserAdjustment] = useState<LipUserAdjustment>(
+    DEFAULT_LIP_USER_ADJUSTMENT,
+  );
   const [lipGenerateProvider, setLipGenerateProvider] =
     useState<GeneratedLipMaskProvider>('vision');
   const [lipGenerateExpressionMode, setLipGenerateExpressionMode] =
@@ -1119,9 +1123,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [captureSetId, setCaptureSetId] = useState(() =>
     createCaptureSetId(entryCount),
   );
-  const [captureShots, setCaptureShots] = useState(
-    createInitialCaptureShots,
-  );
+  const [captureShots, setCaptureShots] = useState(createInitialCaptureShots);
   const [pendingCaptureShotKind, setPendingCaptureShotKind] =
     useState<E7CaptureShotKind | null>(null);
   const [nativeProviderResults, setNativeProviderResults] = useState<
@@ -1143,8 +1145,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     useState<E7SavedPackageRecord | null>(null);
   const [generatedApplyState, setGeneratedApplyState] =
     useState<E7GeneratedApplyState>(() => createGeneratedApplyState('idle'));
-  const [pendingGeneratedMaskId, setPendingGeneratedMaskId] =
-    useState<string | null>(null);
+  const [pendingGeneratedMaskId, setPendingGeneratedMaskId] = useState<
+    string | null
+  >(null);
   const [pendingGeneratedPackage, setPendingGeneratedPackage] =
     useState<LipGeneratePackage | null>(null);
   const [appliedGeneratedPackage, setAppliedGeneratedPackage] =
@@ -1161,23 +1164,28 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
   const [isSavingGeneratedPackage, setIsSavingGeneratedPackage] =
     useState(false);
-  const lipUserAdjustmentRef = useRef<LipUserAdjustment>(DEFAULT_LIP_USER_ADJUSTMENT);
+  const lipUserAdjustmentRef = useRef<LipUserAdjustment>(
+    DEFAULT_LIP_USER_ADJUSTMENT,
+  );
   const generationRequestSequenceRef = useRef(0);
-  const activeGenerationRequestRef =
-    useRef<E7GenerationRequestGuard | null>(null);
+  const activeGenerationRequestRef = useRef<E7GenerationRequestGuard | null>(
+    null,
+  );
   const adjustmentPreviewRequestSequenceRef = useRef(0);
   const activeAdjustmentPreviewRequestRef =
     useRef<E7AdjustmentPreviewRequestGuard | null>(null);
-  const adjustmentPreviewDebounceTimeoutRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const adjustmentPreviewDebounceTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const pendingGeneratedMaskIdRef = useRef<string | null>(null);
   const pendingGeneratedApplyPayloadRef =
     useRef<PendingGeneratedApplyPayload | null>(null);
   const generatedSaveRequestSequenceRef = useRef(0);
   const activeGeneratedSaveRequestRef =
     useRef<PendingGeneratedSaveRequest | null>(null);
-  const generatedApplyRetryTimeoutRef =
-    useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generatedApplyRetryTimeoutRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
   const generatedControlRequestSequenceRef = useRef(0);
   const selectedLipSample =
     lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
@@ -1204,19 +1212,22 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }
   }, []);
 
-  const resetGeneratedApplyFlow = useCallback((reason: string) => {
-    clearGeneratedApplyRetryTimeout();
-    pendingGeneratedMaskIdRef.current = null;
-    pendingGeneratedApplyPayloadRef.current = null;
-    activeGeneratedSaveRequestRef.current = null;
-    setIsSavingGeneratedPackage(false);
-    setGeneratedApplyState(createGeneratedApplyState('idle'));
-    setPendingGeneratedMaskId(null);
-    setPendingGeneratedPackage(null);
-    setAppliedGeneratedPackage(null);
-    setPendingGeneratedControlCheck(null);
-    console.log('[E7] generated_apply_state_reset', reason);
-  }, [clearGeneratedApplyRetryTimeout]);
+  const resetGeneratedApplyFlow = useCallback(
+    (reason: string) => {
+      clearGeneratedApplyRetryTimeout();
+      pendingGeneratedMaskIdRef.current = null;
+      pendingGeneratedApplyPayloadRef.current = null;
+      activeGeneratedSaveRequestRef.current = null;
+      setIsSavingGeneratedPackage(false);
+      setGeneratedApplyState(createGeneratedApplyState('idle'));
+      setPendingGeneratedMaskId(null);
+      setPendingGeneratedPackage(null);
+      setAppliedGeneratedPackage(null);
+      setPendingGeneratedControlCheck(null);
+      console.log('[E7] generated_apply_state_reset', reason);
+    },
+    [clearGeneratedApplyRetryTimeout],
+  );
 
   useEffect(() => {
     lipUserAdjustmentRef.current = lipUserAdjustment;
@@ -1234,13 +1245,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   useEffect(() => {
     activeAdjustmentPreviewRequestRef.current = null;
     clearAdjustmentPreviewDebounce();
-  }, [
-    captureSetId,
-    clearAdjustmentPreviewDebounce,
-    lipGenerateProvider,
-  ]);
+  }, [captureSetId, clearAdjustmentPreviewDebounce, lipGenerateProvider]);
 
-  useEffect(() => clearAdjustmentPreviewDebounce, [clearAdjustmentPreviewDebounce]);
+  useEffect(
+    () => clearAdjustmentPreviewDebounce,
+    [clearAdjustmentPreviewDebounce],
+  );
 
   useEffect(() => {
     const unityViewForCleanup = unityRef.current;
@@ -1264,11 +1274,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       console.log('[E7] unity_screen_unmounted', `entry=${entryCount}`);
     };
   }, [entryCount, mountedAt, validationViewMode]);
-
-  const handleClose = useCallback(() => {
-    console.log('[E7] unity_screen_close_pressed', `entry=${entryCount}`);
-    onClose();
-  }, [entryCount, onClose]);
 
   const buildRecipeBatchJson = useCallback(
     (
@@ -1371,6 +1376,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? userAdjustment.lowerLipTightness
             : 0,
           verticalOffset: isLipSampleLayer ? userAdjustment.verticalOffset : 0,
+          innerFill: isLipSampleLayer ? userAdjustment.innerFill : 0,
+          upperInnerFill: isLipSampleLayer ? userAdjustment.upperInnerFill : 0,
           cameraBackdropAvailable: false,
           lightEstimateAvailable: false,
         };
@@ -1412,6 +1419,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         upperLipTightness: userAdjustment.upperLipTightness,
         lowerLipTightness: userAdjustment.lowerLipTightness,
         verticalOffset: userAdjustment.verticalOffset,
+        innerFill: userAdjustment.innerFill,
+        upperInnerFill: userAdjustment.upperInnerFill,
         cameraBackdropAvailable: false,
         lightEstimateAvailable: false,
         layers,
@@ -1426,7 +1435,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       enabledRegions = activeRegions,
       focusRegion = focusedRegion,
       rendererMode = selectedRendererMode,
-      lipSample = lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE,
+      lipSample = lipSampleSettings[selectedLipSampleName] ??
+        DEFAULT_LIP_SAMPLE,
       lipRuntimeCandidate = selectedLipRuntimeCandidate,
       userAdjustment = lipUserAdjustment,
     ) => {
@@ -1453,6 +1463,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `upperLipTightness=${userAdjustment.upperLipTightness.toFixed(2)}`,
         `lowerLipTightness=${userAdjustment.lowerLipTightness.toFixed(2)}`,
         `verticalOffset=${userAdjustment.verticalOffset.toFixed(2)}`,
+        `innerFill=${userAdjustment.innerFill.toFixed(2)}`,
+        `upperInnerFill=${userAdjustment.upperInnerFill.toFixed(2)}`,
         `finish=${lipSample.finish}`,
         `textureAmount=${lipSample.textureAmount.toFixed(2)}`,
         `glossBoost=${lipSample.glossBoost.toFixed(2)}`,
@@ -1643,7 +1655,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         layer.region === 'lip' ? lipUserAdjustment.upperLipTightness : 0,
       lowerLipTightness:
         layer.region === 'lip' ? lipUserAdjustment.lowerLipTightness : 0,
-      verticalOffset: layer.region === 'lip' ? lipUserAdjustment.verticalOffset : 0,
+      verticalOffset:
+        layer.region === 'lip' ? lipUserAdjustment.verticalOffset : 0,
+      innerFill: layer.region === 'lip' ? lipUserAdjustment.innerFill : 0,
+      upperInnerFill:
+        layer.region === 'lip' ? lipUserAdjustment.upperInnerFill : 0,
       cameraBackdropAvailable: false,
       lightEstimateAvailable: false,
     }));
@@ -1764,7 +1780,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const postWizardCaptureShot = useCallback(
     (shotKind: E7CaptureShotKind) => {
       if (pendingCapturePairId) {
-        setWizardNotice(`현재 ${pendingCapturePairId} 촬영이 끝나길 기다리는 중입니다.`);
+        setWizardNotice(
+          `현재 ${pendingCapturePairId} 촬영이 끝나길 기다리는 중입니다.`,
+        );
         return;
       }
 
@@ -1867,8 +1885,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         };
       }
 
-      const responseJson =
-        await E7_NATIVE_BOUNDARY_MODULE.extractLipBoundary(requestJson);
+      const responseJson = await E7_NATIVE_BOUNDARY_MODULE.extractLipBoundary(
+        requestJson,
+      );
       return JSON.parse(responseJson) as E7NativeBoundaryResult;
     },
     [captureSetId, captureShots, lipUserAdjustment],
@@ -1932,151 +1951,159 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [],
   );
 
-  const generateWizardCandidates = useCallback(async (options?: {
-    stayOnStep?: boolean;
-    reason?: 'manual' | 'auto-adjustment';
-  }) => {
-    if (isGeneratingCandidates) {
-      return;
-    }
-    const requestGuard: E7GenerationRequestGuard = {
-      requestId: (generationRequestSequenceRef.current += 1),
-      captureSetId,
-      provider: lipGenerateProvider,
-      adjustmentSignature: lipUserAdjustmentSignature,
-    };
-    activeGenerationRequestRef.current = requestGuard;
-    const isCurrentGenerationRequest = () => {
-      const activeGuard = activeGenerationRequestRef.current;
-      return (
-        activeGuard?.requestId === requestGuard.requestId &&
-        activeGuard.captureSetId === requestGuard.captureSetId &&
-        activeGuard.provider === requestGuard.provider &&
-        activeGuard.adjustmentSignature === requestGuard.adjustmentSignature
-      );
-    };
-    setIsGeneratingCandidates(true);
-    setWizardNotice(
-      `현재 촬영 frame에서 ${formatProviderLabel(
-        lipGenerateProvider,
-      )} 후보를 생성하는 중입니다.`,
-    );
-
-    try {
-      const capturedShotKinds = E7_CAPTURE_SHOT_OPTIONS.filter(option =>
-        isCapturedShot(captureShots[option.kind]),
-      ).map(option => option.kind);
-      const results = await Promise.all(
-        capturedShotKinds.map(shotKind =>
-          invokeNativeBoundaryProvider(lipGenerateProvider, shotKind),
-        ),
-      );
-      const neutralResult =
-        results.find(result => result.captureShotKind === 'neutral') ??
-        results[0] ??
-        (await invokeNativeBoundaryProvider(lipGenerateProvider, 'neutral'));
-      const resultMap = [neutralResult].reduce((map, result) => {
-        map[result.provider] = result;
-        return map;
-      }, {} as Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>);
-      const candidates = buildGeneratedLipCandidateSet({
-        nativeResult: neutralResult,
-        providerResults: results.length ? results : [neutralResult],
-        expressionModes: LIP_GENERATE_EXPRESSION_OPTIONS.map(option => option.name),
-        adjustment: lipUserAdjustment,
-      });
-      const candidatesWithPreviews =
-        await renderGeneratedCandidatePreviews(candidates);
-      if (!isCurrentGenerationRequest()) {
-        console.log(
-          '[E7] stale_generate_candidates_dropped',
-          `requestId=${requestGuard.requestId}`,
-          `captureSetId=${requestGuard.captureSetId}`,
-          `provider=${requestGuard.provider}`,
+  const generateWizardCandidates = useCallback(
+    async (options?: {
+      stayOnStep?: boolean;
+      reason?: 'manual' | 'auto-adjustment';
+    }) => {
+      if (isGeneratingCandidates) {
+        return;
+      }
+      const requestGuard: E7GenerationRequestGuard = {
+        requestId: (generationRequestSequenceRef.current += 1),
+        captureSetId,
+        provider: lipGenerateProvider,
+        adjustmentSignature: lipUserAdjustmentSignature,
+      };
+      activeGenerationRequestRef.current = requestGuard;
+      const isCurrentGenerationRequest = () => {
+        const activeGuard = activeGenerationRequestRef.current;
+        return (
+          activeGuard?.requestId === requestGuard.requestId &&
+          activeGuard.captureSetId === requestGuard.captureSetId &&
+          activeGuard.provider === requestGuard.provider &&
+          activeGuard.adjustmentSignature === requestGuard.adjustmentSignature
         );
-        return;
-      }
-      setCaptureShots(currentShots => {
-        let nextShots = currentShots;
-        results.forEach(result => {
-          if (!result.framePreviewUri) {
-            return;
-          }
-          const shotKind = result.captureShotKind;
-          nextShots = {
-            ...nextShots,
-            [shotKind]: {
-              ...nextShots[shotKind],
-              framePreviewUri: result.framePreviewUri,
-            },
-          };
-        });
-        return nextShots;
-      });
-      const firstUsable =
-        candidatesWithPreviews.find(
-          candidate => candidate.package && candidate.previewUri,
-        )?.candidateKey ??
-        candidatesWithPreviews.find(candidate => candidate.package)
-          ?.candidateKey ??
-        candidatesWithPreviews[0]?.candidateKey ??
-        'vision/uvOnly';
-      const keepSelectedCandidate =
-        candidatesWithPreviews.some(
-          candidate =>
-            candidate.candidateKey === selectedGeneratedCandidateKey &&
-            candidate.package,
-        ) && options?.stayOnStep;
-
-      setNativeProviderResults(resultMap);
-      setNativeProviderShotResults(currentResults => ({
-        ...currentResults,
-        [lipGenerateProvider]: results.length ? results : [neutralResult],
-      }));
-      setGeneratedCandidates(candidatesWithPreviews);
-      setSelectedGeneratedCandidateKey(
-        keepSelectedCandidate ? selectedGeneratedCandidateKey : firstUsable,
-      );
-      setGeneratedCandidatesStale(false);
-      setSavedGeneratedPackage(null);
-      resetGeneratedApplyFlow('generate_candidates');
-      if (!options?.stayOnStep) {
-        setWizardStep('blend');
-      }
-      setAdjustmentPreviewState('ready');
+      };
+      setIsGeneratingCandidates(true);
       setWizardNotice(
-        candidatesWithPreviews.some(candidate => candidate.package)
-          ? options?.reason === 'auto-adjustment'
-            ? '조정값이 현재 후보에 자동 반영되었습니다.'
-            : `${formatProviderLabel(
-                lipGenerateProvider,
-              )} 후보 생성 완료. 블렌딩 선택 후 조정하세요.`
-          : '후보 생성이 막혔습니다. 다시 생성하거나 다른 방식을 선택하세요.',
+        `현재 촬영 frame에서 ${formatProviderLabel(
+          lipGenerateProvider,
+        )} 후보를 생성하는 중입니다.`,
       );
-    } catch (error) {
-      if (!isCurrentGenerationRequest()) {
-        return;
+
+      try {
+        const capturedShotKinds = E7_CAPTURE_SHOT_OPTIONS.filter(option =>
+          isCapturedShot(captureShots[option.kind]),
+        ).map(option => option.kind);
+        const results = await Promise.all(
+          capturedShotKinds.map(shotKind =>
+            invokeNativeBoundaryProvider(lipGenerateProvider, shotKind),
+          ),
+        );
+        const neutralResult =
+          results.find(result => result.captureShotKind === 'neutral') ??
+          results[0] ??
+          (await invokeNativeBoundaryProvider(lipGenerateProvider, 'neutral'));
+        const resultMap = [neutralResult].reduce((map, result) => {
+          map[result.provider] = result;
+          return map;
+        }, {} as Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>);
+        const candidates = buildGeneratedLipCandidateSet({
+          nativeResult: neutralResult,
+          providerResults: results.length ? results : [neutralResult],
+          expressionModes: LIP_GENERATE_EXPRESSION_OPTIONS.map(
+            option => option.name,
+          ),
+          adjustment: lipUserAdjustment,
+        });
+        const candidatesWithPreviews = await renderGeneratedCandidatePreviews(
+          candidates,
+        );
+        if (!isCurrentGenerationRequest()) {
+          console.log(
+            '[E7] stale_generate_candidates_dropped',
+            `requestId=${requestGuard.requestId}`,
+            `captureSetId=${requestGuard.captureSetId}`,
+            `provider=${requestGuard.provider}`,
+          );
+          return;
+        }
+        setCaptureShots(currentShots => {
+          let nextShots = currentShots;
+          results.forEach(result => {
+            if (!result.framePreviewUri) {
+              return;
+            }
+            const shotKind = result.captureShotKind;
+            nextShots = {
+              ...nextShots,
+              [shotKind]: {
+                ...nextShots[shotKind],
+                framePreviewUri: result.framePreviewUri,
+              },
+            };
+          });
+          return nextShots;
+        });
+        const firstUsable =
+          candidatesWithPreviews.find(
+            candidate => candidate.package && candidate.previewUri,
+          )?.candidateKey ??
+          candidatesWithPreviews.find(candidate => candidate.package)
+            ?.candidateKey ??
+          candidatesWithPreviews[0]?.candidateKey ??
+          'vision/uvOnly';
+        const keepSelectedCandidate =
+          candidatesWithPreviews.some(
+            candidate =>
+              candidate.candidateKey === selectedGeneratedCandidateKey &&
+              candidate.package,
+          ) && options?.stayOnStep;
+
+        setNativeProviderResults(resultMap);
+        setNativeProviderShotResults(currentResults => ({
+          ...currentResults,
+          [lipGenerateProvider]: results.length ? results : [neutralResult],
+        }));
+        setGeneratedCandidates(candidatesWithPreviews);
+        setSelectedGeneratedCandidateKey(
+          keepSelectedCandidate ? selectedGeneratedCandidateKey : firstUsable,
+        );
+        setGeneratedCandidatesStale(false);
+        setSavedGeneratedPackage(null);
+        resetGeneratedApplyFlow('generate_candidates');
+        if (!options?.stayOnStep) {
+          setWizardStep('blend');
+        }
+        setAdjustmentPreviewState('ready');
+        setWizardNotice(
+          candidatesWithPreviews.some(candidate => candidate.package)
+            ? options?.reason === 'auto-adjustment'
+              ? '조정값이 현재 후보에 자동 반영되었습니다.'
+              : `${formatProviderLabel(
+                  lipGenerateProvider,
+                )} 후보 생성 완료. 블렌딩 선택 후 조정하세요.`
+            : '후보 생성이 막혔습니다. 다시 생성하거나 다른 방식을 선택하세요.',
+        );
+      } catch (error) {
+        if (!isCurrentGenerationRequest()) {
+          return;
+        }
+        const message =
+          error instanceof Error
+            ? error.message
+            : 'unknown_native_generate_error';
+        setWizardNotice(`후보 생성 실패: ${message}`);
+      } finally {
+        if (isCurrentGenerationRequest()) {
+          setIsGeneratingCandidates(false);
+        }
       }
-      const message =
-        error instanceof Error ? error.message : 'unknown_native_generate_error';
-      setWizardNotice(`후보 생성 실패: ${message}`);
-    } finally {
-      if (isCurrentGenerationRequest()) {
-        setIsGeneratingCandidates(false);
-      }
-    }
-  }, [
-    captureShots,
-    captureSetId,
-    invokeNativeBoundaryProvider,
-    isGeneratingCandidates,
-    lipGenerateProvider,
-    lipUserAdjustment,
-    lipUserAdjustmentSignature,
-    renderGeneratedCandidatePreviews,
-    resetGeneratedApplyFlow,
-    selectedGeneratedCandidateKey,
-  ]);
+    },
+    [
+      captureShots,
+      captureSetId,
+      invokeNativeBoundaryProvider,
+      isGeneratingCandidates,
+      lipGenerateProvider,
+      lipUserAdjustment,
+      lipUserAdjustmentSignature,
+      renderGeneratedCandidatePreviews,
+      resetGeneratedApplyFlow,
+      selectedGeneratedCandidateKey,
+    ],
+  );
 
   const scheduleAdjustmentPreviewRebuild = useCallback(
     (input: {
@@ -2104,7 +2131,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           activeGuard?.requestId === requestGuard.requestId &&
           activeGuard.captureSetId === requestGuard.captureSetId &&
           activeGuard.provider === requestGuard.provider &&
-          activeGuard.adjustmentSignature === requestGuard.adjustmentSignature &&
+          activeGuard.adjustmentSignature ===
+            requestGuard.adjustmentSignature &&
           activeGuard.selectedCandidateKey === requestGuard.selectedCandidateKey
         );
       };
@@ -2146,8 +2174,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             setSelectedGeneratedCandidateKey(
               selectedCandidateStillAvailable
                 ? requestGuard.selectedCandidateKey
-                : rebuiltCandidatesWithPreviews.find(candidate => candidate.package)
-                    ?.candidateKey ?? `${requestGuard.provider}/uvOnly`,
+                : rebuiltCandidatesWithPreviews.find(
+                    candidate => candidate.package,
+                  )?.candidateKey ?? `${requestGuard.provider}/uvOnly`,
             );
             setGeneratedCandidatesStale(false);
             setAdjustmentPreviewState('ready');
@@ -2206,7 +2235,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         return false;
       }
 
-      postRegionOverlayVisibility(true, `generated_lip_mask_apply_${blockedReason}`);
+      postRegionOverlayVisibility(
+        true,
+        `generated_lip_mask_apply_${blockedReason}`,
+      );
       unityRef.current.postMessage(
         'RNBridge',
         'ApplyGeneratedLipMaskJson',
@@ -2272,7 +2304,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const saveSelectedGeneratedPackage = useCallback(async () => {
     if (isSavingGeneratedPackage || generatedCandidatesStale) {
-      setWizardNotice('조정값은 현재 후보에 즉시 반영되어야 합니다. 후보를 다시 확인하세요.');
+      setWizardNotice(
+        '조정값은 현재 후보에 즉시 반영되어야 합니다. 후보를 다시 확인하세요.',
+      );
       return;
     }
     const selectedCandidate = generatedCandidates.find(
@@ -2299,7 +2333,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         activeGuard.generatedMaskId === saveRequestGuard.generatedMaskId &&
         activeGuard.captureSetId === saveRequestGuard.captureSetId &&
         activeGuard.provider === saveRequestGuard.provider &&
-        activeGuard.selectedCandidateKey === saveRequestGuard.selectedCandidateKey &&
+        activeGuard.selectedCandidateKey ===
+          saveRequestGuard.selectedCandidateKey &&
         activeGuard.adjustmentSignature === saveRequestGuard.adjustmentSignature
       );
     };
@@ -2317,18 +2352,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         blockedReason: 'saving_local_generated_package',
       }),
     );
-    pendingGeneratedMaskIdRef.current = selectedCandidate.package.generatedMaskId;
+    pendingGeneratedMaskIdRef.current =
+      selectedCandidate.package.generatedMaskId;
     setPendingGeneratedMaskId(selectedCandidate.package.generatedMaskId);
     setPendingGeneratedPackage(selectedCandidate.package);
     setAppliedGeneratedPackage(null);
     try {
-	    if (!E7_NATIVE_BOUNDARY_MODULE?.saveGeneratedPackage) {
-	        throw new Error('native_save_module_unavailable');
-	      }
+      if (!E7_NATIVE_BOUNDARY_MODULE?.saveGeneratedPackage) {
+        throw new Error('native_save_module_unavailable');
+      }
 
-	      const packageJson = JSON.stringify(selectedCandidate.package);
-	      const recordJson =
-	        await E7_NATIVE_BOUNDARY_MODULE.saveGeneratedPackage(packageJson);
+      const packageJson = JSON.stringify(selectedCandidate.package);
+      const recordJson = await E7_NATIVE_BOUNDARY_MODULE.saveGeneratedPackage(
+        packageJson,
+      );
       if (!isCurrentSaveRequest()) {
         console.log(
           '[E7] stale_generated_save_result_dropped',
@@ -2337,14 +2374,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         );
         return;
       }
-	      const record = JSON.parse(recordJson) as E7SavedPackageRecord;
-	      const unityMessageJson = JSON.stringify(
-	        buildGeneratedMaskUnityMessage(
+      const record = JSON.parse(recordJson) as E7SavedPackageRecord;
+      const unityMessageJson = JSON.stringify(
+        buildGeneratedMaskUnityMessage(
           selectedCandidate.package,
           generatedValidationControls,
           { includeTexture: true },
-	        ),
-	      );
+        ),
+      );
       const saveFinishedAtMs = Date.now();
       const startedAtMs = saveFinishedAtMs;
       pendingGeneratedApplyPayloadRef.current = {
@@ -2364,18 +2401,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       setActiveRegions(regions => ({ ...regions, lip: true }));
       setGeneratedApplyState(
-	        createGeneratedApplyState('posting', {
-	          generatedMaskId: selectedCandidate.package.generatedMaskId,
+        createGeneratedApplyState('posting', {
+          generatedMaskId: selectedCandidate.package.generatedMaskId,
           saveRequestId: saveRequestGuard.saveRequestId,
-	          startedAtMs,
+          startedAtMs,
           saveStartedAtMs,
           saveFinishedAtMs,
           postStartedAtMs: startedAtMs,
           payloadBytes: unityMessageJson.length,
-	          blockedReason: 'posting_apply_payload_to_unity',
-	        }),
-	      );
-	      setWizardNotice('저장 완료. AR 화면에서 적용 확인을 기다립니다.');
+          blockedReason: 'posting_apply_payload_to_unity',
+        }),
+      );
+      setWizardNotice('저장 완료. AR 화면에서 적용 확인을 기다립니다.');
       if (
         !postPendingGeneratedApplyPayload(
           'waiting_for_generated_lip_mask_applied_ack',
@@ -2383,42 +2420,42 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       ) {
         scheduleGeneratedApplyRetry('unity_view_not_ready_retrying');
       }
-	    } catch (error) {
+    } catch (error) {
       if (!isCurrentSaveRequest()) {
         return;
       }
-	      const message =
-	        error instanceof Error ? error.message : 'unknown_save_error';
-	      clearGeneratedApplyRetryTimeout();
-	      pendingGeneratedMaskIdRef.current = null;
-	      pendingGeneratedApplyPayloadRef.current = null;
+      const message =
+        error instanceof Error ? error.message : 'unknown_save_error';
+      clearGeneratedApplyRetryTimeout();
+      pendingGeneratedMaskIdRef.current = null;
+      pendingGeneratedApplyPayloadRef.current = null;
       activeGeneratedSaveRequestRef.current = null;
-	      setPendingGeneratedMaskId(null);
-	      setPendingGeneratedPackage(null);
-	      setGeneratedApplyState(
-	        createGeneratedApplyState('blocked', {
-	          generatedMaskId: selectedCandidate.package.generatedMaskId,
+      setPendingGeneratedMaskId(null);
+      setPendingGeneratedPackage(null);
+      setGeneratedApplyState(
+        createGeneratedApplyState('blocked', {
+          generatedMaskId: selectedCandidate.package.generatedMaskId,
           saveRequestId: saveRequestGuard.saveRequestId,
           saveStartedAtMs,
-	          blockedReason: 'save_or_post_failed',
-	          error: message,
-	        }),
+          blockedReason: 'save_or_post_failed',
+          error: message,
+        }),
       );
       setWizardNotice(
         message === 'native_save_module_unavailable'
           ? '기기 저장 기능을 확인하지 못했습니다. 앱을 다시 빌드한 뒤 확인해 주세요.'
           : '마스크 저장에 실패했습니다. 다시 시도해 주세요.',
       );
-	    } finally {
+    } finally {
       if (isCurrentSaveRequest()) {
         setIsSavingGeneratedPackage(false);
       }
-	    }
-	  }, [
+    }
+  }, [
     captureSetId,
-	    clearGeneratedApplyRetryTimeout,
-	    generatedCandidates,
-	    generatedCandidatesStale,
+    clearGeneratedApplyRetryTimeout,
+    generatedCandidates,
+    generatedCandidatesStale,
     generatedValidationControls,
     isSavingGeneratedPackage,
     postPendingGeneratedApplyPayload,
@@ -2443,7 +2480,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const packageForUpdate =
         appliedGeneratedPackage ?? pendingGeneratedPackage;
       if (!packageForUpdate) {
-        setWizardNotice('적용된 generated mask가 없어 검증 컨트롤을 보낼 수 없습니다.');
+        setWizardNotice(
+          '적용된 generated mask가 없어 검증 컨트롤을 보낼 수 없습니다.',
+        );
         return;
       }
 
@@ -2580,11 +2619,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             );
           } else if (isApplied) {
             clearGeneratedApplyRetryTimeout();
-            const appliedPendingPayload = pendingGeneratedApplyPayloadRef.current;
+            const appliedPendingPayload =
+              pendingGeneratedApplyPayloadRef.current;
             pendingGeneratedApplyPayloadRef.current = null;
             const didConfirmPendingControls =
               Boolean(pendingGeneratedControlCheck) &&
-              generatedMaskId === pendingGeneratedControlCheck?.generatedMaskId &&
+              generatedMaskId ===
+                pendingGeneratedControlCheck?.generatedMaskId &&
               doesGeneratedControlAckMatch(
                 parsed,
                 pendingGeneratedControlCheck,
@@ -2634,7 +2675,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             );
           } else {
             clearGeneratedApplyRetryTimeout();
-            const blockedPendingPayload = pendingGeneratedApplyPayloadRef.current;
+            const blockedPendingPayload =
+              pendingGeneratedApplyPayloadRef.current;
             pendingGeneratedApplyPayloadRef.current = null;
             setGeneratedApplyState(
               createGeneratedApplyState('blocked', {
@@ -2667,7 +2709,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             captureStatus === 'busy'
           ) {
             setPendingCapturePairId(currentPairId =>
-              currentPairId === capturePairId && eventCaptureSetId === captureSetId
+              currentPairId === capturePairId &&
+              eventCaptureSetId === captureSetId
                 ? null
                 : currentPairId,
             );
@@ -2678,7 +2721,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 : currentShotKind,
             );
           }
-          if (eventShotKind && capturePairId && eventCaptureSetId === captureSetId) {
+          if (
+            eventShotKind &&
+            capturePairId &&
+            eventCaptureSetId === captureSetId
+          ) {
             let acceptedCaptureEvent = false;
             setCaptureShots(currentShots => {
               const currentShot = currentShots[eventShotKind];
@@ -2718,13 +2765,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               acceptedCaptureEvent &&
               (captureStatus === 'failed' || captureStatus === 'busy')
             ) {
-              setWizardNotice(`${eventShotKind} 촬영 실패: ${parsed.detail ?? captureStatus}`);
+              setWizardNotice(
+                `${eventShotKind} 촬영 실패: ${parsed.detail ?? captureStatus}`,
+              );
             } else if (!acceptedCaptureEvent) {
               console.log(
                 '[E7] stale_reference_capture_ignored',
                 `capturePairId=${capturePairId || 'missing'}`,
                 `captureSetId=${eventCaptureSetId || 'missing'}`,
-                `captureShotKind=${String(parsed.captureShotKind ?? 'missing')}`,
+                `captureShotKind=${String(
+                  parsed.captureShotKind ?? 'missing',
+                )}`,
               );
             }
           }
@@ -2813,10 +2864,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }
 
     const elapsedMs = Date.now() - generatedApplyState.startedAtMs;
-    const remainingMs = Math.max(
-      0,
-      GENERATED_APPLY_ACK_TIMEOUT_MS - elapsedMs,
-    );
+    const remainingMs = Math.max(0, GENERATED_APPLY_ACK_TIMEOUT_MS - elapsedMs);
     const timeout = setTimeout(() => {
       clearGeneratedApplyRetryTimeout();
       pendingGeneratedApplyPayloadRef.current = null;
@@ -2902,7 +2950,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         if (
           currentCheck?.generatedMaskId !==
             pendingGeneratedControlCheck.generatedMaskId ||
-          currentCheck.requestedAtMs !== pendingGeneratedControlCheck.requestedAtMs
+          currentCheck.requestedAtMs !==
+            pendingGeneratedControlCheck.requestedAtMs
         ) {
           return currentCheck;
         }
@@ -2987,8 +3036,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     latestLifecycle?.faceDetected === true ||
     (readNumber(latestLifecycle?.faceCount) ?? 0) > 0 ||
     String(latestLifecycle?.trackingState ?? '').toLowerCase() === 'tracking';
-  const faceAlignmentReady =
-    Boolean(latestLifecycle) && faceAlignmentTracked;
+  const faceAlignmentReady = Boolean(latestLifecycle) && faceAlignmentTracked;
   const alignmentGates: E7AlignmentGate[] = [
     {
       label: '얼굴 추적',
@@ -3006,7 +3054,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     {
       label: '방향',
       value: latestLifecycle ? '얼굴 인식 기준' : '측정 대기',
-      state: latestLifecycle ? (faceAlignmentTracked ? 'ready' : 'blocked') : 'waiting',
+      state: latestLifecycle
+        ? faceAlignmentTracked
+          ? 'ready'
+          : 'blocked'
+        : 'waiting',
     },
     {
       label: '카메라',
@@ -3050,6 +3102,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     nativeProviderShotResults[lipGenerateProvider]?.find(result =>
       Boolean(result.framePreviewUri),
     )?.framePreviewUri;
+
+  const handleClose = useCallback(() => {
+    console.log('[E7] unity_screen_close_pressed', `entry=${entryCount}`);
+    if (generatedApplyState.status === 'applied') {
+      resetGeneratedApplyFlow('close_ar_validation_return_to_adjust');
+      setWizardStep('adjust');
+      setWizardNotice('AR 검증을 닫고 조정 화면으로 돌아왔습니다.');
+      return;
+    }
+    if (
+      capturedShotCount > 0 ||
+      wizardStepIndex >= getWizardStepIndex('extract')
+    ) {
+      activeGenerationRequestRef.current = null;
+      activeAdjustmentPreviewRequestRef.current = null;
+      clearAdjustmentPreviewDebounce();
+      setIsGeneratingCandidates(false);
+      setIsSavingGeneratedPackage(false);
+      setWizardStep(generatedCandidates.length > 0 ? 'adjust' : 'extract');
+      setWizardNotice('촬영한 사진은 유지됩니다. 추출 또는 조정을 이어가세요.');
+      return;
+    }
+    onClose();
+  }, [
+    capturedShotCount,
+    clearAdjustmentPreviewDebounce,
+    entryCount,
+    generatedApplyState.status,
+    generatedCandidates.length,
+    onClose,
+    resetGeneratedApplyFlow,
+    wizardStepIndex,
+  ]);
 
   useEffect(() => {
     postRegionOverlayVisibility(
@@ -3191,8 +3276,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
       const providerResult = nativeProviderResults[lipGenerateProvider];
       const providerShotResults =
-	    nativeProviderShotResults[lipGenerateProvider] ??
-	    (providerResult ? [providerResult] : []);
+        nativeProviderShotResults[lipGenerateProvider] ??
+        (providerResult ? [providerResult] : []);
 
       lipUserAdjustmentRef.current = nextAdjustment;
       setLipUserAdjustment(nextAdjustment);
@@ -3211,7 +3296,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       } else {
         setGeneratedCandidatesStale(generatedCandidates.length > 0);
         setAdjustmentPreviewState('blocked');
-        setWizardNotice('추출 결과가 없어 조정 preview를 다시 만들 수 없습니다.');
+        setWizardNotice(
+          '추출 결과가 없어 조정 preview를 다시 만들 수 없습니다.',
+        );
       }
       setFocusedRegion('lip');
       setActiveRegions(nextActiveRegions);
@@ -3409,7 +3496,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               setSelectedGeneratedCandidateKey(`${lipGenerateProvider}/uvOnly`);
               resetGeneratedApplyFlow('retake_capture');
               setWizardStep('capture');
-              setWizardNotice('다시 촬영합니다. 새 얼굴 프레임을 저장한 뒤 마스크를 만드세요.');
+              setWizardNotice(
+                '다시 촬영합니다. 새 얼굴 프레임을 저장한 뒤 마스크를 만드세요.',
+              );
             }}
             onSelectCandidate={candidateKey => {
               setSelectedGeneratedCandidateKey(candidateKey);
@@ -3491,12 +3580,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         )}
 
         {showCompactControls && (
-          <View
-            style={[
-              styles.recipePanel,
-              styles.recipePanelCompact,
-            ]}
-          >
+          <View style={[styles.recipePanel, styles.recipePanelCompact]}>
             <View style={styles.recipePanelHeader}>
               <Text style={styles.recipePanelLabel}>Regions</Text>
               <Text style={styles.recipePanelMetaText} numberOfLines={1}>
@@ -3648,7 +3732,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               <>
                 <View style={styles.lipSampleButtonRow}>
                   {LIP_SAMPLE_OPTIONS.map(lipSample => {
-                    const isSelected = lipSample.name === selectedLipSample.name;
+                    const isSelected =
+                      lipSample.name === selectedLipSample.name;
 
                     return (
                       <Pressable
@@ -3804,7 +3889,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                           isSelected && styles.tuningFieldButtonSelected,
                           pressed && styles.colorButtonPressed,
                         ]}
-                        onPress={() => setActiveLipTuningField(fieldOption.name)}
+                        onPress={() =>
+                          setActiveLipTuningField(fieldOption.name)
+                        }
                       >
                         <Text
                           style={[
@@ -3872,13 +3959,15 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 />
 
                 <Text style={styles.recipeValueText} numberOfLines={4}>
-                  선택 룩 {selectedLipSample.label} / 색 {selectedLipSample.color}{' '}
-                  / 질감 {formatLipFinishLabel(selectedLipSample.finish)} / 농도{' '}
+                  선택 룩 {selectedLipSample.label} / 색{' '}
+                  {selectedLipSample.color} / 질감{' '}
+                  {formatLipFinishLabel(selectedLipSample.finish)} / 농도{' '}
                   {Math.round(selectedLipSample.opacity * 100)}% / 경계 조정{' '}
                   {lipUserAdjustment.cornerReach.toFixed(2)},{' '}
                   {lipUserAdjustment.upperLipTightness.toFixed(2)},{' '}
                   {lipUserAdjustment.lowerLipTightness.toFixed(2)},{' '}
-                  {lipUserAdjustment.verticalOffset.toFixed(2)}
+                  {lipUserAdjustment.verticalOffset.toFixed(2)},{' '}
+                  {lipUserAdjustment.upperInnerFill.toFixed(2)}
                 </Text>
               </>
             )}
@@ -4073,7 +4162,9 @@ function E7GenerateWizard({
               style={styles.generateWizardPrimaryButton}
               onPress={() => onStepRequest('align')}
             >
-              <Text style={styles.generateWizardPrimaryText}>얼굴 정렬 시작</Text>
+              <Text style={styles.generateWizardPrimaryText}>
+                얼굴 정렬 시작
+              </Text>
             </Pressable>
           </View>
         )}
@@ -4108,8 +4199,8 @@ function E7GenerateWizard({
         {activeStep === 'capture' && (
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
-              {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length} 컷 완료.
-              버튼 하나로 필요한 표정 큐를 순서대로 저장합니다.
+              {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length} 컷 완료. 버튼
+              하나로 필요한 표정 큐를 순서대로 저장합니다.
             </Text>
             {nextCaptureShot ? (
               <Text style={styles.generateWizardBodyText}>
@@ -4117,7 +4208,8 @@ function E7GenerateWizard({
               </Text>
             ) : (
               <Text style={styles.generateWizardBodyText}>
-                모든 컷이 저장되었습니다. 이제 저장된 얼굴 프레임으로 마스크를 만듭니다.
+                모든 컷이 저장되었습니다. 이제 저장된 얼굴 프레임으로 마스크를
+                만듭니다.
               </Text>
             )}
             <View style={styles.generateWizardShotGrid}>
@@ -4148,10 +4240,10 @@ function E7GenerateWizard({
                         : isCapturing
                         ? '촬영 중'
                         : isDone
-                          ? '저장됨'
-                          : isNext
-                            ? shot.guidance
-                            : '대기'}
+                        ? '저장됨'
+                        : isNext
+                        ? shot.guidance
+                        : '대기'}
                     </Text>
                   </View>
                 );
@@ -4186,6 +4278,19 @@ function E7GenerateWizard({
 
         {activeStep === 'extract' && (
           <View style={styles.generateWizardBody}>
+            {isGeneratingCandidates && (
+              <View
+                style={styles.generateWizardProgressPanel}
+                testID="e7-generate-loading-panel"
+              >
+                <Text style={styles.generateWizardProgressTitle}>
+                  마스크 생성 중
+                </Text>
+                <Text style={styles.generateWizardProgressText}>
+                  입술 경계를 찾고 미리보기를 준비하고 있습니다.
+                </Text>
+              </View>
+            )}
             <View style={styles.generateWizardProviderRow}>
               <ProviderStatusPill
                 label="Vision"
@@ -4231,7 +4336,8 @@ function E7GenerateWizard({
               contentContainerStyle={styles.generateWizardCandidateGrid}
             >
               {generatedCandidates.map(candidate => {
-                const isSelected = candidate.candidateKey === selectedCandidateKey;
+                const isSelected =
+                  candidate.candidateKey === selectedCandidateKey;
 
                 return (
                   <Pressable
@@ -4255,7 +4361,9 @@ function E7GenerateWizard({
                           style={styles.generateWizardCandidatePreviewImage}
                         />
                       ) : (
-                        <View style={styles.generateWizardCandidatePreviewEmpty}>
+                        <View
+                          style={styles.generateWizardCandidatePreviewEmpty}
+                        >
                           <Text style={styles.generateWizardCandidateReason}>
                             {formatCandidatePreviewStatus(candidate)}
                           </Text>
@@ -4303,7 +4411,9 @@ function E7GenerateWizard({
               ]}
               onPress={() => onStepRequest('adjust')}
             >
-              <Text style={styles.generateWizardPrimaryText}>조정으로 이동</Text>
+              <Text style={styles.generateWizardPrimaryText}>
+                조정으로 이동
+              </Text>
             </Pressable>
           </View>
         )}
@@ -4317,7 +4427,8 @@ function E7GenerateWizard({
             />
             <View style={styles.adjustmentFieldButtonRow}>
               {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
-                const isSelected = fieldOption.name === activeLipAdjustmentField;
+                const isSelected =
+                  fieldOption.name === activeLipAdjustmentField;
 
                 return (
                   <Pressable
@@ -4366,7 +4477,9 @@ function E7GenerateWizard({
                 style={styles.generateWizardSecondaryButton}
                 onPress={onGenerateCandidates}
               >
-                <Text style={styles.generateWizardSecondaryText}>현재 사진으로 다시 생성</Text>
+                <Text style={styles.generateWizardSecondaryText}>
+                  현재 사진으로 다시 생성
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -4374,17 +4487,25 @@ function E7GenerateWizard({
                 style={styles.generateWizardSecondaryButton}
                 onPress={onRetakeCapture}
               >
-                <Text style={styles.generateWizardSecondaryText}>다시 촬영</Text>
+                <Text style={styles.generateWizardSecondaryText}>
+                  다시 촬영
+                </Text>
               </Pressable>
             </View>
-            <View style={styles.generateWizardActionRow}>
+            <View
+              style={[
+                styles.generateWizardActionRow,
+                styles.generateWizardStickyActionRow,
+              ]}
+            >
               <Pressable
                 accessibilityRole="button"
                 disabled={!canSaveGeneratedPackage}
                 testID="e7-wizard-save-and-run"
                 style={[
                   styles.generateWizardPrimaryButton,
-                  !canSaveGeneratedPackage && styles.generateWizardButtonDisabled,
+                  !canSaveGeneratedPackage &&
+                    styles.generateWizardButtonDisabled,
                 ]}
                 onPress={onSave}
               >
@@ -4417,8 +4538,8 @@ function E7GenerateWizard({
                   savedGeneratedPackage
                     ? '완료'
                     : generatedApplyState.status === 'saving'
-                      ? '진행'
-                      : '대기'
+                    ? '진행'
+                    : '대기'
                 }
                 ready={Boolean(savedGeneratedPackage)}
               />
@@ -4442,10 +4563,10 @@ function E7GenerateWizard({
                   generatedApplyState.status === 'applied'
                     ? '확인'
                     : generatedApplyState.status === 'blocked'
-                      ? '차단'
+                    ? '차단'
                     : generatedApplyState.status === 'timeout'
-                        ? '지연'
-                      : '대기'
+                    ? '지연'
+                    : '대기'
                 }
                 ready={generatedApplyState.status === 'applied'}
               />
@@ -4824,16 +4945,28 @@ function GeneratedAdjustmentPreview({
   selectedCandidateKey: string;
   previewState: E7AdjustmentPreviewState;
 }) {
+  const [isLipZoomed, setIsLipZoomed] = useState(true);
+
   return (
     <View style={styles.generatedAdjustmentPreview}>
       {candidate?.previewUri ? (
-        <Image
-          source={{ uri: candidate.previewUri }}
-          style={styles.generatedAdjustmentPreviewImage}
-        />
+        <Pressable
+          accessibilityRole="button"
+          testID="e7-adjust-preview-toggle-zoom"
+          style={styles.generatedAdjustmentPreviewTapArea}
+          onPress={() => setIsLipZoomed(current => !current)}
+        >
+          <Image
+            source={{ uri: candidate.previewUri }}
+            style={[
+              styles.generatedAdjustmentPreviewImage,
+              isLipZoomed && styles.generatedAdjustmentPreviewImageZoomed,
+            ]}
+          />
+        </Pressable>
       ) : (
-      <View style={styles.generatedAdjustmentPreviewEmpty}>
-        <Text style={styles.generatedAdjustmentPreviewTitle}>
+        <View style={styles.generatedAdjustmentPreviewEmpty}>
+          <Text style={styles.generatedAdjustmentPreviewTitle}>
             마스크 미리보기 대기
           </Text>
           <Text style={styles.generatedAdjustmentPreviewText}>
@@ -4846,15 +4979,17 @@ function GeneratedAdjustmentPreview({
       <View style={styles.generatedAdjustmentMaskBadge}>
         <Text style={styles.generatedAdjustmentMaskBadgeText}>
           {candidate
-            ? `${formatProviderLabel(candidate.provider)} · ${formatGeneratedCandidateTitle(
-                candidate,
-              )}`
+            ? `${formatProviderLabel(
+                candidate.provider,
+              )} · ${formatGeneratedCandidateTitle(candidate)}`
             : selectedCandidateKey}
         </Text>
       </View>
       <Text style={styles.generatedAdjustmentPreviewCaption}>
         {previewState === 'rendering'
           ? '미리보기 갱신 중'
+          : isLipZoomed
+          ? '입술 확대 미리보기'
           : '전체 얼굴 기준 마스크 미리보기'}
       </Text>
     </View>
@@ -4899,7 +5034,9 @@ function formatGeneratedCandidateTitle(candidate: E7GeneratedCandidate) {
   return '기본 블렌딩';
 }
 
-function formatGeneratedCandidateMeta(candidate: E7GeneratedCandidateWithPreview) {
+function formatGeneratedCandidateMeta(
+  candidate: E7GeneratedCandidateWithPreview,
+) {
   if (candidate.previewStatus === 'blocked' || candidate.status === 'blocked') {
     return '생성 실패';
   }
@@ -5151,7 +5288,9 @@ function E7StatusPanel({
           ? `look=${String(
               metric.lookId ?? 'smooth_region_mask',
             )} active=${String(
-              metric.activeRegionSummary ?? metric.activeRegions ?? currentRegions,
+              metric.activeRegionSummary ??
+                metric.activeRegions ??
+                currentRegions,
             )}`
           : `look=smooth_region_mask active=${currentRegions}`}
       </Text>
@@ -5186,7 +5325,9 @@ function E7StatusPanel({
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
-          ? `mask=${String(metric.maskSource ?? 'smooth_region_mask')} uv=${String(
+          ? `mask=${String(
+              metric.maskSource ?? 'smooth_region_mask',
+            )} uv=${String(
               metric.regionUvAvailable ?? metric.uvAvailable ?? false,
             )} triangles=${String(
               metric.regionMaskTriangles ?? metric.maskTriangles ?? 'n/a',
@@ -5325,12 +5466,22 @@ function buildEvidenceMetadataLines({
     `evidenceMode=${E7_EVIDENCE_MODE} plan=${E7_BOUNDARY_PLAN_VERSION}`,
     `entry=${entryCount} mounted=${mountedAt} viewMode=${validationViewMode}`,
     `rendererMode=${selectedRendererMode} look=${selectedLipSample.name} finish=${selectedLipSample.finish}`,
-    `candidateId=${selectedLipRuntimeCandidate.candidateId} maskTextureId=${selectedLipRuntimeCandidate.maskTextureId} maskThreshold=${selectedLipRuntimeCandidate.maskThreshold.toFixed(2)}`,
-    `adjustment cornerReach=${lipUserAdjustment.cornerReach.toFixed(2)} upperLipTightness=${lipUserAdjustment.upperLipTightness.toFixed(2)} lowerLipTightness=${lipUserAdjustment.lowerLipTightness.toFixed(2)} verticalOffset=${lipUserAdjustment.verticalOffset.toFixed(2)}`,
+    `candidateId=${selectedLipRuntimeCandidate.candidateId} maskTextureId=${
+      selectedLipRuntimeCandidate.maskTextureId
+    } maskThreshold=${selectedLipRuntimeCandidate.maskThreshold.toFixed(2)}`,
+    `adjustment cornerReach=${lipUserAdjustment.cornerReach.toFixed(
+      2,
+    )} upperLipTightness=${lipUserAdjustment.upperLipTightness.toFixed(
+      2,
+    )} lowerLipTightness=${lipUserAdjustment.lowerLipTightness.toFixed(
+      2,
+    )} verticalOffset=${lipUserAdjustment.verticalOffset.toFixed(
+      2,
+    )} innerFill=${lipUserAdjustment.innerFill.toFixed(
+      2,
+    )} upperInnerFill=${lipUserAdjustment.upperInnerFill.toFixed(2)}`,
     `activeRegions=${activeRegionSummary} focusRegion=${focusedRegion}`,
-    `metricRegion=${formatLifecycleValue(
-      latestMetric?.region,
-    )}`,
+    `metricRegion=${formatLifecycleValue(latestMetric?.region)}`,
     `trackingState=${readTrackingState(
       latestLifecycle,
       latestMetric,
@@ -5475,9 +5626,7 @@ function formatE7MetricSummary(event: UnityEventPayload) {
     event.lookId ?? 'smooth_region_mask',
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
-  )} enabled=${String(
-    event.enabledLayerCount ?? 'n/a',
-  )} topology=${String(
+  )} enabled=${String(event.enabledLayerCount ?? 'n/a')} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
   )} uv=${String(event.regionUvAvailable ?? event.uvAvailable ?? false)}`;
 }
@@ -5696,9 +5845,7 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
     event.textureAmount ?? 'n/a',
   )} gloss=${String(event.glossBoost ?? 'n/a')} faceCount=${String(
     event.faceCount ?? 'n/a',
-  )} meshTriangles=${String(
-    event.meshTriangles ?? 'n/a',
-  )} mask=${String(
+  )} meshTriangles=${String(event.meshTriangles ?? 'n/a')} mask=${String(
     event.maskTriangles ?? event.regionMaskTriangles ?? 'n/a',
   )} uv=${String(event.uvAvailable ?? false)} state=${String(
     event.stateAction ?? 'n/a',
@@ -6332,6 +6479,30 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     marginTop: 2,
   },
+  generateWizardProgressPanel: {
+    minHeight: 72,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.38)',
+    backgroundColor: 'rgba(20, 184, 166, 0.16)',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 4,
+  },
+  generateWizardProgressTitle: {
+    color: '#CCFBF1',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  generateWizardProgressText: {
+    color: '#E5E7EB',
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '700',
+    letterSpacing: 0,
+  },
   generateWizardCandidateGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -6401,6 +6572,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
   },
+  generateWizardStickyActionRow: {
+    marginTop: 2,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.16)',
+  },
   capturedFrameShield: {
     position: 'absolute',
     top: 0,
@@ -6448,20 +6625,29 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   generatedAdjustmentPreview: {
-    minHeight: 300,
+    minHeight: 360,
     overflow: 'hidden',
     borderRadius: 8,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
+  generatedAdjustmentPreviewTapArea: {
+    minHeight: 360,
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+  },
   generatedAdjustmentPreviewImage: {
     width: '100%',
-    height: 300,
+    height: 360,
     resizeMode: 'contain',
   },
+  generatedAdjustmentPreviewImageZoomed: {
+    transform: [{ scale: 1.65 }, { translateY: -16 }],
+  },
   generatedAdjustmentPreviewEmpty: {
-    minHeight: 300,
+    minHeight: 360,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,

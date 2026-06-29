@@ -1,0 +1,26 @@
+{
+  "assetId": "arcore-canonical-face-texture-v1",
+  "sourceFileName": "ARCore_canonical_face_texture_1.psd",
+  "sourceLocalPath": "/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd",
+  "sha256": "d7d3b87caa4929f561fc45a4b2313990542fedefeeadd6b5e8801d18bef1b8a7",
+  "byteSize": 109374370,
+  "format": "Adobe Photoshop PSD",
+  "width": 4096,
+  "height": 4096,
+  "colorMode": "RGB",
+  "channels": 3,
+  "bitsPerChannel": 8,
+  "introducedAtKst": "2026-06-30",
+  "purpose": "Team-shared canonical UV face texture and mask reference for E7 AR makeup region work.",
+  "repoPolicy": {
+    "rawPsdCommitted": false,
+    "reason": "The source PSD is 104MB. Keep the source in team asset storage or the recorded local path until an explicit binary/LFS decision is made.",
+    "preferredCommittedDerivatives": [
+      "flattened PNG reference",
+      "region mask PNG derivatives",
+      "contact sheets",
+      "metrics JSON"
+    ]
+  },
+  "qualityBoundary": "Reference asset only. This is not runtime proof, not iPhone visual acceptance, and not product-quality Green evidence by itself."
+}

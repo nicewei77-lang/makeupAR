@@ -382,49 +382,53 @@ function makeBaseNativeBoundaryResponse(provider: 'vision' | 'mediapipe') {
   };
 }
 
-function installNativeGenerateSuccessMock(provider: 'vision' | 'mediapipe' = 'vision') {
-  mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(async requestJson => {
-    const request = JSON.parse(String(requestJson));
-    const shotKind = String(request.captureShotKind ?? 'neutral');
-    const shotSignalScale =
-      shotKind === 'pucker'
-        ? 0.42
-        : shotKind === 'smile'
+function installNativeGenerateSuccessMock(
+  provider: 'vision' | 'mediapipe' = 'vision',
+) {
+  mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(
+    async requestJson => {
+      const request = JSON.parse(String(requestJson));
+      const shotKind = String(request.captureShotKind ?? 'neutral');
+      const shotSignalScale =
+        shotKind === 'pucker'
+          ? 0.42
+          : shotKind === 'smile'
           ? 0.31
           : shotKind === 'mouthOpen'
-            ? 0.24
-            : 0.12;
-    const response = makeNativeBoundaryResponse(provider, {
-      captureSetId: request.captureSetId,
-      capturePairId: request.capturePairId,
-      captureShotKind: request.captureShotKind,
-      framePath: request.framePath,
-      arFaceExportPath: request.arFaceExportPath,
-      blendShapes: {
-        available: true,
-        keySignals: {
-          mouthSmileLeft: shotSignalScale,
-          mouthPucker: shotKind === 'pucker' ? 0.58 : 0.03,
+          ? 0.24
+          : 0.12;
+      const response = makeNativeBoundaryResponse(provider, {
+        captureSetId: request.captureSetId,
+        capturePairId: request.capturePairId,
+        captureShotKind: request.captureShotKind,
+        framePath: request.framePath,
+        arFaceExportPath: request.arFaceExportPath,
+        blendShapes: {
+          available: true,
+          keySignals: {
+            mouthSmileLeft: shotSignalScale,
+            mouthPucker: shotKind === 'pucker' ? 0.58 : 0.03,
+          },
         },
-      },
-    });
-    const scaleX = shotKind === 'smile' ? 1.16 : shotKind === 'pucker' ? 0.94 : 1;
-    const scaleY =
-      shotKind === 'mouthOpen' ? 1.18 : shotKind === 'pucker' ? 1.12 : 1;
-    const center = { x: 100, y: 108 };
-    response.boundary = {
-      ...response.boundary,
-      outerPoints: response.boundary.outerPoints.map(point => ({
-        x: center.x + (point.x - center.x) * scaleX,
-        y: center.y + (point.y - center.y) * scaleY,
-      })),
-      innerPoints: response.boundary.innerPoints.map(point => ({
-        x: center.x + (point.x - center.x) * scaleX,
-        y: center.y + (point.y - center.y) * scaleY,
-      })),
-    };
-    return JSON.stringify(response);
-  },
+      });
+      const scaleX =
+        shotKind === 'smile' ? 1.16 : shotKind === 'pucker' ? 0.94 : 1;
+      const scaleY =
+        shotKind === 'mouthOpen' ? 1.18 : shotKind === 'pucker' ? 1.12 : 1;
+      const center = { x: 100, y: 108 };
+      response.boundary = {
+        ...response.boundary,
+        outerPoints: response.boundary.outerPoints.map(point => ({
+          x: center.x + (point.x - center.x) * scaleX,
+          y: center.y + (point.y - center.y) * scaleY,
+        })),
+        innerPoints: response.boundary.innerPoints.map(point => ({
+          x: center.x + (point.x - center.x) * scaleX,
+          y: center.y + (point.y - center.y) * scaleY,
+        })),
+      };
+      return JSON.stringify(response);
+    },
   );
   mockE7NativeLipBoundaryProviders.renderLipMaskPreview = jest.fn(
     async (packageJson: string) => {
@@ -482,7 +486,9 @@ test('opens forced wizard as the default app flow', async () => {
   expect(text).not.toContain('Regions');
   expect(text).not.toContain('daily');
   expect(text).not.toContain('Full-face');
-  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+  expect(
+    getLastUnityPostPayload('SetE7RegionOverlayVisibleJson'),
+  ).toMatchObject({
     visible: false,
   });
 });
@@ -503,10 +509,13 @@ test('initial recipe post keeps lip disabled until the user applies a mask', asy
   expect(recipePayload.activeRegions).toBe('none');
   expect(recipePayload.enabledLayerCount).toBe(0);
   expect(
-    recipePayload.layers.find((layer: { region: string }) => layer.region === 'lip')
-      ?.enabled,
+    recipePayload.layers.find(
+      (layer: { region: string }) => layer.region === 'lip',
+    )?.enabled,
   ).toBe(false);
-  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+  expect(
+    getLastUnityPostPayload('SetE7RegionOverlayVisibleJson'),
+  ).toMatchObject({
     visible: false,
   });
   expect(renderer).toBeTruthy();
@@ -555,8 +564,7 @@ test('posts Unity capture request for a wizard neutral shot', async () => {
   pressByTestID(renderer!, 'e7-wizard-capture-primary');
 
   const captureCall = mockUnityPostMessage.mock.calls.find(
-    call =>
-      call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
+    call => call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
   );
 
   expect(captureCall).toBeTruthy();
@@ -652,8 +660,7 @@ test('blocks current-frame generation when native module is unavailable', async 
   pressByTestID(renderer!, 'e7-wizard-capture-primary');
 
   const captureCall = mockUnityPostMessage.mock.calls.find(
-    call =>
-      call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
+    call => call[0] === 'RNBridge' && call[1] === 'CaptureE7ReferenceFrameJson',
   );
   const request = JSON.parse(String(captureCall?.[2]));
   emitUnityReferenceCapture(renderer!, request.capturePairId, {
@@ -717,8 +724,9 @@ test('uses one capture CTA and switches to captured-frame review after required 
   emitUnityFaceTracking(renderer!);
   pressByTestID(renderer!, 'e7-wizard-align-next');
 
-  expect(renderer!.root.findByProps({ testID: 'e7-wizard-capture-primary' }))
-    .toBeTruthy();
+  expect(
+    renderer!.root.findByProps({ testID: 'e7-wizard-capture-primary' }),
+  ).toBeTruthy();
   expect(
     renderer!.root.findAll(
       node =>
@@ -775,7 +783,9 @@ test('renders large two-option blending candidate previews from the captured fra
       typeof node.props.testID === 'string' &&
       node.props.testID.startsWith('e7-candidate-'),
   );
-  const candidateTestIds = [...new Set(candidateCards.map(card => card.props.testID))];
+  const candidateTestIds = [
+    ...new Set(candidateCards.map(card => card.props.testID)),
+  ];
   const text = collectText(renderer!);
 
   expect(candidateTestIds).toEqual([
@@ -787,7 +797,9 @@ test('renders large two-option blending candidate previews from the captured fra
   expect(text).toContain('촬영한 여러 표정의 UV 합성 마스크');
   expect(text).not.toContain('부드럽게');
   expect(text).not.toContain('번짐 안전');
-  expect(mockE7NativeLipBoundaryProviders.renderLipMaskPreview).toHaveBeenCalledTimes(2);
+  expect(
+    mockE7NativeLipBoundaryProviders.renderLipMaskPreview,
+  ).toHaveBeenCalledTimes(2);
   for (const testID of candidateTestIds) {
     const matchingCards = renderer!.root.findAllByProps({ testID });
     expect(
@@ -796,7 +808,9 @@ test('renders large two-option blending candidate previews from the captured fra
           card.findAll(
             node =>
               typeof node.props.source?.uri === 'string' &&
-              node.props.source.uri.startsWith('file:///tmp/e7-generated-lip-') &&
+              node.props.source.uri.startsWith(
+                'file:///tmp/e7-generated-lip-',
+              ) &&
               node.props.source.uri.endsWith('.preview.png'),
           ).length > 0,
       ),
@@ -820,10 +834,12 @@ test('uses the full capture set when generating blendshape-assisted candidates',
   pressByTestID(renderer!, 'e7-wizard-capture-primary');
   await pressByTestIDAsync(renderer!, 'e7-wizard-generate-candidates');
 
-  expect(mockE7NativeLipBoundaryProviders.extractLipBoundary).toHaveBeenCalledTimes(6);
+  expect(
+    mockE7NativeLipBoundaryProviders.extractLipBoundary,
+  ).toHaveBeenCalledTimes(6);
   const requestedShotKinds =
-    mockE7NativeLipBoundaryProviders.extractLipBoundary?.mock.calls.map(call =>
-      JSON.parse(String(call[0])).captureShotKind,
+    mockE7NativeLipBoundaryProviders.extractLipBoundary?.mock.calls.map(
+      call => JSON.parse(String(call[0])).captureShotKind,
     );
   expect(requestedShotKinds).toEqual([
     'neutral',
@@ -835,8 +851,8 @@ test('uses the full capture set when generating blendshape-assisted candidates',
   ]);
 
   const previewPackages =
-    mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.map(call =>
-      JSON.parse(String(call[0])),
+    mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.map(
+      call => JSON.parse(String(call[0])),
     ) ?? [];
   const blendshapePackage = previewPackages.find(
     generatedPackage => generatedPackage.expressionMode === 'blendshapeAssist',
@@ -862,7 +878,9 @@ test('uses the full capture set when generating blendshape-assisted candidates',
   expect(
     blendshapePackage.uvCoverageMetadata.uvOnlyVsBlendAlphaDelta,
   ).toBeGreaterThan(0);
-  expect(blendshapePackage.blendshapeAssist.blendFallbackReason).toBeUndefined();
+  expect(
+    blendshapePackage.blendshapeAssist.blendFallbackReason,
+  ).toBeUndefined();
   expect(blendshapePackage.blendshapeAssist.values['pucker.mouthPucker']).toBe(
     0.58,
   );
@@ -900,20 +918,28 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   });
   await advanceToGeneratedAdjustStep(renderer!);
 
+  expect(collectText(renderer!)).toContain('입술 확대 미리보기');
+  pressByTestID(renderer!, 'e7-adjust-preview-toggle-zoom');
   expect(collectText(renderer!)).toContain('전체 얼굴 기준 마스크 미리보기');
 
   await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
   const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
   expect(applyPayload.generatedMaskId).toContain('e7-generated-lip');
-  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+  expect(
+    getLastUnityPostPayload('SetE7RegionOverlayVisibleJson'),
+  ).toMatchObject({
     visible: true,
   });
   expect(collectText(renderer!)).toContain('AR 화면에서 적용 여부');
-  expect(collectText(renderer!)).toContain('AR 화면에서 적용 확인을 기다립니다');
+  expect(collectText(renderer!)).toContain(
+    'AR 화면에서 적용 확인을 기다립니다',
+  );
   expect(collectText(renderer!)).not.toContain('ApplyGeneratedLipMaskJson');
   expect(collectText(renderer!)).not.toContain('reason:');
   expect(collectText(renderer!)).not.toContain('AR 립 적용 중');
-  expect(collectText(renderer!)).not.toContain('Unity generated_lip_mask_applied ack');
+  expect(collectText(renderer!)).not.toContain(
+    'Unity generated_lip_mask_applied ack',
+  );
   expect(collectText(renderer!)).not.toContain('actual mask preview');
   expect(collectText(renderer!)).not.toContain('provider blockedReason');
 
@@ -936,9 +962,7 @@ test('renders full-face mask preview and applies only after matching Unity ack',
 
 test('shows apply progress immediately while generated package save is still pending', async () => {
   installNativeGenerateSuccessMock('vision');
-  let resolveSave:
-    | ((value: string | PromiseLike<string>) => void)
-    | undefined;
+  let resolveSave: ((value: string | PromiseLike<string>) => void) | undefined;
   let pendingRecordJson = '';
   mockE7NativeLipBoundaryProviders.saveGeneratedPackage = jest.fn(
     (packageJson: string) =>
@@ -976,9 +1000,7 @@ test('shows apply progress immediately while generated package save is still pen
 
 test('ignores a late native save result after retaking capture', async () => {
   installNativeGenerateSuccessMock('vision');
-  let resolveSave:
-    | ((value: string | PromiseLike<string>) => void)
-    | undefined;
+  let resolveSave: ((value: string | PromiseLike<string>) => void) | undefined;
   let lateRecordJson = '';
   mockE7NativeLipBoundaryProviders.saveGeneratedPackage = jest.fn(
     (packageJson: string) =>
@@ -1029,10 +1051,14 @@ test('updates generated package after adjustment and separates regenerate from r
     getUnityPostMessageCalls('ApplyRecipeJson').length;
   const beforeAdjustmentPackage = JSON.parse(
     String(
-      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(-1)?.[0],
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(
+        -1,
+      )?.[0],
     ),
   );
-  expect(beforeAdjustmentPackage.generatedMaskId).toContain('adj-p0-p0-p0-p0');
+  expect(beforeAdjustmentPackage.generatedMaskId).toContain(
+    'adj-p0-p0-p0-p0-p0-p0',
+  );
   expect(collectText(renderer!)).toContain('현재 사진으로 다시 생성');
   expect(collectText(renderer!)).toContain('다시 촬영');
   expect(collectText(renderer!)).not.toContain('경계 다시 추출');
@@ -1049,10 +1075,14 @@ test('updates generated package after adjustment and separates regenerate from r
   ).toBeGreaterThan(renderCallsBeforeAdjustment);
   const afterAdjustmentPackage = JSON.parse(
     String(
-      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(-1)?.[0],
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(
+        -1,
+      )?.[0],
     ),
   );
-  expect(afterAdjustmentPackage.generatedMaskId).toContain('adj-p1e-p0-p0-p0');
+  expect(afterAdjustmentPackage.generatedMaskId).toContain(
+    'adj-p1e-p0-p0-p0-p0-p0',
+  );
   expect(afterAdjustmentPackage.generatedMaskId).not.toBe(
     beforeAdjustmentPackage.generatedMaskId,
   );
@@ -1068,6 +1098,94 @@ test('updates generated package after adjustment and separates regenerate from r
   expect(textAfterRetake).toContain('다시 촬영합니다');
   expect(textAfterRetake).toContain('표정별 촬영');
   expect(textAfterRetake).not.toContain('Unity 적용 실패 또는 미확인');
+});
+
+test('persists user-tuned upper inner fill into saved package and AR apply payload', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+
+  pressByTestID(renderer!, 'lip-adjust-field-upperInnerFill');
+  pressByTestID(renderer!, 'lip-adjustment-step-inner-up');
+  pressByTestID(renderer!, 'lip-adjustment-step-inner-up');
+
+  expect(collectText(renderer!)).toContain('0.10');
+  expect(collectText(renderer!)).toContain('미리보기 갱신 중');
+
+  await flushAdjustmentPreviewDebounce();
+
+  const previewPackage = JSON.parse(
+    String(
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(
+        -1,
+      )?.[0],
+    ),
+  );
+  expect(previewPackage.adjustment.upperInnerFill).toBe(0.1);
+  expect(previewPackage.adjustment.innerFill).toBe(0);
+  expect(previewPackage.generatedMaskId).toContain('adj-p0-p0-p0-p0-p0-p2s');
+
+  await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
+
+  const savedPackage = JSON.parse(
+    String(
+      mockE7NativeLipBoundaryProviders.saveGeneratedPackage?.mock.calls.at(
+        -1,
+      )?.[0],
+    ),
+  );
+  const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
+
+  expect(savedPackage.adjustment.upperInnerFill).toBe(0.1);
+  expect(savedPackage.runtimeApplyPayload.adjustment.upperInnerFill).toBe(0.1);
+  expect(applyPayload.adjustment.upperInnerFill).toBe(0.1);
+  expect(applyPayload.adjustment.innerFill).toBe(0);
+});
+
+test('close after generated adjustment keeps captured work instead of exiting', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+
+  pressByText(renderer!, 'Close');
+
+  const text = collectText(renderer!);
+  expect(text).toContain('촬영한 사진은 유지됩니다');
+  expect(text).toContain('마스크 미세 조정');
+  expect(text).toContain('저장하고 AR 실행');
+  expect(text).not.toContain('얼굴 정렬 시작');
+});
+
+test('shows a generation loading panel while native extraction is running', async () => {
+  installNativeGenerateSuccessMock('vision');
+  mockE7NativeLipBoundaryProviders.extractLipBoundary = jest.fn(
+    () => new Promise<string>(() => {}),
+  );
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+
+  enterGenerateWizard(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-start-next');
+  emitUnityFaceTracking(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-align-next');
+  captureAllWizardShots(renderer!);
+  pressByTestID(renderer!, 'e7-wizard-capture-primary');
+  pressByTestID(renderer!, 'e7-wizard-generate-candidates');
+
+  const text = collectText(renderer!);
+  expect(text).toContain('마스크 생성 중');
+  expect(text).toContain('입술 경계를 찾고 미리보기를 준비하고 있습니다');
 });
 
 test('accumulates rapid generated adjustment taps before slow preview rebuild', async () => {
@@ -1096,12 +1214,16 @@ test('accumulates rapid generated adjustment taps before slow preview rebuild', 
 
   const afterAdjustmentPackage = JSON.parse(
     String(
-      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(-1)?.[0],
+      mockE7NativeLipBoundaryProviders.renderLipMaskPreview?.mock.calls.at(
+        -1,
+      )?.[0],
     ),
   );
   expect(afterAdjustmentPackage.adjustment.cornerReach).toBe(0.15);
   expect(afterAdjustmentPackage.generatedMaskId).toContain('adj-');
-  expect(afterAdjustmentPackage.generatedMaskId).not.toContain('adj-p0-p0-p0-p0');
+  expect(afterAdjustmentPackage.generatedMaskId).not.toContain(
+    'adj-p0-p0-p0-p0-p0-p0',
+  );
 });
 
 test('shows apply timeout and retries from a user-readable blocked state', async () => {
@@ -1209,7 +1331,9 @@ test('posts AR validation controls without resending texture after Unity ack', a
   expect(controlPayload.opacity).toBeCloseTo(0.76);
   expect(controlPayload.maskRawRgbaBase64).toBeUndefined();
   expect(controlPayload.maskPngBase64).toBeUndefined();
-  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+  expect(
+    getLastUnityPostPayload('SetE7RegionOverlayVisibleJson'),
+  ).toMatchObject({
     visible: false,
   });
   expect(collectText(renderer!)).toContain('AR 검증 변경을 확인하는 중입니다');

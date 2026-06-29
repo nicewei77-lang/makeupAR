@@ -11,6 +11,8 @@ const ZERO_ADJUSTMENT: LipAdjustment = {
   upperLipTightness: 0,
   lowerLipTightness: 0,
   verticalOffset: 0,
+  innerFill: 0,
+  upperInnerFill: 0,
 };
 
 const VISIBLE_ADJUSTMENT: LipAdjustment = {
@@ -18,6 +20,8 @@ const VISIBLE_ADJUSTMENT: LipAdjustment = {
   upperLipTightness: 0.65,
   lowerLipTightness: 0.7,
   verticalOffset: 0.35,
+  innerFill: 0.25,
+  upperInnerFill: 0.4,
 };
 
 function makeNativeBoundaryResult(): E7NativeBoundaryResult {
@@ -137,19 +141,27 @@ function outerBoundaryDelta(
   return total;
 }
 
-function maxY(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+function maxY(
+  points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
+) {
   return Math.max(...points.map(point => point.y));
 }
 
-function minY(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+function minY(
+  points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
+) {
   return Math.min(...points.map(point => point.y));
 }
 
-function minX(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+function minX(
+  points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
+) {
   return Math.min(...points.map(point => point.x));
 }
 
-function maxX(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+function maxX(
+  points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
+) {
   return Math.max(...points.map(point => point.x));
 }
 
@@ -319,6 +331,55 @@ test('upper lip adjustment plus expands upward in top-left frame coordinates', (
   );
 });
 
+test('upper inner fill plus shrinks the upper mouth hole without moving outer boundary', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const basePackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const upperInnerFillPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      upperInnerFill: 0.5,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const baseBoundary = basePackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const upperInnerFillBoundary =
+    upperInnerFillPackage.lipBoundary2D as NonNullable<
+      E7NativeBoundaryResult['boundary']
+    >;
+  const baseUv = basePackage.uvCoverageMetadata as Record<string, number>;
+  const upperInnerFillUv = upperInnerFillPackage.uvCoverageMetadata as Record<
+    string,
+    number
+  >;
+
+  expect(
+    outerBoundaryDelta(
+      baseBoundary.outerPoints,
+      upperInnerFillBoundary.outerPoints,
+    ),
+  ).toBeLessThan(0.01);
+  expect(minY(upperInnerFillBoundary.innerPoints)).toBeGreaterThan(
+    minY(baseBoundary.innerPoints),
+  );
+  expect(upperInnerFillUv.alphaSum).toBeGreaterThan(baseUv.alphaSum);
+  expect(upperInnerFillUv.positiveTexels).toBeGreaterThan(
+    baseUv.positiveTexels,
+  );
+  expect(upperInnerFillPackage.generatedMaskId).not.toBe(
+    basePackage.generatedMaskId,
+  );
+});
+
 test('vertical offset plus moves lip boundary upward in top-left frame coordinates', () => {
   const nativeResult = makeNativeBoundaryResult();
   const basePackage = buildGeneratedLipPackage({
@@ -478,7 +539,9 @@ test('blendshapeAssist builds a capture-set consensus raw UV mask', () => {
   expect(blendPackage.blendshapeAssist.blendMaskKind).toBe(
     'capture_set_consensus_v1',
   );
-  expect(blendPackage.blendshapeAssist.uvOnlyVsBlendAlphaDelta).toBeGreaterThan(0);
+  expect(blendPackage.blendshapeAssist.uvOnlyVsBlendAlphaDelta).toBeGreaterThan(
+    0,
+  );
   expect(blendPackage.qualityWarnings).toContain(
     'blend_mask_capture_set_consensus_v1_4_shots',
   );

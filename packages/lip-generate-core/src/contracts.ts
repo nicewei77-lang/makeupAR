@@ -1,16 +1,18 @@
-export type LipMaskProvider = 'vision' | 'mediapipe';
+export type LipMaskProvider = "vision" | "mediapipe";
 
-export type ExpressionAssistMode = 'uvOnly' | 'blendshapeAssist';
+export type ExpressionAssistMode = "uvOnly" | "blendshapeAssist";
 
-export type LipGenerateStatus = 'ready' | 'partial' | 'blocked';
+export type LipGenerateStatus = "ready" | "partial" | "blocked";
 
-export type LipFrameSource = 'fixture' | 'webcam' | 'ios-current-frame';
+export type LipFrameSource = "fixture" | "webcam" | "ios-current-frame";
 
 export type LipAdjustment = {
   cornerReach: number;
   upperLipTightness: number;
   lowerLipTightness: number;
   verticalOffset: number;
+  innerFill: number;
+  upperInnerFill: number;
 };
 
 export type LipGeneratePrivacy = {
@@ -35,7 +37,7 @@ export type LipPoint2D = {
 };
 
 export type LipBoundary2D = {
-  coordinateSpace: 'frame_image_pixel_top_left';
+  coordinateSpace: "frame_image_pixel_top_left";
   outerPoints: LipPoint2D[];
   innerPoints: LipPoint2D[];
   source: LipMaskProvider;
@@ -56,7 +58,7 @@ export type LipSourceFaceState = {
   warning?: string;
   values?: Record<string, number>;
   captureSetShotCount?: number;
-  blendshapeSummaryKind?: 'single-frame' | 'capture-set';
+  blendshapeSummaryKind?: "single-frame" | "capture-set";
 };
 
 export type LipUvCoverageMetadata = {
@@ -74,7 +76,7 @@ export type LipUvCoverageMetadata = {
     maxColumn: number;
     maxRow: number;
   };
-  blendMaskKind?: 'neutral_single_shot_v1' | 'capture_set_consensus_v1';
+  blendMaskKind?: "neutral_single_shot_v1" | "capture_set_consensus_v1";
   blendShotKindsUsed?: string[];
   blendUsableShotCount?: number;
   blendFallbackReason?: string;
@@ -89,7 +91,7 @@ export type LipUvCoverageMetadata = {
   innerHoleSampleCount?: number;
   innerHolePositiveRatio?: number;
   previewVsUvRoundTripDelta?: number;
-  roundTripKind?: 'same_frame_self_reconstruction' | 'held_out_projection';
+  roundTripKind?: "same_frame_self_reconstruction" | "held_out_projection";
   roundTripScore?: {
     iou?: number;
     precision?: number;
@@ -100,7 +102,7 @@ export type LipUvCoverageMetadata = {
 };
 
 export type LipRuntimeApplyPayload = {
-  schemaVersion: 'e7-generated-lip-mask-runtime-payload-v0';
+  schemaVersion: "e7-generated-lip-mask-runtime-payload-v0";
   generatedMaskId: string;
   captureSetId?: string;
   provider: LipMaskProvider;
@@ -108,7 +110,7 @@ export type LipRuntimeApplyPayload = {
   adjustment: LipAdjustment;
   maskTexturePath?: string;
   maskTextureId?: string;
-  maskTextureEncoding?: 'png_base64' | 'raw_rgba_base64';
+  maskTextureEncoding?: "png_base64" | "raw_rgba_base64";
   maskPngBase64?: string;
   maskRawRgbaBase64?: string;
   maskTextureWidth?: number;
@@ -139,9 +141,9 @@ export type LipProviderResultSummary = {
 export type LipBlendshapeAssistMetadata = {
   mode: ExpressionAssistMode;
   enabled: boolean;
-  source: 'arface-blendshapes';
+  source: "arface-blendshapes";
   materialFeatherUvNormalized: number;
-  blendMaskKind?: 'neutral_single_shot_v1' | 'capture_set_consensus_v1';
+  blendMaskKind?: "neutral_single_shot_v1" | "capture_set_consensus_v1";
   blendShotKindsUsed?: string[];
   blendUsableShotCount?: number;
   blendFallbackReason?: string;
@@ -151,7 +153,7 @@ export type LipBlendshapeAssistMetadata = {
 };
 
 export type LipGeneratePackage = {
-  schemaVersion: 'e7-personalized-lip-generate-package-v0';
+  schemaVersion: "e7-personalized-lip-generate-package-v0";
   generatedMaskId: string;
   captureSetId: string;
   provider: LipMaskProvider;
@@ -190,24 +192,26 @@ export const DEFAULT_LIP_ADJUSTMENT: LipAdjustment = {
   upperLipTightness: 0,
   lowerLipTightness: 0,
   verticalOffset: 0,
+  innerFill: 0,
+  upperInnerFill: 0,
 };
 
 export const REQUIRED_PACKAGE_FIELDS = [
-  'generatedMaskId',
-  'captureSetId',
-  'provider',
-  'providerResults',
-  'expressionMode',
-  'blendshapeAssist',
-  'adjustment',
-  'sourceFrameMetadata',
-  'sourceFaceState',
-  'lipBoundary2D',
-  'uvMaskTexture',
-  'uvCoverageMetadata',
-  'roundTripPreview',
-  'runtimeApplyPayload',
-  'qualityWarnings',
-  'createdAt',
-  'privacyFlags',
+  "generatedMaskId",
+  "captureSetId",
+  "provider",
+  "providerResults",
+  "expressionMode",
+  "blendshapeAssist",
+  "adjustment",
+  "sourceFrameMetadata",
+  "sourceFaceState",
+  "lipBoundary2D",
+  "uvMaskTexture",
+  "uvCoverageMetadata",
+  "roundTripPreview",
+  "runtimeApplyPayload",
+  "qualityWarnings",
+  "createdAt",
+  "privacyFlags",
 ] as const;
