@@ -167,11 +167,11 @@ const LIP_TUNING_FIELD_OPTIONS = [
   { name: 'glossBoost', label: 'gloss' },
 ] as const;
 const LIP_ADJUSTMENT_FIELD_OPTIONS = [
-  { name: 'cornerReach', label: 'corner' },
-  { name: 'upperLipTightness', label: 'upper' },
-  { name: 'lowerLipTightness', label: 'lower' },
-  { name: 'upperInnerFill', label: '안쪽' },
-  { name: 'verticalOffset', label: 'y' },
+  { name: 'cornerReach', label: '입꼬리' },
+  { name: 'upperLipTightness', label: '윗입술' },
+  { name: 'lowerLipTightness', label: '밑입술' },
+  { name: 'upperInnerFill', label: '안쪽채움' },
+  { name: 'verticalOffset', label: '위치' },
 ] as const;
 const LIP_RUNTIME_CANDIDATE_OPTIONS = [
   {
@@ -3382,21 +3382,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       />
 
       {isUsingCapturedFrameReview && (
-        <View pointerEvents="none" style={styles.capturedFrameShield}>
-          {capturedFramePreviewUri ? (
-            <Image
-              source={{ uri: capturedFramePreviewUri }}
-              style={styles.capturedFrameImage}
-            />
-          ) : null}
-          <View style={styles.capturedFrameScrim} />
-          <Text style={styles.capturedFrameShieldTitle}>캡처 프레임 검토</Text>
-          <Text style={styles.capturedFrameShieldText}>
-            {capturedFramePreviewUri
-              ? '저장된 얼굴 프레임을 기준으로 마스크를 만듭니다.'
-              : '촬영은 끝났고 저장된 얼굴 프레임을 준비하고 있습니다.'}
-          </Text>
-        </View>
+        <View pointerEvents="none" style={styles.capturedFrameShield} />
       )}
 
       <View
@@ -4636,7 +4622,9 @@ function GeneratedRuntimeAppliedBanner({
           style={styles.generateAppliedSmallButton}
           onPress={onReopenGenerate}
         >
-          <Text style={styles.generateAppliedSmallButtonText}>다시 조정</Text>
+          <Text style={styles.generateAppliedSmallButtonText}>
+            조정 화면으로
+          </Text>
         </Pressable>
       </View>
       <Text style={styles.generateAppliedBannerText} numberOfLines={1}>
@@ -4916,12 +4904,6 @@ function GeneratedAdjustmentPreview({
                 styles.generatedAdjustmentPreviewImageBoundary,
             ]}
           />
-          {previewMode === 'boundary' && (
-            <View
-              pointerEvents="none"
-              style={styles.generatedAdjustmentBoundaryFrame}
-            />
-          )}
         </Pressable>
       ) : (
         <View style={styles.generatedAdjustmentPreviewEmpty}>
@@ -5010,13 +4992,13 @@ function formatAdjustmentPreviewModeLabel(mode: E7AdjustmentPreviewMode) {
 function formatLipAdjustmentHelp(field: LipAdjustmentField) {
   switch (field) {
     case 'upperInnerFill':
-      return '+는 윗입술 안쪽 빈 부분을 더 채우고, -는 입 안쪽 틈을 더 남깁니다.';
+      return '+는 윗입술 안쪽 빈 부분을 더 채웁니다. 윗입술 안쪽이 비어 보이면 이 축을 먼저 올리세요.';
     case 'cornerReach':
       return '+는 입꼬리 쪽까지 더 포함하고, -는 중앙 쪽으로 좁힙니다.';
     case 'upperLipTightness':
       return '+는 윗입술 바깥 경계를 더 포함하고, -는 더 타이트하게 줄입니다.';
     case 'lowerLipTightness':
-      return '+는 밑입술 바깥 경계를 더 포함하고, -는 더 타이트하게 줄입니다.';
+      return '+는 밑입술 바깥 경계를 더 포함합니다. 밑입술이 두꺼워 보이면 -로 줄이세요.';
     case 'verticalOffset':
       return '+는 마스크를 위로, -는 아래로 옮깁니다.';
   }
@@ -6240,14 +6222,15 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     maxHeight: 440,
     borderRadius: 8,
-    backgroundColor: 'rgba(8, 13, 24, 0.82)',
+    backgroundColor: 'rgba(8, 13, 24, 0.92)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.24)',
     padding: 10,
     gap: 10,
   },
   generateWizardCardAdjust: {
-    maxHeight: 620,
+    maxHeight: 570,
+    backgroundColor: 'rgba(7, 16, 29, 0.96)',
   },
   generateWizardStepRow: {
     flexDirection: 'row',
@@ -6332,7 +6315,7 @@ const styles = StyleSheet.create({
     minHeight: 0,
   },
   generateWizardAdjustScroller: {
-    maxHeight: 474,
+    maxHeight: 405,
   },
   generateWizardAdjustContent: {
     gap: 8,
@@ -6594,48 +6577,10 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#050812',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    overflow: 'hidden',
-  },
-  capturedFrameImage: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    width: '100%',
-    height: '100%',
-    resizeMode: 'contain',
-  },
-  capturedFrameScrim: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    backgroundColor: 'rgba(6, 10, 18, 0.42)',
-  },
-  capturedFrameShieldTitle: {
-    color: '#F9FAFB',
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 0,
-    textAlign: 'center',
-  },
-  capturedFrameShieldText: {
-    marginTop: 8,
-    color: '#CBD5E1',
-    fontSize: 13,
-    fontWeight: '800',
-    lineHeight: 18,
-    letterSpacing: 0,
-    textAlign: 'center',
+    backgroundColor: '#07101D',
   },
   generatedAdjustmentPreview: {
-    minHeight: 300,
+    minHeight: 340,
     overflow: 'hidden',
     borderRadius: 8,
     borderWidth: 1,
@@ -6643,14 +6588,14 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   generatedAdjustmentPreviewTapArea: {
-    minHeight: 300,
+    minHeight: 340,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   generatedAdjustmentPreviewImage: {
     width: '100%',
-    height: 300,
+    height: 340,
     resizeMode: 'contain',
   },
   generatedAdjustmentPreviewImageZoomed: {
@@ -6659,18 +6604,8 @@ const styles = StyleSheet.create({
   generatedAdjustmentPreviewImageBoundary: {
     opacity: 0.88,
   },
-  generatedAdjustmentBoundaryFrame: {
-    position: 'absolute',
-    left: 28,
-    right: 28,
-    top: 36,
-    bottom: 36,
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#FDE68A',
-  },
   generatedAdjustmentPreviewEmpty: {
-    minHeight: 300,
+    minHeight: 340,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
@@ -7217,7 +7152,7 @@ const styles = StyleSheet.create({
   },
   generateAppliedSmallButton: {
     minHeight: 40,
-    minWidth: 92,
+    minWidth: 112,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -7231,6 +7166,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '900',
     letterSpacing: 0,
+    textAlign: 'center',
   },
   generateAppliedControlRow: {
     marginTop: 8,
@@ -7448,7 +7384,7 @@ const styles = StyleSheet.create({
   },
   adjustmentFieldButton: {
     flex: 1,
-    minHeight: 32,
+    minHeight: 36,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
@@ -7464,11 +7400,10 @@ const styles = StyleSheet.create({
   },
   adjustmentFieldButtonText: {
     color: '#EFF6FF',
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     letterSpacing: 0,
     textAlign: 'center',
-    textTransform: 'uppercase',
   },
   adjustmentFieldButtonTextSelected: {
     color: '#1E3A8A',

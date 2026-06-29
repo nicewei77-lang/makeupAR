@@ -86,6 +86,7 @@ export type LipUvCoverageMetadata = {
   innerMouthSuppressedTexels?: number;
   lowerLipGuardApplied?: boolean;
   lowerLipGuardClippedTexels?: number;
+  lowerLipGuardTightness?: number;
   consensusThreshold?: number;
   shotWeights?: Record<string, number>;
   innerHoleSampleCount?: number;

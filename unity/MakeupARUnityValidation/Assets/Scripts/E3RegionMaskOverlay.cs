@@ -91,11 +91,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public readonly Dictionary<string, string> LastLoggedStateActionByRegion =
             new Dictionary<string, string>();
         public bool WasLimitedOrLost;
+        public float TrackingLossStartedAt = -1.0f;
     }
 
     private struct TrackingVisibility
     {
         public bool ShouldRender;
+        public bool UseCachedMesh;
         public float AlphaMultiplier;
         public string Action;
     }
@@ -128,10 +130,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private bool useMeshMasks = true;
+    [SerializeField, Range(0.0f, 1.0f)] private float trackingLossGraceSeconds =
+        DefaultTrackingLossGraceSeconds;
+    [SerializeField, Range(0.0f, 1.0f)] private float trackingLossGraceMinAlpha =
+        DefaultTrackingLossGraceMinAlpha;
 
     private const string RendererMode = "smooth-region-mask";
     private const string MaskSource = "smooth_region_mask";
     private const string BoundaryRenderer = "smooth_alpha_mask";
+    private const float DefaultTrackingLossGraceSeconds = 0.25f;
+    private const float DefaultTrackingLossGraceMinAlpha = 0.35f;
     private static readonly Bounds StableFaceMaskBounds =
         new Bounds(Vector3.zero, new Vector3(0.36f, 0.42f, 0.28f));
 
@@ -374,16 +382,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             FaceOverlayState faceState = EnsureFaceOverlayState(face);
             RegionOverlayView view = EnsureRegionOverlayView(face.transform, faceState, region);
             ApplyRecipeAppearance(view, recipe);
-            TrackingVisibility visibility = ResolveTrackingVisibility(face, faceState);
+            TrackingVisibility visibility = ResolveTrackingVisibility(face, faceState, view);
             ApplyViewAlphaMultiplier(view, visibility.AlphaMultiplier);
-            MaybeLogRegionMaskState(face, faceState, region, recipe, visibility);
+            MaybeLogRegionMaskState(face, faceState, view, region, recipe, visibility);
 
             result.TrackingState = face.trackingState.ToString();
             result.StateAction = visibility.Action;
-            result.UvAvailable = result.UvAvailable || HasUsableUv(face);
-            result.MeshVertexCount = Mathf.Max(result.MeshVertexCount, GetVertexCount(face));
-            result.MeshIndexCount = Mathf.Max(result.MeshIndexCount, GetIndexCount(face));
-            result.MeshUvCount = Mathf.Max(result.MeshUvCount, GetUvCount(face));
+            bool usingCachedMesh = visibility.UseCachedMesh && HasRenderableCachedMesh(view);
+            result.UvAvailable = result.UvAvailable || HasUsableUv(face) || usingCachedMesh;
+            result.MeshVertexCount = Mathf.Max(
+                result.MeshVertexCount,
+                usingCachedMesh ? view.LastVertexCount : GetVertexCount(face));
+            result.MeshIndexCount = Mathf.Max(
+                result.MeshIndexCount,
+                usingCachedMesh ? view.LastIndexCount : GetIndexCount(face));
+            result.MeshUvCount = Mathf.Max(
+                result.MeshUvCount,
+                usingCachedMesh ? view.LastUvCount : GetUvCount(face));
             result.TopologyAuditStatus = BuildTopologyAuditStatus(face);
             result.TopologyAuditSummary = BuildTopologyAuditSummary(face);
 
@@ -400,8 +415,22 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.FaceCount++;
             int triangleCount = 0;
             bool topologyChanged = false;
-            bool meshApplied = useMeshMasks
-                && TryUpdateFullFaceUvMesh(face, view, recipe, out triangleCount, out topologyChanged);
+            bool meshApplied;
+            if (usingCachedMesh && useMeshMasks)
+            {
+                triangleCount = view.LastTriangleCount;
+                meshApplied = true;
+            }
+            else if (usingCachedMesh)
+            {
+                meshApplied = false;
+            }
+            else
+            {
+                meshApplied = useMeshMasks
+                    && TryUpdateFullFaceUvMesh(face, view, recipe, out triangleCount, out topologyChanged);
+            }
+
             result.MeshTriangleCount += triangleCount;
             result.MaskTriangleCount += triangleCount;
             result.OverlayTopologyChanged = result.OverlayTopologyChanged || topologyChanged;
@@ -719,6 +748,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         view.LastUvCount = -1;
         view.LastIndexCount = -1;
         view.LastTriangleCount = 0;
+    }
+
+    private static bool HasRenderableCachedMesh(RegionOverlayView view)
+    {
+        return view != null
+            && view.Mesh != null
+            && view.MeshRenderer != null
+            && view.Mesh.vertexCount > 0
+            && view.LastVertexCount > 0
+            && view.LastUvCount > 0
+            && view.LastIndexCount > 0
+            && view.LastTriangleCount > 0;
     }
 
     private static void EnsureCapacity<T>(List<T> values, int capacity)
@@ -1384,12 +1425,35 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return face != null && face.uvs.IsCreated ? face.uvs.Length : 0;
     }
 
-    private static TrackingVisibility ResolveTrackingVisibility(ARFace face, FaceOverlayState state)
+    private TrackingVisibility ResolveTrackingVisibility(
+        ARFace face,
+        FaceOverlayState state,
+        RegionOverlayView view)
     {
-        if (face.trackingState == TrackingState.Tracking)
+        return ResolveTrackingVisibilityForState(
+            face.trackingState,
+            HasRenderableCachedMesh(view),
+            Time.realtimeSinceStartup,
+            trackingLossGraceSeconds,
+            trackingLossGraceMinAlpha,
+            ref state.WasLimitedOrLost,
+            ref state.TrackingLossStartedAt);
+    }
+
+    private static TrackingVisibility ResolveTrackingVisibilityForState(
+        TrackingState trackingState,
+        bool hasCachedMesh,
+        float nowSeconds,
+        float graceSeconds,
+        float graceMinAlpha,
+        ref bool wasLimitedOrLost,
+        ref float trackingLossStartedAt)
+    {
+        if (trackingState == TrackingState.Tracking)
         {
-            bool recovered = state.WasLimitedOrLost;
-            state.WasLimitedOrLost = false;
+            bool recovered = wasLimitedOrLost;
+            wasLimitedOrLost = false;
+            trackingLossStartedAt = -1.0f;
             return new TrackingVisibility
             {
                 ShouldRender = true,
@@ -1398,19 +1462,91 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             };
         }
 
-        state.WasLimitedOrLost = true;
-        string statePrefix = face.trackingState == TrackingState.Limited ? "limited" : "lost";
+        if (trackingLossStartedAt < 0.0f)
+        {
+            trackingLossStartedAt = nowSeconds;
+        }
+
+        wasLimitedOrLost = true;
+        graceSeconds = Mathf.Max(0.0f, graceSeconds);
+        graceMinAlpha = Mathf.Clamp01(graceMinAlpha);
+        float elapsedSeconds = Mathf.Max(0.0f, nowSeconds - trackingLossStartedAt);
+        if (hasCachedMesh
+            && graceSeconds > 0.0f
+            && elapsedSeconds <= graceSeconds)
+        {
+            float graceProgress = Mathf.Clamp01(elapsedSeconds / graceSeconds);
+            return new TrackingVisibility
+            {
+                ShouldRender = true,
+                UseCachedMesh = true,
+                AlphaMultiplier = Mathf.Lerp(1.0f, graceMinAlpha, graceProgress),
+                Action = GetTrackingGraceAction(trackingState)
+            };
+        }
+
         return new TrackingVisibility
         {
             ShouldRender = false,
             AlphaMultiplier = 0.0f,
-            Action = statePrefix + "_hide"
+            Action = GetTrackingHideAction(trackingState)
         };
     }
+
+    private static string GetTrackingGraceAction(TrackingState trackingState)
+    {
+        return trackingState == TrackingState.Limited ? "limited_grace_hold" : "lost_grace_hold";
+    }
+
+    private static string GetTrackingHideAction(TrackingState trackingState)
+    {
+        return trackingState == TrackingState.Limited ? "limited_hide" : "lost_hide";
+    }
+
+#if UNITY_EDITOR
+    public struct TrackingVisibilityEditorSmokeResult
+    {
+        public bool ShouldRender;
+        public bool UseCachedMesh;
+        public float AlphaMultiplier;
+        public string Action;
+        public bool WasLimitedOrLost;
+        public float TrackingLossStartedAt;
+    }
+
+    public static TrackingVisibilityEditorSmokeResult EvaluateTrackingVisibilityForEditorSmoke(
+        TrackingState trackingState,
+        bool hasCachedMesh,
+        float nowSeconds,
+        float graceSeconds,
+        float graceMinAlpha,
+        ref bool wasLimitedOrLost,
+        ref float trackingLossStartedAt)
+    {
+        TrackingVisibility visibility = ResolveTrackingVisibilityForState(
+            trackingState,
+            hasCachedMesh,
+            nowSeconds,
+            graceSeconds,
+            graceMinAlpha,
+            ref wasLimitedOrLost,
+            ref trackingLossStartedAt);
+        return new TrackingVisibilityEditorSmokeResult
+        {
+            ShouldRender = visibility.ShouldRender,
+            UseCachedMesh = visibility.UseCachedMesh,
+            AlphaMultiplier = visibility.AlphaMultiplier,
+            Action = visibility.Action,
+            WasLimitedOrLost = wasLimitedOrLost,
+            TrackingLossStartedAt = trackingLossStartedAt
+        };
+    }
+#endif
 
     private static void MaybeLogRegionMaskState(
         ARFace face,
         FaceOverlayState state,
+        RegionOverlayView view,
         string region,
         RegionRecipeState recipe,
         TrackingVisibility visibility)
@@ -1436,6 +1572,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " trackingState=" + face.trackingState
             + " stateAction=" + visibility.Action
             + " alphaMultiplier=" + visibility.AlphaMultiplier.ToString("0.##", CultureInfo.InvariantCulture)
+            + " useCachedMesh=" + visibility.UseCachedMesh.ToString().ToLowerInvariant()
+            + " cachedMeshAvailable=" + HasRenderableCachedMesh(view).ToString().ToLowerInvariant()
             + " uvAvailable=" + HasUsableUv(face).ToString().ToLowerInvariant()
             + " meshVertexCount=" + GetVertexCount(face).ToString(CultureInfo.InvariantCulture)
             + " meshIndexCount=" + GetIndexCount(face).ToString(CultureInfo.InvariantCulture)

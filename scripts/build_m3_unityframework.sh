@@ -56,6 +56,7 @@ RN_FRAMEWORK_DIR="$ROOT_DIR/rn/MakeupARValidation/unity/builds/ios"
 RN_FRAMEWORK="$RN_FRAMEWORK_DIR/UnityFramework.framework"
 PACKAGE_FRAMEWORK="$ROOT_DIR/rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework"
 PRODUCT_FRAMEWORK="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
+XCODEBUILD_EXTRA_SETTINGS=()
 
 require_file() {
   if [[ ! -f "$1" ]]; then
@@ -145,6 +146,41 @@ echo "== Unity iOS export =="
 require_file "$PROJECT_FILE"
 require_file "$EXPORT_PATH/Data/boot.config"
 
+prepare_arkit_native_link_overrides() {
+  local package_root
+  package_root="$(find "$UNITY_PROJECT/Library/PackageCache" -maxdepth 1 -type d -name 'com.unity.xr.arkit@*' | head -n 1)"
+  if [[ -z "$package_root" ]]; then
+    echo "Unable to locate com.unity.xr.arkit package cache for native link repair." >&2
+    exit 1
+  fi
+
+  local source_ios_dir="$package_root/Runtime/iOS"
+  local source_face_dir="$package_root/Runtime/FaceTracking/iOS"
+  local export_package_dir="$EXPORT_PATH/Libraries/com.unity.xr.arkit"
+  local export_ios_dir="$export_package_dir/Runtime/iOS"
+  local export_face_dir="$export_package_dir/Runtime/FaceTracking/iOS"
+  local export_ios_lib_dir="$export_ios_dir/Xcode2600"
+  local export_face_lib_dir="$export_face_dir/Xcode2600"
+
+  require_file "$source_ios_dir/Xcode2600/libUnityARKit.a"
+  require_file "$source_face_dir/Xcode2600/libUnityARKitFaceTracking.a"
+
+  mkdir -p "$export_ios_dir" "$export_face_dir"
+  ditto "$source_ios_dir" "$export_ios_dir"
+  ditto "$source_face_dir" "$export_face_dir"
+  require_file "$export_ios_lib_dir/libUnityARKit.a"
+  require_file "$export_face_lib_dir/libUnityARKitFaceTracking.a"
+
+  XCODEBUILD_EXTRA_SETTINGS+=(
+    "LIBRARY_SEARCH_PATHS=$EXPORT_PATH/Libraries $export_ios_lib_dir $export_face_lib_dir"
+    "OTHER_LDFLAGS=-ObjC -weak_framework CoreMotion -weak-lSystem \"\$CONFIGURATION_BUILD_DIR/il2cpp.a\" -lUnityARKit -lUnityARKitFaceTracking -framework ARKit -framework MetalPerformanceShaders"
+  )
+
+  echo "Prepared Unity ARKit native link repair:"
+  echo "  $export_ios_lib_dir/libUnityARKit.a"
+  echo "  $export_face_lib_dir/libUnityARKitFaceTracking.a"
+}
+
 echo
 echo "== Verify generated ARKit native links =="
 LEGACY_ARKIT_LINKS_FOUND=1
@@ -185,20 +221,29 @@ if [[ "$LEGACY_ARKIT_LINKS_FOUND" == "0" ]]; then
     exit 1
   fi
   echo "Found UnityARKit subsystem manifest: $ARKIT_SUBSYSTEM_MANIFEST"
+  prepare_arkit_native_link_overrides
 fi
 
 echo
 echo "== Build UnityFramework target =="
 run_xcodebuild() {
-  xcodebuild \
-    -project "$EXPORT_PATH/Unity-iPhone.xcodeproj" \
-    -scheme UnityFramework \
-    -configuration Release \
-    -sdk iphoneos \
-    -destination "generic/platform=iOS" \
-    -derivedDataPath "$DERIVED_DATA" \
-    CODE_SIGNING_ALLOWED=NO \
-    build
+  local -a command=(
+    xcodebuild
+    -project "$EXPORT_PATH/Unity-iPhone.xcodeproj"
+    -scheme UnityFramework
+    -configuration Release
+    -sdk iphoneos
+    -destination "generic/platform=iOS"
+    -derivedDataPath "$DERIVED_DATA"
+    CODE_SIGNING_ALLOWED=NO
+  )
+
+  if [[ "${#XCODEBUILD_EXTRA_SETTINGS[@]}" -gt 0 ]]; then
+    command+=("${XCODEBUILD_EXTRA_SETTINGS[@]}")
+  fi
+
+  command+=(build)
+  "${command[@]}"
 }
 
 if [[ "$BUILD_LOG_MODE" == "full" ]]; then

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.XR.ARSubsystems;
 
 public static class E7GeneratedLipMaskSmoke
 {
@@ -99,7 +100,9 @@ public static class E7GeneratedLipMaskSmoke
             ForbidLog(logs, "maskRawRgbaBase64");
             ForbidLog(logs, ValidRawRgba8x8Base64);
 
-            Debug.Log("[E7] generated_lip_mask_editor_smoke status=partial verified=raw_rgba_register_and_sanitized_failure");
+            VerifyTrackingGracePolicy();
+
+            Debug.Log("[E7] generated_lip_mask_editor_smoke status=partial verified=raw_rgba_register_sanitized_failure_and_tracking_grace");
             if (exitEditor)
             {
                 EditorApplication.Exit(0);
@@ -118,6 +121,94 @@ public static class E7GeneratedLipMaskSmoke
             Application.logMessageReceived -= logCallback;
             UnityEngine.Object.DestroyImmediate(root);
         }
+    }
+
+    private static void VerifyTrackingGracePolicy()
+    {
+        const float GraceSeconds = 0.25f;
+        const float MinAlpha = 0.35f;
+        bool wasLimitedOrLost = false;
+        float trackingLossStartedAt = -1.0f;
+
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult tracking =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.Tracking,
+                hasCachedMesh: false,
+                nowSeconds: 10.0f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(tracking.ShouldRender, "tracking should render");
+        Require(!tracking.UseCachedMesh, "tracking should update live mesh");
+        Require(tracking.Action == "tracking_render", "tracking action");
+
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult lostStart =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.None,
+                hasCachedMesh: true,
+                nowSeconds: 11.0f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(lostStart.ShouldRender, "short lost gap should render");
+        Require(lostStart.UseCachedMesh, "short lost gap should use cached mesh");
+        Require(lostStart.Action == "lost_grace_hold", "short lost action");
+        Require(Math.Abs(lostStart.AlphaMultiplier - 1.0f) < 0.001f, "lost start alpha");
+
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult lostFade =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.None,
+                hasCachedMesh: true,
+                nowSeconds: 11.125f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(lostFade.ShouldRender, "lost fade should still render");
+        Require(lostFade.AlphaMultiplier < 1.0f && lostFade.AlphaMultiplier > MinAlpha, "lost fade alpha");
+
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult lostExpired =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.None,
+                hasCachedMesh: true,
+                nowSeconds: 11.30f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(!lostExpired.ShouldRender, "expired lost gap should hide");
+        Require(!lostExpired.UseCachedMesh, "expired lost gap should stop cached mesh");
+        Require(lostExpired.Action == "lost_hide", "expired lost action");
+
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult recovered =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.Tracking,
+                hasCachedMesh: true,
+                nowSeconds: 11.31f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(recovered.ShouldRender, "recovered tracking should render");
+        Require(recovered.Action == "recovered_restore", "recovered action");
+        Require(!recovered.WasLimitedOrLost, "recovered should clear loss flag");
+        Require(recovered.TrackingLossStartedAt < 0.0f, "recovered should reset loss timer");
+
+        wasLimitedOrLost = false;
+        trackingLossStartedAt = -1.0f;
+        E3RegionMaskOverlay.TrackingVisibilityEditorSmokeResult limitedNoCache =
+            E3RegionMaskOverlay.EvaluateTrackingVisibilityForEditorSmoke(
+                TrackingState.Limited,
+                hasCachedMesh: false,
+                nowSeconds: 20.0f,
+                graceSeconds: GraceSeconds,
+                graceMinAlpha: MinAlpha,
+                ref wasLimitedOrLost,
+                ref trackingLossStartedAt);
+        Require(!limitedNoCache.ShouldRender, "limited without cache should hide");
+        Require(limitedNoCache.Action == "limited_hide", "limited no-cache action");
     }
 
     private static string BuildPayload(
@@ -235,6 +326,14 @@ public static class E7GeneratedLipMaskSmoke
             {
                 throw new InvalidOperationException("Forbidden log token present: " + token);
             }
+        }
+    }
+
+    private static void Require(bool condition, string message)
+    {
+        if (!condition)
+        {
+            throw new InvalidOperationException("Tracking grace smoke failed: " + message);
         }
     }
 }

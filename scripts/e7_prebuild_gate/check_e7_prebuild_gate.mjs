@@ -944,20 +944,41 @@ function runMain() {
     },
   );
 
+  const captureTimeoutReady = matchesAll(rnAppSource, [
+    /E7_CAPTURE_ACK_TIMEOUT_MS/,
+    /촬영 응답이 늦습니다/,
+  ]);
+  const editorUsesCapturedFramePreview = matchesAll(rnAppSource, [
+    /capturedFramePreviewUri/,
+    /GeneratedAdjustmentPreview/,
+    /framePreviewUri=\{capturedFramePreviewUri\}/,
+  ]);
+  const fullscreenCapturedBackgroundRemoved =
+    !/capturedFrameImage/.test(rnAppSource) &&
+    !/캡처 프레임 검토/.test(rnAppSource) &&
+    matchesAll(rnFocusedProofSource, [
+      /separates the editor from the live\/captured background/,
+      /not\.toContain\('캡처 프레임 검토'\)/,
+      /not\.toContain\('저장된 얼굴 프레임'\)/,
+    ]);
+  const unityExportsFramePreviewUri = /framePreviewUri/.test(
+    unityBridgeSource + unityCaptureExporterSource,
+  );
   const captureTimeoutAndPreviewReady =
-    matchesAll(rnAppSource, [
-      /E7_CAPTURE_ACK_TIMEOUT_MS/,
-      /촬영 응답이 늦습니다/,
-      /framePreviewUri/,
-      /capturedFrameImage/,
-    ]) &&
-    /framePreviewUri/.test(unityBridgeSource + unityCaptureExporterSource);
+    captureTimeoutReady &&
+    editorUsesCapturedFramePreview &&
+    fullscreenCapturedBackgroundRemoved &&
+    unityExportsFramePreviewUri;
   addCheck(
     'v2.capture_timeout_and_captured_frame_preview',
     captureTimeoutAndPreviewReady,
-    `Capture flow must recover from missing Unity capture events and show the saved captured frame, not only a dark live-camera shield. ready=${
+    `Capture flow must recover from missing Unity capture events, keep captured-frame preview inside the editor, and forbid full-screen captured-photo background. ready=${
       captureTimeoutAndPreviewReady ? 'yes' : 'no'
-    }`,
+    } timeout=${captureTimeoutReady ? 'yes' : 'no'} editorPreview=${
+      editorUsesCapturedFramePreview ? 'yes' : 'no'
+    } fullscreenBackgroundRemoved=${
+      fullscreenCapturedBackgroundRemoved ? 'yes' : 'no'
+    } unityFramePreviewUri=${unityExportsFramePreviewUri ? 'yes' : 'no'}`,
   );
 
   const applyStateRequirements = [

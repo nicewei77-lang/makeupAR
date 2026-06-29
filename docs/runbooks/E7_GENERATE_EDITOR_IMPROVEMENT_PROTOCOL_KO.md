@@ -17,6 +17,8 @@ Shared UV reference:
   Team canonical source is evidence/references/arcore-canonical-face-texture-v1/.
   Source PSD is ARCore_canonical_face_texture_1.psd, 4096x4096, SHA-256 d7d3b87caa4929f561fc45a4b2313990542fedefeeadd6b5e8801d18bef1b8a7.
   Use it as the common UV discussion/reference mask basis, not as runtime proof by itself.
+  It is not currently the runtime lip mask source.
+  Because this PSD is an ARCore canonical reference, ARKit 1220-vertex UV runtime use requires a converted derivative plus round-trip/device validation.
 
 Default lip mask direction:
   blendshapeAssist는 기본 flow에서 내린다.

@@ -101,6 +101,7 @@ const ADJUSTMENT_LIP_TIGHTNESS_SCALE = 0.48;
 const ADJUSTMENT_INNER_FILL_SCALE = 0.45;
 const ADJUSTMENT_UPPER_INNER_FILL_SCALE = 0.58;
 const ADJUSTMENT_INNER_FILL_X_SCALE = 0.35;
+const AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS = 0.34;
 const UV_ALPHA_CHECKSUM_MOD = 2147483647;
 const GENERATED_UV_MASK_RESOLUTION = 512;
 const GENERATED_UV_SUPERSAMPLE_GRID = 2;
@@ -312,6 +313,17 @@ function adjustNativeLipBoundary(
       frameSize,
       { inner: true },
       bounds(boundary.innerPoints) ?? referenceBounds,
+    ),
+  };
+}
+
+function applyAutoLowerLipSpillGuard(adjustment: LipAdjustment): LipAdjustment {
+  return {
+    ...adjustment,
+    lowerLipTightness: clamp(
+      adjustment.lowerLipTightness - AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS,
+      -1,
+      1,
     ),
   };
 }
@@ -1213,12 +1225,17 @@ export function buildCaptureSetBlendUvMask(input: {
   }
 
   const resolution = input.resolution ?? GENERATED_UV_MASK_RESOLUTION;
+  const effectiveAdjustment = applyAutoLowerLipSpillGuard(input.adjustment);
   const adjustedNeutralBoundary =
     input.precomputedNeutral?.smoothedAdjustedBoundary ??
-    adjustNativeLipBoundary(input.neutralResult.boundary, input.adjustment, {
-      width: input.neutralResult.frameWidth,
-      height: input.neutralResult.frameHeight,
-    });
+    adjustNativeLipBoundary(
+      input.neutralResult.boundary,
+      effectiveAdjustment,
+      {
+        width: input.neutralResult.frameWidth,
+        height: input.neutralResult.frameHeight,
+      },
+    );
   const smoothedNeutralBoundary =
     input.precomputedNeutral?.smoothedAdjustedBoundary ??
     smoothLipBoundaryCurveDensified(adjustedNeutralBoundary, {
@@ -1248,7 +1265,7 @@ export function buildCaptureSetBlendUvMask(input: {
     .map(result => {
       const adjustedBoundary = adjustNativeLipBoundary(
         result.boundary!,
-        input.adjustment,
+        effectiveAdjustment,
         {
           width: result.frameWidth,
           height: result.frameHeight,
@@ -1474,7 +1491,7 @@ function buildPrecomputedNeutralUv(
   }
   const adjustedBoundary = adjustNativeLipBoundary(
     nativeResult.boundary,
-    adjustment,
+    applyAutoLowerLipSpillGuard(adjustment),
     {
       width: nativeResult.frameWidth,
       height: nativeResult.frameHeight,
@@ -1567,6 +1584,9 @@ export function buildGeneratedLipPackage(input: {
       'same_frame_round_trip_pending_in_app_preview',
       'boundary_smoothing_curve_densified_v1',
       'adjustment_applied_before_uv_projection',
+      `lower_lip_spill_guard_tightness_${AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS.toFixed(
+        2,
+      )}`,
       `capture_set_shots_used_${
         (input.providerResults ?? [nativeResult]).length
       }`,
@@ -1602,8 +1622,9 @@ export function buildGeneratedLipPackage(input: {
     blendAlphaChecksum: blendUv?.blendAlphaChecksum,
     uvOnlyVsBlendAlphaDelta: blendUv?.uvOnlyVsBlendAlphaDelta,
     innerMouthSuppressedTexels: blendUv?.innerMouthSuppressedTexels,
-    lowerLipGuardApplied: blendUv?.lowerLipGuardApplied,
-    lowerLipGuardClippedTexels: blendUv?.lowerLipGuardClippedTexels,
+    lowerLipGuardApplied: true,
+    lowerLipGuardClippedTexels: blendUv?.lowerLipGuardClippedTexels ?? 0,
+    lowerLipGuardTightness: AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS,
     consensusThreshold: blendUv?.consensusThreshold,
     shotWeights: blendUv?.shotWeights,
     boundarySmoothing: CURVE_DENSIFIED_ALGORITHM,

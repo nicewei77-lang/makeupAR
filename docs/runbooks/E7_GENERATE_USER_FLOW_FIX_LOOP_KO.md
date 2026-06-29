@@ -23,6 +23,23 @@
    - AR 화면에서는 색/농도/보기만 즉시 바꾼다.
    - shape 조정은 `다시 조정 -> fixed-photo editor -> 저장하고 AR 실행 -> ack` 루프로 처리한다.
 
+## 2026-06-30 잔존 문제 잠금 목록
+
+사용자가 다시 지적한 항목은 아래 목록으로 고정한다. 여기서 `source`는 코드/테스트 반영 상태이고, `device`는 다음 iPhone 빌드에서 반드시 확인할 상태다.
+
+| ID | 문제 | source 대응 | device 확인 |
+| --- | --- | --- | --- |
+| R1 | 고개 움직임 때 AR 마스크가 안 따라오거나 사라지는 느낌 | Unity `E3RegionMaskOverlay`가 짧은 `Limited/None` tracking gap에서 마지막 valid mesh를 grace hold한다. | slow/fast yaw에서 `lost_grace_hold`/`limited_grace_hold`와 화면 움직임을 같이 확인한다. |
+| R2 | 밑입술이 과하게 두껍고 아래로 spill됨 | generated mask 기본값에 lower-lip spill guard를 적용하고 `밑입술 -` 도움말을 노출한다. | 기본값, `밑입술 -`, `밑입술 +`를 각각 AR 화면에서 비교한다. |
+| R3 | 윗입술 안쪽이 비어 보임 | `안쪽채움` 축을 app-facing 조정축으로 유지한다. | `안쪽채움 +`가 윗입술 안쪽 hole을 줄이는지 AR 저장 후 확인한다. |
+| R4 | 캡처 후 배경 사진이 왼쪽으로 치우치고 화면이 둘로 나뉘어 보임 | Extract 이후 full-screen captured photo 배경을 제거하고, 사진은 editor preview 안에서만 보이게 한다. | 추출/조정 화면에서 live/captured background bleed가 없는지 확인한다. |
+| R5 | 버튼이 화면 밖으로 밀림 | adjustment card 높이와 scroll 영역을 줄이고 Save/AR를 sticky footer로 유지한다. | iPhone에서 `저장하고 AR 실행`이 항상 보이는지 확인한다. |
+| R6 | 블렌딩/6장 촬영이 계속 보이는 것처럼 느껴짐 | 기본 flow는 1장 neutral capture + `기본 마스크` 하나다. `블렌딩 선택` 문구가 보이면 stale build/path 실패로 본다. | 설치 앱에서 촬영 수가 `1/1`이고 `블렌딩 선택`이 없는지 확인한다. |
+| R7 | 조정해도 화면 변화가 이해되지 않음 | 조정축 라벨을 `입꼬리/윗입술/밑입술/안쪽채움/위치`로 바꾸고 fake boundary rectangle을 제거한다. | 숫자 변경, preview 갱신, saved package adjustment가 같은 값인지 pull evidence로 확인한다. |
+| R8 | 저장하고 AR 실행 진행 상태가 불명확함 | 기존 save/post/waitingAck gate를 유지한다. | 저장, 전송, AR 확인 단계가 실제 ack와 맞는지 확인한다. |
+| R9 | AR 화면에서 shape 재조정이 불가능함 | live AR shape edit 대신 `조정 화면으로` 버튼으로 fixed-photo editor에 복귀한다. | AR -> 조정 화면 복귀 시 촬영 사진과 후보가 유지되는지 확인한다. |
+| R10 | canonical UV PSD 사용 여부가 불명확함 | 현재 PSD는 reference manifest만 등록되어 있고 runtime mask에는 직접 사용하지 않는다. ARCore PSD라 ARKit UV 변환/검증 없이 runtime에 직접 쓰면 안 된다. | runtime 사용 전 ARKit 1220 UV derivative/contact sheet/round-trip 검증이 필요하다. |
+
 ## 사용자 플로우 추적표
 
 | 단계        | 사용자가 보는 화면                     | 필수 상태 변화                                              | 실패하면 안 되는 것               |

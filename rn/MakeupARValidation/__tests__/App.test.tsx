@@ -685,7 +685,7 @@ test('blocks current-frame generation when native module is unavailable', async 
   expect(text).not.toContain('MediaPipe · blocked');
 });
 
-test('uses one capture CTA and switches to captured-frame review after required shots', async () => {
+test('uses one capture CTA and separates the editor from the live/captured background', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -713,8 +713,8 @@ test('uses one capture CTA and switches to captured-frame review after required 
 
   expect(requests.map(request => request.captureShotKind)).toEqual(['neutral']);
   expect(text).toMatch(/1\s*\/\s*1\s*장\s*완료/);
-  expect(text).toContain('캡처 프레임 검토');
-  expect(text).toContain('저장된 얼굴 프레임');
+  expect(text).not.toContain('캡처 프레임 검토');
+  expect(text).not.toContain('저장된 얼굴 프레임');
   expect(text).toContain('사진이 저장되었습니다');
   expect(text).not.toContain('살짝 벌림');
   expect(text).not.toContain('오른쪽 각도');
@@ -724,7 +724,7 @@ test('uses one capture CTA and switches to captured-frame review after required 
         node.props.source?.uri ===
         `file:///tmp/${requests[0].capturePairId}-frame.png`,
     ),
-  ).not.toHaveLength(0);
+  ).toHaveLength(0);
   expect(text).not.toContain('frame.png');
   expect(text).not.toContain('arface_export.json');
 });
@@ -750,6 +750,10 @@ test('generates one default mask and opens the fixed-photo adjustment editor', a
   expect(text).toContain('마스크 미세 조정');
   expect(text).toContain('기본 마스크');
   expect(text).toContain('입술 확대 미리보기');
+  expect(text).toContain('입꼬리');
+  expect(text).toContain('윗입술');
+  expect(text).toContain('밑입술');
+  expect(text).toContain('안쪽채움');
   expect(text).toContain('마스크');
   expect(text).toContain('경계');
   expect(text).toContain('비교');

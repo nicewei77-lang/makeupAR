@@ -286,6 +286,41 @@ test('lower lip adjustment plus expands downward in top-left frame coordinates',
   );
 });
 
+test('zero-adjustment generated mask starts with an automatic lower spill guard', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const guardedPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const releasedPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      lowerLipTightness: 0.34,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const guardedBoundary = guardedPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const releasedBoundary = releasedPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+
+  expect(maxY(guardedBoundary.outerPoints)).toBeLessThan(
+    maxY(releasedBoundary.outerPoints),
+  );
+  expect(guardedPackage.uvCoverageMetadata?.lowerLipGuardApplied).toBe(true);
+  expect(guardedPackage.uvCoverageMetadata?.lowerLipGuardTightness).toBe(0.34);
+  expect(guardedPackage.qualityWarnings).toContain(
+    'lower_lip_spill_guard_tightness_0.34',
+  );
+});
+
 test('upper lip adjustment plus expands upward in top-left frame coordinates', () => {
   const nativeResult = makeNativeBoundaryResult();
   const basePackage = buildGeneratedLipPackage({

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
+@import url('https://fonts.googleapis.com/css2?family=Nixie+One&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Pretendard',-apple-system,'Segoe UI',sans-serif;background:#E9E7E8}
+:root{--ink:#111;--ink2:#6B6B6B;--ink3:#B7B2B2;--line:#E6E6E6;--line2:#D8D8D8;--muted:#F7F7F7;--aura:#C26572}
+.phone{position:relative;width:390px;height:844px;background:#fff;overflow:hidden;display:flex;flex-direction:column}
+.sb{display:flex;align-items:center;justify-content:space-between;padding:14px 26px 2px;font-size:15px;font-weight:600;color:var(--ink);flex:none}
+.sb-r{display:flex;align-items:center;gap:7px}
+.batt{width:24px;height:12px;border:1.4px solid var(--ink);border-radius:3px;position:relative;padding:1.6px}
+.batt i{display:block;height:100%;width:72%;background:var(--ink);border-radius:1px}
+.batt:after{content:'';position:absolute;right:-3px;top:3.5px;width:2px;height:5px;background:var(--ink);border-radius:1px}
+.head{flex:none;padding:8px 20px 4px;cursor:pointer}
+.wordmark{font-family:'Nixie One',serif;font-size:44px;letter-spacing:5px;color:var(--ink);line-height:1;transition:font-size .45s ease,letter-spacing .45s ease}
+.tagline{font-size:12.5px;color:var(--ink2);margin-top:6px;letter-spacing:.4px;height:18px;overflow:hidden;transition:opacity .35s,height .35s,margin .35s}
+.head.small .wordmark{font-size:26px;letter-spacing:3px}
+.head.small .tagline{opacity:0;height:0;margin-top:0}
+.content{flex:1;position:relative;overflow:hidden}
+.bg{position:absolute;inset:0;pointer-events:none;background:radial-gradient(120% 72% at 50% -8%,rgba(231,154,163,.22),transparent 56%);opacity:.4;transition:opacity .7s ease}
+.bg.strong{opacity:1}
+.ic{display:block}
+.layer{position:absolute;inset:0;display:flex;flex-direction:column;padding:8px 16px 116px;opacity:0;transform:scale(.985) translateY(12px);transition:opacity .5s ease,transform .5s ease;pointer-events:none;overflow-y:auto}
+.layer::-webkit-scrollbar{display:none}
+.layer.on{opacity:1;transform:none;pointer-events:auto}
+.layer.home{gap:16px}
+.layer.home>*{flex:none}
+.layer.searching,.layer.question{align-items:center;justify-content:center;text-align:center}
+.hero{position:relative;height:292px;border-radius:24px;overflow:hidden;background:var(--muted);box-shadow:0 8px 22px rgba(0,0,0,.09)}
+.hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform .7s ease}
+.hero-aura{position:absolute;left:8%;right:8%;top:30%;height:56%;border-radius:50%;background:radial-gradient(circle at 50% 56%,rgba(216,110,124,.9),rgba(216,110,124,0) 64%);filter:blur(14px);mix-blend-mode:screen;opacity:.5;transition:opacity .7s ease,transform .7s ease;animation:aura 5s ease-in-out infinite}
+.hero.bloom .hero-aura{opacity:.95;transform:scale(1.2)}
+.hero.bloom .hero-img{transform:scale(1.045)}
+.hero-scrim{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.1),transparent 30%,transparent 64%,rgba(0,0,0,.36))}
+.shade{position:absolute;left:14px;bottom:14px;display:flex;align-items:center;gap:9px;background:rgba(255,255,255,.82);backdrop-filter:blur(10px);border:1px solid rgba(255,255,255,.92);border-radius:999px;padding:7px 14px 7px 9px}
+.shade-dots{display:flex}
+.shade-dots i{width:16px;height:16px;border-radius:50%;border:1.6px solid #fff;margin-right:-5px;display:block}
+.shade-tx{font-size:12.5px;font-weight:700;color:var(--ink)}
+.composer{background:#fff;border:1.5px solid var(--line2);border-radius:22px;padding:15px;box-shadow:0 8px 22px rgba(0,0,0,.06);transition:border-color .25s,box-shadow .25s}
+.composer:focus-within{border-color:var(--aura);box-shadow:0 8px 26px rgba(194,101,114,.2)}
+.composer textarea{width:100%;border:0;outline:0;resize:none;font-family:inherit;font-size:16px;line-height:23px;color:var(--ink);min-height:46px;background:transparent}
+.composer textarea::placeholder{color:var(--ink3)}
+.bar{display:flex;align-items:center;justify-content:space-between;margin-top:8px}
+.tool{width:38px;height:38px;border-radius:50%;border:1px solid var(--line);background:#fff;color:var(--ink);display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
+.tool:active{transform:scale(.9)}
+.send{width:42px;height:42px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:transform .12s}
+.send:active{transform:scale(.9)}
+.sugs{display:flex;flex-wrap:wrap;gap:8px}
+.sug{border:1px solid var(--line);background:#fff;border-radius:999px;padding:9px 15px;font-size:13.5px;font-weight:600;color:var(--ink);cursor:pointer;transition:transform .12s}
+.sug:active{transform:scale(.96)}
+.kawaii{position:relative;width:240px;height:240px;display:flex;align-items:center;justify-content:center}
+.kw-ring{position:absolute;width:216px;height:216px;border:3px dashed rgba(216,122,134,.42);border-radius:50%;animation:spinSlow 9s linear infinite}
+.kw-blob{position:absolute;width:94px;height:94px;border-radius:48% 52% 55% 45%;filter:blur(7px);opacity:.5;animation:blobby 4s ease-in-out infinite}
+.kw-blob.b1{background:#FFC9DD;left:22px;top:40px}
+.kw-blob.b2{background:#FFE0C2;right:24px;top:52px;animation-delay:.8s}
+.kw-blob.b3{background:#E6D5FF;left:74px;bottom:30px;animation-delay:1.5s}
+.kw-stage{position:relative;width:176px;height:176px;display:flex;align-items:center;justify-content:center}
+.kw-stage img{position:absolute;width:168px;height:168px;object-fit:contain;opacity:0;filter:drop-shadow(0 12px 18px rgba(150,70,82,.22));-webkit-mask-image:radial-gradient(circle at 50% 47%,#000 50%,transparent 72%);mask-image:radial-gradient(circle at 50% 47%,#000 50%,transparent 72%);animation:pop 4.2s cubic-bezier(.5,1.55,.45,1) infinite}
+.kw-stage img:nth-of-type(2){animation-delay:1.4s}
+.kw-stage img:nth-of-type(3){animation-delay:2.8s}
+.spark{position:absolute;color:#E6889A;font-size:18px;line-height:1;text-shadow:0 0 8px rgba(230,136,154,.55);animation:twinkle 1.8s ease-in-out infinite}
+.spark.s1{top:12px;left:42px;font-size:21px}
+.spark.s2{top:30px;right:28px;animation-delay:.5s}
+.spark.s3{bottom:32px;right:50px;font-size:23px;animation-delay:1s}
+.spark.s4{bottom:18px;left:34px;animation-delay:1.4s}
+.prod-single{display:flex;align-items:center;justify-content:center;width:132px;height:132px}
+.prod-single img{width:114px;height:114px;object-fit:contain;filter:drop-shadow(0 12px 18px rgba(150,70,82,.2));-webkit-mask-image:radial-gradient(circle at 50% 47%,#000 52%,transparent 74%);mask-image:radial-gradient(circle at 50% 47%,#000 52%,transparent 74%);animation:floatY 3.6s ease-in-out infinite}
+.echo{margin-bottom:28px;background:rgba(255,255,255,.7);border:1px solid var(--line);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:600;color:var(--ink2);backdrop-filter:blur(8px)}
+.loader{margin-top:32px;display:flex;align-items:center;font-size:16.5px;font-weight:800;color:var(--ink);letter-spacing:-.2px}
+.dots{display:inline-flex;gap:4px;margin-left:7px;align-items:center}
+.dots i{width:5px;height:5px;border-radius:50%;background:var(--aura)}
+.dots i:nth-child(1){animation:blink 1.2s infinite}
+.dots i:nth-child(2){animation:blink 1.2s infinite .2s}
+.dots i:nth-child(3){animation:blink 1.2s infinite .4s}
+.gline{height:4px;width:208px;border-radius:3px;margin-top:20px;background:linear-gradient(90deg,#EFA3B4,#C26572,#D77A75,#EFA3B4);background-size:200% 100%;animation:flow 2.4s linear infinite}
+.tsteps{margin-top:28px;width:100%;max-width:268px;display:flex;flex-direction:column;gap:14px;text-align:left}
+.tstep{display:flex;align-items:center;gap:11px;font-size:13.5px;font-weight:600;color:var(--ink3)}
+.tstep .td{width:8px;height:8px;border-radius:50%;background:var(--line2);flex:none}
+.tstep.done{color:var(--ink2)}
+.tstep.done .td{background:var(--ink)}
+.tstep.act{color:var(--ink);font-weight:800}
+.tstep.act .td{background:var(--aura);animation:breathe 1.4s ease-in-out infinite}
+.searching.on .tstep{animation:rise .5s both}
+.searching.on .tstep:nth-child(1){animation-delay:.05s}
+.searching.on .tstep:nth-child(2){animation-delay:.22s}
+.searching.on .tstep:nth-child(3){animation-delay:.4s}
+.q-eyebrow{margin-top:26px;font-size:12.5px;font-weight:800;letter-spacing:.6px;color:var(--aura)}
+.q-title{font-size:23px;font-weight:800;color:var(--ink);line-height:1.34;margin-top:10px;letter-spacing:-.3px;white-space:pre-line}
+.q-tiles{display:flex;gap:12px;margin-top:30px;width:100%}
+.tile{flex:1;height:160px;border-radius:24px;position:relative;overflow:hidden;border:none;cursor:pointer;display:flex;align-items:flex-end;padding:16px;transition:transform .15s}
+.tile:active{transform:scale(.96)}
+.tile.pink{background:linear-gradient(155deg,#F8C8D2,#EEA4B2)}
+.tile.rose{background:linear-gradient(155deg,#CF7A85,#A8525C)}
+.tile:after{content:'';position:absolute;inset:0;background:linear-gradient(180deg,transparent 52%,rgba(0,0,0,.2))}
+.tile-label{font-size:16px;font-weight:800;color:#fff;text-shadow:0 1px 10px rgba(0,0,0,.22);position:relative;z-index:1}
+.q-skip{margin-top:20px;background:none;border:none;color:var(--ink2);font-size:14px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.r-eyebrow{font-family:'Nixie One',serif;font-size:13px;letter-spacing:2.5px;color:var(--aura)}
+.r-title{font-size:26px;font-weight:800;color:var(--ink);letter-spacing:-.4px;margin-top:3px}
+.r-sub{font-size:14px;color:var(--ink2);margin-top:5px;font-weight:600}
+.reveal{opacity:0}
+.results.on .reveal{animation:rise .55s both}
+.results.on .reveal:nth-child(1){animation-delay:.05s}
+.results.on .reveal:nth-child(2){animation-delay:.15s}
+.results.on .reveal:nth-child(3){animation-delay:.26s}
+.results.on .reveal:nth-child(4){animation-delay:.34s}
+.results.on .reveal:nth-child(5){animation-delay:.42s}
+.r-top{margin-top:18px;border:1px solid var(--line);border-radius:22px;overflow:hidden;background:#fff;box-shadow:0 8px 22px rgba(0,0,0,.07);text-align:left;cursor:pointer;display:block;width:100%;padding:0}
+.r-top img{width:100%;height:174px;object-fit:cover;display:block;background:var(--muted)}
+.r-top-body{padding:14px 15px 16px}
+.r-brand{font-size:12px;font-weight:700;color:var(--ink3);letter-spacing:.3px}
+.r-name{font-size:18px;font-weight:800;color:var(--ink);margin-top:3px}
+.r-meta{font-size:13.5px;color:var(--ink2);font-weight:600;margin-top:3px}
+.r-why{display:flex;gap:8px;margin-top:12px;align-items:flex-start;border-top:1px solid var(--line);padding-top:12px}
+.r-why .d{width:9px;height:9px;border-radius:50%;background:#C95E68;margin-top:3px;flex:none}
+.r-why span{font-size:13px;color:var(--ink2);line-height:18px}
+.r-alt-label{font-size:13px;font-weight:700;color:var(--ink3);margin:20px 2px 11px}
+.r-alt{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:16px;padding:11px;background:#fff;width:100%;text-align:left;cursor:pointer;margin-bottom:9px}
+.r-alt img{width:54px;height:54px;border-radius:12px;object-fit:cover;background:var(--muted);flex:none}
+.r-alt .info{min-width:0;flex:1}
+.r-alt .b{font-size:11.5px;font-weight:700;color:var(--ink3)}
+.r-alt .n{font-size:14.5px;font-weight:800;color:var(--ink);margin-top:1px}
+.r-alt .m{font-size:12.5px;color:var(--ink2);margin-top:1px}
+.r-reset{margin:14px auto 4px;background:none;border:none;color:var(--ink3);font-size:13px;font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.footer{position:absolute;left:24px;right:24px;bottom:22px;height:50px;background:rgba(255,255,255,.74);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,.85);border-radius:999px;display:flex;align-items:center;justify-content:space-between;padding:0 12px;box-shadow:0 -6px 22px rgba(0,0,0,.1),0 10px 26px rgba(0,0,0,.1);z-index:5}
+.ft{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;height:36px;color:var(--ink)}
+.ft.on{background:rgba(34,34,34,.92);border-radius:999px;color:#fff}
+.ft span{font-size:13px;font-weight:700}
+.cap{flex:1;display:flex;justify-content:center}
+.cap-bub{width:46px;height:46px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;transform:translateY(-7px);box-shadow:0 8px 18px rgba(0,0,0,.28)}
+@keyframes aura{0%,100%{transform:scale(1);opacity:.46}50%{transform:scale(1.08);opacity:.66}}
+@keyframes spinSlow{to{transform:rotate(360deg)}}
+@keyframes blobby{0%,100%{transform:translateY(0) scale(1);border-radius:48% 52% 55% 45%}50%{transform:translateY(-8px) scale(1.07);border-radius:56% 44% 47% 53%}}
+@keyframes pop{0%{opacity:0;transform:scale(.3) rotate(-14deg)}10%{opacity:1;transform:scale(1.16) rotate(7deg)}20%{transform:scale(.93) rotate(-5deg)}30%{transform:scale(1.05) rotate(3deg)}40%{transform:scale(1) rotate(0)}66%{opacity:1;transform:scale(1) rotate(0)}80%{opacity:0;transform:scale(.64) rotate(11deg)}100%{opacity:0}}
+@keyframes twinkle{0%,100%{opacity:.15;transform:scale(.5) rotate(0)}50%{opacity:1;transform:scale(1.15) rotate(90deg)}}
+@keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes breathe2{0%,100%{opacity:.55;transform:scale(1)}50%{opacity:.92;transform:scale(1.1)}}
+@keyframes blink{0%,80%,100%{opacity:.2}40%{opacity:1}}
+@keyframes flow{to{background-position:200% 0}}
+@keyframes breathe{0%,100%{transform:scale(1);opacity:.7}50%{transform:scale(1.5);opacity:1}}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+</style>
+</helmet>
+<div class="phone">
+<div class="sb"><div>9:41</div><div class="sb-r"><span style="font-size:12px;font-weight:700">5G</span><div class="batt"><i></i></div></div></div>
+<div class="head" ref="{{ setHead }}" onClick="{{ reset }}"><div class="wordmark">AURADIN</div><div class="tagline">색으로 찾는 메이크업</div></div>
+<div class="content">
+<div class="bg" ref="{{ setBg }}"></div>
+<div class="layer home on" ref="{{ setHome }}">
+<div class="hero" ref="{{ setHero }}"><img class="hero-img" src="./assets/look-cool-rose.png" alt=""><div class="hero-aura"></div><div class="hero-scrim"></div><div class="shade"><div class="shade-dots"><i style="background:#C95E68"></i><i style="background:#D87A82"></i><i style="background:#EDB1B5"></i></div><div class="shade-tx">쿨 로즈 글로우</div></div></div>
+<div class="composer"><textarea ref="{{ setInput }}" placeholder="원하는 색·질감·예산을 말해보세요" onFocus="{{ onFocus }}" onBlur="{{ onBlur }}"></textarea><div class="bar"><button class="tool" onClick="{{ onSend }}" aria-label="사진으로 찾기"><svg class="ic" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><circle cx="12" cy="13" r="3.4"></circle></svg></button><button class="send" onClick="{{ onSend }}" aria-label="검색"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"></path><path d="M5 12l7-7 7 7"></path></svg></button></div></div>
+<div class="sugs"><button class="sug" data-q="쿨톤 글로시 립, 2만원 이하" onClick="{{ onSuggest }}">쿨톤 글로시 립</button><button class="sug" data-q="AR에서 저장한 립이랑 비슷한 색" onClick="{{ onSuggest }}">AR 립이랑 비슷하게</button><button class="sug" data-q="면접용 자연스러운 블러셔" onClick="{{ onSuggest }}">면접용 블러셔</button></div>
+</div>
+<div class="layer searching" ref="{{ setSearch }}">
+<div class="echo"><span ref="{{ setEchoS }}">쿨톤 글로시 립, 2만원 이하</span></div>
+<div class="kawaii"><div class="kw-ring"></div><div class="kw-blob b1"></div><div class="kw-blob b2"></div><div class="kw-blob b3"></div><span class="spark s1">✦</span><span class="spark s2">✧</span><span class="spark s3">✦</span><span class="spark s4">✧</span><div class="kw-stage"><img src="./assets/laurelle-gloss-rose-veil.png" alt=""><img src="./assets/lunera-airy-tint-rose-mist.png" alt=""><img src="./assets/lunera-liquid-blush-peach-dusk.png" alt=""></div></div>
+<div class="loader"><span ref="{{ setSearchLabel }}">아우라딘이 색을 읽는 중</span><span class="dots"><i></i><i></i><i></i></span></div>
+<div class="gline"></div>
+<div class="tsteps"><div class="tstep done"><span class="td"></span>색감과 조건 정리</div><div class="tstep act"><span class="td"></span>어울리는 후보 좁히는 중</div><div class="tstep"><span class="td"></span>구매 링크 확인</div></div>
+</div>
+<div class="layer question" ref="{{ setQ }}">
+<div class="prod-single"><img src="./assets/laurelle-gloss-rose-veil.png" alt=""></div>
+<div class="q-eyebrow">거의 다 왔어요</div>
+<div class="q-title">맑은 핑크와 차분한 로즈,
+어느 쪽이 더 끌려요?</div>
+<div class="q-tiles"><button class="tile pink" data-opt="clear-pink" onClick="{{ onPick }}"><span class="tile-label">맑은 핑크</span></button><button class="tile rose" data-opt="calm-rose" onClick="{{ onPick }}"><span class="tile-label">차분한 로즈</span></button></div>
+<button class="q-skip" onClick="{{ onSkip }}">둘 다 좋아요</button>
+</div>
+<div class="layer results" ref="{{ setResults }}">
+<div class="reveal"><div class="r-eyebrow">AURADIN PICKS</div><div class="r-title">이 컬러, 어때요?</div><div class="r-sub" ref="{{ setResultSub }}">차분한 로즈 · 2만원 이하</div></div>
+<button class="r-top reveal" onClick="{{ onTapCard }}"><img src="./assets/laurelle-gloss-rose-veil.png" alt=""><div class="r-top-body"><div class="r-brand">로렐</div><div class="r-name">글로스 틴트 · 로즈 베일</div><div class="r-meta">19,000원</div><div class="r-why"><span class="d"></span><span>차분한 로즈 광택이 요청한 색감과 가장 가까워요.</span></div></div></button>
+<div class="r-alt-label reveal">비슷한 후보</div>
+<button class="r-alt reveal" onClick="{{ onTapCard }}"><img src="./assets/lunera-airy-tint-rose-mist.png" alt=""><div class="info"><div class="b">루네라</div><div class="n">에어리 틴트 · 로즈 미스트</div><div class="m">17,000원 · 진하지 않은 데일리 로즈</div></div></button>
+<button class="r-alt reveal" onClick="{{ onTapCard }}"><img src="./assets/lunera-liquid-blush-peach-dusk.png" alt=""><div class="info"><div class="b">루네라</div><div class="n">리퀴드 블러쉬 · 피치 더스크</div><div class="m">22,000원 · 립과 이어지는 혈색</div></div></button>
+<button class="r-reset" onClick="{{ reset }}">처음부터 다시</button>
+</div>
+</div>
+<div class="footer"><div class="ft"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 11l8-7 8 7"></path><path d="M6 10v9a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1v-9"></path><path d="M10 20v-5h4v5"></path></svg><span>홈</span></div><div class="cap"><div class="cap-bub"><svg class="ic" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L19 6h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><circle cx="12" cy="13" r="3.4"></circle></svg></div></div><div class="ft on"><svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 3l1.7 5.6L19 10l-5.3 1.4L12 17l-1.7-5.6L5 10l5.3-1.4z"></path></svg><span>아우라딘</span></div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:390,&quot;height&quot;:844},&quot;pace&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;default&quot;:2300,&quot;min&quot;:900,&quot;max&quot;:4000,&quot;step&quot;:100,&quot;unit&quot;:&quot;ms&quot;,&quot;section&quot;:&quot;Flow&quot;,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  state = { phase: 'home', query: '쿨톤 글로시 립, 2만원 이하', choice: null };
+  labels = { 'clear-pink': '맑은 핑크', 'calm-rose': '차분한 로즈', either: '둘 다 좋아요' };
+
+  componentDidMount() { this.applyPhase(); }
+  componentDidUpdate() { this.applyPhase(); }
+  componentWillUnmount() { clearTimeout(this.timer); }
+
+  pace() { return this.props.pace ?? 2300; }
+
+  applyPhase() {
+    const { phase, query, choice } = this.state;
+    const search = phase === 'searching' || phase === 'searching2';
+    const set = (el, on) => { if (el) el.classList.toggle('on', on); };
+    set(this.lHome, phase === 'home');
+    set(this.lSearch, search);
+    set(this.lQ, phase === 'question');
+    set(this.lRes, phase === 'results');
+    if (this.head) this.head.classList.toggle('small', phase !== 'home');
+    if (this.bg) this.bg.classList.toggle('strong', phase !== 'home');
+    if (this.searchLabel) this.searchLabel.textContent = phase === 'searching2' ? '딱 맞는 컬러 고르는 중!' : '아우라딘이 콕콕 찾는 중';
+    if (this.echoS) this.echoS.textContent = query || '쿨톤 글로시 립, 2만원 이하';
+    if (this.resultSub) {
+      const cl = choice ? this.labels[choice].replace(' 좋아요', '') : '차분한 로즈';
+      this.resultSub.textContent = cl + ' · 2만원 이하';
+    }
+  }
+
+  submit = (q) => {
+    const v = q || (this.input && this.input.value.trim()) || '쿨톤 글로시 립, 2만원 이하';
+    if (this.input) this.input.value = v;
+    clearTimeout(this.timer);
+    this.setState({ phase: 'searching', query: v });
+    this.timer = setTimeout(() => this.setState({ phase: 'question' }), this.pace());
+  };
+
+  onSuggest = (e) => this.submit(e.currentTarget.dataset.q);
+  onSend = () => this.submit();
+
+  onPick = (e) => {
+    const opt = e.currentTarget.dataset.opt;
+    clearTimeout(this.timer);
+    this.setState({ phase: 'searching2', choice: opt });
+    this.timer = setTimeout(() => this.setState({ phase: 'results' }), Math.min(this.pace(), 1700));
+  };
+
+  onSkip = () => {
+    clearTimeout(this.timer);
+    this.setState({ phase: 'searching2', choice: 'either' });
+    this.timer = setTimeout(() => this.setState({ phase: 'results' }), Math.min(this.pace(), 1700));
+  };
+
+  reset = () => {
+    clearTimeout(this.timer);
+    this.setState({ phase: 'home', choice: null });
+  };
+
+  bloom = (on) => { if (this.hero) this.hero.classList.toggle('bloom', on); };
+
+  renderVals() {
+    return {
+      setHead: (e) => { this.head = e; },
+      setHome: (e) => { this.lHome = e; },
+      setSearch: (e) => { this.lSearch = e; },
+      setQ: (e) => { this.lQ = e; },
+      setResults: (e) => { this.lRes = e; },
+      setHero: (e) => { this.hero = e; },
+      setBg: (e) => { this.bg = e; },
+      setInput: (e) => { if (e && !this.input) e.value = this.state.query; this.input = e; },
+      setSearchLabel: (e) => { this.searchLabel = e; },
+      setEchoS: (e) => { this.echoS = e; },
+      setResultSub: (e) => { this.resultSub = e; },
+      onSuggest: this.onSuggest,
+      onSend: this.onSend,
+      onPick: this.onPick,
+      onSkip: this.onSkip,
+      reset: this.reset,
+      onFocus: () => this.bloom(true),
+      onBlur: () => this.bloom(false),
+      onTapCard: () => this.bloom(false),
+    };
+  }
+}
+</script>
+</body>
+</html>
