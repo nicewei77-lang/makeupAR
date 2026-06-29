@@ -4871,6 +4871,72 @@ Unity MCP read-only 진단:
 - 다음 실질 boundary는 여전히 user-approved UnityFramework regeneration이다.
 ```
 
+### 18.7C 2026-06-29 UnityFramework build-script readiness hardening
+
+Status: **UnityFramework regeneration script now verifies current E7 runtime strings before declaring artifact success**.
+
+왜 추가했는가:
+
+```txt
+- prebuild gate는 stale framework를 막지만, build_m3_unityframework.sh 자체의 verification log는
+  기존에는 framework size/Data/BUILD SUCCEEDED 중심이었다.
+- 다음 승인 후 재생성했을 때 wrong source/stale artifact가 나오면 build script 단계에서 바로 실패해야 한다.
+```
+
+보강:
+
+```txt
+scripts/build_m3_unityframework.sh
+
+RN reference framework와 package-local framework에 대해 아래 문자열을 검증한다.
+- generated_lip_mask_applied.latest.json
+- CaptureE7ReferenceFrameJson
+- overlaySyncPhase
+- validationControlRequestId 또는 controlRequestId
+
+하나라도 빠지면 verification log를 쓴 뒤 nonzero exit한다.
+```
+
+재확인한 자동 체크:
+
+```txt
+pass: bash -n scripts/build_m3_unityframework.sh
+pass: cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit
+pass: cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false
+  Tests: 26 passed
+pass: cd rn/MakeupARValidation && npm run lint
+pass: cd packages/lip-generate-core && npm run typecheck
+pass: cd packages/lip-generate-core && npm test
+pass: git diff --check
+
+pass: cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+  decision=sync-or-rebuild-unityframework-before-xcode
+  changedFiles=2
+  unityFrameworkSync=false reason=rn_reference_unityframework_missing
+
+expected fail: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+  result=fail pass=35 fail=1 warn=0
+  only failing check=unity.framework_contains_ack_persistence
+```
+
+Unity MCP 재시도:
+
+```txt
+- relay-managed MCP server는 connected 상태까지 갔다.
+- relay log: Waiting for user approval in Unity Editor
+- 따라서 Unity_GetConsoleLogs / scene / material / texture tool evidence는 아직 없다.
+- diagnostic MCP server는 stop-server로 정리했다.
+```
+
+다음 boundary:
+
+```txt
+1. 사용자가 Unity Editor MCP approval을 승인하면 read-only console/scene/material 확인 가능.
+2. 사용자가 UnityFramework regeneration을 승인하면 bash scripts/build_m3_unityframework.sh 실행.
+3. build script verification log가 새 runtime strings를 확인해야 한다.
+4. 그 다음 npm run e7:prebuild:full -- --no-report 가 pass로 바뀌어야 한다.
+```
+
 ### 18.7 다음 실기기 테스트 시나리오
 
 빌드 후 사용자는 처음부터 끝까지 한 번만 흐름을 탄다. Codex는 로그와 화면을 같이 본다.

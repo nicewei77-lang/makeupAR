@@ -64,6 +64,62 @@ require_file() {
   fi
 }
 
+VERIFY_MISSING_REQUIRED_RUNTIME_STRING=0
+
+framework_contains_string() {
+  local framework="$1"
+  local needle="$2"
+  grep -R -a -q -- "$needle" "$framework"
+}
+
+verify_framework_string() {
+  local label="$1"
+  local framework="$2"
+  local needle="$3"
+
+  if framework_contains_string "$framework" "$needle"; then
+    echo "present [$label]: $needle"
+    return
+  fi
+
+  echo "MISSING [$label]: $needle"
+  VERIFY_MISSING_REQUIRED_RUNTIME_STRING=1
+}
+
+verify_framework_any_string() {
+  local label="$1"
+  local framework="$2"
+  local description="$3"
+  shift 3
+
+  local needle
+  for needle in "$@"; do
+    if framework_contains_string "$framework" "$needle"; then
+      echo "present [$label]: $description via $needle"
+      return
+    fi
+  done
+
+  echo "MISSING [$label]: $description (expected one of: $*)"
+  VERIFY_MISSING_REQUIRED_RUNTIME_STRING=1
+}
+
+verify_framework_required_runtime_strings() {
+  local label="$1"
+  local framework="$2"
+
+  echo "Required runtime strings for $label:"
+  verify_framework_string "$label" "$framework" "generated_lip_mask_applied.latest.json"
+  verify_framework_string "$label" "$framework" "CaptureE7ReferenceFrameJson"
+  verify_framework_string "$label" "$framework" "overlaySyncPhase"
+  verify_framework_any_string \
+    "$label" \
+    "$framework" \
+    "generated lip validation control request id" \
+    "validationControlRequestId" \
+    "controlRequestId"
+}
+
 echo "== M3 UnityFramework reproducible build =="
 echo "Root: $ROOT_DIR"
 echo "Unity project: $UNITY_PROJECT"
@@ -213,11 +269,23 @@ echo "== Verify artifact =="
   echo "Data sample:"
   find "$RN_FRAMEWORK/Data" -maxdepth 2 -print | sort
   echo
+  verify_framework_required_runtime_strings "RN reference" "$RN_FRAMEWORK"
+  if [[ -d "$PACKAGE_FRAMEWORK" ]]; then
+    echo
+    verify_framework_required_runtime_strings "package-local" "$PACKAGE_FRAMEWORK"
+  fi
+  echo
   echo "Build success proof:"
   grep -n "BUILD SUCCEEDED" "$XCODE_BUILD_LOG" || true
 } > "$VERIFY_LOG"
 
 cat "$VERIFY_LOG"
+
+if [[ "$VERIFY_MISSING_REQUIRED_RUNTIME_STRING" != "0" ]]; then
+  echo "UnityFramework artifact verification failed: missing required E7 runtime strings." >&2
+  echo "Verification log: $VERIFY_LOG" >&2
+  exit 1
+fi
 
 cleanup_build_tmp_root
 
