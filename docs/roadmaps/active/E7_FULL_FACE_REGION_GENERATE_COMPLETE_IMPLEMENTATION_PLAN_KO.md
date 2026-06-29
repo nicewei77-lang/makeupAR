@@ -4214,3 +4214,543 @@ legacy/debug Resources를 실제로 빼는 다음 단계는 아래 조건이 만
 5. Unity import/compile과 RN/prebuild gates가 통과한다.
 
 이전과 동일하게 iPhone/Xcode build는 이번 buildless profile audit의 완료 조건이 아니다.
+
+## 18. 2026-06-29 AR Lip Release-Quality Stabilization Plan
+
+Status: **planned / next implementation contract**.
+
+이번 단계의 목적은 "일단 붙는 AR 립"을 **앱 출시 후보 수준의 립 runtime 품질**로 끌어올리는 것이다. 현재 문제는 하나의 버그가 아니라 생성 품질, UV raster, Unity mesh 동기화, shader/material, RN 상태 전환, 사용자 조정 UX가 섞여 있을 수 있다. 따라서 한 번에 크게 갈아엎지 않고, 원인 후보를 하나씩 닫으면서 실기기 화면과 로그로 확인한다.
+
+이번 계획은 립을 우선 대상으로 한다. 립에서 안정화한 runtime substrate와 evidence loop를 이후 blush/brow/eyeliner에도 재사용한다.
+
+### 18.0 빠르고 강한 실행 가드레일
+
+이번 계획은 절차를 늘리는 문서가 아니라 **다음 iPhone 빌드의 성공 확률을 높이는 실행 계약**이다. 불필요한 큰 검증 묶음은 피하되, 다음 빌드에서 실패하더라도 원인이 `L1/L2/L3/Q1/Q2/Q3/U1/S1/A1` 중 어디인지 바로 좁혀져야 한다.
+
+운영 원칙:
+
+```txt
+1. 한 번에 여러 원인을 섞어 고치지 않는다. 원인 후보 하나를 고치면 최소 증거 하나를 남긴다.
+2. buildless 검증은 빠르게 끝내되, runtime latency/attachment는 최종적으로 실기기 화면과 로그 없이는 성공 처리하지 않는다.
+3. 첫 iPhone 빌드는 "최종 합격"이자 "원인 분리 빌드"다. 실패하면 막연히 실패가 아니라 어떤 원인 ID가 남았는지 즉시 알 수 있어야 한다.
+4. high-reasoning agent는 원인 우선순위와 판정만 맡고, 빠른 구현 agent는 지정 파일/지정 체크리스트만 고친다.
+5. 병렬화 이득이 없는 작업은 agent를 늘리지 않는다. 3-agent 이상은 충돌 비용이 더 크다.
+6. 의미 있는 loop가 통과하면 작은 commit을 남겨 다음 실험이 이전 성공 상태를 덮어쓰지 않게 한다.
+```
+
+빌드 전 최소 자동 지표:
+
+```txt
+- generated UV mask resolution: 목표 512 이상, 가능하면 1024 후보 비교
+- alpha bbox: 비어 있지 않고 입술 영역 근처에 위치
+- edge band ratio: jagged/too-hard edge 탐지용으로 기록
+- inner mouth hole: open-mouth 입력에서 hole alpha가 보존되는지 기록
+- preview-vs-UV round-trip delta: 같은 boundary를 쓰는지 기록
+- adjustment delta: + 버튼 테스트에서 해당 영역 bbox/alpha가 실제로 증가하는지 기록
+- stale event: captureSetId/generatedMaskId/requestId mismatch가 UI를 바꾸지 않는지 테스트
+```
+
+Unity 검증 현실성:
+
+```txt
+- Unity batchmode/compile이 licensing 문제로 막히면 "환경 blocked"로 기록한다.
+- 단, Unity source/shader/material이 바뀌었는데 UnityFramework 재생성 없이 iPhone build를 제품 검증으로 취급하지 않는다.
+- licensing 때문에 UnityFramework를 못 만들면 RN/UI 쪽 검증은 계속할 수 있지만, runtime fix build gate는 blocked다.
+```
+
+Unity MCP 사용 원칙:
+
+```txt
+- Unity MCP는 Editor-side 원인분리/계측 가속 도구로 사용한다.
+- `Unity_GetConsoleLogs`, `Unity_RunCommand`, screenshot/camera capture는 L1/L2/L3/Q1/Q2/Q3/A1 확인에 우선 사용한다.
+- MCP 결과는 buildless evidence로만 취급한다. iPhone ARKit face tracking, latency, visual quality success를 대체하지 않는다.
+- Codex 세션에 Unity MCP namespace가 바로 노출되지 않으면 relay 직접 probe 또는 다음 세션 reload로 확인하되, 계획 자체를 막지 않는다.
+```
+
+### 18.1 현재 관찰된 문제
+
+사용자 실기기 리뷰 기준:
+
+```txt
+1. AR 화면의 립 마스크 가장자리가 거칠고 입술 밖으로 벗어난다.
+2. 고개를 움직이면 예전 smooth mask보다 입술에 딱 붙어 있지 않고 레이턴시가 느껴진다.
+3. 조정 버튼의 +/- 방향이 일부 직관과 반대다.
+4. 첫 화면에서 이전 립 필터가 남아 보일 수 있다.
+5. 조정 화면과 AR 화면의 mask 품질/위치가 다르게 느껴진다.
+6. AR 검증 화면은 ON/OFF, 진하게 보기, 색, 농도 조절로 적용 상태를 더 명확히 보여야 한다.
+```
+
+현재 확인된 사실:
+
+```txt
+- 생성된 mask texture를 AR runtime에 적용하는 경로는 존재한다.
+- runtime은 매 프레임 Vision/MediaPipe를 돌리는 구조가 아니다.
+- Vision/MediaPipe는 calibration-time generation이고, AR runtime은 저장된 UV mask를 샘플링한다.
+- Unity 쪽 E3RegionMaskOverlay는 ARFace 아래 child mesh를 만들고 매 프레임 ARFace vertices/uv/indices를 복사해 렌더링한다.
+- 현재 AR mask가 입술에 올라오는 것은 확인되었지만, release-quality face attachment / edge quality / motion stability는 아직 아니다.
+```
+
+### 18.2 원인 후보별 분리 전략
+
+| ID | 원인 후보 | 대표 증상 | 먼저 볼 증거 | 첫 수정 방향 | 통과 기준 |
+| --- | --- | --- | --- | --- | --- |
+| L1 | Unity overlay update timing이 ARFace 최신 frame보다 빠르거나 어긋남 | 고개 이동 시 mask가 한 박자 늦음 | `trackablesChanged frame`, overlay update frame, screenshot/video | `Update()` 갱신을 `LateUpdate()` 또는 ARFace 갱신 이후로 이동, execution order 고정 | slow/fast yaw에서 1-frame slip이 눈에 띄지 않음 |
+| L2 | 매 프레임 mesh 전체 재생성 비용과 GC | 평균 FPS는 높지만 순간 튐/밀림 | overlay sync ms, GC alloc, worst frame-time | vertices/uv/triangles buffer 재사용, topology는 변경 시에만 세팅, normals 재계산 제거 | 5분 테스트에서 hitch/lag 체감 없음 |
+| L3 | copied child mesh와 ARFace transform/vertices 동기화 mismatch | 얼굴 transform은 움직였는데 mask surface가 늦게 따라옴 | overlay local/world transform + ARFace frame stamp | child mesh 최적화 후에도 남으면 ARFace mesh 직접 material/pass 또는 shared runtime mesh path 검토 | head pose 변화에도 입술에 고정 |
+| Q1 | UV mask 해상도/alpha raster가 낮거나 aliasing됨 | 가장자리가 톱니처럼 보임 | generated UV alpha bbox, resolution, preview/AR 비교 | 128 기준이면 512/1024로 승격, antialias/supersampling, bilinear/clamp/mip 설정 | 확대/진하게 보기에서도 경계가 매끈함 |
+| Q2 | 2D boundary smoothing과 UV raster가 서로 다름 | preview는 괜찮은데 AR이 거칠거나 벗어남 | native preview PNG와 UV round-trip 차이 | 동일 boundary pipeline을 preview/package/runtime에 공유, inner mouth hole 보존 | 조정 preview와 AR 검증이 같은 모양 |
+| Q3 | shader threshold/feather/coverage가 release-quality가 아님 | 입술 밖 번짐, 안쪽 구멍/치아 침범 | strong/boundary mode screenshots | threshold/feather range 재설계, debug boundary mode 분리 | 입술 밖 skin spill과 teeth spill 감소 |
+| U1 | 조정 +/- 의미가 UI copy와 반대 | +를 눌렀는데 줄어드는 느낌 | RN adjustment unit tests, before/after preview | `upper`, `lower`, `corner`, `y`를 사용자 언어 기준으로 재정의 | +는 "더 포함/넓게", -는 "덜 포함/좁게"로 보임 |
+| S1 | stale recipe/state가 남음 | 첫 화면부터 립이 적용된 듯 보임 | generatedMaskId, wizard state, Unity active recipe | Generate 시작/재촬영/Close 시 runtime overlay clear 또는 validation-only state 분리 | 시작 화면에는 이전 립 적용이 보이지 않음 |
+| A1 | Apply/validation ack와 UI 상태 불일치 | 적용된 건지 모름, 컨트롤 반영 불확실 | generated ack file, RN state log | ON/OFF/strong/color/opacity마다 matching ack 대기와 visible feedback | 버튼 조작마다 화면 변화와 ack가 일치 |
+
+### 18.3 순차 수정 루프
+
+#### Loop 0. 계측 먼저 추가
+
+목표: 행동을 바꾸기 전에 레이턴시와 품질을 판단할 **최소 계측**을 심는다. 계측 자체가 앱을 느리게 만들면 실패다.
+
+필수 최소 계측:
+
+```txt
+- ARFace changed sequence/frame/time
+- overlay sync phase/updateCount/durationMs/worstDurationMs
+- vertices/uv/triangles count only when topology or count changes
+- generatedMaskId/provider/expressionMode/adjustment signature
+- RN apply/control requestId와 Unity ackId matching 여부
+- stale event ignored reason: captureSetId/generatedMaskId/requestId mismatch
+```
+
+품질 계측:
+
+```txt
+- UV mask resolution
+- alpha bbox / alpha pixel count
+- edge band ratio
+- inner mouth hole 존재 여부
+- preview-vs-UV round-trip delta
+- adjustment before/after bbox delta
+```
+
+금지:
+
+```txt
+- 매 프레임 거대한 JSON 저장
+- 매 프레임 이미지 dump
+- 사용자 얼굴 판단 영역을 가리는 debug overlay 기본 ON
+- 로그 때문에 frame-time이 튀는 계측
+```
+
+Buildless gate:
+
+```txt
+- C# compile 또는 Unity batchmode smoke
+- RN TypeScript/Jest/lint
+- npm run e7:prebuild:full
+```
+
+Device gate:
+
+```txt
+- screen recording: neutral, slow yaw, fast yaw, mouth open/close
+- pulled generated_lip_mask_applied.latest.json
+- overlay timing summary
+```
+
+#### Loop 1. 런타임 레이턴시 1차 수정
+
+가설: 현재 mask overlay가 ARFace 최신 갱신보다 먼저 복사되거나, 매 프레임 mesh rebuild 비용 때문에 한 박자 늦는다.
+
+수정 범위:
+
+```txt
+unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs
+```
+
+수정 원칙:
+
+```txt
+1. per-frame region apply는 Update가 아니라 ARFace 갱신 이후에 실행되게 한다.
+2. vertices/uv/triangles List를 매 프레임 새로 만들지 않는다.
+3. face topology가 바뀌지 않으면 triangles/uv는 재세팅하지 않는다.
+4. unlit alpha mask에 불필요한 RecalculateNormals를 제거한다.
+5. bounds는 필요 시에만 갱신하거나 안정적인 bounds 정책을 둔다.
+6. 기능 변화와 최적화를 한 commit에 너무 많이 섞지 않는다. 먼저 timing, 다음 allocation 순서로 닫는다.
+```
+
+성공 기준:
+
+```txt
+- average FPS만 보지 않는다.
+- slow yaw / fast yaw / near-far 움직임에서 입술 mask가 얼굴보다 늦게 따라오는 느낌이 없어야 한다.
+- worst frame-time과 overlay sync ms가 evidence에 남아야 한다.
+```
+
+#### Loop 2. 런타임 substrate 2차 수정
+
+Loop 1 후에도 밀림이 남으면 child copied mesh 방식 자체를 의심한다.
+
+대안:
+
+```txt
+Option A. child mesh 유지, ARFace updated event/timing에 더 정확히 붙인다.
+Option B. ARFaceMeshVisualizer가 갱신한 mesh를 공유하거나, 같은 frame에서 render pass만 추가한다.
+Option C. 원본 ARFace renderer/material path에 mask material pass를 얹는 구조로 전환한다.
+```
+
+선택 기준:
+
+```txt
+- release-quality motion stability를 최우선으로 한다.
+- 구현량이 적어도 한 프레임 밀림이 남으면 탈락이다.
+- face occlusion / ZTest / transparency가 깨지면 탈락이다.
+```
+
+#### Loop 3. 마스크 경계 품질 수정
+
+가설: AR에 올라간 mask 품질은 attachment와 별개로, UV texture 생성/raster/shader 품질이 낮아 생기는 문제다.
+
+수정 범위:
+
+```txt
+rn/MakeupARValidation/App.tsx
+rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.*
+packages/lip-generate-core
+unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionMask.shader
+```
+
+수정 원칙:
+
+```txt
+1. 2D preview, UV texture, AR shader가 같은 boundary 의미를 쓰게 한다.
+2. generated UV mask resolution을 release-quality 기준으로 올린다.
+3. supersampling/antialias를 적용해 UV alpha edge를 매끈하게 만든다.
+4. inner mouth hole은 보존한다. 치아/입 안까지 칠하지 않는다.
+5. Vision과 MediaPipe는 각각 곡선 boundary로 만든다. 직선 polygon 느낌이 남으면 탈락이다.
+6. feather/threshold는 shader에서 과장 보정하지 말고 생성된 alpha 품질을 먼저 올린다.
+```
+
+성공 기준:
+
+```txt
+- strong mode와 boundary mode에서도 가장자리가 톱니처럼 보이지 않는다.
+- 입술 바깥 skin spill이 눈에 띄게 줄어든다.
+- mouth open/close에서 치아/입 안 침범이 줄어든다.
+- preview와 AR 검증 화면의 boundary가 같은 결과처럼 보인다.
+```
+
+#### Loop 4. 조정 UX와 수학 방향 고정
+
+가설: `upper`, `lower`, `corner`, `y`의 내부 수학 방향이 사용자 언어와 다르다.
+
+제품 의미:
+
+```txt
+corner +
+  입꼬리/좌우 범위를 더 포함한다.
+
+upper +
+  윗입술 영역을 더 포함한다.
+
+lower +
+  아랫입술 영역을 더 포함한다.
+
+y +
+  mask 중심을 위로 이동한다.
+```
+
+반드시 검증할 것:
+
+```txt
+- + 버튼 누르면 preview에서 해당 영역이 커지거나 의도한 방향으로 움직인다.
+- - 버튼 누르면 반대로 줄거나 이동한다.
+- 조정값 변경 즉시 native provider 재호출 없이 cached boundary + ARFace export로 preview/package/UV가 갱신된다.
+- 저장/AR 실행 시 같은 adjustment signature의 generatedMaskId가 적용된다.
+```
+
+#### Loop 5. 상태 오염/첫 화면 잔상 제거
+
+가설: 이전 generated recipe 또는 validation mode가 시작 화면에도 남아 사용자가 "처음부터 필터가 켜져 있다"고 느낀다.
+
+수정 원칙:
+
+```txt
+1. Generate wizard 시작 전 clean AR state를 명확히 정의한다.
+2. Start / Retake / Close / New capture set에서 이전 generated mask를 숨기거나 clear한다.
+3. 단, 사용자가 AR 검증 화면에서 일부러 ON한 mask는 validation state로만 유지한다.
+4. 현재 captureSetId/generatedMaskId와 맞지 않는 ack는 절대 UI state를 바꾸지 않는다.
+```
+
+성공 기준:
+
+```txt
+- 앱 첫 진입/Generate 시작/재촬영 후에는 이전 립 필터가 보이지 않는다.
+- 저장하고 AR 실행 후에만 AR 립 검증 상태가 열린다.
+```
+
+#### Loop 6. AR 검증 UX를 제품 판정 화면으로 올리기
+
+AR 검증 화면은 디버그가 아니라 품질 판단 화면이어야 한다.
+
+필수 컨트롤:
+
+```txt
+- 마스크 ON/OFF
+- 진하게 보기
+- 경계 보기
+- 색: rose / hot / gold
+- 농도 - / +
+- 다시 조정
+- 다시 촬영
+```
+
+필수 상태:
+
+```txt
+- 적용 중
+- 적용됨
+- 응답 지연
+- 적용 실패 / 다시 시도
+```
+
+성공 기준:
+
+```txt
+- 사용자가 화면만 보고 적용 여부를 알 수 있다.
+- 컨트롤을 누르면 즉시 시각 변화가 있고, 늦은 ack는 지연 표시로 설명된다.
+- debug/log는 얼굴과 입술 판단 영역을 가리지 않는다.
+```
+
+### 18.4 출시 후보 품질 게이트
+
+이 단계가 끝났다고 말하려면 아래를 모두 만족해야 한다.
+
+#### Visual gate
+
+```txt
+- neutral에서 입술 전체를 자연스럽게 포함한다.
+- mouth closed/open에서 입 안/치아 침범이 최소화된다.
+- smile/pucker에서 입꼬리 spill이 과하지 않다.
+- yaw left/right에서 입술에 붙어 움직인다.
+- strong mode에서도 edge가 매끈하다.
+- boundary mode에서 경계가 사용자가 납득 가능한 곡선이다.
+```
+
+#### Runtime gate
+
+```txt
+- overlay sync timing이 evidence로 남는다.
+- 평균 FPS뿐 아니라 worst frame-time을 기록한다.
+- slow yaw/fast yaw에서 mask lag가 체감되지 않는다.
+- 5분 연속 AR 검증에서 overlay가 사라지거나 이전 mask로 돌아가지 않는다.
+```
+
+#### UX gate
+
+```txt
+- 사용자는 촬영됨/생성됨/적용됨을 헷갈리지 않는다.
+- 조정 +와 -의 의미가 직관과 맞다.
+- 뒤로가기/재촬영/다시 적용/다시 조정이 stale state를 만들지 않는다.
+- AR 검증 컨트롤이 눌렸는지 화면으로 확인된다.
+```
+
+#### Evidence gate
+
+```txt
+- pulled app Documents summary
+- generated_lip_mask_applied.latest.json
+- capture summary
+- selected generated_lip_package.json
+- AR validation screen recording or representative frames
+- before/after timing summary
+- known limitations
+```
+
+#### Automatic metric gate
+
+실기기 시각 판정은 필요하지만, 다음 빌드 전에 아래 자동 지표가 없으면 "눈으로 보면 괜찮겠지" 상태가 된다. 따라서 buildless 단계에서 최소한 아래를 파일로 남긴다.
+
+```txt
+- generated mask texture size and alpha bbox
+- edge band ratio before/after
+- preview-vs-UV round-trip pixel delta
+- upper/lower/corner/y adjustment before/after bbox or alpha delta
+- selected provider/candidate/generatedMaskId consistency
+- stale capture/apply/control ack ignore count
+```
+
+통과 기준은 첫 loop에서 baseline과 함께 기록한다. 절대값 기준이 아직 없으면 `baseline`, `after`, `decision`, `why`를 남기고, 다음 loop부터 회귀 기준으로 사용한다.
+
+### 18.5 빠른 실행을 위한 agent orchestration
+
+이번 작업은 3-agent가 적당하다. 더 늘리면 충돌 비용이 커진다.
+
+#### Manager / high-reasoning agent
+
+역할:
+
+```txt
+- 원인 후보 우선순위 결정
+- 파일별 작업 범위 분리
+- 각 loop의 성공/실패 판정
+- 최종 diff review
+- build gate 결정
+```
+
+수정 금지:
+
+```txt
+- 빠른 구현 agent가 건드린 코드를 이해 없이 덮어쓰기
+- 여러 원인 후보를 한 번에 success 처리
+```
+
+#### Fast Unity runtime agent
+
+담당:
+
+```txt
+unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs
+unity/MakeupARUnityValidation/Assets/Shaders/SmoothRegionMask.shader
+Unity material/prefab changes only if required
+```
+
+목표:
+
+```txt
+- overlay timing fix
+- mesh buffer reuse
+- runtime mask quality shader tuning
+- runtime evidence logging
+```
+
+MCP 활용:
+
+```txt
+- Unity MCP로 console warning/error와 active overlay/material/texture 상태를 먼저 확인한다.
+- `Unity_RunCommand`는 짧은 read-only 진단 또는 명확한 계측 command에 한정한다.
+- Unity MCP로 얻은 결과는 "Editor 확인"으로 라벨링하고, iPhone runtime 증거와 섞어 쓰지 않는다.
+```
+
+#### Fast RN/native/UI agent
+
+담당:
+
+```txt
+rn/MakeupARValidation/App.tsx
+rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.*
+packages/lip-generate-core
+```
+
+목표:
+
+```txt
+1. adjustment direction fix와 단위 테스트
+2. stale state reset / late event guard 테스트
+3. UV mask resolution/antialias pipeline
+4. AR validation control UX/ack matching
+```
+
+#### QA/audit agent
+
+담당:
+
+```txt
+- 실제 사용자처럼 막 누르는 흐름
+- retake/back/late ack/stale package audit
+- buildless evidence checklist
+- next phone test scenario
+- "정상 경로"가 아니라 실패 경로를 먼저 누르는 사용자 시나리오
+```
+
+### 18.6 Build strategy
+
+이번 작업은 Unity runtime이 포함될 가능성이 높으므로 build-plan 결과가 `run-unityframework-build`가 되는 것이 정상일 수 있다.
+
+순서:
+
+```sh
+cd rn/MakeupARValidation
+npm run e7:build-plan -- --no-report
+npm run e7:prebuild:full -- --no-report
+```
+
+Unity runtime/shader/material이 바뀌면:
+
+```sh
+bash scripts/build_m3_unityframework.sh
+```
+
+RN/iOS만 바뀌면:
+
+```txt
+UnityFramework 재생성 생략 가능.
+단, build-plan이 skip 판정을 줄 때만 생략한다.
+```
+
+iPhone build는 마지막에 한 번만 한다. 그 전에는 아래가 통과해야 한다.
+
+```txt
+- RN TypeScript
+- RN Jest
+- RN ESLint
+- shared package tests/typecheck
+- Unity batchmode smoke 또는 compile proof
+- e7:prebuild:full
+- e7:build-plan decision recorded
+- git diff --check
+```
+
+Unity gate 예외 처리:
+
+```txt
+- Unity batchmode smoke가 licensing/channel 문제로 막히면 환경 blocked로 기록한다.
+- 이 경우 C# source/static invariant check와 shader/material reference check는 보조 증거로만 쓴다.
+- Unity runtime/shader/material diff가 있으면 UnityFramework 재생성 성공 전에는 phone build를 "최종 검증 빌드"로 올리지 않는다.
+- RN-only diff라고 build-plan이 판정할 때만 UnityFramework 재생성을 생략한다.
+```
+
+첫 iPhone build의 판정 방식:
+
+```txt
+- 성공하면 release-candidate evidence로 승격한다.
+- 실패하면 실패 화면/로그가 L1/L2/L3/Q1/Q2/Q3/U1/S1/A1 중 어디인지 가리켜야 한다.
+- 원인 ID 없이 "다시 봐야 함"으로 끝나면 buildless 준비가 실패한 것이다.
+```
+
+### 18.7 다음 실기기 테스트 시나리오
+
+빌드 후 사용자는 처음부터 끝까지 한 번만 흐름을 탄다. Codex는 로그와 화면을 같이 본다.
+
+```txt
+1. 앱 첫 진입: 이전 립 필터가 보이지 않는지
+2. 얼굴 정렬: live camera 정상인지
+3. 촬영: 촬영 완료 표시와 captured frame preview가 보이는지
+4. 추출: 선택 provider가 실제 current frame에서 결과를 만드는지
+5. 블렌딩 선택: 후보 차이가 보이는지
+6. 조정: upper/lower/corner/y +/-가 즉시 반영되는지
+7. 저장하고 AR 실행: loading/ack/AR 립 검증 전환이 명확한지
+8. AR 검증: ON/OFF, 진하게, 경계, 색, 농도 조절이 보이는지
+9. motion: slow yaw, fast yaw, near/far, mouth open/close, smile, pucker
+10. 종료/다시 시작: stale mask가 남지 않는지
+```
+
+### 18.8 Done / Not Done
+
+Done:
+
+```txt
+- 원인 후보별로 최소 한 번씩 증거 기반 판정이 남는다.
+- 레이턴시, edge quality, adjustment direction, stale state, AR validation UX가 모두 개선된다.
+- buildless checks와 iPhone visual/log evidence가 서로 맞다.
+- 사용자가 "입술에 붙긴 하는데 별로"가 아니라 "출시 후보로 더 다듬을 수준"이라고 판단할 수 있다.
+```
+
+Not Done:
+
+```txt
+- 마스크가 보인다는 이유만으로 성공 처리
+- 평균 FPS만 보고 레이턴시 해결로 처리
+- preview만 좋아지고 AR runtime은 그대로인 상태
+- AR만 좋아지고 조정/재촬영/stale state가 깨지는 상태
+- iPhone evidence 없이 release-quality claim
+```
