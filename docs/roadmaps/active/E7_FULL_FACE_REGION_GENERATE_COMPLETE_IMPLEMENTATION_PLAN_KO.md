@@ -4764,6 +4764,58 @@ blocked: Unity batchmode smoke
 - 원인 ID 없이 "다시 봐야 함"으로 끝나면 buildless 준비가 실패한 것이다.
 ```
 
+### 18.7A 2026-06-29 UnityFramework freshness gate hardening
+
+Status: **stale UnityFramework is now intentionally blocked before Xcode**.
+
+왜 추가했는가:
+
+```txt
+- 18.7 source fix 이후 package-local UnityFramework가 새 runtime strings를 담고 있지 않으면
+  RN/Xcode build가 성공해도 실제 iPhone에는 old Unity runtime이 들어갈 수 있다.
+- 기존 gate는 generated ack/capture 문자열만 봐서 overlay sync/control request freshness를 놓칠 수 있었다.
+```
+
+보강:
+
+```txt
+- scripts/e7_build/decide_minimum_build.mjs
+  required packaged framework strings:
+  generated_lip_mask_applied
+  CaptureE7ReferenceFrameJson
+  overlaySyncPhase
+  validationControlRequestId 또는 controlRequestId
+
+- scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs
+  unity.framework_contains_ack_persistence가 같은 freshness contract를 검사한다.
+```
+
+현재 결과:
+
+```txt
+pass: /opt/homebrew/bin/node --check scripts/e7_build/decide_minimum_build.mjs
+pass: /opt/homebrew/bin/node --check scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs
+pass: git diff --check
+
+pass: cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+  decision=sync-or-rebuild-unityframework-before-xcode
+  reason=rn_reference_unityframework_missing
+
+expected fail: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+  result=fail pass=35 fail=1 warn=0
+  failing check=unity.framework_contains_ack_persistence
+  meaning=UnityFramework must be regenerated/synced before Xcode because current package-local framework is stale.
+```
+
+이제 다음 boundary는 더 명확하다:
+
+```txt
+1. Unity licensing/channel 해결
+2. bash scripts/build_m3_unityframework.sh
+3. npm run e7:prebuild:full -- --no-report 가 다시 pass로 바뀌는지 확인
+4. 그 다음에만 user-approved Xcode/iPhone build
+```
+
 ### 18.7 다음 실기기 테스트 시나리오
 
 빌드 후 사용자는 처음부터 끝까지 한 번만 흐름을 탄다. Codex는 로그와 화면을 같이 본다.

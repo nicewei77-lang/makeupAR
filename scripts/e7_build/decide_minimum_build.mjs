@@ -341,6 +341,10 @@ function inspectFramework(frameworkRelativePath) {
         'CaptureE7ReferenceFrameJson',
       ),
       validationControls: frameworkContains(frameworkPath, 'validationControls'),
+      overlaySyncMetrics: frameworkContains(frameworkPath, 'overlaySyncPhase'),
+      validationControlRequest:
+        frameworkContains(frameworkPath, 'validationControlRequestId') ||
+        frameworkContains(frameworkPath, 'controlRequestId'),
     },
   };
 }
@@ -358,7 +362,12 @@ function compareFrameworks(reference, packaged) {
   const mismatches = frameworkKeyFiles.filter(
     keyFile => reference.files[keyFile] !== packaged.files[keyFile],
   );
-  const requiredStringKeys = ['generatedLipMaskAck', 'captureReference'];
+  const requiredStringKeys = [
+    'generatedLipMaskAck',
+    'captureReference',
+    'overlaySyncMetrics',
+    'validationControlRequest',
+  ];
   const missingStrings = requiredStringKeys.filter(key => !packaged.strings[key]);
   const optionalMissingStrings = Object.entries(packaged.strings)
     .filter(([key, present]) => !requiredStringKeys.includes(key) && !present)

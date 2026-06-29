@@ -936,9 +936,23 @@ function runMain() {
       fileContainsBytes(
         unityFrameworkPath,
         'generated_lip_mask_applied.latest.json',
+      ) &&
+      fileContainsBytes(
+        unityFrameworkPath,
+        'overlaySyncPhase',
+      ) &&
+      (
+        fileContainsBytes(
+          unityFrameworkPath,
+          'validationControlRequestId',
+        ) ||
+        fileContainsBytes(
+          unityFrameworkPath,
+          'controlRequestId',
+        )
       ),
     exists(unityFrameworkPath)
-      ? 'UnityFramework must contain current RNBridge ack persistence strings. If this fails, rebuild/sync UnityFramework before Xcode.'
+      ? 'UnityFramework must contain current RNBridge ack persistence, overlay sync, and control request strings. If this fails, rebuild/sync UnityFramework before Xcode.'
       : `missing ${unityFrameworkPath}`,
   );
 
