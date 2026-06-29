@@ -170,7 +170,7 @@ const LIP_ADJUSTMENT_FIELD_OPTIONS = [
   { name: 'cornerReach', label: 'corner' },
   { name: 'upperLipTightness', label: 'upper' },
   { name: 'lowerLipTightness', label: 'lower' },
-  { name: 'upperInnerFill', label: 'inner' },
+  { name: 'upperInnerFill', label: '안쪽' },
   { name: 'verticalOffset', label: 'y' },
 ] as const;
 const LIP_RUNTIME_CANDIDATE_OPTIONS = [
@@ -266,16 +266,12 @@ const LIP_GENERATE_PROVIDER_OPTIONS: Array<{
 const LIP_GENERATE_EXPRESSION_OPTIONS: Array<{
   name: GeneratedExpressionAssistMode;
   label: string;
-}> = [
-  { name: 'uvOnly', label: '기본 블렌딩' },
-  { name: 'blendshapeAssist', label: '표정 보조' },
-];
+}> = [{ name: 'uvOnly', label: '기본 마스크' }];
 const E7_WIZARD_STEPS = [
   'start',
   'align',
   'capture',
   'extract',
-  'blend',
   'adjust',
   'apply',
 ] as const;
@@ -283,14 +279,7 @@ const E7_CAPTURE_SHOT_OPTIONS: Array<{
   kind: E7CaptureShotKind;
   label: string;
   guidance: string;
-}> = [
-  { kind: 'neutral', label: '정면 기준', guidance: '입에 힘 빼고 정면' },
-  { kind: 'mouthOpen', label: '살짝 벌림', guidance: '입 안쪽 분리 확인' },
-  { kind: 'smile', label: '미소', guidance: '입꼬리 확장 확인' },
-  { kind: 'pucker', label: '오므림', guidance: '중앙 압축 확인' },
-  { kind: 'yawLeft', label: '왼쪽 각도', guidance: '가림/투영 안정성' },
-  { kind: 'yawRight', label: '오른쪽 각도', guidance: '가림/투영 안정성' },
-];
+}> = [{ kind: 'neutral', label: '정면 사진', guidance: '입에 힘 빼고 정면' }];
 const GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64 =
   'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAP////8AAAAAAAAAAAAAAAAAAAAA/////wAAAAAAAAAA////////////////////////////////AAAAAAAAAAAAAAAA/////////////////////wAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==';
 const E7_FULL_FACE_REGION_RUNTIME_LAYERS = [
@@ -363,7 +352,7 @@ const GENERATED_APPLY_ACK_TIMEOUT_MS = 10_000;
 const GENERATED_APPLY_RETRY_DELAY_MS = 800;
 const GENERATED_APPLY_MAX_TRANSIENT_RETRIES = 8;
 const GENERATED_CONTROL_ACK_TIMEOUT_MS = 3_000;
-const ADJUSTMENT_PREVIEW_DEBOUNCE_MS = 180;
+const ADJUSTMENT_PREVIEW_DEBOUNCE_MS = 0;
 const GENERATED_MASK_VALIDATION_COLORS = [
   { name: 'rose', color: '#D94B74' },
   { name: 'hot', color: '#FF2D8A' },
@@ -448,6 +437,7 @@ type E7GeneratedPreviewResult = {
   previewPath?: string;
   blockedReason?: string;
 };
+type E7AdjustmentPreviewMode = 'mask' | 'boundary' | 'compare';
 type E7GeneratedCandidateWithPreview = E7GeneratedCandidate & {
   previewUri?: string;
   previewStatus?: E7GeneratedPreviewState;
@@ -1045,7 +1035,7 @@ function HomeScreen({
         <Text style={styles.title}>맞춤 Generate</Text>
         <Text style={styles.statusLabel}>로컬 생성 준비</Text>
         <Text style={styles.statusText}>
-          {`Entry #${nextEntryCount}. 얼굴 정렬, 촬영, 블렌딩 선택, 조정, 저장하고 AR 실행을 순서대로 진행합니다. Completed exits ${completedCycles}/3.`}
+          {`Entry #${nextEntryCount}. 얼굴 정렬, 정면 사진 촬영, 추출, 조정, 저장하고 AR 실행을 순서대로 진행합니다. Completed exits ${completedCycles}/3.`}
         </Text>
       </View>
 
@@ -2064,7 +2054,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         setSavedGeneratedPackage(null);
         resetGeneratedApplyFlow('generate_candidates');
         if (!options?.stayOnStep) {
-          setWizardStep('blend');
+          setWizardStep('adjust');
         }
         setAdjustmentPreviewState('ready');
         setWizardNotice(
@@ -2073,7 +2063,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               ? '조정값이 현재 후보에 자동 반영되었습니다.'
               : `${formatProviderLabel(
                   lipGenerateProvider,
-                )} 후보 생성 완료. 블렌딩 선택 후 조정하세요.`
+                )} 마스크 생성 완료. 바로 조정하세요.`
             : '후보 생성이 막혔습니다. 다시 생성하거나 다른 방식을 선택하세요.',
         );
       } catch (error) {
@@ -2122,8 +2112,44 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       };
       activeAdjustmentPreviewRequestRef.current = requestGuard;
       clearAdjustmentPreviewDebounce();
+      const optimisticCandidates = buildGeneratedLipCandidateSet({
+        nativeResult: input.providerResult,
+        providerResults: input.providerShotResults.length
+          ? input.providerShotResults
+          : [input.providerResult],
+        expressionModes: LIP_GENERATE_EXPRESSION_OPTIONS.map(
+          option => option.name,
+        ),
+        adjustment: input.nextAdjustment,
+      });
+      const optimisticSelectedCandidateKey =
+        optimisticCandidates.find(
+          candidate =>
+            candidate.candidateKey === requestGuard.selectedCandidateKey &&
+            candidate.package,
+        )?.candidateKey ??
+        optimisticCandidates.find(candidate => candidate.package)
+          ?.candidateKey ??
+        `${requestGuard.provider}/uvOnly`;
+
+      setGeneratedCandidates(currentCandidates =>
+        optimisticCandidates.map(candidate => {
+          const previousCandidate = currentCandidates.find(
+            current => current.candidateKey === candidate.candidateKey,
+          );
+          return {
+            ...candidate,
+            previewUri: previousCandidate?.previewUri,
+            previewStatus: previousCandidate?.previewUri
+              ? 'ready'
+              : 'rendering',
+            previewError: previousCandidate?.previewError,
+          };
+        }),
+      );
+      setSelectedGeneratedCandidateKey(optimisticSelectedCandidateKey);
       setAdjustmentPreviewState('rendering');
-      setGeneratedCandidatesStale(true);
+      setGeneratedCandidatesStale(false);
 
       const isCurrentAdjustmentRequest = () => {
         const activeGuard = activeAdjustmentPreviewRequestRef.current;
@@ -2965,13 +2991,24 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     return () => clearTimeout(timeout);
   }, [pendingGeneratedControlCheck]);
 
+  const postRecipeBatchRef = useRef(postRecipeBatch);
   useEffect(() => {
+    postRecipeBatchRef.current = postRecipeBatch;
+  }, [postRecipeBatch]);
+
+  useEffect(() => {
+    let didCancel = false;
     const initialPostTimer = setTimeout(() => {
-      postRecipeBatch();
+      if (!didCancel) {
+        postRecipeBatchRef.current();
+      }
     }, 1000);
 
-    return () => clearTimeout(initialPostTimer);
-  }, [postRecipeBatch]);
+    return () => {
+      didCancel = true;
+      clearTimeout(initialPostTimer);
+    };
+  }, []);
 
   const activeLipTuning =
     LIP_TUNING_FIELD_OPTIONS.find(
@@ -3081,7 +3118,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const canSaveGeneratedPackage = Boolean(
     selectedGeneratedCandidate?.package &&
       !generatedCandidatesStale &&
-      adjustmentPreviewState !== 'rendering',
+      !isSavingGeneratedPackage,
   );
   const wizardStepIndex = getWizardStepIndex(wizardStep);
   const hasGeneratedMaskApplied = generatedApplyState.status === 'applied';
@@ -3118,8 +3155,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       activeGenerationRequestRef.current = null;
       activeAdjustmentPreviewRequestRef.current = null;
       clearAdjustmentPreviewDebounce();
+      resetGeneratedApplyFlow('close_preserve_capture_cancel_pending_apply');
       setIsGeneratingCandidates(false);
-      setIsSavingGeneratedPackage(false);
       setWizardStep(generatedCandidates.length > 0 ? 'adjust' : 'extract');
       setWizardNotice('촬영한 사진은 유지됩니다. 추출 또는 조정을 이어가세요.');
       return;
@@ -3273,7 +3310,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ...currentAdjustment,
         [field]: roundedValue,
       };
-      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
       const providerResult = nativeProviderResults[lipGenerateProvider];
       const providerShotResults =
         nativeProviderShotResults[lipGenerateProvider] ??
@@ -3292,7 +3328,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           nextAdjustment,
           selectedCandidateKey: selectedGeneratedCandidateKey,
         });
-        setWizardNotice('조정값을 받았습니다. 미리보기를 갱신하는 중입니다.');
+        setWizardNotice('조정값을 저장 후보에 바로 반영했습니다.');
       } else {
         setGeneratedCandidatesStale(generatedCandidates.length > 0);
         setAdjustmentPreviewState('blocked');
@@ -3300,8 +3336,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           '추출 결과가 없어 조정 preview를 다시 만들 수 없습니다.',
         );
       }
-      setFocusedRegion('lip');
-      setActiveRegions(nextActiveRegions);
     },
     [
       generatedCandidates.length,
@@ -3445,6 +3479,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             selectedProvider={lipGenerateProvider}
             selectedCandidate={selectedGeneratedCandidate}
             selectedCandidateKey={selectedGeneratedCandidateKey}
+            capturedFramePreviewUri={capturedFramePreviewUri}
             selectedLipSample={selectedLipSample}
             lipUserAdjustment={lipUserAdjustment}
             activeLipAdjustment={activeLipAdjustment}
@@ -3499,11 +3534,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               setWizardNotice(
                 '다시 촬영합니다. 새 얼굴 프레임을 저장한 뒤 마스크를 만드세요.',
               );
-            }}
-            onSelectCandidate={candidateKey => {
-              setSelectedGeneratedCandidateKey(candidateKey);
-              resetGeneratedApplyFlow(`select_candidate_${candidateKey}`);
-              setSavedGeneratedPackage(null);
             }}
             onSelectAdjustmentField={setActiveLipAdjustmentField}
             onAdjustLip={updateLipUserAdjustment}
@@ -3952,6 +3982,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
                 <AdjustmentStepper
                   label={activeLipAdjustment.label}
+                  testIDLabel={activeLipAdjustment.name}
                   value={lipUserAdjustment[activeLipAdjustment.name]}
                   onChange={value =>
                     updateLipUserAdjustment(activeLipAdjustment.name, value)
@@ -4007,6 +4038,7 @@ type E7GenerateWizardProps = {
   selectedProvider: GeneratedLipMaskProvider;
   selectedCandidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
+  capturedFramePreviewUri?: string;
   selectedLipSample: LipSample;
   lipUserAdjustment: LipUserAdjustment;
   activeLipAdjustment: (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number];
@@ -4017,7 +4049,6 @@ type E7GenerateWizardProps = {
   onRetakeCapture: () => void;
   onSelectProvider: (provider: GeneratedLipMaskProvider) => void;
   onGenerateCandidates: () => void;
-  onSelectCandidate: (candidateKey: string) => void;
   onSelectAdjustmentField: (field: LipAdjustmentField) => void;
   onAdjustLip: (
     field: LipAdjustmentField,
@@ -4047,6 +4078,7 @@ function E7GenerateWizard({
   selectedProvider,
   selectedCandidate,
   selectedCandidateKey,
+  capturedFramePreviewUri,
   selectedLipSample,
   lipUserAdjustment,
   activeLipAdjustment,
@@ -4057,7 +4089,6 @@ function E7GenerateWizard({
   onRetakeCapture,
   onSelectProvider,
   onGenerateCandidates,
-  onSelectCandidate,
   onSelectAdjustmentField,
   onAdjustLip,
   onSave,
@@ -4199,16 +4230,17 @@ function E7GenerateWizard({
         {activeStep === 'capture' && (
           <View style={styles.generateWizardBody}>
             <Text style={styles.generateWizardBodyText}>
-              {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length} 컷 완료. 버튼
-              하나로 필요한 표정 큐를 순서대로 저장합니다.
+              {capturedShotCount}/{E7_CAPTURE_SHOT_OPTIONS.length}장 완료. 정면
+              사진 한 장으로 먼저 마스크를 만듭니다.
             </Text>
             {nextCaptureShot ? (
               <Text style={styles.generateWizardBodyText}>
-                다음 컷: {nextCaptureShot.label} · {nextCaptureShot.guidance}
+                촬영할 사진: {nextCaptureShot.label} ·{' '}
+                {nextCaptureShot.guidance}
               </Text>
             ) : (
               <Text style={styles.generateWizardBodyText}>
-                모든 컷이 저장되었습니다. 이제 저장된 얼굴 프레임으로 마스크를
+                사진이 저장되었습니다. 이제 이 얼굴 프레임으로 마스크를
                 만듭니다.
               </Text>
             )}
@@ -4328,159 +4360,69 @@ function E7GenerateWizard({
           </View>
         )}
 
-        {activeStep === 'blend' && (
-          <View style={styles.generateWizardBody}>
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.generateWizardCandidateGrid}
-            >
-              {generatedCandidates.map(candidate => {
-                const isSelected =
-                  candidate.candidateKey === selectedCandidateKey;
-
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    key={candidate.candidateKey}
-                    testID={`e7-candidate-${candidate.candidateKey}`}
-                    style={({ pressed }) => [
-                      styles.generateWizardCandidateCard,
-                      isSelected && styles.generateWizardCandidateCardSelected,
-                      candidate.status === 'blocked' &&
-                        styles.generateWizardCandidateCardBlocked,
-                      pressed && styles.colorButtonPressed,
-                    ]}
-                    onPress={() => onSelectCandidate(candidate.candidateKey)}
-                  >
-                    <View style={styles.generateWizardCandidatePreview}>
-                      {candidate.previewUri ? (
-                        <Image
-                          source={{ uri: candidate.previewUri }}
-                          style={styles.generateWizardCandidatePreviewImage}
-                        />
-                      ) : (
-                        <View
-                          style={styles.generateWizardCandidatePreviewEmpty}
-                        >
-                          <Text style={styles.generateWizardCandidateReason}>
-                            {formatCandidatePreviewStatus(candidate)}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                    <View style={styles.generateWizardCandidateCopy}>
-                      <Text style={styles.generateWizardCandidateTitle}>
-                        {formatGeneratedCandidateTitle(candidate)}
-                      </Text>
-                      <Text style={styles.generateWizardCandidateMeta}>
-                        {formatGeneratedCandidateMeta(candidate)}
-                      </Text>
-                      <Text
-                        style={styles.generateWizardCandidateReason}
-                        numberOfLines={2}
-                      >
-                        {formatGeneratedCandidateDescription(candidate)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                );
-              })}
-            </ScrollView>
-            {!selectedGeneratedCandidate?.package && (
-              <Pressable
-                accessibilityRole="button"
-                testID="e7-wizard-select-provider-after-blocked"
-                style={styles.generateWizardSecondaryButton}
-                onPress={() => onStepRequest('extract')}
-              >
-                <Text style={styles.generateWizardSecondaryText}>
-                  다른 방식 선택
-                </Text>
-              </Pressable>
-            )}
-            <Pressable
-              accessibilityRole="button"
-              disabled={!selectedGeneratedCandidate?.package}
-              testID="e7-wizard-blend-next"
-              style={[
-                styles.generateWizardPrimaryButton,
-                !selectedGeneratedCandidate?.package &&
-                  styles.generateWizardButtonDisabled,
-              ]}
-              onPress={() => onStepRequest('adjust')}
-            >
-              <Text style={styles.generateWizardPrimaryText}>
-                조정으로 이동
-              </Text>
-            </Pressable>
-          </View>
-        )}
-
         {activeStep === 'adjust' && (
-          <View style={styles.generateWizardBody}>
-            <GeneratedAdjustmentPreview
-              candidate={selectedGeneratedCandidate}
-              selectedCandidateKey={selectedCandidateKey}
-              previewState={adjustmentPreviewState}
-            />
-            <View style={styles.adjustmentFieldButtonRow}>
-              {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
-                const isSelected =
-                  fieldOption.name === activeLipAdjustmentField;
+          <View style={styles.generateWizardAdjustLayout}>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              style={styles.generateWizardAdjustScroller}
+              contentContainerStyle={styles.generateWizardAdjustContent}
+            >
+              <GeneratedAdjustmentPreview
+                candidate={selectedGeneratedCandidate}
+                selectedCandidateKey={selectedCandidateKey}
+                previewState={adjustmentPreviewState}
+                framePreviewUri={capturedFramePreviewUri}
+              />
+              <View style={styles.adjustmentFieldButtonRow}>
+                {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
+                  const isSelected =
+                    fieldOption.name === activeLipAdjustmentField;
 
-                return (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityState={{ selected: isSelected }}
-                    key={fieldOption.name}
-                    testID={`lip-adjust-field-${fieldOption.name}`}
-                    style={({ pressed }) => [
-                      styles.adjustmentFieldButton,
-                      isSelected && styles.adjustmentFieldButtonSelected,
-                      pressed && styles.colorButtonPressed,
-                    ]}
-                    onPress={() => onSelectAdjustmentField(fieldOption.name)}
-                  >
-                    <Text
-                      style={[
-                        styles.adjustmentFieldButtonText,
-                        isSelected && styles.adjustmentFieldButtonTextSelected,
+                  return (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: isSelected }}
+                      key={fieldOption.name}
+                      testID={`lip-adjust-field-${fieldOption.name}`}
+                      style={({ pressed }) => [
+                        styles.adjustmentFieldButton,
+                        isSelected && styles.adjustmentFieldButtonSelected,
+                        pressed && styles.colorButtonPressed,
                       ]}
+                      onPress={() => onSelectAdjustmentField(fieldOption.name)}
                     >
-                      {fieldOption.label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
-            <AdjustmentStepper
-              label={activeLipAdjustment.label}
-              value={lipUserAdjustment[activeLipAdjustment.name]}
-              onChange={value => onAdjustLip(activeLipAdjustment.name, value)}
-            />
-            <Text style={styles.generateWizardBodyText}>
-              {formatAdjustmentPreviewStateMessage(
-                adjustmentPreviewState,
-                generatedCandidatesStale,
-              )}
-            </Text>
-            <Text style={styles.generateWizardBodyText}>
-              선택 룩: {selectedLipSample.label} / 질감:{' '}
-              {formatLipFinishLabel(selectedLipSample.finish)}
-            </Text>
-            <View style={styles.generateWizardActionRow}>
-              <Pressable
-                accessibilityRole="button"
-                testID="e7-wizard-regenerate-after-adjust"
-                style={styles.generateWizardSecondaryButton}
-                onPress={onGenerateCandidates}
-              >
-                <Text style={styles.generateWizardSecondaryText}>
-                  현재 사진으로 다시 생성
-                </Text>
-              </Pressable>
+                      <Text
+                        style={[
+                          styles.adjustmentFieldButtonText,
+                          isSelected &&
+                            styles.adjustmentFieldButtonTextSelected,
+                        ]}
+                      >
+                        {fieldOption.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+              <AdjustmentStepper
+                label={activeLipAdjustment.label}
+                testIDLabel={activeLipAdjustment.name}
+                value={lipUserAdjustment[activeLipAdjustment.name]}
+                onChange={value => onAdjustLip(activeLipAdjustment.name, value)}
+              />
+              <Text style={styles.generateWizardBodyText}>
+                {formatLipAdjustmentHelp(activeLipAdjustment.name)}
+              </Text>
+              <Text style={styles.generateWizardBodyText}>
+                {formatAdjustmentPreviewStateMessage(
+                  adjustmentPreviewState,
+                  generatedCandidatesStale,
+                )}
+              </Text>
+              <Text style={styles.generateWizardBodyText}>
+                선택 룩: {selectedLipSample.label} / 질감:{' '}
+                {formatLipFinishLabel(selectedLipSample.finish)}
+              </Text>
               <Pressable
                 accessibilityRole="button"
                 testID="e7-wizard-retake-after-adjust"
@@ -4491,7 +4433,7 @@ function E7GenerateWizard({
                   다시 촬영
                 </Text>
               </Pressable>
-            </View>
+            </ScrollView>
             <View
               style={[
                 styles.generateWizardActionRow,
@@ -4940,16 +4882,25 @@ function GeneratedAdjustmentPreview({
   candidate,
   selectedCandidateKey,
   previewState,
+  framePreviewUri,
 }: {
   candidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
   previewState: E7AdjustmentPreviewState;
+  framePreviewUri?: string;
 }) {
   const [isLipZoomed, setIsLipZoomed] = useState(true);
+  const [previewMode, setPreviewMode] =
+    useState<E7AdjustmentPreviewMode>('mask');
+  const previewImageUri =
+    previewMode === 'compare' && framePreviewUri
+      ? framePreviewUri
+      : candidate?.previewUri;
+  const canCompare = Boolean(framePreviewUri);
 
   return (
     <View style={styles.generatedAdjustmentPreview}>
-      {candidate?.previewUri ? (
+      {previewImageUri ? (
         <Pressable
           accessibilityRole="button"
           testID="e7-adjust-preview-toggle-zoom"
@@ -4957,12 +4908,20 @@ function GeneratedAdjustmentPreview({
           onPress={() => setIsLipZoomed(current => !current)}
         >
           <Image
-            source={{ uri: candidate.previewUri }}
+            source={{ uri: previewImageUri }}
             style={[
               styles.generatedAdjustmentPreviewImage,
               isLipZoomed && styles.generatedAdjustmentPreviewImageZoomed,
+              previewMode === 'boundary' &&
+                styles.generatedAdjustmentPreviewImageBoundary,
             ]}
           />
+          {previewMode === 'boundary' && (
+            <View
+              pointerEvents="none"
+              style={styles.generatedAdjustmentBoundaryFrame}
+            />
+          )}
         </Pressable>
       ) : (
         <View style={styles.generatedAdjustmentPreviewEmpty}>
@@ -4985,15 +4944,82 @@ function GeneratedAdjustmentPreview({
             : selectedCandidateKey}
         </Text>
       </View>
+      <View style={styles.generatedAdjustmentPreviewModeRow}>
+        {(['mask', 'boundary', 'compare'] as E7AdjustmentPreviewMode[]).map(
+          mode => {
+            const isActive = previewMode === mode;
+            const isDisabled = mode === 'compare' && !canCompare;
+            return (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{
+                  selected: isActive,
+                  disabled: isDisabled,
+                }}
+                disabled={isDisabled}
+                key={mode}
+                testID={`e7-adjust-preview-mode-${mode}`}
+                style={({ pressed }) => [
+                  styles.generatedAdjustmentPreviewModeButton,
+                  isActive && styles.generatedAdjustmentPreviewModeButtonActive,
+                  isDisabled && styles.generateWizardButtonDisabled,
+                  pressed && styles.colorButtonPressed,
+                ]}
+                onPress={() => setPreviewMode(mode)}
+              >
+                <Text
+                  style={[
+                    styles.generatedAdjustmentPreviewModeButtonText,
+                    isActive &&
+                      styles.generatedAdjustmentPreviewModeButtonTextActive,
+                  ]}
+                >
+                  {formatAdjustmentPreviewModeLabel(mode)}
+                </Text>
+              </Pressable>
+            );
+          },
+        )}
+      </View>
       <Text style={styles.generatedAdjustmentPreviewCaption}>
         {previewState === 'rendering'
           ? '미리보기 갱신 중'
+          : previewMode === 'compare'
+          ? '원본 비교'
+          : previewMode === 'boundary'
+          ? '경계 보기'
           : isLipZoomed
           ? '입술 확대 미리보기'
           : '전체 얼굴 기준 마스크 미리보기'}
       </Text>
     </View>
   );
+}
+
+function formatAdjustmentPreviewModeLabel(mode: E7AdjustmentPreviewMode) {
+  switch (mode) {
+    case 'mask':
+      return '마스크';
+    case 'boundary':
+      return '경계';
+    case 'compare':
+      return '비교';
+  }
+}
+
+function formatLipAdjustmentHelp(field: LipAdjustmentField) {
+  switch (field) {
+    case 'upperInnerFill':
+      return '+는 윗입술 안쪽 빈 부분을 더 채우고, -는 입 안쪽 틈을 더 남깁니다.';
+    case 'cornerReach':
+      return '+는 입꼬리 쪽까지 더 포함하고, -는 중앙 쪽으로 좁힙니다.';
+    case 'upperLipTightness':
+      return '+는 윗입술 바깥 경계를 더 포함하고, -는 더 타이트하게 줄입니다.';
+    case 'lowerLipTightness':
+      return '+는 밑입술 바깥 경계를 더 포함하고, -는 더 타이트하게 줄입니다.';
+    case 'verticalOffset':
+      return '+는 마스크를 위로, -는 아래로 옮깁니다.';
+  }
 }
 
 function formatAdjustmentPreviewStateMessage(
@@ -5031,36 +5057,7 @@ function formatGeneratedCandidateTitle(candidate: E7GeneratedCandidate) {
   if (candidate.expressionMode === 'blendshapeAssist') {
     return '표정 보조';
   }
-  return '기본 블렌딩';
-}
-
-function formatGeneratedCandidateMeta(
-  candidate: E7GeneratedCandidateWithPreview,
-) {
-  if (candidate.previewStatus === 'blocked' || candidate.status === 'blocked') {
-    return '생성 실패';
-  }
-  return `${formatProviderLabel(candidate.provider)} 후보`;
-}
-
-function formatGeneratedCandidateDescription(
-  candidate: E7GeneratedCandidateWithPreview,
-) {
-  if (candidate.previewStatus === 'blocked' || candidate.status === 'blocked') {
-    return '다시 생성하거나 다른 방식을 선택하세요.';
-  }
-  if (candidate.expressionMode === 'blendshapeAssist') {
-    const blendDelta =
-      candidate.package?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta ?? 0;
-    if (
-      candidate.package?.uvCoverageMetadata?.blendFallbackReason ||
-      blendDelta <= 0
-    ) {
-      return '표정 보조 신호 부족: 기본 후보와 거의 같음';
-    }
-    return '촬영한 여러 표정의 UV 합성 마스크';
-  }
-  return '기본 경계와 색감을 먼저 확인합니다.';
+  return '기본 마스크';
 }
 
 function formatCandidatePreviewStatus(
@@ -5102,8 +5099,6 @@ function formatWizardStepLabel(step: E7WizardStep) {
       return '촬영';
     case 'extract':
       return '추출';
-    case 'blend':
-      return '블렌딩 선택';
     case 'adjust':
       return '조정';
     case 'apply':
@@ -5118,11 +5113,9 @@ function formatWizardStepTitle(step: E7WizardStep) {
     case 'align':
       return '얼굴 정렬';
     case 'capture':
-      return '표정별 촬영';
+      return '사진 촬영';
     case 'extract':
       return '경계 추출';
-    case 'blend':
-      return '블렌딩 선택';
     case 'adjust':
       return '마스크 미세 조정';
     case 'apply':
@@ -6037,11 +6030,17 @@ function TuningSlider({
 
 type AdjustmentStepperProps = {
   label: string;
+  testIDLabel?: string;
   value: number;
   onChange: (value: LipAdjustmentValueUpdate) => void;
 };
 
-function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
+function AdjustmentStepper({
+  label,
+  testIDLabel = label,
+  value,
+  onChange,
+}: AdjustmentStepperProps) {
   const stepValue = useCallback(
     (direction: -1 | 1) => {
       onChange(currentValue => {
@@ -6066,7 +6065,7 @@ function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
       <View style={styles.adjustmentStepperRow}>
         <Pressable
           accessibilityRole="button"
-          testID={`lip-adjustment-step-${label}-down`}
+          testID={`lip-adjustment-step-${testIDLabel}-down`}
           style={({ pressed }) => [
             styles.adjustmentStepButton,
             pressed && styles.colorButtonPressed,
@@ -6077,7 +6076,7 @@ function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          testID={`lip-adjustment-step-${label}-reset`}
+          testID={`lip-adjustment-step-${testIDLabel}-reset`}
           style={({ pressed }) => [
             styles.adjustmentResetButton,
             pressed && styles.colorButtonPressed,
@@ -6088,7 +6087,7 @@ function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          testID={`lip-adjustment-step-${label}-up`}
+          testID={`lip-adjustment-step-${testIDLabel}-up`}
           style={({ pressed }) => [
             styles.adjustmentStepButton,
             pressed && styles.colorButtonPressed,
@@ -6248,7 +6247,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   generateWizardCardAdjust: {
-    maxHeight: 700,
+    maxHeight: 620,
   },
   generateWizardStepRow: {
     flexDirection: 'row',
@@ -6327,6 +6326,17 @@ const styles = StyleSheet.create({
   },
   generateWizardBody: {
     gap: 10,
+  },
+  generateWizardAdjustLayout: {
+    gap: 8,
+    minHeight: 0,
+  },
+  generateWizardAdjustScroller: {
+    maxHeight: 474,
+  },
+  generateWizardAdjustContent: {
+    gap: 8,
+    paddingBottom: 2,
   },
   generateWizardBodyText: {
     color: '#E5E7EB',
@@ -6625,7 +6635,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   generatedAdjustmentPreview: {
-    minHeight: 360,
+    minHeight: 300,
     overflow: 'hidden',
     borderRadius: 8,
     borderWidth: 1,
@@ -6633,21 +6643,34 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.08)',
   },
   generatedAdjustmentPreviewTapArea: {
-    minHeight: 360,
+    minHeight: 300,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
   generatedAdjustmentPreviewImage: {
     width: '100%',
-    height: 360,
+    height: 300,
     resizeMode: 'contain',
   },
   generatedAdjustmentPreviewImageZoomed: {
-    transform: [{ scale: 1.65 }, { translateY: -16 }],
+    transform: [{ scale: 1.55 }, { translateY: -12 }],
+  },
+  generatedAdjustmentPreviewImageBoundary: {
+    opacity: 0.88,
+  },
+  generatedAdjustmentBoundaryFrame: {
+    position: 'absolute',
+    left: 28,
+    right: 28,
+    top: 36,
+    bottom: 36,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#FDE68A',
   },
   generatedAdjustmentPreviewEmpty: {
-    minHeight: 360,
+    minHeight: 300,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 14,
@@ -6672,7 +6695,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 10,
     right: 10,
-    bottom: 10,
+    bottom: 48,
     minHeight: 28,
     borderRadius: 8,
     alignItems: 'center',
@@ -6698,6 +6721,37 @@ const styles = StyleSheet.create({
     letterSpacing: 0,
     paddingHorizontal: 8,
     paddingVertical: 4,
+  },
+  generatedAdjustmentPreviewModeRow: {
+    position: 'absolute',
+    left: 10,
+    right: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    gap: 6,
+  },
+  generatedAdjustmentPreviewModeButton: {
+    flex: 1,
+    minHeight: 30,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(15, 23, 42, 0.72)',
+  },
+  generatedAdjustmentPreviewModeButtonActive: {
+    backgroundColor: '#D1FAE5',
+    borderColor: '#FFFFFF',
+  },
+  generatedAdjustmentPreviewModeButtonText: {
+    color: '#F9FAFB',
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 0,
+  },
+  generatedAdjustmentPreviewModeButtonTextActive: {
+    color: '#064E3B',
   },
   generateWizardApplyGateGrid: {
     flexDirection: 'row',

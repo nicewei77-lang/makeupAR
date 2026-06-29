@@ -197,11 +197,15 @@ function matchesAny(source, patterns) {
 }
 
 function readStyleNumber(source, styleName, propertyName) {
-  const styleMatch = new RegExp(`${styleName}:\\s*{([\\s\\S]*?)\\n\\s*},`).exec(source);
+  const styleMatch = new RegExp(`${styleName}:\\s*{([\\s\\S]*?)\\n\\s*},`).exec(
+    source,
+  );
   if (!styleMatch) {
     return undefined;
   }
-  const propertyMatch = new RegExp(`${propertyName}:\\s*(\\d+)`).exec(styleMatch[1]);
+  const propertyMatch = new RegExp(`${propertyName}:\\s*(\\d+)`).exec(
+    styleMatch[1],
+  );
   return propertyMatch ? Number(propertyMatch[1]) : undefined;
 }
 
@@ -242,7 +246,9 @@ function anyWindowMatchesAll(source, anchorPatterns, requiredPatterns, radius) {
 
 function patternPresenceDetail(source, requirements) {
   return requirements
-    .map(({ label, pattern }) => `${label}=${pattern.test(source) ? 'yes' : 'no'}`)
+    .map(
+      ({ label, pattern }) => `${label}=${pattern.test(source) ? 'yes' : 'no'}`,
+    )
     .join(' ');
 }
 
@@ -274,7 +280,8 @@ function polygonArea(points) {
   for (let index = 0; index < points.length; index += 1) {
     const current = points[index];
     const next = points[(index + 1) % points.length];
-    area += Number(current.x) * Number(next.y) - Number(next.x) * Number(current.y);
+    area +=
+      Number(current.x) * Number(next.y) - Number(next.x) * Number(current.y);
   }
   return Math.abs(area) * 0.5;
 }
@@ -345,13 +352,18 @@ function writePreviewArtifacts(generatedPackage) {
   fs.mkdirSync(reportDir, { recursive: true });
   const svgPath = path.join(reportDir, 'mask-preview.svg');
   const htmlPath = path.join(reportDir, 'mask-preview.html');
-  const reportStyle = 'font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;';
+  const reportStyle =
+    'font-family:-apple-system,BlinkMacSystemFont,Helvetica,Arial,sans-serif;';
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
     `  <image href="${frameHref}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid meet"/>`,
-    `  <polygon points="${pointsToSvg(outer)}" fill="#db4778" fill-opacity="0.48" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>`,
+    `  <polygon points="${pointsToSvg(
+      outer,
+    )}" fill="#db4778" fill-opacity="0.48" stroke="#ffffff" stroke-width="7" stroke-linejoin="round"/>`,
     inner.length >= 3
-      ? `  <polygon points="${pointsToSvg(inner)}" fill="#111111" fill-opacity="0.32" stroke="#ffe7f1" stroke-width="4" stroke-linejoin="round"/>`
+      ? `  <polygon points="${pointsToSvg(
+          inner,
+        )}" fill="#111111" fill-opacity="0.32" stroke="#ffe7f1" stroke-width="4" stroke-linejoin="round"/>`
       : '',
     `  <text x="32" y="58" fill="#ffffff" font-size="38" font-family="Helvetica" font-weight="700">E7 prebuild actual package preview</text>`,
     '</svg>',
@@ -365,7 +377,9 @@ function writePreviewArtifacts(generatedPackage) {
     '<main style="max-width:920px; margin:0 auto; padding:24px;">',
     '<h1 style="font-size:24px;">E7 Prebuild Mask Preview</h1>',
     '<p>이 파일은 generated_lip_package.json의 lipBoundary2D를 그대로 그립니다. 앱 preview가 이 형태와 다르면 빌드 금지입니다.</p>',
-    `<img src="${path.basename(svgPath)}" style="width:100%; height:auto; border:1px solid #555;">`,
+    `<img src="${path.basename(
+      svgPath,
+    )}" style="width:100%; height:auto; border:1px solid #555;">`,
     '</main>',
     '</body>',
     '',
@@ -416,11 +430,7 @@ function runNodeCheck(label, commandArgs, cwd) {
 }
 
 function runMain() {
-  addCheck(
-    'fixture.frame_exists',
-    exists(sourceFramePath),
-    sourceFramePath,
-  );
+  addCheck('fixture.frame_exists', exists(sourceFramePath), sourceFramePath);
   addCheck(
     'fixture.arface_export_exists',
     exists(arFaceExportPath),
@@ -431,7 +441,11 @@ function runMain() {
     exists(generatedPackagePath),
     generatedPackagePath,
   );
-  addCheck('fixture.saved_record_exists', exists(savedRecordPath), savedRecordPath);
+  addCheck(
+    'fixture.saved_record_exists',
+    exists(savedRecordPath),
+    savedRecordPath,
+  );
 
   let generatedPackage = null;
   let arFaceExport = null;
@@ -463,11 +477,14 @@ function runMain() {
       : 0;
     const areaRatio = bboxArea > 0 ? outerArea / bboxArea : 0;
     const uvStats = analyzeRawRgba(generatedPackage.runtimeApplyPayload);
-    const previewPaths = writeReport ? writePreviewArtifacts(generatedPackage) : null;
+    const previewPaths = writeReport
+      ? writePreviewArtifacts(generatedPackage)
+      : null;
 
     addCheck(
       'package.schema',
-      generatedPackage.schemaVersion === 'e7-personalized-lip-generate-package-v0',
+      generatedPackage.schemaVersion ===
+        'e7-personalized-lip-generate-package-v0',
       `schemaVersion=${generatedPackage.schemaVersion}`,
     );
     addCheck(
@@ -486,7 +503,9 @@ function runMain() {
     addCheck(
       'package.boundary_not_bbox_proxy',
       areaRatio > 0.25 && areaRatio < 0.85,
-      `polygonArea=${outerArea.toFixed(1)} bboxArea=${bboxArea.toFixed(1)} areaRatio=${areaRatio.toFixed(3)}`,
+      `polygonArea=${outerArea.toFixed(1)} bboxArea=${bboxArea.toFixed(
+        1,
+      )} areaRatio=${areaRatio.toFixed(3)}`,
       { outerBounds, outerArea, bboxArea, areaRatio },
     );
     addCheck(
@@ -504,16 +523,28 @@ function runMain() {
       uvStats.bytes === uvStats.expectedBytes &&
         uvStats.nonzeroAlpha > 0 &&
         uvStats.strongAlpha > 0,
-      `bytes=${uvStats.bytes}/${uvStats.expectedBytes} nonzeroAlpha=${uvStats.nonzeroAlpha} strongAlpha=${uvStats.strongAlpha} edgeBandAlpha=${uvStats.edgeBandAlpha} edgeBandRatio=${uvStats.edgeBandRatio.toFixed(4)} maxAlpha=${uvStats.maxAlpha} bbox=${JSON.stringify(uvStats.bbox)}`,
+      `bytes=${uvStats.bytes}/${uvStats.expectedBytes} nonzeroAlpha=${
+        uvStats.nonzeroAlpha
+      } strongAlpha=${uvStats.strongAlpha} edgeBandAlpha=${
+        uvStats.edgeBandAlpha
+      } edgeBandRatio=${uvStats.edgeBandRatio.toFixed(4)} maxAlpha=${
+        uvStats.maxAlpha
+      } bbox=${JSON.stringify(uvStats.bbox)}`,
       { uvStats },
     );
     const fixtureHasUvQualityMetrics =
       Number(generatedPackage.uvCoverageMetadata?.uvResolution ?? 0) >= 512 &&
-      Number(generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0) >= 512 &&
-      Number(generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0) >= 512 &&
+      Number(generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0) >=
+        512 &&
+      Number(generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0) >=
+        512 &&
       Number(generatedPackage.uvCoverageMetadata?.edgeBandRatio ?? -1) >= 0 &&
-      Number(generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 1) <= 0.05 &&
-      Number(generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ?? 1) <= 0.5;
+      Number(
+        generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 1,
+      ) <= 0.05 &&
+      Number(
+        generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ?? 1,
+      ) <= 0.5;
     const sourceHasUvQualityMetrics = matchesAll(personalizedPipelineSource, [
       /GENERATED_UV_MASK_RESOLUTION\s*=\s*512/,
       /GENERATED_UV_SUPERSAMPLE_GRID\s*=\s*2/,
@@ -524,12 +555,29 @@ function runMain() {
     addCheck(
       'package.uv_mask_quality_metrics',
       fixtureHasUvQualityMetrics || sourceHasUvQualityMetrics,
-      `fixtureReady=${fixtureHasUvQualityMetrics ? 'yes' : 'no'} sourceReady=${sourceHasUvQualityMetrics ? 'yes' : 'no'} uvResolution=${generatedPackage.uvCoverageMetadata?.uvResolution ?? 'missing'} texture=${generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0}x${generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0} edgeBandRatio=${generatedPackage.uvCoverageMetadata?.edgeBandRatio ?? 'missing'} innerHolePositiveRatio=${generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 'missing'} previewVsUvRoundTripDelta=${generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ?? 'missing'}`,
+      `fixtureReady=${fixtureHasUvQualityMetrics ? 'yes' : 'no'} sourceReady=${
+        sourceHasUvQualityMetrics ? 'yes' : 'no'
+      } uvResolution=${
+        generatedPackage.uvCoverageMetadata?.uvResolution ?? 'missing'
+      } texture=${
+        generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0
+      }x${
+        generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0
+      } edgeBandRatio=${
+        generatedPackage.uvCoverageMetadata?.edgeBandRatio ?? 'missing'
+      } innerHolePositiveRatio=${
+        generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 'missing'
+      } previewVsUvRoundTripDelta=${
+        generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ??
+        'missing'
+      }`,
       {
         uvCoverageMetadata: generatedPackage.uvCoverageMetadata,
         runtimeApplyPayload: {
-          maskTextureWidth: generatedPackage.runtimeApplyPayload?.maskTextureWidth,
-          maskTextureHeight: generatedPackage.runtimeApplyPayload?.maskTextureHeight,
+          maskTextureWidth:
+            generatedPackage.runtimeApplyPayload?.maskTextureWidth,
+          maskTextureHeight:
+            generatedPackage.runtimeApplyPayload?.maskTextureHeight,
         },
       },
     );
@@ -547,13 +595,18 @@ function runMain() {
         arFaceExport.uvs.length >= 1000 &&
         Array.isArray(arFaceExport.indices) &&
         arFaceExport.indices.length >= 3000,
-      `screenVertices=${arFaceExport.screenVertices?.length ?? 0} uvs=${arFaceExport.uvs?.length ?? 0} indices=${arFaceExport.indices?.length ?? 0}`,
+      `screenVertices=${arFaceExport.screenVertices?.length ?? 0} uvs=${
+        arFaceExport.uvs?.length ?? 0
+      } indices=${arFaceExport.indices?.length ?? 0}`,
     );
     if (previewPaths) {
       addCheck(
         'report.actual_package_preview_written',
         exists(previewPaths.svgPath) && exists(previewPaths.htmlPath),
-        `${path.relative(repoRoot, previewPaths.htmlPath)} / ${path.relative(repoRoot, previewPaths.svgPath)}`,
+        `${path.relative(repoRoot, previewPaths.htmlPath)} / ${path.relative(
+          repoRoot,
+          previewPaths.svgPath,
+        )}`,
       );
     }
   }
@@ -593,8 +646,7 @@ function runMain() {
     'ios.native_preview_method_exported',
     /@objc\(renderLipMaskPreview:resolver:rejecter:\)/.test(
       nativeProviderSource,
-    ) &&
-      /RCT_EXTERN_METHOD\(renderLipMaskPreview/.test(nativeBridgeSource),
+    ) && /RCT_EXTERN_METHOD\(renderLipMaskPreview/.test(nativeBridgeSource),
     'Native iOS preview helper must render a generated_lip_package.json preview PNG for RN.',
   );
   addCheck(
@@ -606,7 +658,10 @@ function runMain() {
       /maskTextureHeight/,
       /arFaceExportPath/,
       /raw_uv_mask_projection/,
-    ]) && /sourceFrameMetadata[\s\S]{0,500}arFaceExportPath/.test(personalizedPipelineSource),
+    ]) &&
+      /sourceFrameMetadata[\s\S]{0,500}arFaceExportPath/.test(
+        personalizedPipelineSource,
+      ),
     'Native preview must project runtimeApplyPayload.maskRawRgbaBase64 through the ARFace UV export, with lipBoundary2D only as fallback/debug stroke.',
   );
   addCheck(
@@ -619,10 +674,41 @@ function runMain() {
       ),
     'RN apply success must depend on Unity ack with applied=true, uvAvailable=true, maskTriangles>0.',
   );
+  const activeCaptureOptionsBlock =
+    rnAppSource.match(
+      /const\s+E7_CAPTURE_SHOT_OPTIONS[\s\S]*?;\nconst\s+GENERATED_LIP_MASK_SMOKE_RAW_RGBA_BASE64/,
+    )?.[0] ?? '';
+  const activeExpressionOptionsBlock =
+    rnAppSource.match(
+      /const\s+LIP_GENERATE_EXPRESSION_OPTIONS[\s\S]*?;\nconst\s+E7_WIZARD_STEPS/,
+    )?.[0] ?? '';
+  const oneShotDefaultFlow =
+    /kind\s*:\s*['"]neutral['"]/.test(activeCaptureOptionsBlock) &&
+    !/mouthOpen|smile|pucker|yawLeft|yawRight/.test(activeCaptureOptionsBlock);
+  const blendDefaultOff =
+    /uvOnly/.test(activeExpressionOptionsBlock) &&
+    !/blendshapeAssist/.test(activeExpressionOptionsBlock);
+  const productBlendCopyRemoved =
+    !/블렌딩 선택|기본 블렌딩|현재 사진으로 다시 생성|e7-wizard-blend-next/.test(
+      rnAppSource,
+    );
+  const editorPreviewModesReady = matchesAll(rnAppSource, [
+    /e7-adjust-preview-mode-\$\{mode\}/,
+    /formatAdjustmentPreviewModeLabel/,
+    /원본 비교/,
+    /경계 보기/,
+  ]);
   addCheck(
-    'rn.copy_blending_not_compare',
-    /블렌딩 선택/.test(rnAppSource) && !/Compare/.test(rnAppSource),
-    'Product UI should say 블렌딩 선택, and Compare should stay out of the active flow.',
+    'rn.default_generate_flow_one_shot_blend_off',
+    oneShotDefaultFlow &&
+      blendDefaultOff &&
+      productBlendCopyRemoved &&
+      editorPreviewModesReady,
+    `Default Generate flow must be one neutral capture -> fixed-photo editor with blend default-off. oneShot=${
+      oneShotDefaultFlow ? 'yes' : 'no'
+    } blendOff=${blendDefaultOff ? 'yes' : 'no'} oldCopyRemoved=${
+      productBlendCopyRemoved ? 'yes' : 'no'
+    } previewModes=${editorPreviewModesReady ? 'yes' : 'no'}`,
   );
   addCheck(
     'rn.package_script_registered',
@@ -661,7 +747,10 @@ function runMain() {
       personalizedPipelineSource,
       smoothingContractRequirements.map(item => item.pattern),
     ) && hasSmoothingPointGrowthProof,
-    `TS package path must record curve_densified_v1, carry smoothing metadata into lipBoundary2D/UV diagnostics, and prove smoothedPointCount > originalPointCount. ${patternPresenceDetail(personalizedPipelineSource, smoothingContractRequirements)} pointGrowthProof=${hasSmoothingPointGrowthProof ? 'yes' : 'no'}`,
+    `TS package path must record curve_densified_v1, carry smoothing metadata into lipBoundary2D/UV diagnostics, and prove smoothedPointCount > originalPointCount. ${patternPresenceDetail(
+      personalizedPipelineSource,
+      smoothingContractRequirements,
+    )} pointGrowthProof=${hasSmoothingPointGrowthProof ? 'yes' : 'no'}`,
   );
   addCheck(
     'v2.unity_raw_uv_texture_origin',
@@ -699,7 +788,13 @@ function runMain() {
     swiftPreviewCurveOk,
     swiftPreviewCurveOk
       ? 'Swift renderLipMaskPreview uses a smooth closed curve path for lip boundaries; any addLine helper should remain fallback-only for too few points.'
-      : `Swift renderLipMaskPreview must draw a smooth closed curve for lip boundaries. renderUsesSmooth=${renderPreviewUsesSmoothPath ? 'yes' : 'no'} addCurve=${/(addCurve\s*\(|addQuadCurve\s*\()/.test(nativeProviderSource) ? 'yes' : 'no'}`,
+      : `Swift renderLipMaskPreview must draw a smooth closed curve for lip boundaries. renderUsesSmooth=${
+          renderPreviewUsesSmoothPath ? 'yes' : 'no'
+        } addCurve=${
+          /(addCurve\s*\(|addQuadCurve\s*\()/.test(nativeProviderSource)
+            ? 'yes'
+            : 'no'
+        }`,
   );
 
   const adjustmentProofCorpus = [
@@ -735,7 +830,13 @@ function runMain() {
     hasAdjustmentDeltaMarker &&
       hasAdjustedPackageRebuildMarker &&
       hasAdjustmentPreviewRevisionMarker,
-    `Need a focused test/check or explicit marker proving adjustment rebuilds the selected package, changes preview/cache identity, and changes UV alpha. rebuildProof=${hasAdjustedPackageRebuildMarker ? 'yes' : 'no'} deltaProof=${hasAdjustmentDeltaMarker ? 'yes' : 'no'} previewRevisionProof=${hasAdjustmentPreviewRevisionMarker ? 'yes' : 'no'}`,
+    `Need a focused test/check or explicit marker proving adjustment rebuilds the selected package, changes preview/cache identity, and changes UV alpha. rebuildProof=${
+      hasAdjustedPackageRebuildMarker ? 'yes' : 'no'
+    } deltaProof=${
+      hasAdjustmentDeltaMarker ? 'yes' : 'no'
+    } previewRevisionProof=${
+      hasAdjustmentPreviewRevisionMarker ? 'yes' : 'no'
+    }`,
   );
 
   const hasCurrentPhotoRegenerate = matchesAny(rnAppSource, [
@@ -748,7 +849,14 @@ function runMain() {
     /\bretake\b/i,
     /new\s+capture/i,
   ]);
-  const oldRegenerateLabelRemoved = !/경계\s*다시\s*추출/.test(rnAppSource);
+  const oldRegenerateLabelRemoved =
+    !hasCurrentPhotoRegenerate && !/경계\s*다시\s*추출/.test(rnAppSource);
+  const hasOptimisticAdjustmentPackageUpdate = matchesAll(rnAppSource, [
+    /optimisticCandidates/,
+    /setGeneratedCandidates/,
+    /setGeneratedCandidatesStale\s*\(\s*false\s*\)/,
+    /조정값을\s*저장\s*후보에\s*바로\s*반영/,
+  ]);
   const hasApplyStateClear = matchesAny(rnAppSource, [
     /setGeneratedApplyState\s*\(\s*['"]idle['"]\s*\)/,
     /setGeneratedApplyState\s*\(\s*createGeneratedApplyState\s*\(\s*['"]idle['"]\s*\)/,
@@ -759,31 +867,44 @@ function runMain() {
     /pendingGeneratedMaskId[\s\S]{0,160}(?:undefined|null)/,
   ]);
   addCheck(
-    'v2.regenerate_retake_clear_state',
-    hasCurrentPhotoRegenerate &&
+    'v3.adjust_without_regenerate_retake_clear_state',
+    hasOptimisticAdjustmentPackageUpdate &&
       hasRetake &&
       oldRegenerateLabelRemoved &&
       hasApplyStateClear &&
       hasPendingApplyClear,
-    `Regenerate and retake must be separate and clear stale apply state. currentPhotoRegenerate=${hasCurrentPhotoRegenerate ? 'yes' : 'no'} retake=${hasRetake ? 'yes' : 'no'} oldLabelRemoved=${oldRegenerateLabelRemoved ? 'yes' : 'no'} applyStateClear=${hasApplyStateClear ? 'yes' : 'no'} pendingMaskClear=${hasPendingApplyClear ? 'yes' : 'no'}`,
+    `Adjustment must update the saved package without a separate regenerate CTA, and retake/close must clear stale apply state. optimisticUpdate=${
+      hasOptimisticAdjustmentPackageUpdate ? 'yes' : 'no'
+    } retake=${hasRetake ? 'yes' : 'no'} oldRegenerateRemoved=${
+      oldRegenerateLabelRemoved ? 'yes' : 'no'
+    } applyStateClear=${hasApplyStateClear ? 'yes' : 'no'} pendingMaskClear=${
+      hasPendingApplyClear ? 'yes' : 'no'
+    }`,
   );
 
-  const hasCaptureSetNativeExtraction = matchesAny(rnAppSource, [
+  const hasDefaultNativeExtraction = matchesAny(rnAppSource, [
     /capturedShotKinds[\s\S]{0,400}invokeNativeBoundaryProvider\s*\(\s*lipGenerateProvider\s*,\s*shotKind\s*\)/,
     /E7_CAPTURE_SHOT_OPTIONS[\s\S]{0,500}extractLipBoundary/,
   ]);
-  const hasCaptureSetPackageEvidence = matchesAll(rnAppSource, [
-    /nativeProviderShotResults/,
-    /providerShotResults/,
-  ]) && matchesAll(personalizedPipelineSource, [
-    /captureSetShotResults/,
-    /blendshape_assist_capture_set_summary/,
-    /captureSetShotCount/,
-  ]);
+  const hasProviderPackageEvidence =
+    matchesAll(rnAppSource, [
+      /nativeProviderShotResults/,
+      /providerShotResults/,
+    ]) &&
+    matchesAll(personalizedPipelineSource, [
+      /captureSetShotResults/,
+      /captureSetShotCount/,
+    ]);
   addCheck(
-    'v2.capture_set_used_for_blendshape_assist',
-    hasCaptureSetNativeExtraction && hasCaptureSetPackageEvidence,
-    `The n-shot capture flow must feed generation, not only gate UI. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'}`,
+    'v3.one_shot_capture_feeds_native_package',
+    oneShotDefaultFlow &&
+      hasDefaultNativeExtraction &&
+      hasProviderPackageEvidence,
+    `The default one-shot capture must feed native extraction and generated package metadata. oneShot=${
+      oneShotDefaultFlow ? 'yes' : 'no'
+    } nativeExtraction=${
+      hasDefaultNativeExtraction ? 'yes' : 'no'
+    } packageEvidence=${hasProviderPackageEvidence ? 'yes' : 'no'}`,
   );
   const hasCaptureSetBlendMaskSource = matchesAll(personalizedPipelineSource, [
     /buildCaptureSetBlendUvMask/,
@@ -804,14 +925,18 @@ function runMain() {
     generatedPackage?.expressionMode === 'blendshapeAssist' &&
     generatedPackage?.uvCoverageMetadata?.blendMaskKind ===
       'capture_set_consensus_v1' &&
-    Number(generatedPackage?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta ?? 0) > 0;
+    Number(generatedPackage?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta ?? 0) >
+      0;
   addCheck(
-    'v2.capture_set_used_for_blendshape_mask',
-    hasCaptureSetNativeExtraction &&
-      hasCaptureSetPackageEvidence &&
-      hasCaptureSetBlendMaskSource &&
-      hasCaptureSetBlendMaskTests,
-    `blendshapeAssist must build a real capture-set raw UV mask, not metadata-only blend. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'} source=${hasCaptureSetBlendMaskSource ? 'yes' : 'no'} tests=${hasCaptureSetBlendMaskTests ? 'yes' : 'no'} fixtureDelta=${fixtureHasBlendMaskDelta ? 'yes' : 'not-current-fixture'}`,
+    'v3.blendshape_assist_internal_default_off',
+    blendDefaultOff && hasCaptureSetBlendMaskSource,
+    `blendshapeAssist may remain internally implemented, but it must be default-off in the product flow until visual quality is proven. defaultOff=${
+      blendDefaultOff ? 'yes' : 'no'
+    } internalBlendSource=${
+      hasCaptureSetBlendMaskSource ? 'yes' : 'no'
+    } legacyTests=${
+      hasCaptureSetBlendMaskTests ? 'yes' : 'not-required'
+    } fixtureDelta=${fixtureHasBlendMaskDelta ? 'yes' : 'not-current-fixture'}`,
     {
       fixtureBlendMaskKind: generatedPackage?.uvCoverageMetadata?.blendMaskKind,
       fixtureUvOnlyVsBlendAlphaDelta:
@@ -819,16 +944,20 @@ function runMain() {
     },
   );
 
-  const captureTimeoutAndPreviewReady = matchesAll(rnAppSource, [
-    /E7_CAPTURE_ACK_TIMEOUT_MS/,
-    /촬영 응답이 늦습니다/,
-    /framePreviewUri/,
-    /capturedFrameImage/,
-  ]) && /framePreviewUri/.test(unityBridgeSource + unityCaptureExporterSource);
+  const captureTimeoutAndPreviewReady =
+    matchesAll(rnAppSource, [
+      /E7_CAPTURE_ACK_TIMEOUT_MS/,
+      /촬영 응답이 늦습니다/,
+      /framePreviewUri/,
+      /capturedFrameImage/,
+    ]) &&
+    /framePreviewUri/.test(unityBridgeSource + unityCaptureExporterSource);
   addCheck(
     'v2.capture_timeout_and_captured_frame_preview',
     captureTimeoutAndPreviewReady,
-    `Capture flow must recover from missing Unity capture events and show the saved captured frame, not only a dark live-camera shield. ready=${captureTimeoutAndPreviewReady ? 'yes' : 'no'}`,
+    `Capture flow must recover from missing Unity capture events and show the saved captured frame, not only a dark live-camera shield. ready=${
+      captureTimeoutAndPreviewReady ? 'yes' : 'no'
+    }`,
   );
 
   const applyStateRequirements = [
@@ -839,7 +968,10 @@ function runMain() {
     { label: 'applied', pattern: /['"]applied['"]/ },
     { label: 'blocked', pattern: /['"]blocked['"]/ },
     { label: 'timeout', pattern: /['"]timeout['"]/ },
-    { label: 'reason', pattern: /\b(blockedReason|reason|errorReason|timeoutReason)\b/ },
+    {
+      label: 'reason',
+      pattern: /\b(blockedReason|reason|errorReason|timeoutReason)\b/,
+    },
   ];
   const hasTimeoutMechanism = matchesAny(rnAppSource, [
     /setTimeout\s*\(/,
@@ -847,20 +979,30 @@ function runMain() {
     /elapsedMs\b/i,
     /ackTimeout/i,
   ]);
-  const hasAckMatching = /generated_lip_mask_applied/.test(rnAppSource) &&
+  const hasAckMatching =
+    /generated_lip_mask_applied/.test(rnAppSource) &&
     /generatedMaskId/.test(rnAppSource);
   addCheck(
     'v2.apply_loading_timeout_reason_states',
-    matchesAll(rnAppSource, applyStateRequirements.map(item => item.pattern)) &&
+    matchesAll(
+      rnAppSource,
+      applyStateRequirements.map(item => item.pattern),
+    ) &&
       hasTimeoutMechanism &&
       hasAckMatching,
-    `Apply state must include loading/posting/waitingAck/applied/blocked/timeout with user-readable reason and generatedMaskId matching. ${patternPresenceDetail(rnAppSource, applyStateRequirements)} timeoutMechanism=${hasTimeoutMechanism ? 'yes' : 'no'} ackMatching=${hasAckMatching ? 'yes' : 'no'}`,
+    `Apply state must include loading/posting/waitingAck/applied/blocked/timeout with user-readable reason and generatedMaskId matching. ${patternPresenceDetail(
+      rnAppSource,
+      applyStateRequirements,
+    )} timeoutMechanism=${hasTimeoutMechanism ? 'yes' : 'no'} ackMatching=${
+      hasAckMatching ? 'yes' : 'no'
+    }`,
   );
 
   const generatedValidationControlRequirements = [
     {
       label: 'onOff',
-      pattern: /ON\s*\/\s*OFF|mask\s*(?:on|off)|maskEnabled|generated-mask-toggle|마스크\s*(?:켜기|끄기)/i,
+      pattern:
+        /ON\s*\/\s*OFF|mask\s*(?:on|off)|maskEnabled|generated-mask-toggle|마스크\s*(?:켜기|끄기)/i,
     },
     {
       label: 'strong',
@@ -893,28 +1035,42 @@ function runMain() {
   addCheck(
     'v2.ar_validation_controls_present',
     (hasGeneratedValidationAnchor || hasControlsNearAppliedState) &&
-      matchesAll(rnAppSource, generatedValidationControlRequirements.map(item => item.pattern)),
-    `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${hasGeneratedValidationAnchor ? 'yes' : 'no'} nearApplied=${hasControlsNearAppliedState ? 'yes' : 'no'} ${patternPresenceDetail(rnAppSource, generatedValidationControlRequirements)}`,
+      matchesAll(
+        rnAppSource,
+        generatedValidationControlRequirements.map(item => item.pattern),
+      ),
+    `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${
+      hasGeneratedValidationAnchor ? 'yes' : 'no'
+    } nearApplied=${
+      hasControlsNearAppliedState ? 'yes' : 'no'
+    } ${patternPresenceDetail(
+      rnAppSource,
+      generatedValidationControlRequirements,
+    )}`,
   );
 
-  const validationControlAckReady = matchesAll(rnAppSource, [
-    /pendingGeneratedControlCheck/,
-    /doesGeneratedControlAckMatch/,
-    /controlRequestId/,
-    /generated_lip_mask_control_ack_mismatch/,
-    /postRegionOverlayVisibility\(\s*nextControls\.maskVisible/,
-    /GENERATED_CONTROL_ACK_TIMEOUT_MS/,
-    /AR 검증 변경이 반영되었습니다/,
-    /AR 검증 변경 확인이 늦습니다/,
-  ]) && matchesAll(unityBridgeSource, [
-    /controlRequestId/,
-    /validationControlRequestId/,
-    /validationControls[\s\S]{0,240}controlRequestId/,
-  ]);
+  const validationControlAckReady =
+    matchesAll(rnAppSource, [
+      /pendingGeneratedControlCheck/,
+      /doesGeneratedControlAckMatch/,
+      /controlRequestId/,
+      /generated_lip_mask_control_ack_mismatch/,
+      /postRegionOverlayVisibility\(\s*nextControls\.maskVisible/,
+      /GENERATED_CONTROL_ACK_TIMEOUT_MS/,
+      /AR 검증 변경이 반영되었습니다/,
+      /AR 검증 변경 확인이 늦습니다/,
+    ]) &&
+    matchesAll(unityBridgeSource, [
+      /controlRequestId/,
+      /validationControlRequestId/,
+      /validationControls[\s\S]{0,240}controlRequestId/,
+    ]);
   addCheck(
     'v2.ar_validation_controls_ack_confirmed',
     validationControlAckReady,
-    `AR validation controls must wait for a matching generated-mask ack or show a delayed confirmation state. ready=${validationControlAckReady ? 'yes' : 'no'}`,
+    `AR validation controls must wait for a matching generated-mask ack or show a delayed confirmation state. ready=${
+      validationControlAckReady ? 'yes' : 'no'
+    }`,
   );
 
   const userFacingDeveloperCopyRemoved = [
@@ -950,7 +1106,9 @@ function runMain() {
   addCheck(
     'v2.user_facing_ar_copy_no_developer_terms',
     userFacingDeveloperCopyRemoved && userFacingArCopyPresent,
-    `User-facing Generate/AR copy must avoid developer terms and clearly communicate AR transition. oldTermsRemoved=${userFacingDeveloperCopyRemoved ? 'yes' : 'no'} arCopy=${userFacingArCopyPresent ? 'yes' : 'no'}`,
+    `User-facing Generate/AR copy must avoid developer terms and clearly communicate AR transition. oldTermsRemoved=${
+      userFacingDeveloperCopyRemoved ? 'yes' : 'no'
+    } arCopy=${userFacingArCopyPresent ? 'yes' : 'no'}`,
   );
 
   addCheck(
@@ -1001,7 +1159,11 @@ function runMain() {
   addCheck(
     'v2.preview_cards_large_enough_for_quality_judgment',
     candidatePreviewLargeEnough,
-    `Candidate and adjustment previews should remain large enough for picky visual review. largePreview=${candidatePreviewLargeEnough ? 'yes' : 'no'} cardWidth=${candidateCardWidth ?? 'missing'} candidateHeight=${candidatePreviewHeight ?? 'missing'} adjustmentHeight=${adjustmentPreviewHeight ?? 'missing'}`,
+    `Candidate and adjustment previews should remain large enough for picky visual review. largePreview=${
+      candidatePreviewLargeEnough ? 'yes' : 'no'
+    } cardWidth=${candidateCardWidth ?? 'missing'} candidateHeight=${
+      candidatePreviewHeight ?? 'missing'
+    } adjustmentHeight=${adjustmentPreviewHeight ?? 'missing'}`,
   );
 
   addCheck(
@@ -1025,20 +1187,9 @@ function runMain() {
         unityFrameworkPath,
         'generated_lip_mask_applied.latest.json',
       ) &&
-      fileContainsBytes(
-        unityFrameworkPath,
-        'overlaySyncPhase',
-      ) &&
-      (
-        fileContainsBytes(
-          unityFrameworkPath,
-          'validationControlRequestId',
-        ) ||
-        fileContainsBytes(
-          unityFrameworkPath,
-          'controlRequestId',
-        )
-      ),
+      fileContainsBytes(unityFrameworkPath, 'overlaySyncPhase') &&
+      (fileContainsBytes(unityFrameworkPath, 'validationControlRequestId') ||
+        fileContainsBytes(unityFrameworkPath, 'controlRequestId')),
     exists(unityFrameworkPath)
       ? 'UnityFramework must contain current RNBridge ack persistence, overlay sync, and control request strings. If this fails, rebuild/sync UnityFramework before Xcode.'
       : `missing ${unityFrameworkPath}`,
@@ -1090,12 +1241,19 @@ function runMain() {
       path.join(reportDir, 'gate-report.json'),
       JSON.stringify(summary, null, 2),
     );
-    fs.writeFileSync(path.join(reportDir, 'gate-report.md'), renderMarkdown(summary));
+    fs.writeFileSync(
+      path.join(reportDir, 'gate-report.md'),
+      renderMarkdown(summary),
+    );
   }
 
   for (const check of checks) {
     const mark =
-      check.status === 'pass' ? 'ok' : check.status === 'warn' ? 'WARN' : 'FAIL';
+      check.status === 'pass'
+        ? 'ok'
+        : check.status === 'warn'
+        ? 'WARN'
+        : 'FAIL';
     console.log(`[e7-prebuild] ${mark} ${check.id} - ${check.detail}`);
   }
   console.log(
@@ -1103,7 +1261,10 @@ function runMain() {
   );
   if (writeReport) {
     console.log(
-      `[e7-prebuild] report=${path.relative(repoRoot, path.join(reportDir, 'gate-report.md'))}`,
+      `[e7-prebuild] report=${path.relative(
+        repoRoot,
+        path.join(reportDir, 'gate-report.md'),
+      )}`,
     );
   }
   if (failed.length > 0) {
@@ -1129,7 +1290,9 @@ function renderMarkdown(summary) {
   ];
   for (const check of summary.checks) {
     lines.push(
-      `| ${check.status} | ${check.id} | ${String(check.detail).replaceAll('\n', '<br>').replaceAll('|', '\\|')} |`,
+      `| ${check.status} | ${check.id} | ${String(check.detail)
+        .replaceAll('\n', '<br>')
+        .replaceAll('|', '\\|')} |`,
     );
   }
   lines.push(

@@ -413,15 +413,15 @@ runtime 매 프레임 AI가 아니라 calibration-time generation으로 성능�
 
 ### 4.2 신호 역할
 
-| Signal | 역할 | 금지 |
-| --- | --- | --- |
-| ARFace mesh/UV | runtime 좌표계, 2D mask -> UV projection, 얼굴 부착 | semantic boundary 자체로 과신 금지 |
-| Apple Vision | native iOS current-frame 2D contour / landmark provider, sanity signal | gold mask 또는 runtime primary tracker 취급 금지 |
-| MediaPipe | native iOS current-frame geometry/landmark provider, comparison signal | fixture/replay 또는 Codex shell-only 결과를 앱 구현 완료로 취급 금지 |
-| Face parsing | local/offline silver semantic layer, spill/exclude 판단 | live runtime/Core ML로 승격 금지 |
-| Color/gradient | confidence, contrast, hair/skin/lip edge, visibility/spill warning | boundary 생성 신호로 단독 사용 금지 |
-| External mask prior | gold 없는 부위의 silver draft 생성 | 직접 gold 또는 product asset 취급 금지 |
-| User adjustment | subjective boundary를 닫는 최종 correction | 조정 없이 자동 success 주장 금지 |
+| Signal              | 역할                                                                   | 금지                                                                 |
+| ------------------- | ---------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| ARFace mesh/UV      | runtime 좌표계, 2D mask -> UV projection, 얼굴 부착                    | semantic boundary 자체로 과신 금지                                   |
+| Apple Vision        | native iOS current-frame 2D contour / landmark provider, sanity signal | gold mask 또는 runtime primary tracker 취급 금지                     |
+| MediaPipe           | native iOS current-frame geometry/landmark provider, comparison signal | fixture/replay 또는 Codex shell-only 결과를 앱 구현 완료로 취급 금지 |
+| Face parsing        | local/offline silver semantic layer, spill/exclude 판단                | live runtime/Core ML로 승격 금지                                     |
+| Color/gradient      | confidence, contrast, hair/skin/lip edge, visibility/spill warning     | boundary 생성 신호로 단독 사용 금지                                  |
+| External mask prior | gold 없는 부위의 silver draft 생성                                     | 직접 gold 또는 product asset 취급 금지                               |
+| User adjustment     | subjective boundary를 닫는 최종 correction                             | 조정 없이 자동 success 주장 금지                                     |
 
 ### 4.3 저장 package
 
@@ -585,12 +585,12 @@ unknown: 신호가 갈리거나 판단이 부족한 영역
 
 외부 source 기대값:
 
-| Source | 용도 |
-| --- | --- |
-| CelebAMask-HQ | lip, eye, eyebrow, skin label prior |
-| LaPa | lip, eye, landmark-normalized prior |
-| BiSeNet/SegFace | local/offline face parsing helper |
-| MediaPipe | face normalization, landmarks, geometry comparison |
+| Source          | 용도                                               |
+| --------------- | -------------------------------------------------- |
+| CelebAMask-HQ   | lip, eye, eyebrow, skin label prior                |
+| LaPa            | lip, eye, landmark-normalized prior                |
+| BiSeNet/SegFace | local/offline face parsing helper                  |
+| MediaPipe       | face normalization, landmarks, geometry comparison |
 
 주의:
 
@@ -1968,17 +1968,17 @@ Unity:
 
 현재 상태:
 
-| 항목 | 상태 | 이유 |
-| --- | --- | --- |
-| Web shell | ready | 앱 wizard 껍데기 확인 가능 |
-| Functional web beta | partial | 실제 fixture 기반 mask/UV/save 검증 가능, 앱 runtime 증거는 아님 |
-| RN forced wizard | partial | buildless tests 통과, iPhone visual/runtime 미검증 |
-| Unity capture/export | partial | 기존 exporter 재사용 가능, 이번 wizard에서 실기기 capture evidence 미수집 |
-| native Vision | partial | Swift bridge/source 구현, Xcode/iPhone runtime 미검증 |
-| native MediaPipe | blocked | iOS MediaPipe dependency/model 미번들; blockedReason 명시 |
+| 항목                    | 상태    | 이유                                                                             |
+| ----------------------- | ------- | -------------------------------------------------------------------------------- |
+| Web shell               | ready   | 앱 wizard 껍데기 확인 가능                                                       |
+| Functional web beta     | partial | 실제 fixture 기반 mask/UV/save 검증 가능, 앱 runtime 증거는 아님                 |
+| RN forced wizard        | partial | buildless tests 통과, iPhone visual/runtime 미검증                               |
+| Unity capture/export    | partial | 기존 exporter 재사용 가능, 이번 wizard에서 실기기 capture evidence 미수집        |
+| native Vision           | partial | Swift bridge/source 구현, Xcode/iPhone runtime 미검증                            |
+| native MediaPipe        | blocked | iOS MediaPipe dependency/model 미번들; blockedReason 명시                        |
 | RN boundary->UV package | partial | JS helper/typecheck 통과, 실제 native Vision 결과와 on-device performance 미검증 |
-| Save/runtime apply | partial | native save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증 |
-| Build-ready claim | blocked | MediaPipe native blocker와 Xcode/iPhone evidence 부재 |
+| Save/runtime apply      | partial | native save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증   |
+| Build-ready claim       | blocked | MediaPipe native blocker와 Xcode/iPhone evidence 부재                            |
 
 다음 결정을 해야 한다:
 
@@ -2071,17 +2071,17 @@ Strict QA:
 
 현재 상태:
 
-| 항목 | 상태 | 이유 |
-| --- | --- | --- |
-| Web shell | ready | 앱 wizard 껍데기 확인 가능 |
-| Functional web beta | partial | fixture/local server 기반 생성/조정/저장 검증 가능, 앱 runtime 증거는 아님 |
-| RN forced wizard | pre-xcode-ready | buildless tests 통과, Xcode/iPhone runtime 미검증 |
-| Unity capture/export | pre-xcode-ready | captureSetId/shotKind/purpose/quality export 계약 보강 및 Unity compile/smoke 통과, 실기기 capture evidence는 다음 gate |
-| native Vision | pre-xcode-ready | Swift current-frame provider 구현, Xcode/iPhone runtime 미검증 |
-| native MediaPipe | pre-xcode-ready | Pod/model/resource/Swift current-frame provider 준비, Xcode/iPhone runtime 미검증 |
-| RN boundary->UV package | pre-xcode-ready | JS helper/typecheck 통과, 실제 native 결과 runtime 성능 미검증 |
-| Save/runtime apply | pre-xcode-ready | local save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증 |
-| Build-ready claim | pre-xcode-ready | 이제 의도적으로 남긴 gate는 Xcode build/install/run과 실기기 evidence |
+| 항목                    | 상태            | 이유                                                                                                                    |
+| ----------------------- | --------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| Web shell               | ready           | 앱 wizard 껍데기 확인 가능                                                                                              |
+| Functional web beta     | partial         | fixture/local server 기반 생성/조정/저장 검증 가능, 앱 runtime 증거는 아님                                              |
+| RN forced wizard        | pre-xcode-ready | buildless tests 통과, Xcode/iPhone runtime 미검증                                                                       |
+| Unity capture/export    | pre-xcode-ready | captureSetId/shotKind/purpose/quality export 계약 보강 및 Unity compile/smoke 통과, 실기기 capture evidence는 다음 gate |
+| native Vision           | pre-xcode-ready | Swift current-frame provider 구현, Xcode/iPhone runtime 미검증                                                          |
+| native MediaPipe        | pre-xcode-ready | Pod/model/resource/Swift current-frame provider 준비, Xcode/iPhone runtime 미검증                                       |
+| RN boundary->UV package | pre-xcode-ready | JS helper/typecheck 통과, 실제 native 결과 runtime 성능 미검증                                                          |
+| Save/runtime apply      | pre-xcode-ready | local save bridge/source 구현, Unity editor smoke 통과, iPhone runtime 미검증                                           |
+| Build-ready claim       | pre-xcode-ready | 이제 의도적으로 남긴 gate는 Xcode build/install/run과 실기기 evidence                                                   |
 
 명시적 한계:
 
@@ -2792,20 +2792,20 @@ Next user-approved iPhone pass must still verify:
 
 #### 13.8.8 Original complaint mapping
 
-| User complaint | Root cause found | Fix |
-| --- | --- | --- |
-| 마스크가 안보임 | Adjust preview renders frame image only, no mask overlay | full-face mask overlay preview; UV/mask diagnostics; visible validation material |
-| 촬영이 되는지 모르겠음 | capture files exist but UI feedback weak | one capture button, flash/check/haptic/thumbnail/capturePairId |
-| 정면/입 다물기가 겹침 | neutral and mouthClosed both ask for closed-mouth behavior | merge mouthClosed into neutral; keep optional expression shots distinct |
-| 촬영 버튼 여러 개 | shot grid buttons are primary actions | one primary capture CTA with current shot prompt |
-| 촬영 티가 안남 | no strong transition to captured review | freeze captured frame after shot; show saved pair id and thumbnail |
-| 비교 페이지가 이상함 | one provider selected but page reads like provider compare | rename to 블렌딩 선택; provider comparison becomes diagnostic |
-| 조정에서 얼굴이 너무 작거나 crop됨 | preview slot uses small/cropped frame | full-face captured frame is primary surface |
-| 저장 단계 없애기 | separate save page remains | final CTA is 저장하고 AR 실행 |
-| 적용 변화 없음 | RN does not wait for Unity generated mask ack or transition to AR | generated_lip_mask_applied ack gate; AR screen transition on success |
-| AR 립 화면으로 안 넘어감 | wizardStep runtime only, no runtime view state | explicit applied state closes/collapses wizard and resumes AR look |
-| 얼굴 없는데 정렬 체크 통과 | hardcoded checkmarks | measured alignment gate or waiting/blocked reason |
-| 로그가 얼굴을 가림 | debug surfaces still too visible in product flow | compact drawer/sheet only, not center face |
+| User complaint                     | Root cause found                                                  | Fix                                                                              |
+| ---------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 마스크가 안보임                    | Adjust preview renders frame image only, no mask overlay          | full-face mask overlay preview; UV/mask diagnostics; visible validation material |
+| 촬영이 되는지 모르겠음             | capture files exist but UI feedback weak                          | one capture button, flash/check/haptic/thumbnail/capturePairId                   |
+| 정면/입 다물기가 겹침              | neutral and mouthClosed both ask for closed-mouth behavior        | merge mouthClosed into neutral; keep optional expression shots distinct          |
+| 촬영 버튼 여러 개                  | shot grid buttons are primary actions                             | one primary capture CTA with current shot prompt                                 |
+| 촬영 티가 안남                     | no strong transition to captured review                           | freeze captured frame after shot; show saved pair id and thumbnail               |
+| 비교 페이지가 이상함               | one provider selected but page reads like provider compare        | rename to 블렌딩 선택; provider comparison becomes diagnostic                    |
+| 조정에서 얼굴이 너무 작거나 crop됨 | preview slot uses small/cropped frame                             | full-face captured frame is primary surface                                      |
+| 저장 단계 없애기                   | separate save page remains                                        | final CTA is 저장하고 AR 실행                                                    |
+| 적용 변화 없음                     | RN does not wait for Unity generated mask ack or transition to AR | generated_lip_mask_applied ack gate; AR screen transition on success             |
+| AR 립 화면으로 안 넘어감           | wizardStep runtime only, no runtime view state                    | explicit applied state closes/collapses wizard and resumes AR look               |
+| 얼굴 없는데 정렬 체크 통과         | hardcoded checkmarks                                              | measured alignment gate or waiting/blocked reason                                |
+| 로그가 얼굴을 가림                 | debug surfaces still too visible in product flow                  | compact drawer/sheet only, not center face                                       |
 
 #### 13.8.9 Non-goals for this fix
 
@@ -3351,18 +3351,18 @@ timeline에 기록
 
 ## 15. Risk Register
 
-| Risk | 대응 |
-| --- | --- |
-| Gold mask 없음 | external prior + multi-signal provisional + unknown map |
-| 외부 데이터 license/size 불명확 | source review 먼저, small sample만, full download approval 필요 |
-| MediaPipe Codex shell GL/Metal 실패 | GUI Terminal/manual helper 또는 helper signal로 downgrade |
-| Face parsing이 부정확 | silver only, single source winner 금지 |
-| Color edge가 shadow/hair와 혼동 | confidence/warning으로만 사용 |
-| Eyeliner가 불안정 | reference 사진/외부 prior/parametric stroke/minimal-safe curve 반복으로 최소 후보 생성 |
-| Xcode build 실패 | 이번 세션에서는 실행하지 않고 다음 세션 checklist/fallback으로 보존 |
-| 기기 잠금/권한 | 이번 세션에서는 요청하지 않고 deferred gate로 기록 |
-| 성능 저하 | runtime metrics로 region/source별 분리 |
-| 사용자 기대와 다른 결과 | 제품 시나리오와 조정축을 먼저 고정 |
+| Risk                                | 대응                                                                                   |
+| ----------------------------------- | -------------------------------------------------------------------------------------- |
+| Gold mask 없음                      | external prior + multi-signal provisional + unknown map                                |
+| 외부 데이터 license/size 불명확     | source review 먼저, small sample만, full download approval 필요                        |
+| MediaPipe Codex shell GL/Metal 실패 | GUI Terminal/manual helper 또는 helper signal로 downgrade                              |
+| Face parsing이 부정확               | silver only, single source winner 금지                                                 |
+| Color edge가 shadow/hair와 혼동     | confidence/warning으로만 사용                                                          |
+| Eyeliner가 불안정                   | reference 사진/외부 prior/parametric stroke/minimal-safe curve 반복으로 최소 후보 생성 |
+| Xcode build 실패                    | 이번 세션에서는 실행하지 않고 다음 세션 checklist/fallback으로 보존                    |
+| 기기 잠금/권한                      | 이번 세션에서는 요청하지 않고 deferred gate로 기록                                     |
+| 성능 저하                           | runtime metrics로 region/source별 분리                                                 |
+| 사용자 기대와 다른 결과             | 제품 시나리오와 조정축을 먼저 고정                                                     |
 
 ## 16. 최종 보고 형식
 
@@ -3841,16 +3841,16 @@ Status: **pre-Xcode buildless/source gate passed, device visual acceptance pendi
 
 #### 17.5.1 Failure mapping
 
-| Failure | Current status | Evidence / note |
-| --- | --- | --- |
-| Vision/MediaPipe preview boundary가 직선 polygon처럼 보임 | fixed buildless | TS package path에 `curve_densified_v1` smoothing 추가. Swift `renderLipMaskPreview`는 `addCurve` 기반 smooth closed curve를 사용하고 line path는 fallback-only. |
-| Adjust 값을 바꿔도 preview/package/UV 변화가 눈에 안 보임 | fixed buildless | 조정값이 selected package rebuild, native preview render, generatedMaskId adjustment hash, UV alpha diagnostics/raw mask에 반영된다. Jest가 조정 전후 generatedMaskId/preview render/recipe delta를 검증한다. |
-| "경계 다시 추출"이 기존 결과 재사용처럼 보임 | fixed source/UI | 제품 UI 문구를 "현재 사진으로 다시 생성"과 "다시 촬영"으로 분리. Retake는 capture/provider/candidate/apply stale state를 clear한다. |
-| Save/apply 후 loading/timeout/reason 없이 대기 | fixed source/UI | `generatedApplyState`를 `idle/saving/posting/waitingAck/applied/blocked/timeout` object로 명시화. 10초 ack timeout, retry button, `blockedReason` 표시 추가. |
-| 블렌딩 on/off 후보 차이가 없음 | partial | 후보는 `기본 블렌딩`과 `표정 보정` 두 개로 줄이고 large cards로 표시한다. 차이 자체의 real-device visual judgment는 다음 iPhone flow에서 확인해야 한다. |
-| AR 적용 후 ON/OFF/진하게/색/opacity/boundary control 부재 | fixed source/UI + Unity source | ack 성공 후 `GeneratedRuntimeAppliedBanner`에서 mask ON/OFF, strong mode, color swatches, opacity +/-와 boundary/debug toggle 제공. Unity RNBridge는 controls-only reapply를 raw texture 없이 처리한다. |
-| AR 전환/로딩 시간이 버그처럼 보임 | fixed source/UI | Apply step에 save/payload/Unity ack gate, timeout/reason/retry가 보인다. ack 성공 후에만 AR validation banner로 전환한다. |
-| 이전 apply blocked 상태가 Extract/Blending/Adjust 화면을 오염 | fixed source/UI | provider change, candidate change, adjustment change, regenerate, retake, reopen flow에서 `resetGeneratedApplyFlow`로 pending/applied/generatedMaskId state를 clear한다. |
+| Failure                                                       | Current status                 | Evidence / note                                                                                                                                                                                               |
+| ------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Vision/MediaPipe preview boundary가 직선 polygon처럼 보임     | fixed buildless                | TS package path에 `curve_densified_v1` smoothing 추가. Swift `renderLipMaskPreview`는 `addCurve` 기반 smooth closed curve를 사용하고 line path는 fallback-only.                                               |
+| Adjust 값을 바꿔도 preview/package/UV 변화가 눈에 안 보임     | fixed buildless                | 조정값이 selected package rebuild, native preview render, generatedMaskId adjustment hash, UV alpha diagnostics/raw mask에 반영된다. Jest가 조정 전후 generatedMaskId/preview render/recipe delta를 검증한다. |
+| "경계 다시 추출"이 기존 결과 재사용처럼 보임                  | fixed source/UI                | 제품 UI 문구를 "현재 사진으로 다시 생성"과 "다시 촬영"으로 분리. Retake는 capture/provider/candidate/apply stale state를 clear한다.                                                                           |
+| Save/apply 후 loading/timeout/reason 없이 대기                | fixed source/UI                | `generatedApplyState`를 `idle/saving/posting/waitingAck/applied/blocked/timeout` object로 명시화. 10초 ack timeout, retry button, `blockedReason` 표시 추가.                                                  |
+| 블렌딩 on/off 후보 차이가 없음                                | partial                        | 후보는 `기본 블렌딩`과 `표정 보정` 두 개로 줄이고 large cards로 표시한다. 차이 자체의 real-device visual judgment는 다음 iPhone flow에서 확인해야 한다.                                                       |
+| AR 적용 후 ON/OFF/진하게/색/opacity/boundary control 부재     | fixed source/UI + Unity source | ack 성공 후 `GeneratedRuntimeAppliedBanner`에서 mask ON/OFF, strong mode, color swatches, opacity +/-와 boundary/debug toggle 제공. Unity RNBridge는 controls-only reapply를 raw texture 없이 처리한다.       |
+| AR 전환/로딩 시간이 버그처럼 보임                             | fixed source/UI                | Apply step에 save/payload/Unity ack gate, timeout/reason/retry가 보인다. ack 성공 후에만 AR validation banner로 전환한다.                                                                                     |
+| 이전 apply blocked 상태가 Extract/Blending/Adjust 화면을 오염 | fixed source/UI                | provider change, candidate change, adjustment change, regenerate, retake, reopen flow에서 `resetGeneratedApplyFlow`로 pending/applied/generatedMaskId state를 clear한다.                                      |
 
 #### 17.5.2 Implemented source changes
 
@@ -3931,9 +3931,9 @@ Status: **pre-Xcode bug audit passed, device visual acceptance still pending**.
 
 #### 17.6.1 Fixed before next build
 
-| Risk | Fix | Gate |
-| --- | --- | --- |
-| 블렌딩 후보/조정 preview가 `cover` crop으로 잘려 full-face mask 품질 확인이 어려움 | `generateWizardCandidatePreviewImage`와 `generatedAdjustmentPreviewImage`를 `contain`으로 변경하고 카드/preview 높이를 키움 | `v2.preview_images_show_full_face` prebuild gate 추가 |
+| Risk                                                                                                     | Fix                                                                                                                                       | Gate                                                         |
+| -------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| 블렌딩 후보/조정 preview가 `cover` crop으로 잘려 full-face mask 품질 확인이 어려움                       | `generateWizardCandidatePreviewImage`와 `generatedAdjustmentPreviewImage`를 `contain`으로 변경하고 카드/preview 높이를 키움               | `v2.preview_images_show_full_face` prebuild gate 추가        |
 | evidence pull helper가 `--dry-run`에서도 폴더를 만들거나 일부 missing source를 `pulled`로 오판할 수 있음 | dry-run은 명령만 출력하고 파일 시스템을 건드리지 않음. source별 `copyResults`를 기록하고 missing source가 있으면 summary `status=partial` | `python3 -m py_compile` + dry-run no-output-side-effect 확인 |
 
 #### 17.6.2 Verification evidence
@@ -3968,11 +3968,11 @@ Status: **source/buildless gate passed, device visual acceptance still pending**
 
 #### 17.7.1 Fixed before next build
 
-| Risk | Fix | Gate |
-| --- | --- | --- |
-| n-shot capture가 실제 generation 입력이 아니라 UI gate처럼 동작함 | `generateWizardCandidates`가 captured shot 전체(`neutral`, `mouthOpen`, `smile`, `pucker`, `yawLeft`, `yawRight`)를 provider에 요청한다. `neutral`은 boundary anchor로 유지하고, 나머지 shot은 expression/blendshape summary에 사용한다. | RN Jest test `uses the full capture set when generating blendshape-assisted candidates` |
-| blendshape assist가 neutral 단일 frame 값만 보고 package evidence가 부족함 | generated package에 `captureSetShotResults`, `sourceFaceState.captureSetShotCount`, `sourceFaceState.blendshapeSummaryKind`, `blendshapeAssist.values["<shot>.<signal>"]`, `blendshapeAssist.values["max.<signal>"]`를 저장한다. | `v2.capture_set_used_for_blendshape_assist` prebuild gate |
-| Retake 후 이전 capture set evidence가 섞일 수 있음 | 다시 촬영 시 `captureSetId`, native provider result, per-shot provider result, candidates, saved/apply state를 clear한다. | existing retake stale-state gates + source check |
+| Risk                                                                       | Fix                                                                                                                                                                                                                                      | Gate                                                                                    |
+| -------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| n-shot capture가 실제 generation 입력이 아니라 UI gate처럼 동작함          | `generateWizardCandidates`가 captured shot 전체(`neutral`, `mouthOpen`, `smile`, `pucker`, `yawLeft`, `yawRight`)를 provider에 요청한다. `neutral`은 boundary anchor로 유지하고, 나머지 shot은 expression/blendshape summary에 사용한다. | RN Jest test `uses the full capture set when generating blendshape-assisted candidates` |
+| blendshape assist가 neutral 단일 frame 값만 보고 package evidence가 부족함 | generated package에 `captureSetShotResults`, `sourceFaceState.captureSetShotCount`, `sourceFaceState.blendshapeSummaryKind`, `blendshapeAssist.values["<shot>.<signal>"]`, `blendshapeAssist.values["max.<signal>"]`를 저장한다.         | `v2.capture_set_used_for_blendshape_assist` prebuild gate                               |
+| Retake 후 이전 capture set evidence가 섞일 수 있음                         | 다시 촬영 시 `captureSetId`, native provider result, per-shot provider result, candidates, saved/apply state를 clear한다.                                                                                                                | existing retake stale-state gates + source check                                        |
 
 #### 17.7.2 Verification evidence
 
@@ -4002,13 +4002,13 @@ Status: **source/buildless UI gate passed, device visual acceptance still pendin
 
 #### 17.8.1 Fixed before next build
 
-| Risk | Fix | Gate |
-| --- | --- | --- |
-| Apply 화면이 `saved`, `payload`, `Unity ack`, raw path, `reason`처럼 보여 사용자가 멈춘 것으로 느낄 수 있음 | Apply 화면을 사용자 언어의 진행 화면으로 바꾸고, timeout도 "AR 적용 응답이 늦습니다" / "다시 시도하거나 촬영부터 다시 진행"으로 표시한다. | RN Jest apply/timeout assertions |
-| Ack 성공 후에도 `맞춤 Generate` / `AR 립 적용 중`처럼 보여 실제 AR 화면 전환감이 약함 | Ack 성공 후 top title은 `AR 립 검증`, banner는 `AR 립 적용됨`으로 바꾸고 Generate wizard를 접는다. | RN Jest ack transition assertions |
-| AR validation controls가 작고 기술적으로 보임 | Controls를 키우고 `마스크 ON`, `진하게 보기`, `경계 보기`, `농도`, `다시 조정`으로 라벨을 바꾼다. | RN Jest controls assertions + `v2.user_facing_ar_copy_no_developer_terms` |
-| Start/extract/capture text에 raw `captureSetId`, `fixture`, `frame.png`, `arface_export.json` 등이 보임 | 일반 화면에서는 "촬영 데이터는 기기 안에서만 처리", "방금 촬영한 얼굴", "저장된 얼굴 프레임" 같은 제품 언어로 바꾼다. | RN Jest no-developer-copy assertions |
-| 후보/조정 preview가 작아 품질 판단이 어려움 | Candidate card/preview와 adjustment preview 높이를 키워 picky visual review가 가능하게 한다. | `v2.preview_cards_large_enough_for_quality_judgment` |
+| Risk                                                                                                        | Fix                                                                                                                                       | Gate                                                                      |
+| ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| Apply 화면이 `saved`, `payload`, `Unity ack`, raw path, `reason`처럼 보여 사용자가 멈춘 것으로 느낄 수 있음 | Apply 화면을 사용자 언어의 진행 화면으로 바꾸고, timeout도 "AR 적용 응답이 늦습니다" / "다시 시도하거나 촬영부터 다시 진행"으로 표시한다. | RN Jest apply/timeout assertions                                          |
+| Ack 성공 후에도 `맞춤 Generate` / `AR 립 적용 중`처럼 보여 실제 AR 화면 전환감이 약함                       | Ack 성공 후 top title은 `AR 립 검증`, banner는 `AR 립 적용됨`으로 바꾸고 Generate wizard를 접는다.                                        | RN Jest ack transition assertions                                         |
+| AR validation controls가 작고 기술적으로 보임                                                               | Controls를 키우고 `마스크 ON`, `진하게 보기`, `경계 보기`, `농도`, `다시 조정`으로 라벨을 바꾼다.                                         | RN Jest controls assertions + `v2.user_facing_ar_copy_no_developer_terms` |
+| Start/extract/capture text에 raw `captureSetId`, `fixture`, `frame.png`, `arface_export.json` 등이 보임     | 일반 화면에서는 "촬영 데이터는 기기 안에서만 처리", "방금 촬영한 얼굴", "저장된 얼굴 프레임" 같은 제품 언어로 바꾼다.                     | RN Jest no-developer-copy assertions                                      |
+| 후보/조정 preview가 작아 품질 판단이 어려움                                                                 | Candidate card/preview와 adjustment preview 높이를 키워 picky visual review가 가능하게 한다.                                              | `v2.preview_cards_large_enough_for_quality_judgment`                      |
 
 #### 17.8.2 Verification evidence
 
@@ -4036,15 +4036,15 @@ Status: **source/buildless reliability gate passed, Unity batchmode blocked by l
 
 #### 17.9.1 Fixed before next build
 
-| Risk | Fix | Gate |
-| --- | --- | --- |
-| Unity capture event가 오지 않으면 촬영 버튼이 영원히 `촬영 중`처럼 남음 | RN capture timeout을 추가하고 같은 컷을 다시 촬영하라는 사용자 문구로 복구한다. | RN Jest timeout test |
-| 캡처 후 검토 화면이 실제 저장 프레임이 아니라 어두운 카메라 shield처럼 보임 | Unity capture event에 `framePreviewUri`를 싣고 RN이 저장된 `frame.png`를 큰 배경으로 표시한다. | `v2.capture_timeout_and_captured_frame_preview` |
-| provider blocked 상태에서 사용자가 막힌 채로 다음 행동을 못 찾음 | blocked blending 화면에 `다른 방식 선택` 복구 버튼을 추가한다. | RN blocked-provider test |
-| native save bridge가 없는데 JS memory fallback으로 저장 성공처럼 보일 수 있음 | native save module이 없으면 apply blocked로 처리하고 rebuild 필요 문구를 띄운다. | source/static apply gate |
-| AR 검증 컨트롤을 눌러도 Unity가 반영했는지 확인할 수 없음 | ON/OFF, 진하게, 색, 농도 변경 후 matching `generated_lip_mask_applied` ack를 기다리고, 늦으면 지연 문구를 표시한다. | `v2.ar_validation_controls_ack_confirmed` |
-| `표정 보정` copy가 실제 경계 geometry 차이를 크게 바꾸는 것처럼 과장됨 | copy를 `표정 보조`로 낮추고 소재/번짐 안정성 보조로 설명한다. | RN Jest copy assertions |
-| `look`, `finish`, `candidate`, `provider blockedReason`, raw ack 같은 내부 단어가 제품 UI에 남음 | 사용자 화면 문구를 한국어 제품 언어로 정리한다. | `v2.user_facing_ar_copy_no_developer_terms` |
+| Risk                                                                                             | Fix                                                                                                                 | Gate                                            |
+| ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| Unity capture event가 오지 않으면 촬영 버튼이 영원히 `촬영 중`처럼 남음                          | RN capture timeout을 추가하고 같은 컷을 다시 촬영하라는 사용자 문구로 복구한다.                                     | RN Jest timeout test                            |
+| 캡처 후 검토 화면이 실제 저장 프레임이 아니라 어두운 카메라 shield처럼 보임                      | Unity capture event에 `framePreviewUri`를 싣고 RN이 저장된 `frame.png`를 큰 배경으로 표시한다.                      | `v2.capture_timeout_and_captured_frame_preview` |
+| provider blocked 상태에서 사용자가 막힌 채로 다음 행동을 못 찾음                                 | blocked blending 화면에 `다른 방식 선택` 복구 버튼을 추가한다.                                                      | RN blocked-provider test                        |
+| native save bridge가 없는데 JS memory fallback으로 저장 성공처럼 보일 수 있음                    | native save module이 없으면 apply blocked로 처리하고 rebuild 필요 문구를 띄운다.                                    | source/static apply gate                        |
+| AR 검증 컨트롤을 눌러도 Unity가 반영했는지 확인할 수 없음                                        | ON/OFF, 진하게, 색, 농도 변경 후 matching `generated_lip_mask_applied` ack를 기다리고, 늦으면 지연 문구를 표시한다. | `v2.ar_validation_controls_ack_confirmed`       |
+| `표정 보정` copy가 실제 경계 geometry 차이를 크게 바꾸는 것처럼 과장됨                           | copy를 `표정 보조`로 낮추고 소재/번짐 안정성 보조로 설명한다.                                                       | RN Jest copy assertions                         |
+| `look`, `finish`, `candidate`, `provider blockedReason`, raw ack 같은 내부 단어가 제품 UI에 남음 | 사용자 화면 문구를 한국어 제품 언어로 정리한다.                                                                     | `v2.user_facing_ar_copy_no_developer_terms`     |
 
 #### 17.9.2 Verification evidence
 
@@ -4083,13 +4083,13 @@ Status: **source/buildless audit passed, next phone build should skip UnityFrame
 
 #### 17.10.1 Fixed before next build
 
-| Risk | Fix | Gate |
-| --- | --- | --- |
-| 이전 capture request의 늦은 `e7_reference_capture` ack가 현재 shot을 저장 완료로 오염할 수 있음 | RN이 `captureSetId`, `captureShotKind`, `capturePairId`가 현재 pending shot과 모두 맞을 때만 capture 결과를 반영한다. | RN Jest late capture ack test |
-| Retake/reset 뒤 이전 `generated_lip_mask_applied` ack가 도착하면 이전 package가 다시 applied/blocked 상태를 만들 수 있음 | RN이 현재 pending generatedMaskId 또는 pending control check와 일치하지 않는 stale ack를 무시한다. | RN Jest stale generated ack after retake test |
-| Provider/capture set/adjustment 변경 중 async generation preview가 늦게 끝나면 stale candidates가 UI를 덮을 수 있음 | `generationRequestGuard`를 추가해 request id, captureSetId, provider, adjustment signature가 같은 경우에만 candidate state를 반영한다. | RN TypeScript/Jest |
-| 빌드 전마다 UnityFramework를 감으로 재생성해 시간이 크게 늘어남 | `scripts/e7_build/decide_minimum_build.mjs`와 `npm run e7:build-plan`을 추가해 diff bucket, framework hash, required strings를 기준으로 최소 빌드 경로를 판정한다. | `npm run e7:build-plan -- --no-report` |
-| 사용되지 않는 Unity 리소스를 감으로 삭제하면 scene/registry/RN selector를 깨뜨릴 수 있음 | build-plan에 Unity asset audit을 포함해 `runtime-referenced`, `tooling-or-registry-referenced`, `no-static-reference`를 나눈다. 현재 SmoothRegionMasks 17개 중 `no-static-reference=0`이므로 삭제는 보류한다. | build-plan asset audit |
+| Risk                                                                                                                     | Fix                                                                                                                                                                                                           | Gate                                          |
+| ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| 이전 capture request의 늦은 `e7_reference_capture` ack가 현재 shot을 저장 완료로 오염할 수 있음                          | RN이 `captureSetId`, `captureShotKind`, `capturePairId`가 현재 pending shot과 모두 맞을 때만 capture 결과를 반영한다.                                                                                         | RN Jest late capture ack test                 |
+| Retake/reset 뒤 이전 `generated_lip_mask_applied` ack가 도착하면 이전 package가 다시 applied/blocked 상태를 만들 수 있음 | RN이 현재 pending generatedMaskId 또는 pending control check와 일치하지 않는 stale ack를 무시한다.                                                                                                            | RN Jest stale generated ack after retake test |
+| Provider/capture set/adjustment 변경 중 async generation preview가 늦게 끝나면 stale candidates가 UI를 덮을 수 있음      | `generationRequestGuard`를 추가해 request id, captureSetId, provider, adjustment signature가 같은 경우에만 candidate state를 반영한다.                                                                        | RN TypeScript/Jest                            |
+| 빌드 전마다 UnityFramework를 감으로 재생성해 시간이 크게 늘어남                                                          | `scripts/e7_build/decide_minimum_build.mjs`와 `npm run e7:build-plan`을 추가해 diff bucket, framework hash, required strings를 기준으로 최소 빌드 경로를 판정한다.                                            | `npm run e7:build-plan -- --no-report`        |
+| 사용되지 않는 Unity 리소스를 감으로 삭제하면 scene/registry/RN selector를 깨뜨릴 수 있음                                 | build-plan에 Unity asset audit을 포함해 `runtime-referenced`, `tooling-or-registry-referenced`, `no-static-reference`를 나눈다. 현재 SmoothRegionMasks 17개 중 `no-static-reference=0`이므로 삭제는 보류한다. | build-plan asset audit                        |
 
 #### 17.10.2 Build-minimization decision
 
@@ -4146,12 +4146,12 @@ Unity 파일을 바로 삭제/이동하는 것이 아니라, 제품 runtime 필�
 
 #### 17.11.1 What changed
 
-| Area | Change | Result |
-| --- | --- | --- |
-| build-plan tool | `scripts/e7_build/decide_minimum_build.mjs`가 Unity asset을 `product-runtime-required`, `product-runtime-fallback`, `product-runtime-reference`, `legacy-validation-debug`, `editor-only`, `xr-simulation-debug`로 분류한다. | 파일 단위 profile이 JSON/Markdown report에 남는다. |
-| legacy/debug diff | legacy/debug mask resource만 바뀐 경우 `skip-product-phone-build-legacy-debug-resource-only`를 출력한다. | 제품 Generate 확인만 목적이면 iPhone build를 피할 수 있다. |
-| simulated checks | `--changed-file=<path>` 옵션을 추가해 가상 변경 파일로 build decision을 재현한다. | 실제 파일을 건드리지 않고 팀원 판단을 검증할 수 있다. |
-| runbook | `docs/runbooks/E7_BUILD_MINIMIZATION_RUNBOOK_KO.md` 추가, `E7_PREBUILD_GATE_RUNBOOK_KO.md` 갱신. | 필수 포함/제외 후보/보류 파일이 문서화된다. |
+| Area              | Change                                                                                                                                                                                                                       | Result                                                     |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| build-plan tool   | `scripts/e7_build/decide_minimum_build.mjs`가 Unity asset을 `product-runtime-required`, `product-runtime-fallback`, `product-runtime-reference`, `legacy-validation-debug`, `editor-only`, `xr-simulation-debug`로 분류한다. | 파일 단위 profile이 JSON/Markdown report에 남는다.         |
+| legacy/debug diff | legacy/debug mask resource만 바뀐 경우 `skip-product-phone-build-legacy-debug-resource-only`를 출력한다.                                                                                                                     | 제품 Generate 확인만 목적이면 iPhone build를 피할 수 있다. |
+| simulated checks  | `--changed-file=<path>` 옵션을 추가해 가상 변경 파일로 build decision을 재현한다.                                                                                                                                            | 실제 파일을 건드리지 않고 팀원 판단을 검증할 수 있다.      |
+| runbook           | `docs/runbooks/E7_BUILD_MINIMIZATION_RUNBOOK_KO.md` 추가, `E7_PREBUILD_GATE_RUNBOOK_KO.md` 갱신.                                                                                                                             | 필수 포함/제외 후보/보류 파일이 문서화된다.                |
 
 #### 17.11.2 Current classification
 
@@ -4292,17 +4292,17 @@ Unity MCP 사용 원칙:
 
 ### 18.2 원인 후보별 분리 전략
 
-| ID | 원인 후보 | 대표 증상 | 먼저 볼 증거 | 첫 수정 방향 | 통과 기준 |
-| --- | --- | --- | --- | --- | --- |
-| L1 | Unity overlay update timing이 ARFace 최신 frame보다 빠르거나 어긋남 | 고개 이동 시 mask가 한 박자 늦음 | `trackablesChanged frame`, overlay update frame, screenshot/video | `Update()` 갱신을 `LateUpdate()` 또는 ARFace 갱신 이후로 이동, execution order 고정 | slow/fast yaw에서 1-frame slip이 눈에 띄지 않음 |
-| L2 | 매 프레임 mesh 전체 재생성 비용과 GC | 평균 FPS는 높지만 순간 튐/밀림 | overlay sync ms, GC alloc, worst frame-time | vertices/uv/triangles buffer 재사용, topology는 변경 시에만 세팅, normals 재계산 제거 | 5분 테스트에서 hitch/lag 체감 없음 |
-| L3 | copied child mesh와 ARFace transform/vertices 동기화 mismatch | 얼굴 transform은 움직였는데 mask surface가 늦게 따라옴 | overlay local/world transform + ARFace frame stamp | child mesh 최적화 후에도 남으면 ARFace mesh 직접 material/pass 또는 shared runtime mesh path 검토 | head pose 변화에도 입술에 고정 |
-| Q1 | UV mask 해상도/alpha raster가 낮거나 aliasing됨 | 가장자리가 톱니처럼 보임 | generated UV alpha bbox, resolution, preview/AR 비교 | 128 기준이면 512/1024로 승격, antialias/supersampling, bilinear/clamp/mip 설정 | 확대/진하게 보기에서도 경계가 매끈함 |
-| Q2 | 2D boundary smoothing과 UV raster가 서로 다름 | preview는 괜찮은데 AR이 거칠거나 벗어남 | native preview PNG와 UV round-trip 차이 | 동일 boundary pipeline을 preview/package/runtime에 공유, inner mouth hole 보존 | 조정 preview와 AR 검증이 같은 모양 |
-| Q3 | shader threshold/feather/coverage가 release-quality가 아님 | 입술 밖 번짐, 안쪽 구멍/치아 침범 | strong/boundary mode screenshots | threshold/feather range 재설계, debug boundary mode 분리 | 입술 밖 skin spill과 teeth spill 감소 |
-| U1 | 조정 +/- 의미가 UI copy와 반대 | +를 눌렀는데 줄어드는 느낌 | RN adjustment unit tests, before/after preview | `upper`, `lower`, `corner`, `y`를 사용자 언어 기준으로 재정의 | +는 "더 포함/넓게", -는 "덜 포함/좁게"로 보임 |
-| S1 | stale recipe/state가 남음 | 첫 화면부터 립이 적용된 듯 보임 | generatedMaskId, wizard state, Unity active recipe | Generate 시작/재촬영/Close 시 runtime overlay clear 또는 validation-only state 분리 | 시작 화면에는 이전 립 적용이 보이지 않음 |
-| A1 | Apply/validation ack와 UI 상태 불일치 | 적용된 건지 모름, 컨트롤 반영 불확실 | generated ack file, RN state log | ON/OFF/strong/color/opacity마다 matching ack 대기와 visible feedback | 버튼 조작마다 화면 변화와 ack가 일치 |
+| ID  | 원인 후보                                                           | 대표 증상                                              | 먼저 볼 증거                                                      | 첫 수정 방향                                                                                      | 통과 기준                                       |
+| --- | ------------------------------------------------------------------- | ------------------------------------------------------ | ----------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| L1  | Unity overlay update timing이 ARFace 최신 frame보다 빠르거나 어긋남 | 고개 이동 시 mask가 한 박자 늦음                       | `trackablesChanged frame`, overlay update frame, screenshot/video | `Update()` 갱신을 `LateUpdate()` 또는 ARFace 갱신 이후로 이동, execution order 고정               | slow/fast yaw에서 1-frame slip이 눈에 띄지 않음 |
+| L2  | 매 프레임 mesh 전체 재생성 비용과 GC                                | 평균 FPS는 높지만 순간 튐/밀림                         | overlay sync ms, GC alloc, worst frame-time                       | vertices/uv/triangles buffer 재사용, topology는 변경 시에만 세팅, normals 재계산 제거             | 5분 테스트에서 hitch/lag 체감 없음              |
+| L3  | copied child mesh와 ARFace transform/vertices 동기화 mismatch       | 얼굴 transform은 움직였는데 mask surface가 늦게 따라옴 | overlay local/world transform + ARFace frame stamp                | child mesh 최적화 후에도 남으면 ARFace mesh 직접 material/pass 또는 shared runtime mesh path 검토 | head pose 변화에도 입술에 고정                  |
+| Q1  | UV mask 해상도/alpha raster가 낮거나 aliasing됨                     | 가장자리가 톱니처럼 보임                               | generated UV alpha bbox, resolution, preview/AR 비교              | 128 기준이면 512/1024로 승격, antialias/supersampling, bilinear/clamp/mip 설정                    | 확대/진하게 보기에서도 경계가 매끈함            |
+| Q2  | 2D boundary smoothing과 UV raster가 서로 다름                       | preview는 괜찮은데 AR이 거칠거나 벗어남                | native preview PNG와 UV round-trip 차이                           | 동일 boundary pipeline을 preview/package/runtime에 공유, inner mouth hole 보존                    | 조정 preview와 AR 검증이 같은 모양              |
+| Q3  | shader threshold/feather/coverage가 release-quality가 아님          | 입술 밖 번짐, 안쪽 구멍/치아 침범                      | strong/boundary mode screenshots                                  | threshold/feather range 재설계, debug boundary mode 분리                                          | 입술 밖 skin spill과 teeth spill 감소           |
+| U1  | 조정 +/- 의미가 UI copy와 반대                                      | +를 눌렀는데 줄어드는 느낌                             | RN adjustment unit tests, before/after preview                    | `upper`, `lower`, `corner`, `y`를 사용자 언어 기준으로 재정의                                     | +는 "더 포함/넓게", -는 "덜 포함/좁게"로 보임   |
+| S1  | stale recipe/state가 남음                                           | 첫 화면부터 립이 적용된 듯 보임                        | generatedMaskId, wizard state, Unity active recipe                | Generate 시작/재촬영/Close 시 runtime overlay clear 또는 validation-only state 분리               | 시작 화면에는 이전 립 적용이 보이지 않음        |
+| A1  | Apply/validation ack와 UI 상태 불일치                               | 적용된 건지 모름, 컨트롤 반영 불확실                   | generated ack file, RN state log                                  | ON/OFF/strong/color/opacity마다 matching ack 대기와 visible feedback                              | 버튼 조작마다 화면 변화와 ack가 일치            |
 
 ### 18.3 순차 수정 루프
 
@@ -4715,17 +4715,17 @@ Status: **source/buildless pass, Unity compile/build blocked by licensing, iPhon
 
 원인별 처리:
 
-| ID | 처리 | buildless evidence |
-| --- | --- | --- |
-| L1 | `E3RegionMaskOverlay` sync를 `LateUpdate`로 옮기고 `ARFaceManager.trackablesChanged` sequence/frame을 ack/log에 싣는다. | overlaySyncPhase/frame, trackablesChangedSequence |
-| L2 | per-frame `new List`/topology rebuild/normal recalculation을 제거하고 mesh buffers를 재사용한다. | overlaySyncDurationMs, overlaySyncWorstDurationMs, overlaySyncCount, overlayTopologyChanged |
-| L3 | child mesh path는 유지하되 transform mismatch 판정을 위해 sync frame/topology metric을 먼저 남긴다. | 다음 iPhone yaw/fast yaw에서 판정 필요 |
-| Q1 | generated UV mask default를 512로 올리고 UV-space 2x2 AA raster로 바꿨다. | Jest asserts `uvResolution=512`, `edgeBandRatio > 0` |
-| Q2 | preview/package/runtime이 같은 adjusted boundary를 쓰도록 `previewVsUvRoundTripDelta`, `alphaBoundingBoxTexels`, inner-hole metric을 metadata에 기록한다. | Jest asserts `innerHolePositiveRatio <= 0.01`, `previewVsUvRoundTripDelta <= 0.35` |
-| Q3 | shader upper/lower threshold sign을 `+ = more include` 쪽으로 보정했다. | Unity compile은 licensing blocked, next device strong/boundary screenshots 필요 |
-| U1 | RN pipeline과 `packages/lip-generate-core`의 `verticalOffset +`를 위로 이동하도록 수정했다. | Jest covers upper/lower/corner/y direction |
-| S1 | default lip auto-enable을 끄고 Unity screen unmount/hidden wizard 상태에서 overlay clear를 보낸다. | Jest covers initial timer post `activeRegions=none`, stale ack after retake |
-| A1 | control request id/revision을 RN -> Unity -> ack로 왕복시키고 mismatch ack는 성공 처리하지 않는다. `maskVisible`과 overlay visibility도 같은 값으로 보낸다. | Jest covers mismatched control ack stays pending, matching ack confirms |
+| ID  | 처리                                                                                                                                                        | buildless evidence                                                                          |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| L1  | `E3RegionMaskOverlay` sync를 `LateUpdate`로 옮기고 `ARFaceManager.trackablesChanged` sequence/frame을 ack/log에 싣는다.                                     | overlaySyncPhase/frame, trackablesChangedSequence                                           |
+| L2  | per-frame `new List`/topology rebuild/normal recalculation을 제거하고 mesh buffers를 재사용한다.                                                            | overlaySyncDurationMs, overlaySyncWorstDurationMs, overlaySyncCount, overlayTopologyChanged |
+| L3  | child mesh path는 유지하되 transform mismatch 판정을 위해 sync frame/topology metric을 먼저 남긴다.                                                         | 다음 iPhone yaw/fast yaw에서 판정 필요                                                      |
+| Q1  | generated UV mask default를 512로 올리고 UV-space 2x2 AA raster로 바꿨다.                                                                                   | Jest asserts `uvResolution=512`, `edgeBandRatio > 0`                                        |
+| Q2  | preview/package/runtime이 같은 adjusted boundary를 쓰도록 `previewVsUvRoundTripDelta`, `alphaBoundingBoxTexels`, inner-hole metric을 metadata에 기록한다.   | Jest asserts `innerHolePositiveRatio <= 0.01`, `previewVsUvRoundTripDelta <= 0.35`          |
+| Q3  | shader upper/lower threshold sign을 `+ = more include` 쪽으로 보정했다.                                                                                     | Unity compile은 licensing blocked, next device strong/boundary screenshots 필요             |
+| U1  | RN pipeline과 `packages/lip-generate-core`의 `verticalOffset +`를 위로 이동하도록 수정했다.                                                                 | Jest covers upper/lower/corner/y direction                                                  |
+| S1  | default lip auto-enable을 끄고 Unity screen unmount/hidden wizard 상태에서 overlay clear를 보낸다.                                                          | Jest covers initial timer post `activeRegions=none`, stale ack after retake                 |
+| A1  | control request id/revision을 RN -> Unity -> ack로 왕복시키고 mismatch ack는 성공 처리하지 않는다. `maskVisible`과 overlay visibility도 같은 값으로 보낸다. | Jest covers mismatched control ack stays pending, matching ack confirms                     |
 
 검증:
 
@@ -6112,4 +6112,67 @@ Next iPhone review:
 3. Save and run AR.
 4. Pull/inspect saved package and generated apply ack.
 5. Record whether the tuned value fixed the upper inner lip cover on real face motion.
+```
+
+#### 18.9.15 Generate user-flow fix loop source gate
+
+Status: **source/buildless passed, next iPhone build must prove the actual user flow**.
+
+Work-method document:
+
+```txt
+docs/runbooks/E7_GENERATE_USER_FLOW_FIX_LOOP_KO.md
+```
+
+What changed:
+
+```txt
+- The default user path is now intentionally short:
+  start -> align -> one neutral photo -> extract -> fixed-photo adjust -> save and AR -> AR review -> back to adjust.
+- Default capture set is one neutral shot, not six expression shots.
+- The exposed blending-selection step is removed from the product flow; blendshapeAssist remains internal/default-off until it proves a visible quality win.
+- Extract moves directly to Adjust after candidate generation.
+- Adjust preview has explicit modes: mask, boundary, and compare.
+- Adjustment taps update the candidate/package immediately and keep Save/AR available while native preview rendering catches up.
+- The separate "regenerate current photo" CTA is removed from Adjust; retake remains the explicit way to replace the captured photo.
+- Save/AR sits outside the scroll area as a sticky footer so it does not disappear below the screen.
+- Close/back from captured/generated states preserves captured work but cancels pending save/apply/ack timers to avoid stale UI pollution.
+- Prebuild gate now fails if the old product path leaks back: exposed blend step/copy, multi-shot default flow, regenerate CTA, or missing editor preview modes.
+```
+
+Verification:
+
+```txt
+RN TypeScript: pass
+RN Jest: 34 passed
+RN ESLint: pass
+packages/lip-generate-core typecheck: pass
+packages/lip-generate-core test: pass
+npm run e7:build-plan -- --no-report: pass
+  decision=skip-unityframework-run-rn-xcode-only
+  unityFrameworkSync=true reason=frameworks_synced
+npm run e7:prebuild:full -- --no-report: pass
+  result=pass pass=38 fail=0 warn=0
+git diff --check: pass
+```
+
+UnityFramework decision:
+
+```txt
+No UnityFramework regeneration is required for this diff because it changes RN,
+tests, tooling gate, and docs only. The next proof still needs an iOS app build
+and iPhone visual/device evidence because source/buildless success does not prove
+the installed app flow.
+```
+
+Next iPhone review:
+
+```txt
+1. Confirm the installed app shows one-photo capture, not the old 6-shot flow.
+2. Confirm no exposed "블렌딩 선택" step appears.
+3. Confirm extraction shows a loading/progress state and then opens the fixed-photo Adjust screen.
+4. Tap adjustment +/- and confirm package/value/UI changes before any regenerate step.
+5. Confirm Save/AR is visible at the bottom and enters progress.
+6. After AR review, return to Adjust and confirm captured work is preserved.
+7. Pull generated package and generated apply ack, then compare the package values to the visible flow.
 ```
