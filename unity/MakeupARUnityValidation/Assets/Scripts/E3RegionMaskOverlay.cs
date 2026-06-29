@@ -3170,9 +3170,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case CheekSessionMask2Id:
                 return 0.98f;
             case CheekSessionMask3Id:
-                return 2.05f;
+                return 1.35f;
             case CheekSessionMask4Id:
-                return 1.70f;
+                return 0.76f;
             case CheekSessionMask5Id:
                 return 0.94f;
             default:
@@ -3189,7 +3189,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return 0.36f;
+                return 0.08f;
             case CheekSessionMask5Id:
                 return 0.36f;
             default:
