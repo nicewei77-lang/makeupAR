@@ -5946,6 +5946,7 @@ Evidence note:
 
 ```txt
 evidence/logs/e7-ar-lip-post-device-fix-20260629-211054.md
+evidence/logs/e7-ar-lip-post-device-fix-iphone-build-20260629-2132-summary.md
 ```
 
 UnityFramework decision:
@@ -5981,4 +5982,56 @@ Next iPhone scenario:
 7. Run neutral, slow yaw, fast yaw, near/far, mouth open/close, smile, and pucker.
 8. If mask still lags, classify as UV shape, AR tracking lost, or Unity mesh substrate mismatch before changing Unity again.
 9. Pull generated package/saved record/generated ack evidence.
+```
+
+#### 18.9.12 2026-06-29 iPhone build/install/launch result
+
+Status:
+
+```txt
+build/install/launch passed
+AR flow visual proof pending
+```
+
+Pre-build:
+
+```txt
+npm run e7:build-plan -- --no-report
+  -> decision=no-local-changes
+  -> unityFrameworkSync=true reason=frameworks_synced
+  -> No UnityFramework rebuild needed from the current diff.
+```
+
+Build path:
+
+```txt
+Primary RN CLI:
+  npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK
+
+Result:
+  error No simulator available with udid "undefined".
+
+Fallback:
+  direct xcodebuild with destination id=6F504EE9-BABC-5F6F-A186-C734E04CA625
+
+Result:
+  ** BUILD SUCCEEDED **
+```
+
+Install/launch:
+
+```txt
+Device: 위승철의 iPhone
+UDID: 6F504EE9-BABC-5F6F-A186-C734E04CA625
+Bundle: com.makeupar.rnvalidation
+Install: passed
+Launch: passed
+Process: PID 3515 MakeupARValidation.app/MakeupARValidation
+```
+
+Boundary:
+
+```txt
+This proves the post-device fix build can be installed and launched on the iPhone.
+It does not yet prove adjustment latency, save/apply timing, generated-mask ack, blend visual quality, AR attachment, FPS/frame-time, memory/thermal, or pulled package/ack evidence.
 ```
