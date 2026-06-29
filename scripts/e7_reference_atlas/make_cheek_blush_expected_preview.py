@@ -20,8 +20,8 @@ OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260629_current_session_png"
 MASKS = (
     ("Mask 1", "blush_session_1", "cheek-session-mask-1-v1", 0.78, "#F2A59A", 0.76, (1.00, 1.00, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.00),
     ("Mask 2", "blush_session_2", "cheek-session-mask-2-v1", 0.78, "#F3A1A6", 0.76, (1.02, 0.84, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.98, 0.00),
-    ("Mask 3", "blush_session_3", "cheek-session-mask-3-v1", 0.78, "#F0A0B0", 0.76, (1.02, 1.32, 0.000, 0.020), (1.00, 1.00, 0.000, 0.000), 0.00, 1.20, 0.00),
-    ("Mask 4", "blush_session_4", "cheek-session-mask-4-v1", 0.78, "#EFA07F", 0.76, (1.12, 1.02, 0.000, -0.015), (1.12, 1.12, 0.000, -0.010), 0.90, 0.86, 0.95),
+    ("Mask 3", "blush_session_3", "cheek-session-mask-3-v1", 0.78, "#F0A0B0", 0.76, (1.18, 1.92, 0.000, 0.030), (1.00, 1.00, 0.000, 0.000), 0.00, 2.35, 0.00),
+    ("Mask 4", "blush_session_4", "cheek-session-mask-4-v1", 0.78, "#EFA07F", 0.76, (1.72, 1.24, 0.000, -0.006), (1.95, 1.70, 0.000, -0.020), 1.00, 1.18, 2.60),
     ("Mask 5", "blush_session_5", "cheek-session-mask-5-v1", 0.78, "#EAA07A", 0.76, (1.02, 0.96, 0.000, -0.018), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.36),
 )
 SOURCE_DRAWINGS = {

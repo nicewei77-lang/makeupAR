@@ -3117,9 +3117,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case CheekSessionMask2Id:
                 return new Vector4(1.02f, 0.84f, 0.0f, 0.0f);
             case CheekSessionMask3Id:
-                return new Vector4(1.02f, 1.32f, 0.0f, 0.020f);
+                return new Vector4(1.18f, 1.92f, 0.0f, 0.030f);
             case CheekSessionMask4Id:
-                return new Vector4(1.12f, 1.02f, 0.0f, -0.015f);
+                return new Vector4(1.72f, 1.24f, 0.0f, -0.006f);
             case CheekSessionMask5Id:
                 return new Vector4(1.02f, 0.96f, 0.0f, -0.018f);
             default:
@@ -3136,7 +3136,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return new Vector4(1.12f, 1.12f, 0.0f, -0.010f);
+                return new Vector4(1.95f, 1.70f, 0.0f, -0.020f);
             default:
                 return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
         }
@@ -3151,7 +3151,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return 0.90f;
+                return 1.0f;
             default:
                 return 0.0f;
         }
@@ -3170,9 +3170,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case CheekSessionMask2Id:
                 return 0.98f;
             case CheekSessionMask3Id:
-                return 1.20f;
+                return 2.35f;
             case CheekSessionMask4Id:
-                return 0.86f;
+                return 1.18f;
             case CheekSessionMask5Id:
                 return 0.94f;
             default:
@@ -3189,7 +3189,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return 0.95f;
+                return 2.60f;
             case CheekSessionMask5Id:
                 return 0.36f;
             default:
