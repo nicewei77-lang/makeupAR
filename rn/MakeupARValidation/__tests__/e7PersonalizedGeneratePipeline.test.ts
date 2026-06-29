@@ -319,6 +319,9 @@ test('zero-adjustment generated mask starts with an automatic lower spill guard'
   expect(guardedPackage.qualityWarnings).toContain(
     'lower_lip_spill_guard_tightness_0.34',
   );
+  expect(guardedPackage.qualityWarnings).toContain(
+    'upper_inner_fill_auto_bias_0.24',
+  );
 });
 
 test('upper lip adjustment plus expands upward in top-left frame coordinates', () => {

@@ -347,6 +347,7 @@ const E7_FULL_FACE_REGION_RUNTIME_LAYERS = [
 const E7_BOUNDARY_PLAN_VERSION = 'E7.03 v2.1';
 const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 const LIP_ADJUSTMENT_STEP = 0.05;
+const LIP_INNER_FILL_ADJUSTMENT_STEP = 0.15;
 const E7_CAPTURE_ACK_TIMEOUT_MS = 7_000;
 const GENERATED_APPLY_ACK_TIMEOUT_MS = 10_000;
 const GENERATED_APPLY_RETRY_DELAY_MS = 800;
@@ -356,7 +357,6 @@ const ADJUSTMENT_PREVIEW_DEBOUNCE_MS = 0;
 const GENERATED_MASK_VALIDATION_COLORS = [
   { name: 'rose', color: '#D94B74' },
   { name: 'hot', color: '#FF2D8A' },
-  { name: 'gold', color: '#F2B84B' },
 ] as const;
 const DEFAULT_GENERATED_MASK_VALIDATION_CONTROLS = {
   maskVisible: true,
@@ -3372,6 +3372,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [updateSelectedLipSample],
   );
 
+  const activeLipAdjustmentStep =
+    activeLipAdjustmentField === 'upperInnerFill'
+      ? LIP_INNER_FILL_ADJUSTMENT_STEP
+      : LIP_ADJUSTMENT_STEP;
+
   return (
     <View style={styles.unityScreen}>
       <UnityView
@@ -3396,18 +3401,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ]}
       >
         <View style={styles.topChrome}>
-          <View style={styles.topActionRow}>
-            <Pressable
-              accessibilityRole="button"
-              style={({ pressed }) => [
-                styles.closeButton,
-                pressed && styles.closeButtonPressed,
-              ]}
-              onPress={handleClose}
-            >
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
+          {!hasGeneratedMaskApplied && (
+            <View style={styles.topActionRow}>
+              <Pressable
+                accessibilityRole="button"
+                style={({ pressed }) => [
+                  styles.closeButton,
+                  pressed && styles.closeButtonPressed,
+                ]}
+                onPress={handleClose}
+              >
+                <Text style={styles.closeButtonText}>Close</Text>
+              </Pressable>
+            </View>
+          )}
 
           <View style={styles.productTitlePill}>
             <Text style={styles.productTitleText}>
@@ -3470,6 +3477,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             lipUserAdjustment={lipUserAdjustment}
             activeLipAdjustment={activeLipAdjustment}
             activeLipAdjustmentField={activeLipAdjustmentField}
+            activeLipAdjustmentStep={activeLipAdjustmentStep}
             onStepRequest={step => {
               const requestedIndex = getWizardStepIndex(step);
               if (requestedIndex <= wizardStepIndex + 1) {
@@ -3970,6 +3978,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   label={activeLipAdjustment.label}
                   testIDLabel={activeLipAdjustment.name}
                   value={lipUserAdjustment[activeLipAdjustment.name]}
+                  step={activeLipAdjustmentStep}
                   onChange={value =>
                     updateLipUserAdjustment(activeLipAdjustment.name, value)
                   }
@@ -4029,6 +4038,7 @@ type E7GenerateWizardProps = {
   lipUserAdjustment: LipUserAdjustment;
   activeLipAdjustment: (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number];
   activeLipAdjustmentField: LipAdjustmentField;
+  activeLipAdjustmentStep: number;
   onStepRequest: (step: E7WizardStep) => void;
   onBack: () => void;
   onCaptureShot: (shotKind: E7CaptureShotKind) => void;
@@ -4069,6 +4079,7 @@ function E7GenerateWizard({
   lipUserAdjustment,
   activeLipAdjustment,
   activeLipAdjustmentField,
+  activeLipAdjustmentStep,
   onStepRequest,
   onBack,
   onCaptureShot,
@@ -4394,6 +4405,7 @@ function E7GenerateWizard({
                 label={activeLipAdjustment.label}
                 testIDLabel={activeLipAdjustment.name}
                 value={lipUserAdjustment[activeLipAdjustment.name]}
+                step={activeLipAdjustmentStep}
                 onChange={value => onAdjustLip(activeLipAdjustment.name, value)}
               />
               <Text style={styles.generateWizardBodyText}>
@@ -4616,20 +4628,20 @@ function GeneratedRuntimeAppliedBanner({
             {notice}
           </Text>
         </View>
-        <Pressable
-          accessibilityRole="button"
-          testID="e7-generated-reopen-generate"
-          style={styles.generateAppliedSmallButton}
-          onPress={onReopenGenerate}
-        >
-          <Text style={styles.generateAppliedSmallButtonText}>
-            조정 화면으로
-          </Text>
-        </Pressable>
       </View>
       <Text style={styles.generateAppliedBannerText} numberOfLines={1}>
         마스크 ON/OFF, 진하게 보기, 색, 농도로 적용 상태를 확인하세요.
       </Text>
+      <Pressable
+        accessibilityRole="button"
+        testID="e7-generated-reopen-generate"
+        style={styles.generateAppliedAdjustButton}
+        onPress={onReopenGenerate}
+      >
+        <Text style={styles.generateAppliedAdjustButtonText}>
+          조정 화면으로 돌아가기
+        </Text>
+      </Pressable>
       <View style={styles.generateAppliedControlRow}>
         <Pressable
           accessibilityRole="button"
@@ -4992,7 +5004,7 @@ function formatAdjustmentPreviewModeLabel(mode: E7AdjustmentPreviewMode) {
 function formatLipAdjustmentHelp(field: LipAdjustmentField) {
   switch (field) {
     case 'upperInnerFill':
-      return '+는 윗입술 안쪽 빈 부분을 더 채웁니다. 윗입술 안쪽이 비어 보이면 이 축을 먼저 올리세요.';
+      return '+는 윗입술 안쪽 빈 틈을 크게 줄입니다. 입 안쪽 구멍이 과해 보이면 이 축을 1-3번 올리세요.';
     case 'cornerReach':
       return '+는 입꼬리 쪽까지 더 포함하고, -는 중앙 쪽으로 좁힙니다.';
     case 'upperLipTightness':
@@ -6014,6 +6026,7 @@ type AdjustmentStepperProps = {
   label: string;
   testIDLabel?: string;
   value: number;
+  step?: number;
   onChange: (value: LipAdjustmentValueUpdate) => void;
 };
 
@@ -6021,21 +6034,19 @@ function AdjustmentStepper({
   label,
   testIDLabel = label,
   value,
+  step = LIP_ADJUSTMENT_STEP,
   onChange,
 }: AdjustmentStepperProps) {
   const stepValue = useCallback(
     (direction: -1 | 1) => {
       onChange(currentValue => {
         const nextValue =
-          Math.round(
-            (currentValue + direction * LIP_ADJUSTMENT_STEP) /
-              LIP_ADJUSTMENT_STEP,
-          ) * LIP_ADJUSTMENT_STEP;
+          Math.round((currentValue + direction * step) / step) * step;
 
         return Number(Math.max(-1, Math.min(1, nextValue)).toFixed(2));
       });
     },
-    [onChange],
+    [onChange, step],
   );
 
   return (
@@ -6577,7 +6588,7 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    backgroundColor: '#07101D',
+    backgroundColor: 'rgba(7, 16, 29, 0.18)',
   },
   generatedAdjustmentPreview: {
     minHeight: 340,
@@ -7131,10 +7142,9 @@ const styles = StyleSheet.create({
   },
   generateAppliedHeader: {
     minHeight: 40,
-    flexDirection: 'row',
     alignItems: 'flex-start',
-    justifyContent: 'space-between',
-    gap: 10,
+    justifyContent: 'center',
+    gap: 4,
   },
   generateAppliedBannerTitle: {
     color: '#D1FAE5',
@@ -7150,20 +7160,20 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0,
   },
-  generateAppliedSmallButton: {
-    minHeight: 40,
-    minWidth: 112,
+  generateAppliedAdjustButton: {
+    marginTop: 10,
+    minHeight: 44,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(209, 250, 229, 0.72)',
-    backgroundColor: 'rgba(209, 250, 229, 0.18)',
+    backgroundColor: 'rgba(209, 250, 229, 0.24)',
     paddingHorizontal: 10,
   },
-  generateAppliedSmallButtonText: {
+  generateAppliedAdjustButtonText: {
     color: '#D1FAE5',
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '900',
     letterSpacing: 0,
     textAlign: 'center',

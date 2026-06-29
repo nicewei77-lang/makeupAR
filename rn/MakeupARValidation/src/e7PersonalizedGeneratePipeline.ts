@@ -98,10 +98,11 @@ const CURVE_DENSIFIED_SAMPLES_PER_SEGMENT = 6;
 const ADJUSTMENT_CORNER_REACH_SCALE = 0.46;
 const ADJUSTMENT_VERTICAL_OFFSET_SCALE = 0.72;
 const ADJUSTMENT_LIP_TIGHTNESS_SCALE = 0.48;
-const ADJUSTMENT_INNER_FILL_SCALE = 0.45;
-const ADJUSTMENT_UPPER_INNER_FILL_SCALE = 0.58;
-const ADJUSTMENT_INNER_FILL_X_SCALE = 0.35;
+const ADJUSTMENT_INNER_FILL_SCALE = 0.62;
+const ADJUSTMENT_UPPER_INNER_FILL_SCALE = 1.05;
+const ADJUSTMENT_INNER_FILL_X_SCALE = 0.5;
 const AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS = 0.34;
+const AUTO_UPPER_INNER_FILL_BIAS = 0.24;
 const UV_ALPHA_CHECKSUM_MOD = 2147483647;
 const GENERATED_UV_MASK_RESOLUTION = 512;
 const GENERATED_UV_SUPERSAMPLE_GRID = 2;
@@ -317,11 +318,16 @@ function adjustNativeLipBoundary(
   };
 }
 
-function applyAutoLowerLipSpillGuard(adjustment: LipAdjustment): LipAdjustment {
+function applyAutoLipCoverageGuard(adjustment: LipAdjustment): LipAdjustment {
   return {
     ...adjustment,
     lowerLipTightness: clamp(
       adjustment.lowerLipTightness - AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS,
+      -1,
+      1,
+    ),
+    upperInnerFill: clamp(
+      adjustment.upperInnerFill + AUTO_UPPER_INNER_FILL_BIAS,
       -1,
       1,
     ),
@@ -1225,7 +1231,7 @@ export function buildCaptureSetBlendUvMask(input: {
   }
 
   const resolution = input.resolution ?? GENERATED_UV_MASK_RESOLUTION;
-  const effectiveAdjustment = applyAutoLowerLipSpillGuard(input.adjustment);
+  const effectiveAdjustment = applyAutoLipCoverageGuard(input.adjustment);
   const adjustedNeutralBoundary =
     input.precomputedNeutral?.smoothedAdjustedBoundary ??
     adjustNativeLipBoundary(
@@ -1491,7 +1497,7 @@ function buildPrecomputedNeutralUv(
   }
   const adjustedBoundary = adjustNativeLipBoundary(
     nativeResult.boundary,
-    applyAutoLowerLipSpillGuard(adjustment),
+    applyAutoLipCoverageGuard(adjustment),
     {
       width: nativeResult.frameWidth,
       height: nativeResult.frameHeight,
@@ -1587,6 +1593,7 @@ export function buildGeneratedLipPackage(input: {
       `lower_lip_spill_guard_tightness_${AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS.toFixed(
         2,
       )}`,
+      `upper_inner_fill_auto_bias_${AUTO_UPPER_INNER_FILL_BIAS.toFixed(2)}`,
       `capture_set_shots_used_${
         (input.providerResults ?? [nativeResult]).length
       }`,

@@ -1022,7 +1022,7 @@ test('persists user-tuned upper inner fill into saved package and AR apply paylo
   pressByTestID(renderer!, 'lip-adjustment-step-upperInnerFill-up');
   pressByTestID(renderer!, 'lip-adjustment-step-upperInnerFill-up');
 
-  expect(collectText(renderer!)).toContain('0.10');
+  expect(collectText(renderer!)).toContain('0.30');
   expect(collectText(renderer!)).toContain('미리보기 갱신 중');
 
   await flushAdjustmentPreviewDebounce();
@@ -1034,9 +1034,9 @@ test('persists user-tuned upper inner fill into saved package and AR apply paylo
       )?.[0],
     ),
   );
-  expect(previewPackage.adjustment.upperInnerFill).toBe(0.1);
+  expect(previewPackage.adjustment.upperInnerFill).toBe(0.3);
   expect(previewPackage.adjustment.innerFill).toBe(0);
-  expect(previewPackage.generatedMaskId).toContain('adj-p0-p0-p0-p0-p0-p2s');
+  expect(previewPackage.generatedMaskId).toContain('adj-p0-p0-p0-p0-p0-p8c');
 
   await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
 
@@ -1049,9 +1049,9 @@ test('persists user-tuned upper inner fill into saved package and AR apply paylo
   );
   const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
 
-  expect(savedPackage.adjustment.upperInnerFill).toBe(0.1);
-  expect(savedPackage.runtimeApplyPayload.adjustment.upperInnerFill).toBe(0.1);
-  expect(applyPayload.adjustment.upperInnerFill).toBe(0.1);
+  expect(savedPackage.adjustment.upperInnerFill).toBe(0.3);
+  expect(savedPackage.runtimeApplyPayload.adjustment.upperInnerFill).toBe(0.3);
+  expect(applyPayload.adjustment.upperInnerFill).toBe(0.3);
   expect(applyPayload.adjustment.innerFill).toBe(0);
 });
 
@@ -1222,6 +1222,11 @@ test('posts AR validation controls without resending texture after Unity ack', a
   });
 
   expect(collectText(renderer!)).toContain('AR 립 적용됨');
+  expect(collectText(renderer!)).toContain('조정 화면으로 돌아가기');
+  expect(collectText(renderer!)).not.toContain('Close');
+  expect(
+    renderer!.root.findAllByProps({ testID: 'generated-mask-color-gold' }),
+  ).toHaveLength(0);
   pressByTestID(renderer!, 'generated-mask-toggle');
   pressByTestID(renderer!, 'generated-mask-color-hot');
   pressByTestID(renderer!, 'generated-mask-opacity-minus');
