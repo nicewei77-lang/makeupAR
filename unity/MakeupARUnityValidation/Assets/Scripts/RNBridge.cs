@@ -2090,9 +2090,7 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
-            || (region == "cheek" && (value == "cheek-smooth-mask-v1"
-                || value == "cheek-drawn-mask-v1"
-                || IsCheekBlushMaskTextureId(value)))
+            || (region == "cheek" && IsCheekBlushMaskTextureId(value))
             || (region == "eye" && value == "eye-smooth-mask-v1"))
         {
             return value;
@@ -2107,7 +2105,7 @@ public sealed class RNBridge : MonoBehaviour
         switch (region)
         {
             case "cheek":
-                return "cheek-daily-mask-v1";
+                return "cheek-session-mask-1-v1";
             case "eye":
                 return "eye-drawn-mask-v1";
             default:
@@ -2118,22 +2116,20 @@ public sealed class RNBridge : MonoBehaviour
     private static bool IsCheekBlushTextureSample(string value)
     {
         return value == "soft_blush"
-            || value == "blush_daily"
-            || value == "blush_default2"
-            || value == "blush_lovely"
-            || value == "blush_sunkissed1"
-            || value == "blush_sunkissed2"
-            || value == "blush_under_eye";
+            || value == "blush_session_1"
+            || value == "blush_session_2"
+            || value == "blush_session_3"
+            || value == "blush_session_4"
+            || value == "blush_session_5";
     }
 
     private static bool IsCheekBlushMaskTextureId(string value)
     {
-        return value == "cheek-daily-mask-v1"
-            || value == "cheek-default2-mask-v1"
-            || value == "cheek-lovely-mask-v1"
-            || value == "cheek-sunkissed-mask1-v1"
-            || value == "cheek-sunkissed-mask2-v1"
-            || value == "cheek-under-eye-mask-v1";
+        return value == "cheek-session-mask-1-v1"
+            || value == "cheek-session-mask-2-v1"
+            || value == "cheek-session-mask-3-v1"
+            || value == "cheek-session-mask-4-v1"
+            || value == "cheek-session-mask-5-v1";
     }
 
     private static double CalculateLatencyMs(double startMs, double endMs)

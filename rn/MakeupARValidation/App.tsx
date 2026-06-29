@@ -132,10 +132,10 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#EA8D82',
-    intensity: 0.52,
-    feather: 0.72,
-    coverage: 0.72,
+    secondaryColor: '#F2A59A',
+    intensity: 0.82,
+    feather: 0.86,
+    coverage: 0.84,
     finish: 'powder',
     roughness: 0.92,
     specular: 0.02,
@@ -145,15 +145,15 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     preserveDetail: true,
   },
   {
-    name: 'blush_daily',
-    label: 'daily blush',
+    name: 'blush_session_1',
+    label: 'Daily',
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#EA8F82',
-    intensity: 0.54,
-    feather: 0.74,
-    coverage: 0.72,
+    secondaryColor: '#F2A59A',
+    intensity: 0.76,
+    feather: 0.86,
+    coverage: 0.78,
     finish: 'powder',
     roughness: 0.96,
     specular: 0,
@@ -163,13 +163,49 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     preserveDetail: true,
   },
   {
-    name: 'blush_default2',
-    label: 'default2 blush',
+    name: 'blush_session_2',
+    label: 'Lovely',
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#E38C9A',
-    intensity: 0.56,
+    secondaryColor: '#F3A1A6',
+    intensity: 0.76,
+    feather: 0.88,
+    coverage: 0.78,
+    finish: 'powder',
+    roughness: 0.96,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_session_3',
+    label: 'Under eye',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#F0A0B0',
+    intensity: 0.76,
+    feather: 0.84,
+    coverage: 0.78,
+    finish: 'powder',
+    roughness: 0.98,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'blush_session_4',
+    label: 'Sun 1',
+    region: 'cheek',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#EFA07F',
+    intensity: 0.76,
     feather: 0.86,
     coverage: 0.78,
     finish: 'powder',
@@ -181,69 +217,15 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     preserveDetail: true,
   },
   {
-    name: 'blush_lovely',
-    label: 'lovely blush',
+    name: 'blush_session_5',
+    label: 'Sun 2',
     region: 'cheek',
     textureMode: 'sample',
     blendMode: 'multiply',
-    secondaryColor: '#E98694',
-    intensity: 0.52,
-    feather: 0.76,
-    coverage: 0.7,
-    finish: 'powder',
-    roughness: 0.96,
-    specular: 0,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
-    name: 'blush_sunkissed1',
-    label: 'sunkissed spot',
-    region: 'cheek',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#E58965',
-    intensity: 0.54,
-    feather: 0.78,
-    coverage: 0.68,
-    finish: 'powder',
-    roughness: 0.98,
-    specular: 0,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
-    name: 'blush_sunkissed2',
-    label: 'sunkissed wash',
-    region: 'cheek',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#E9805C',
-    intensity: 0.5,
-    feather: 0.82,
-    coverage: 0.66,
-    finish: 'powder',
-    roughness: 0.98,
-    specular: 0,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
-    name: 'blush_under_eye',
-    label: 'under-eye blush',
-    region: 'cheek',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#E98EA2',
-    intensity: 0.52,
-    feather: 0.74,
-    coverage: 0.66,
+    secondaryColor: '#EAA07A',
+    intensity: 0.76,
+    feather: 0.88,
+    coverage: 0.78,
     finish: 'powder',
     roughness: 0.98,
     specular: 0,
@@ -297,12 +279,11 @@ export const CHEEK_BLUSH_REGION_OPTIONS: RecipeTextureSample[] =
   RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
     textureSample =>
       textureSample.region === 'cheek' &&
-      (textureSample.name === 'blush_daily' ||
-        textureSample.name === 'blush_default2' ||
-        textureSample.name === 'blush_lovely' ||
-        textureSample.name === 'blush_sunkissed1' ||
-        textureSample.name === 'blush_sunkissed2' ||
-        textureSample.name === 'blush_under_eye'),
+      (textureSample.name === 'blush_session_1' ||
+        textureSample.name === 'blush_session_2' ||
+        textureSample.name === 'blush_session_3' ||
+        textureSample.name === 'blush_session_4' ||
+        textureSample.name === 'blush_session_5'),
   );
 const TEXTURE_STYLE_OPTIONS_BY_REGION: Record<
   RecipeRegion,
@@ -320,17 +301,14 @@ type MaskTextureId =
   | 'lip-drawn-style-atlas-v1'
   | 'lip-drawn-gradient-density-atlas-v1'
   | 'lip-drawn-mask-v1'
-  | 'cheek-drawn-mask-v1'
-  | 'cheek-lovely-mask-v1'
-  | 'cheek-daily-mask-v1'
-  | 'cheek-default2-mask-v1'
-  | 'cheek-sunkissed-mask1-v1'
-  | 'cheek-sunkissed-mask2-v1'
-  | 'cheek-under-eye-mask-v1'
+  | 'cheek-session-mask-1-v1'
+  | 'cheek-session-mask-2-v1'
+  | 'cheek-session-mask-3-v1'
+  | 'cheek-session-mask-4-v1'
+  | 'cheek-session-mask-5-v1'
   | 'eye-drawn-mask-v1'
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
-  | 'cheek-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type RegionRecipe = {
@@ -351,7 +329,7 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
     textureSample => textureSample.name === 'matte_lip',
   ) as RecipeTextureSample,
   cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
-    textureSample => textureSample.name === 'blush_daily',
+    textureSample => textureSample.name === 'blush_session_1',
   ) as RecipeTextureSample,
   eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
     textureSample => textureSample.name === 'shimmer_eye',
@@ -366,7 +344,7 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   },
   cheek: {
     color: RECIPE_COLOR_OPTIONS[1],
-    opacity: 0.54,
+    opacity: 0.58,
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
   },
@@ -379,7 +357,7 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
-  cheek: 'cheek-daily-mask-v1',
+  cheek: 'cheek-session-mask-1-v1',
   eye: 'eye-drawn-mask-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
@@ -395,18 +373,16 @@ function resolveMaskTextureIdForRecipe(
 
   if (region === 'cheek') {
     switch (textureSample.name) {
-      case 'blush_lovely':
-        return 'cheek-lovely-mask-v1';
-      case 'blush_daily':
-        return 'cheek-daily-mask-v1';
-      case 'blush_default2':
-        return 'cheek-default2-mask-v1';
-      case 'blush_sunkissed1':
-        return 'cheek-sunkissed-mask1-v1';
-      case 'blush_sunkissed2':
-        return 'cheek-sunkissed-mask2-v1';
-      case 'blush_under_eye':
-        return 'cheek-under-eye-mask-v1';
+      case 'blush_session_1':
+        return 'cheek-session-mask-1-v1';
+      case 'blush_session_2':
+        return 'cheek-session-mask-2-v1';
+      case 'blush_session_3':
+        return 'cheek-session-mask-3-v1';
+      case 'blush_session_4':
+        return 'cheek-session-mask-4-v1';
+      case 'blush_session_5':
+        return 'cheek-session-mask-5-v1';
     }
   }
 
@@ -417,7 +393,8 @@ export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   cheek: false,
   eye: false,
 };
-const INTENSITY_STEP = 0.05;
+const INTENSITY_STEP = 0.01;
+const OPACITY_STEP = 0.01;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
 export const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
 const UNITY_EVENT_TYPES = [
@@ -484,14 +461,14 @@ export function buildValidationRecipeBatchPayload(
       shimmer: sample.name === 'shimmer_eye' ? layerIntensity : 0,
       shimmerColor:
         sample.name === 'shimmer_eye' ? sample.secondaryColor : '#FFFFFF',
-      skinAdaptive: false,
+      skinAdaptive: region === 'cheek',
       preserveDetail: sample.preserveDetail,
       materialId: `${sample.name}-validation-material`,
       shaderMode:
         region === 'lip'
           ? 'lip-style-atlas-validation'
           : region === 'cheek'
-            ? 'cheek-blush-powder-validation'
+            ? 'cheek-blush-multiband-skin-aware-validation'
             : 'unlit-alpha-validation',
       passCount: sample.name === 'gloss_lip' ? 2 : 1,
       maskTextureId,
@@ -535,14 +512,14 @@ export function buildValidationRecipeBatchPayload(
       focusSample.name === 'shimmer_eye'
         ? focusSample.secondaryColor
         : '#FFFFFF',
-    skinAdaptive: false,
+    skinAdaptive: focusRegion === 'cheek',
     preserveDetail: focusSample.preserveDetail,
     materialId: `${focusSample.name}-validation-material`,
     shaderMode:
       focusRegion === 'lip'
         ? 'lip-style-atlas-validation'
         : focusRegion === 'cheek'
-          ? 'cheek-blush-powder-validation'
+          ? 'cheek-blush-multiband-skin-aware-validation'
           : 'unlit-alpha-validation',
     passCount: focusSample.name === 'gloss_lip' ? 2 : 1,
     maskTextureId: focusMaskTextureId,
@@ -1254,6 +1231,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const focusedTextureOptions = TEXTURE_STYLE_OPTIONS_BY_REGION[focusedRegion];
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const focusedIntensity = focusedRecipe.intensity;
+  const focusedOpacity = focusedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
   const latestRecipeRecord =
@@ -1355,6 +1333,23 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
+  const updateFocusedOpacity = useCallback(
+    (nextOpacity: number) => {
+      const nextRecipe = {
+        ...regionRecipes[focusedRegion],
+        opacity: nextOpacity,
+      };
+      const nextRecipes = {
+        ...regionRecipes,
+        [focusedRegion]: nextRecipe,
+      };
+
+      setRegionRecipes(nextRecipes);
+      postRecipeBatch(nextRecipes, activeRegions, focusedRegion);
+    },
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
+  );
+
   const selectTextureSample = useCallback(
     (textureSample: RecipeTextureSample) => {
       if (textureSample.region !== focusedRegion) {
@@ -1382,6 +1377,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const intensityPercent = Math.round(focusedIntensity * 100);
+  const opacityPercent = Math.round(focusedOpacity * 100);
   const focusedTextureControlLabel =
     focusedRegion === 'cheek'
       ? 'Blush Region'
@@ -1395,18 +1391,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           return 'Glow';
         case 'gradient_lip':
           return 'Gradient';
-        case 'blush_daily':
+        case 'blush_session_1':
           return 'Daily';
-        case 'blush_default2':
-          return 'Default 2';
-        case 'blush_lovely':
+        case 'blush_session_2':
           return 'Lovely';
-        case 'blush_sunkissed1':
-          return 'Sun 1';
-        case 'blush_sunkissed2':
-          return 'Sun 2';
-        case 'blush_under_eye':
+        case 'blush_session_3':
           return 'Under';
+        case 'blush_session_4':
+          return 'Sun 1';
+        case 'blush_session_5':
+          return 'Sun 2';
         case 'shimmer_eye':
           return 'Shimmer';
         default:
@@ -1718,12 +1712,24 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   fillColor={selectedColor.color}
                   onLayoutWidth={setSliderWidth}
                   onChange={updateFocusedIntensity}
+                  step={INTENSITY_STEP}
+                />
+
+                <ValueSlider
+                  label="Opacity"
+                  value={focusedOpacity}
+                  width={sliderWidth}
+                  fillColor={selectedColor.color}
+                  onLayoutWidth={setSliderWidth}
+                  onChange={updateFocusedOpacity}
+                  step={OPACITY_STEP}
                 />
 
                 <Text style={styles.recipeValueText} numberOfLines={3}>
                   active {activeRegionSummary} / focus {focusedRegion} /{' '}
                   {selectedColor.label} {selectedColor.color} / intensity{' '}
-                  {intensityPercent}% / shape {selectedTextureSample.name}
+                  {intensityPercent}% / opacity {opacityPercent}% / shape{' '}
+                  {selectedTextureSample.name}
                 </Text>
 
                 <Text style={styles.recipeAppliedText} numberOfLines={2}>
@@ -2584,6 +2590,7 @@ type ValueSliderProps = {
   fillColor: string;
   onLayoutWidth: (width: number) => void;
   onChange: (value: number) => void;
+  step?: number;
 };
 
 function ValueSlider({
@@ -2593,6 +2600,7 @@ function ValueSlider({
   fillColor,
   onLayoutWidth,
   onChange,
+  step = INTENSITY_STEP,
 }: ValueSliderProps) {
   const clampedWidth = Math.max(width, 1);
   const fillWidth = value * clampedWidth;
@@ -2603,12 +2611,13 @@ function ValueSlider({
         0,
         Math.min(event.nativeEvent.locationX, clampedWidth),
       );
+      const normalizedStep = Math.max(step, 0.001);
       const steppedValue =
-        Math.round(raw / clampedWidth / INTENSITY_STEP) * INTENSITY_STEP;
+        Math.round(raw / clampedWidth / normalizedStep) * normalizedStep;
 
       return Number(Math.max(0, Math.min(1, steppedValue)).toFixed(2));
     },
-    [clampedWidth],
+    [clampedWidth, step],
   );
 
   const updateFromEvent = useCallback(

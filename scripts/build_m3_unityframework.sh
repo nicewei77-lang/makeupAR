@@ -11,6 +11,8 @@ BUILD_LOG_MODE="${BUILD_LOG_MODE:-summary}"
 KEEP_DERIVED_DATA="${KEEP_DERIVED_DATA:-0}"
 CLEAN_DERIVED_DATA="${CLEAN_DERIVED_DATA:-0}"
 SKIP_UNITY_EXPORT="${SKIP_UNITY_EXPORT:-0}"
+XCODE_DEBUG_INFORMATION_FORMAT="${XCODE_DEBUG_INFORMATION_FORMAT:-dwarf}"
+XCODE_GENERATE_DEBUG_SYMBOLS="${XCODE_GENERATE_DEBUG_SYMBOLS:-NO}"
 BUILD_TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/makeupar-unityframework-$TIMESTAMP.XXXXXX")"
 BUILD_TMP_CLEANED=0
 if [[ -z "${DERIVED_DATA:-}" ]]; then
@@ -72,6 +74,8 @@ echo "Derived data: $DERIVED_DATA"
 echo "Build log mode: $BUILD_LOG_MODE"
 echo "Clean derived data: $CLEAN_DERIVED_DATA"
 echo "Skip Unity export: $SKIP_UNITY_EXPORT"
+echo "Xcode debug information format: $XCODE_DEBUG_INFORMATION_FORMAT"
+echo "Xcode generate debug symbols: $XCODE_GENERATE_DEBUG_SYMBOLS"
 echo "Timestamp: $TIMESTAMP"
 
 if [[ "$SKIP_UNITY_EXPORT" != "1" ]]; then
@@ -143,6 +147,8 @@ run_xcodebuild() {
     -destination "generic/platform=iOS" \
     -derivedDataPath "$DERIVED_DATA" \
     CODE_SIGNING_ALLOWED=NO \
+    DEBUG_INFORMATION_FORMAT="$XCODE_DEBUG_INFORMATION_FORMAT" \
+    GCC_GENERATE_DEBUGGING_SYMBOLS="$XCODE_GENERATE_DEBUG_SYMBOLS" \
     build
 }
 

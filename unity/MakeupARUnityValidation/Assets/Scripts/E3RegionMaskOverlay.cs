@@ -199,15 +199,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string VisionLipBoundaryMaskId = "lip-vision-boundary-v1";
     private const string LipDrawnStyleAtlasMaskId = "lip-drawn-style-atlas-v1";
     private const string LipDrawnGradientDensityAtlasMaskId = "lip-drawn-gradient-density-atlas-v1";
-    private const string CheekDailyMaskId = "cheek-daily-mask-v1";
-    private const string CheekDefault2MaskId = "cheek-default2-mask-v1";
-    private const string CheekLovelyMaskId = "cheek-lovely-mask-v1";
-    private const string CheekSunkissedMask1Id = "cheek-sunkissed-mask1-v1";
-    private const string CheekSunkissedMask2Id = "cheek-sunkissed-mask2-v1";
-    private const string CheekUnderEyeMaskId = "cheek-under-eye-mask-v1";
-    private const string CheekBlushMaskSource = "cheek_blush_v1_uv_back_projection";
-    private const string CheekBlushBoundaryRenderer = "skin_aware_cheek_blush_density_filter";
-    private const string CheekDefault2BoundaryRenderer = "skin_aware_cheek_blush_multiband_filter";
+    private const string CheekSessionMask1Id = "cheek-session-mask-1-v1";
+    private const string CheekSessionMask2Id = "cheek-session-mask-2-v1";
+    private const string CheekSessionMask3Id = "cheek-session-mask-3-v1";
+    private const string CheekSessionMask4Id = "cheek-session-mask-4-v1";
+    private const string CheekSessionMask5Id = "cheek-session-mask-5-v1";
+    private const string CheekBlushMaskSource = "user_session_2d_png_face_local_luminance_multiband";
+    private const string CheekBlushBoundaryRenderer = "face_local_skin_aware_cheek_blush_multiband_filter";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -565,7 +563,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
         bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
-        bool cheekDefault2Mask = recipe.Region == "cheek" && IsCheekDefault2Mask(recipe.MaskTextureId);
         bool lipLogicalMultilayer = lipStyleAtlas || visionLipBoundary;
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
@@ -587,7 +584,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 ? "rgba_style_atlas_logical_multilayer_sdf_feather"
                 : "rgba_style_atlas_soft_alpha_sdf_feather")
             : cheekBlushMask
-            ? (cheekDefault2Mask ? CheekDefault2BoundaryRenderer : CheekBlushBoundaryRenderer)
+            ? CheekBlushBoundaryRenderer
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
@@ -784,8 +781,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             visionGateInfo = BuildVisionGateInfo(visionBoundary);
         }
 
+        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
-        List<Vector2> textureCoordinates = new List<Vector2>(face.uvs.Length);
+        List<Vector2> textureCoordinates = cheekBlushMask
+            ? BuildCheekFaceLocalUvCoordinates(face)
+            : new List<Vector2>(face.uvs.Length);
         List<int> triangles = new List<int>(face.indices.Length);
 
         for (int index = 0; index < face.vertices.Length; index++)
@@ -793,9 +793,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             vertices.Add(face.vertices[index]);
         }
 
-        for (int index = 0; index < face.uvs.Length; index++)
+        if (!cheekBlushMask)
         {
-            textureCoordinates.Add(face.uvs[index]);
+            for (int index = 0; index < face.uvs.Length; index++)
+            {
+                textureCoordinates.Add(face.uvs[index]);
+            }
         }
 
         for (int index = 0; index + 2 < face.indices.Length; index += 3)
@@ -2136,6 +2139,52 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return ResolveShaderFeatherNearRadiusPx(feather) * FeatherFarRadiusScale;
     }
 
+    private static List<Vector2> BuildCheekFaceLocalUvCoordinates(ARFace face)
+    {
+        int count = face != null && face.vertices.IsCreated ? face.vertices.Length : 0;
+        List<Vector2> textureCoordinates = new List<Vector2>(Mathf.Max(0, count));
+        if (count <= 0)
+        {
+            return textureCoordinates;
+        }
+
+        float[] xs = new float[count];
+        float[] ys = new float[count];
+        for (int index = 0; index < count; index++)
+        {
+            Vector3 vertex = face.vertices[index];
+            xs[index] = vertex.x;
+            ys[index] = vertex.y;
+        }
+
+        Array.Sort(xs);
+        Array.Sort(ys);
+        int lowIndex = Mathf.Clamp(Mathf.FloorToInt((count - 1) * 0.01f), 0, count - 1);
+        int highIndex = Mathf.Clamp(Mathf.CeilToInt((count - 1) * 0.99f), 0, count - 1);
+        float minX = xs[lowIndex];
+        float maxX = xs[highIndex];
+        float minY = ys[lowIndex];
+        float maxY = ys[highIndex];
+        float width = Mathf.Max(maxX - minX, 0.00001f);
+        float height = Mathf.Max(maxY - minY, 0.00001f);
+        minX -= width * 0.10f;
+        maxX += width * 0.10f;
+        minY -= height * 0.08f;
+        maxY += height * 0.08f;
+        width = Mathf.Max(maxX - minX, 0.00001f);
+        height = Mathf.Max(maxY - minY, 0.00001f);
+
+        for (int index = 0; index < count; index++)
+        {
+            Vector3 vertex = face.vertices[index];
+            textureCoordinates.Add(new Vector2(
+                Mathf.Clamp01((vertex.x - minX) / width),
+                Mathf.Clamp01((vertex.y - minY) / height)));
+        }
+
+        return textureCoordinates;
+    }
+
     private static string GetDefaultMaskTextureId(string region)
     {
         switch (NormalizeRegion(region))
@@ -2143,7 +2192,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "lip":
                 return LipDrawnStyleAtlasMaskId;
             case "cheek":
-                return CheekDailyMaskId;
+                return CheekSessionMask1Id;
             case "eye":
                 return "eye-drawn-mask-v1";
             default:
@@ -2580,27 +2629,62 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             if (material.HasProperty("_DensityPower"))
             {
-                material.SetFloat("_DensityPower", 0.68f);
+                material.SetFloat("_DensityPower", 0.74f);
             }
 
             if (material.HasProperty("_EdgeSoftness"))
             {
-                material.SetFloat("_EdgeSoftness", 0.90f);
+                material.SetFloat("_EdgeSoftness", 0.94f);
             }
 
             if (material.HasProperty("_SkinPreserve"))
             {
-                material.SetFloat("_SkinPreserve", 0.70f);
+                material.SetFloat("_SkinPreserve", 0.74f);
             }
 
             if (material.HasProperty("_SaturationBoost"))
             {
-                material.SetFloat("_SaturationBoost", 0.34f);
+                material.SetFloat("_SaturationBoost", 0.30f);
             }
 
             if (material.HasProperty("_Warmth"))
             {
-                material.SetFloat("_Warmth", 0.28f);
+                material.SetFloat("_Warmth", 0.24f);
+            }
+
+            if (material.HasProperty("_CheekUvTransform"))
+            {
+                material.SetVector(
+                    "_CheekUvTransform",
+                    ResolveCheekBlushUvTransform(recipe.MaskTextureId));
+            }
+
+            if (material.HasProperty("_CheekPartUvTransform"))
+            {
+                material.SetVector(
+                    "_CheekPartUvTransform",
+                    ResolveCheekBlushPartUvTransform(recipe.MaskTextureId));
+            }
+
+            if (material.HasProperty("_CheekPartBlend"))
+            {
+                material.SetFloat(
+                    "_CheekPartBlend",
+                    ResolveCheekBlushPartBlend(recipe.MaskTextureId));
+            }
+
+            if (material.HasProperty("_CheekDensityGain"))
+            {
+                material.SetFloat(
+                    "_CheekDensityGain",
+                    ResolveCheekBlushDensityGain(recipe.MaskTextureId));
+            }
+
+            if (material.HasProperty("_CheekCenterGain"))
+            {
+                material.SetFloat(
+                    "_CheekCenterGain",
+                    ResolveCheekBlushCenterGain(recipe.MaskTextureId));
             }
         }
 
@@ -2617,9 +2701,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             material.SetFloat(
                 "_CheekBlushMode",
-                recipe.Region == "cheek" && IsCheekDefault2Mask(recipe.MaskTextureId)
-                    ? 2.0f
-                    : recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId)
+                recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId)
                     ? 1.0f
                     : 0.0f);
         }
@@ -2688,18 +2770,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 sampleAlphaScale = Mathf.Lerp(0.28f, 0.42f, recipe.Intensity);
                 brightnessScale = 0.96f;
                 break;
-            case "blush_default2":
-                sampleAlphaScale = 1.0f;
-                brightnessScale = 0.98f;
-                break;
             case "soft_blush":
-            case "blush_daily":
-            case "blush_lovely":
-            case "blush_sunkissed1":
-            case "blush_sunkissed2":
-            case "blush_under_eye":
-                float blushIntensityCurve = recipe.Intensity * recipe.Intensity * (3.0f - 2.0f * recipe.Intensity);
-                sampleAlphaScale = Mathf.Lerp(0.06f, 1.24f, blushIntensityCurve);
+            case "blush_session_1":
+            case "blush_session_2":
+            case "blush_session_3":
+            case "blush_session_4":
+            case "blush_session_5":
+                sampleAlphaScale = 1.0f;
                 brightnessScale = 0.98f;
                 break;
             case "shimmer_eye":
@@ -2931,12 +3008,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "overline_lip"))
             || (region == "cheek"
                 && (textureSample == "soft_blush"
-                    || textureSample == "blush_default2"
-                    || textureSample == "blush_daily"
-                    || textureSample == "blush_lovely"
-                    || textureSample == "blush_sunkissed1"
-                    || textureSample == "blush_sunkissed2"
-                    || textureSample == "blush_under_eye"))
+                    || textureSample == "blush_session_1"
+                    || textureSample == "blush_session_2"
+                    || textureSample == "blush_session_3"
+                    || textureSample == "blush_session_4"
+                    || textureSample == "blush_session_5"))
             || (region == "eye" && textureSample == "shimmer_eye"))
         {
             return textureSample;
@@ -2987,10 +3063,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-style-atlas-v1"
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
-            || (region == "cheek"
-                && (maskTextureId == "cheek-smooth-mask-v1"
-                    || maskTextureId == "cheek-drawn-mask-v1"
-                    || IsCheekBlushMask(maskTextureId)))
+            || (region == "cheek" && IsCheekBlushMask(maskTextureId))
             || (region == "eye" && maskTextureId == "eye-smooth-mask-v1"))
         {
             return maskTextureId;
@@ -3026,21 +3099,102 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? string.Empty
             : maskTextureId.Trim();
 
-        return maskTextureId == CheekDailyMaskId
-            || maskTextureId == CheekDefault2MaskId
-            || maskTextureId == CheekLovelyMaskId
-            || maskTextureId == CheekSunkissedMask1Id
-            || maskTextureId == CheekSunkissedMask2Id
-            || maskTextureId == CheekUnderEyeMaskId;
+        return maskTextureId == CheekSessionMask1Id
+            || maskTextureId == CheekSessionMask2Id
+            || maskTextureId == CheekSessionMask3Id
+            || maskTextureId == CheekSessionMask4Id
+            || maskTextureId == CheekSessionMask5Id;
     }
 
-    private static bool IsCheekDefault2Mask(string maskTextureId)
+    private static Vector4 ResolveCheekBlushUvTransform(string maskTextureId)
     {
         maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
             ? string.Empty
             : maskTextureId.Trim();
 
-        return maskTextureId == CheekDefault2MaskId;
+        switch (maskTextureId)
+        {
+            case CheekSessionMask2Id:
+                return new Vector4(1.02f, 0.84f, 0.0f, 0.0f);
+            case CheekSessionMask3Id:
+                return new Vector4(1.02f, 1.32f, 0.0f, 0.020f);
+            case CheekSessionMask4Id:
+                return new Vector4(1.12f, 1.02f, 0.0f, -0.015f);
+            case CheekSessionMask5Id:
+                return new Vector4(1.02f, 0.96f, 0.0f, -0.018f);
+            default:
+                return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+        }
+    }
+
+    private static Vector4 ResolveCheekBlushPartUvTransform(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        switch (maskTextureId)
+        {
+            case CheekSessionMask4Id:
+                return new Vector4(1.12f, 1.12f, 0.0f, -0.010f);
+            default:
+                return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
+        }
+    }
+
+    private static float ResolveCheekBlushPartBlend(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        switch (maskTextureId)
+        {
+            case CheekSessionMask4Id:
+                return 0.90f;
+            default:
+                return 0.0f;
+        }
+    }
+
+    private static float ResolveCheekBlushDensityGain(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        switch (maskTextureId)
+        {
+            case CheekSessionMask1Id:
+                return 0.94f;
+            case CheekSessionMask2Id:
+                return 0.98f;
+            case CheekSessionMask3Id:
+                return 1.20f;
+            case CheekSessionMask4Id:
+                return 0.86f;
+            case CheekSessionMask5Id:
+                return 0.94f;
+            default:
+                return 1.0f;
+        }
+    }
+
+    private static float ResolveCheekBlushCenterGain(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        switch (maskTextureId)
+        {
+            case CheekSessionMask4Id:
+                return 0.95f;
+            case CheekSessionMask5Id:
+                return 0.36f;
+            default:
+                return 0.0f;
+        }
     }
 
     private static string NormalizeOptional(string value)

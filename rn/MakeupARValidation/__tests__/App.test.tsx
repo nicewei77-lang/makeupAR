@@ -260,7 +260,7 @@ test('keeps validation modes visually compact before build', async () => {
   expect(collectText(renderer!)).toContain('Evidence metadata');
 });
 
-test('shows blush region, style, and intensity controls in HUD mode', async () => {
+test('shows blush region, style, intensity, and opacity controls in HUD mode', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -276,17 +276,18 @@ test('shows blush region, style, and intensity controls in HUD mode', async () =
   expect(hudText).toContain('pale pink');
   expect(hudText).toContain('Blush Region');
   expect(hudText).toContain('Daily');
-  expect(hudText).toContain('Default 2');
+  expect(hudText).not.toContain('Default 2');
   expect(hudText).toContain('Lovely');
+  expect(hudText).toContain('Under');
   expect(hudText).toContain('Sun 1');
   expect(hudText).toContain('Sun 2');
-  expect(hudText).toContain('Under');
   expect(hudText).toContain('Intensity');
-  expect(hudText).toContain('blush_daily');
+  expect(hudText).toContain('Opacity');
+  expect(hudText).toContain('blush_session_1');
 
   pressByText(renderer!, 'Lovely');
 
-  expect(collectText(renderer!)).toContain('blush_lovely');
+  expect(collectText(renderer!)).toContain('blush_session_2');
   expect(collectText(renderer!)).toContain('active=cheek');
 
   pressByText(renderer!, 'lip');
@@ -316,14 +317,14 @@ test('keeps focused cheek recipe summary when later eye ack arrives', async () =
     type: 'recipe_applied',
     region: 'cheek',
     layer: 'cheek',
-    texture: 'blush_lovely',
-    sample: 'blush_lovely',
+    texture: 'blush_session_2',
+    sample: 'blush_session_2',
     textureMode: 'sample',
     blendMode: 'multiply',
     finish: 'powder',
-    maskTextureId: 'cheek-lovely-mask-v1',
+    maskTextureId: 'cheek-session-mask-2-v1',
     maskSoftSampleMode: 'feather_scaled_13tap_near_far',
-    maskSource: 'cheek_blush_v1_uv_back_projection',
+    maskSource: 'user_session_2d_png_luminance_multiband',
     color: '#D94B74',
     opacity: 0.52,
     intensity: 0.95,
@@ -347,8 +348,8 @@ test('keeps focused cheek recipe summary when later eye ack arrives', async () =
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('recipe_applied region=cheek texture=blush_lovely');
-  expect(text).toContain('maskTex=cheek-lovely-mask-v1');
+  expect(text).toContain('recipe_applied region=cheek texture=blush_session_2');
+  expect(text).toContain('maskTex=cheek-session-mask-2-v1');
   expect(text).not.toContain('recipe_applied region=eye texture=shimmer_eye');
 });
 
@@ -376,6 +377,7 @@ test('collapses AR makeup control panel to keep face visible', async () => {
   expect(collectText(renderer!)).toContain('Blush Region');
   expect(collectText(renderer!)).toContain('Daily');
   expect(collectText(renderer!)).toContain('Intensity');
+  expect(collectText(renderer!)).toContain('Opacity');
 
   ReactTestRenderer.act(() => {
     renderer!.root
@@ -592,9 +594,9 @@ test('posts smooth mask renderer by default before build', async () => {
   expect(recipePostCall).toContain('activeRegions=none');
   expect(recipePostCall).toContain('enabledLayerCount=0');
   expect(recipePostCall).toContain('focusRegion=cheek');
-  expect(recipePostCall).toContain('focusMaskTextureId=cheek-daily-mask-v1');
+  expect(recipePostCall).toContain('focusMaskTextureId=cheek-session-mask-1-v1');
   expect(recipePostCall).toContain('lipMaskTextureId=lip-drawn-style-atlas-v1');
-  expect(recipePostCall).toContain('cheekMaskTextureId=cheek-daily-mask-v1');
+  expect(recipePostCall).toContain('cheekMaskTextureId=cheek-session-mask-1-v1');
   expect(recipePostCall).not.toContain('lipMaskTextureId=lip-vision-boundary-v1');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
@@ -678,8 +680,8 @@ test('builds five lip style recipe payloads with preset material fields', () => 
       expect(lipLayer.gradientAmount).toBe(1);
       expect(lipLayer.passCount).toBe(1);
     }
-    expect(cheekLayer.texture).toBe('blush_daily');
-    expect(cheekLayer.maskTextureId).toBe('cheek-daily-mask-v1');
+    expect(cheekLayer.texture).toBe('blush_session_1');
+    expect(cheekLayer.maskTextureId).toBe('cheek-session-mask-1-v1');
     expect(cheekLayer.enabled).toBe(false);
     expect(eyeLayer.texture).toBe('shimmer_eye');
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
@@ -728,21 +730,19 @@ test('passes selected lip color, finish, and intensity through payload', () => {
 
 test('selects exactly one cheek blush region mask per cheek layer', () => {
   const expectedMaskIds: Record<string, string> = {
-    blush_daily: 'cheek-daily-mask-v1',
-    blush_default2: 'cheek-default2-mask-v1',
-    blush_lovely: 'cheek-lovely-mask-v1',
-    blush_sunkissed1: 'cheek-sunkissed-mask1-v1',
-    blush_sunkissed2: 'cheek-sunkissed-mask2-v1',
-    blush_under_eye: 'cheek-under-eye-mask-v1',
+    blush_session_1: 'cheek-session-mask-1-v1',
+    blush_session_2: 'cheek-session-mask-2-v1',
+    blush_session_3: 'cheek-session-mask-3-v1',
+    blush_session_4: 'cheek-session-mask-4-v1',
+    blush_session_5: 'cheek-session-mask-5-v1',
   };
 
   expect(CHEEK_BLUSH_REGION_OPTIONS.map(option => option.name)).toEqual([
-    'blush_daily',
-    'blush_default2',
-    'blush_lovely',
-    'blush_sunkissed1',
-    'blush_sunkissed2',
-    'blush_under_eye',
+    'blush_session_1',
+    'blush_session_2',
+    'blush_session_3',
+    'blush_session_4',
+    'blush_session_5',
   ]);
 
   CHEEK_BLUSH_REGION_OPTIONS.forEach(regionMaskOption => {
@@ -779,11 +779,14 @@ test('selects exactly one cheek blush region mask per cheek layer', () => {
     expect(cheekLayer.enabled).toBe(true);
     expect(cheekLayer.blendMode).toBe('multiply');
     expect(cheekLayer.finish).toBe('powder');
-    expect(cheekLayer.shaderMode).toBe('cheek-blush-powder-validation');
-    expect(cheekLayer.intensity).toBeGreaterThanOrEqual(0.46);
-    expect(cheekLayer.intensity).toBeLessThanOrEqual(0.56);
-    expect(cheekLayer.coverage).toBeGreaterThanOrEqual(0.62);
-    expect(cheekLayer.coverage).toBeLessThanOrEqual(0.78);
+    expect(cheekLayer.shaderMode).toBe(
+      'cheek-blush-multiband-skin-aware-validation',
+    );
+    expect(cheekLayer.skinAdaptive).toBe(true);
+    expect(cheekLayer.intensity).toBeGreaterThanOrEqual(0.72);
+    expect(cheekLayer.intensity).toBeLessThanOrEqual(0.88);
+    expect(cheekLayer.coverage).toBeGreaterThanOrEqual(0.66);
+    expect(cheekLayer.coverage).toBeLessThanOrEqual(0.92);
     expect(cheekLayer.preserveDetail).toBe(true);
   });
 });

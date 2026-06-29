@@ -15,42 +15,51 @@ FRAME_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_2026062
 ARFACE_PATH = ROOT / "evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/arface_export.json"
 MASK_ROOT = ROOT / "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 EVIDENCE_ROOT = ROOT / "evidence/e7-reference-atlas/cheek-blush-mask-textures-v1"
-OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260627"
+OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260629_current_session_png"
 
 MASKS = (
-    ("Daily", "blush_daily", "cheek-daily-mask-v1", 0.72, "#EA8F82", 0.54),
-    ("Default 2", "blush_default2", "cheek-default2-mask-v1", 0.78, "#E38C9A", 0.56),
-    ("Lovely", "blush_lovely", "cheek-lovely-mask-v1", 0.70, "#E98694", 0.52),
-    ("Sun 1", "blush_sunkissed1", "cheek-sunkissed-mask1-v1", 0.68, "#E58965", 0.54),
-    ("Sun 2", "blush_sunkissed2", "cheek-sunkissed-mask2-v1", 0.66, "#E9805C", 0.50),
-    ("Under", "blush_under_eye", "cheek-under-eye-mask-v1", 0.66, "#E98EA2", 0.52),
+    ("Mask 1", "blush_session_1", "cheek-session-mask-1-v1", 0.78, "#F2A59A", 0.76, (1.00, 1.00, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.00),
+    ("Mask 2", "blush_session_2", "cheek-session-mask-2-v1", 0.78, "#F3A1A6", 0.76, (1.02, 0.84, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.98, 0.00),
+    ("Mask 3", "blush_session_3", "cheek-session-mask-3-v1", 0.78, "#F0A0B0", 0.76, (1.02, 1.32, 0.000, 0.020), (1.00, 1.00, 0.000, 0.000), 0.00, 1.20, 0.00),
+    ("Mask 4", "blush_session_4", "cheek-session-mask-4-v1", 0.78, "#EFA07F", 0.76, (1.12, 1.02, 0.000, -0.015), (1.12, 1.12, 0.000, -0.010), 0.90, 0.86, 0.95),
+    ("Mask 5", "blush_session_5", "cheek-session-mask-5-v1", 0.78, "#EAA07A", 0.76, (1.02, 0.96, 0.000, -0.018), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.36),
 )
 SOURCE_DRAWINGS = {
-    "cheek-daily-mask-v1": Path("/Users/yeoduchi/Downloads/cheek_daily_mask.png"),
-    "cheek-default2-mask-v1": Path("/Users/yeoduchi/Downloads/blush_defalut2.png"),
-    "cheek-lovely-mask-v1": Path("/Users/yeoduchi/Downloads/cheek_lovely_mask.png"),
-    "cheek-sunkissed-mask1-v1": Path("/Users/yeoduchi/Downloads/cheek_sunkissed_mask1.png"),
-    "cheek-sunkissed-mask2-v1": Path("/Users/yeoduchi/Downloads/cheek_sunkissed_mask2.png"),
-    "cheek-under-eye-mask-v1": Path("/Users/yeoduchi/Downloads/under_eye_mask.png"),
+    "cheek-session-mask-1-v1": Path("/Users/yeoduchi/.codex/attachments/7a2d9f53-98bf-404c-a9bb-e3104515a6f4/image-1.png"),
+    "cheek-session-mask-2-v1": Path("/Users/yeoduchi/.codex/attachments/7a2d9f53-98bf-404c-a9bb-e3104515a6f4/image-2.png"),
+    "cheek-session-mask-3-v1": Path("/Users/yeoduchi/.codex/attachments/7a2d9f53-98bf-404c-a9bb-e3104515a6f4/image-3.png"),
+    "cheek-session-mask-4-v1": Path("/Users/yeoduchi/.codex/attachments/7a2d9f53-98bf-404c-a9bb-e3104515a6f4/image-4.png"),
+    "cheek-session-mask-5-v1": Path("/Users/yeoduchi/.codex/attachments/7a2d9f53-98bf-404c-a9bb-e3104515a6f4/image-5.png"),
 }
 
 ROSE = np.array([0xD9, 0x4B, 0x74], dtype=np.float32) / 255.0
-CHEEK_OPACITY = 0.54
+CHEEK_OPACITY = 0.58
 PRESERVE_SCALE = 0.92
-SKIN_PRESERVE = 0.70
-SATURATION_BOOST = 0.34
-WARMTH = 0.28
+SKIN_PRESERVE = 0.74
+SATURATION_BOOST = 0.30
+WARMTH = 0.24
+EDGE_SOFTNESS = 0.94
+DENSITY_POWER = 0.74
 CROP_BOX = (110, 710, 1060, 1460)
-SUNKISSED2_PLACEMENT_BBOX = (220, 906, 917, 1052)
-DEFAULT2_PLACEMENT_BBOX = (160, 760, 1018, 1285)
 
 
-def load_arface(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def load_arface(path: Path) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     data = json.loads(path.read_text(encoding="utf-8-sig"))
+    local_vertices = np.asarray(data["localVertices"], dtype=np.float32)[:, :2]
     screen_vertices = np.asarray(data["screenVertices"], dtype=np.float32)[:, :2]
     uvs = np.asarray(data["uvs"], dtype=np.float32)[:, :2]
     indices = np.asarray(data["indices"], dtype=np.int32).reshape((-1, 3))
-    return screen_vertices, uvs, indices
+    return local_vertices, screen_vertices, uvs, indices
+
+
+def build_cheek_face_local_uvs(local_vertices: np.ndarray) -> np.ndarray:
+    min_xy = np.percentile(local_vertices, 1.0, axis=0)
+    max_xy = np.percentile(local_vertices, 99.0, axis=0)
+    span = np.maximum(max_xy - min_xy, 1.0e-6)
+    min_xy = min_xy - span * np.array([0.10, 0.08], dtype=np.float32)
+    max_xy = max_xy + span * np.array([0.10, 0.08], dtype=np.float32)
+    span = np.maximum(max_xy - min_xy, 1.0e-6)
+    return np.clip((local_vertices - min_xy) / span, 0.0, 1.0)
 
 
 def smoothstep(edge0: float, edge1: float, values: np.ndarray) -> np.ndarray:
@@ -72,20 +81,29 @@ def project_uv_mask_to_screen(
     mask: Image.Image,
     frame_size: tuple[int, int],
     channel: str,
+    uv_transform: tuple[float, float, float, float],
+    part_uv_transform: tuple[float, float, float, float],
+    part_blend: float,
+    density_gain: float,
+    center_gain: float,
 ) -> np.ndarray:
-    screen_vertices, uvs, indices = load_arface(ARFACE_PATH)
+    local_vertices, screen_vertices, _uvs, indices = load_arface(ARFACE_PATH)
+    face_local_uvs = build_cheek_face_local_uvs(local_vertices)
     width, height = frame_size
-    rgba = np.asarray(mask.convert("RGBA"), dtype=np.float32) / 255.0
-    if channel == "density":
-        mask_values = rgba[:, :, 2]
-    else:
-        mask_values = np.maximum(rgba[:, :, 0], rgba[:, :, 3])
-    mask_height, mask_width = mask_values.shape
+    rgb = np.asarray(mask.convert("RGB"), dtype=np.float32) / 255.0
+    luminance = (
+        rgb[..., 0] * 0.2126
+        + rgb[..., 1] * 0.7152
+        + rgb[..., 2] * 0.0722
+    )
+    gray_strength = np.clip((0.965 - luminance) / 0.412, 0.0, 1.0)
+    mask_height, mask_width = gray_strength.shape
     alpha = np.zeros((height, width), dtype=np.float32)
+    scale_x, scale_y, offset_x, offset_y = uv_transform
 
     for triangle in indices:
         points = screen_vertices[triangle]
-        uv_points = uvs[triangle]
+        uv_points = face_local_uvs[triangle]
         left = max(int(np.floor(float(points[:, 0].min()))), 0)
         right = min(int(np.ceil(float(points[:, 0].max()))), width - 1)
         top = max(int(np.floor(float(points[:, 1].min()))), 0)
@@ -113,19 +131,77 @@ def project_uv_mask_to_screen(
             + uv_points[1] * w2[..., None]
             + uv_points[2] * w3[..., None]
         )
+        cheek_uv = np.clip(
+            (projected_uv - 0.5)
+            / np.array(
+                [max(abs(scale_x), 1.0e-6), max(abs(scale_y), 1.0e-6)],
+                dtype=np.float32,
+            )
+            + 0.5
+            + np.array([offset_x, offset_y], dtype=np.float32),
+            0.0,
+            1.0,
+        )
         valid = (
             inside
-            & (projected_uv[..., 0] >= 0.0)
-            & (projected_uv[..., 0] <= 1.0)
-            & (projected_uv[..., 1] >= 0.0)
-            & (projected_uv[..., 1] <= 1.0)
+            & (cheek_uv[..., 0] >= 0.0)
+            & (cheek_uv[..., 0] <= 1.0)
+            & (cheek_uv[..., 1] >= 0.0)
+            & (cheek_uv[..., 1] <= 1.0)
         )
         if not valid.any():
             continue
 
-        sample_x = np.rint(projected_uv[..., 0][valid] * (mask_width - 1)).astype(np.int32)
-        sample_y = np.rint((1.0 - projected_uv[..., 1][valid]) * (mask_height - 1)).astype(np.int32)
-        sampled = mask_values[sample_y, sample_x]
+        valid_uv = cheek_uv[valid]
+        sample_x = np.rint(valid_uv[..., 0] * (mask_width - 1)).astype(np.int32)
+        sample_y = np.rint((1.0 - valid_uv[..., 1]) * (mask_height - 1)).astype(np.int32)
+        center_uv = valid_uv - np.array([0.5, 0.5], dtype=np.float32)
+        center_gate = (
+            1.0 - smoothstep(0.025, 0.255, np.abs(center_uv[..., 0]))
+        ) * (
+            1.0 - smoothstep(0.020, 0.245, np.abs(center_uv[..., 1]))
+        )
+        sampled_gray = gray_strength[sample_y, sample_x]
+        boost_gate = center_gate
+        part_strength = float(np.clip(part_blend, 0.0, 1.0))
+        if part_strength > 0.001:
+            part_scale_x, part_scale_y, part_offset_x, part_offset_y = part_uv_transform
+            part_uv = np.clip(
+                (valid_uv - 0.5)
+                / np.array(
+                    [max(abs(part_scale_x), 1.0e-6), max(abs(part_scale_y), 1.0e-6)],
+                    dtype=np.float32,
+                )
+                + 0.5
+                + np.array([part_offset_x, part_offset_y], dtype=np.float32),
+                0.0,
+                1.0,
+            )
+            part_sample_x = np.rint(part_uv[..., 0] * (mask_width - 1)).astype(np.int32)
+            part_sample_y = np.rint((1.0 - part_uv[..., 1]) * (mask_height - 1)).astype(np.int32)
+            part_center_uv = part_uv - np.array([0.5, 0.5], dtype=np.float32)
+            part_gate = (
+                1.0 - smoothstep(0.020, 0.220, np.abs(part_center_uv[..., 0]))
+            ) * (
+                1.0 - smoothstep(0.018, 0.205, np.abs(part_center_uv[..., 1]))
+            )
+            original_center_suppress = center_gate * part_strength
+            sampled_gray = np.maximum(
+                sampled_gray * (1.0 - original_center_suppress * 0.90),
+                gray_strength[part_sample_y, part_sample_x] * part_gate * part_strength,
+            )
+            boost_gate = np.maximum(
+                center_gate * (1.0 - original_center_suppress * 0.82),
+                part_gate * part_strength,
+            )
+        sampled_gray = np.clip(
+            sampled_gray
+            * density_gain
+            * (1.0 + center_gain * boost_gate),
+            0.0,
+            1.0,
+        )
+        sampled = np.clip(sampled_gray**1.16, 0.0, 1.0) if channel == "density" else sampled_gray
         target = alpha[grid_y[valid], grid_x[valid]]
         alpha[grid_y[valid], grid_x[valid]] = np.maximum(target, sampled)
 
@@ -151,7 +227,10 @@ def render_expected(
     sample_name: str,
 ) -> Image.Image:
     base = np.asarray(frame.convert("RGB"), dtype=np.float32) / 255.0
-    alpha_image = Image.fromarray(np.rint(np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8), mode="L")
+    alpha_image = Image.fromarray(
+        np.rint(np.clip(alpha, 0.0, 1.0) * 255).astype(np.uint8),
+        mode="L",
+    )
     alpha_image = alpha_image.filter(ImageFilter.GaussianBlur(radius=4.0))
     density_image = Image.fromarray(
         np.rint(np.clip(density, 0.0, 1.0) * 255).astype(np.uint8),
@@ -159,9 +238,16 @@ def render_expected(
     )
     density_image = density_image.filter(ImageFilter.GaussianBlur(radius=3.0))
     soft = np.asarray(alpha_image, dtype=np.float32) / 255.0
-    density_soft = np.asarray(density_image, dtype=np.float32) / 255.0
-    coverage_soft = smoothstep(0.025 - 0.76 * 0.46, 0.025 + 0.76, soft)
-    density_mix = np.clip(density * (1.0 - 0.42) + density_soft * 0.42, 0.0, 1.0)
+    density_blurred = np.asarray(density_image, dtype=np.float32) / 255.0
+    cheek_feather = max(0.86, 0.68) * (1.02 + (1.20 - 1.02) * EDGE_SOFTNESS)
+    coverage_soft = smoothstep(0.025 * 0.72 - cheek_feather * 0.46, 0.025 * 0.72 + cheek_feather, soft)
+    coverage_wide = np.clip(
+        coverage_soft ** (0.74 + (0.56 - 0.74) * EDGE_SOFTNESS),
+        0.0,
+        1.0,
+    )
+    density_soft = np.clip(density * (1.0 - 0.62) + density_blurred * 0.62, 0.0, 1.0)
+    density_field = np.maximum(density, density_blurred * 0.82)
     secondary = parse_hex_color(secondary_hex)
     blush_pigment = np.clip(ROSE * (1.0 - 0.04) + secondary * 0.04, 0.0, 1.0)
     pigment_warmth = np.clip(
@@ -171,144 +257,71 @@ def render_expected(
         1.0,
     )
 
-    if sample_name == "blush_default2":
-        density_ramp = np.clip(smoothstep(0.015, 0.72, density_mix) ** 0.82, 0.0, 1.0)
-        wide_coverage = np.clip(coverage_soft ** (1.05 + (1.22 - 1.05) * 0.90), 0.0, 1.0)
-        outer_band = np.clip(wide_coverage * smoothstep(0.0, 0.16, coverage_soft), 0.0, 1.0)
-        mid_band = np.clip(wide_coverage * smoothstep(0.05, 0.58, density_ramp), 0.0, 1.0)
-        core_band = np.clip(wide_coverage * smoothstep(0.34, 0.92, density_ramp), 0.0, 1.0)
-        slider_curve = intensity * intensity * (3.0 - 2.0 * intensity)
-        global_opacity = min(CHEEK_OPACITY * PRESERVE_SCALE * 1.72, 1.0)
-        outer_strength = outer_band * global_opacity * (0.040 + (0.120 - 0.040) * slider_curve)
-        mid_strength = mid_band * global_opacity * (0.080 + (0.360 - 0.080) * slider_curve)
-        core_strength = core_band * global_opacity * (0.020 + (0.520 - 0.020) * slider_curve)
-        warm_bias = WARMTH
-        outer_target = np.array(
-            [1.0, 0.965 - warm_bias * 0.010, 0.955 - warm_bias * 0.012],
-            dtype=np.float32,
-        )
-        mid_target = np.array(
-            [
-                1.0,
-                (0.93 + (0.76 - 0.93) * pigment_warmth) - warm_bias * 0.018,
-                (0.94 + (0.81 - 0.94) * pigment_warmth) - warm_bias * 0.020,
-            ],
-            dtype=np.float32,
-        )
-        core_target = np.array(
-            [
-                1.0,
-                (0.90 + (0.62 - 0.90) * pigment_warmth) - warm_bias * 0.020,
-                (0.92 + (0.70 - 0.92) * pigment_warmth) - warm_bias * 0.024,
-            ],
-            dtype=np.float32,
-        )
-        outer_target = np.clip(np.maximum(outer_target, np.array([0.92, 0.88, 0.88])), 0.0, 1.0)
-        mid_target = np.clip(np.maximum(mid_target, np.array([0.86, 0.70, 0.74])), 0.0, 1.0)
-        core_target = np.clip(np.maximum(core_target, np.array([0.84, 0.58, 0.66])), 0.0, 1.0)
-        outer_filter = 1.0 + (outer_target.reshape((1, 1, 3)) - 1.0) * outer_strength[..., None]
-        mid_filter = 1.0 + (mid_target.reshape((1, 1, 3)) - 1.0) * mid_strength[..., None]
-        core_filter = 1.0 + (core_target.reshape((1, 1, 3)) - 1.0) * core_strength[..., None]
-        rendered = np.clip(base * outer_filter * mid_filter * core_filter, 0.0, 1.0)
-        return Image.fromarray(np.rint(rendered * 255).astype(np.uint8), mode="RGB")
-
-    density_curve = smoothstep(0.006, 0.62, density_mix)
-    density_ramp = np.clip(density_curve ** 0.912, 0.0, 1.0)
-    edge_melt = smoothstep(0.0, 0.22, coverage_soft) * smoothstep(0.015, 0.18, density_mix)
-    shape_fade = np.clip(coverage_soft ** 1.436, 0.0, 1.0)
-    tone_curve = np.clip(0.24 + (1.0 - 0.24) * density_ramp, 0.0, 1.0)
-    continuous_field = np.clip(shape_fade * tone_curve * edge_melt, 0.0, 1.0)
-    watercolor_field = np.clip(continuous_field ** 0.9304, 0.0, 1.0)
-    mask_strength = watercolor_field * coverage * 0.92
-    intensity_curve = intensity * intensity * (3.0 - 2.0 * intensity)
-    material_alpha = CHEEK_OPACITY * (0.06 + (1.24 - 0.06) * intensity_curve)
-    cheek_cap = 0.12 + (0.52 - 0.12) * np.clip(coverage, 0.0, 1.0)
-    pigment_strength = np.minimum(
-        np.clip(mask_strength * material_alpha * PRESERVE_SCALE, 0.0, 1.0),
-        cheek_cap,
-    )
-    pigment_strength = np.clip(pigment_strength ** (1.08 + (0.88 - 1.08) * SATURATION_BOOST), 0.0, 1.0)
-    pigment_strength *= 1.0 + (0.84 - 1.0) * SKIN_PRESERVE
-    filter_target = np.array(
-        [
-            1.0,
-            (0.94 + (0.72 - 0.94) * pigment_warmth) - WARMTH * 0.020,
-            (0.96 + (0.78 - 0.96) * pigment_warmth) - WARMTH * 0.024,
-        ],
-        dtype=np.float32,
-    )
-    filter_target = np.clip(np.maximum(filter_target, np.array([0.88, 0.72, 0.75])), 0.0, 1.0)
-    skin_filter = 1.0 + (filter_target.reshape((1, 1, 3)) - 1.0) * pigment_strength[..., None]
-    rendered = np.clip(
-        base * skin_filter,
+    outer_band = np.clip(coverage_wide * smoothstep(0.004, 0.18, soft), 0.0, 1.0)
+    mid_band = np.clip(
+        coverage_wide
+        * np.clip(density_soft + density_blurred * 0.08, 0.0, 1.0)
+        ** (1.55 + (1.15 - 1.55) * DENSITY_POWER),
         0.0,
         1.0,
     )
+    core_band = np.clip(
+        coverage_wide * np.clip(density_field, 0.0, 1.0) ** (2.60 + (1.70 - 2.60) * DENSITY_POWER),
+        0.0,
+        1.0,
+    )
+    mid_band = np.clip(mid_band ** (1.24 + (0.98 - 1.24) * DENSITY_POWER), 0.0, 1.0)
+    core_band = np.clip(core_band ** (1.50 + (0.98 - 1.50) * DENSITY_POWER), 0.0, 1.0)
+    slider_curve = intensity * intensity * (3.0 - 2.0 * intensity)
+    slider_mid_curve = intensity**1.05
+    slider_core_curve = intensity**1.18
+    opacity_scale = np.clip(CHEEK_OPACITY * PRESERVE_SCALE * (1.00 + (1.65 - 1.00) * slider_curve), 0.0, 1.0)
+    outer_strength = np.clip(outer_band * opacity_scale * (0.035 + (0.095 - 0.035) * slider_curve), 0.0, 1.0)
+    mid_strength = np.clip(mid_band * opacity_scale * (0.065 + (0.620 - 0.065) * slider_mid_curve), 0.0, 1.0)
+    core_strength = np.clip(core_band * opacity_scale * (0.015 + (1.200 - 0.015) * slider_core_curve), 0.0, 1.0)
+
+    outer_target = np.array(
+        [
+            1.0,
+            (0.995 + (0.965 - 0.995) * pigment_warmth) - WARMTH * 0.003,
+            (0.995 + (0.970 - 0.995) * pigment_warmth) - WARMTH * 0.004,
+        ],
+        dtype=np.float32,
+    )
+    mid_target = np.array(
+        [
+            1.0,
+            (0.955 + (0.70 - 0.955) * pigment_warmth) - WARMTH * 0.020,
+            (0.970 + (0.78 - 0.970) * pigment_warmth) - WARMTH * 0.022,
+        ],
+        dtype=np.float32,
+    )
+    core_target = np.array(
+        [
+            1.0,
+            (0.920 + (0.44 - 0.920) * pigment_warmth) - WARMTH * 0.024,
+            (0.940 + (0.58 - 0.940) * pigment_warmth) - WARMTH * 0.030,
+        ],
+        dtype=np.float32,
+    )
+    outer_target = np.clip(np.maximum(outer_target, np.array([0.97, 0.94, 0.945])), 0.0, 1.0)
+    mid_target = np.clip(np.maximum(mid_target, np.array([0.86, 0.66, 0.70])), 0.0, 1.0)
+    core_target = np.clip(np.maximum(core_target, np.array([0.80, 0.42, 0.52])), 0.0, 1.0)
+    outer_filter = 1.0 + (outer_target.reshape((1, 1, 3)) - 1.0) * outer_strength[..., None]
+    mid_filter = 1.0 + (mid_target.reshape((1, 1, 3)) - 1.0) * mid_strength[..., None]
+    core_filter = 1.0 + (core_target.reshape((1, 1, 3)) - 1.0) * core_strength[..., None]
+    rendered = np.clip(base * outer_filter * mid_filter * core_filter, 0.0, 1.0)
     return Image.fromarray(np.rint(rendered * 255).astype(np.uint8), mode="RGB")
 
 
-def source_mask_overlay(frame: Image.Image, mask_id: str) -> Image.Image:
+def source_mask_preview(mask_id: str) -> Image.Image:
+    atlas_path = EVIDENCE_ROOT / "atlas" / f"{mask_id}-source-original.png"
+    if atlas_path.exists():
+        return Image.open(atlas_path).convert("RGB")
     source_path = SOURCE_DRAWINGS.get(mask_id)
     if source_path is None or not source_path.exists():
-        return frame.convert("RGB")
-    source_rgba = Image.open(source_path).convert("RGBA")
-    if mask_id == "cheek-sunkissed-mask2-v1" and source_rgba.size != frame.size:
-        source_alpha = source_rgba.getchannel("A")
-        alpha_values = np.asarray(source_alpha, dtype=np.float32)
-        ys, xs = np.nonzero(alpha_values > 8.0)
-        if len(xs) > 0:
-            left, top, right, bottom = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
-            crop = source_alpha.crop((left, top, right + 1, bottom + 1))
-            target_left, target_top, target_right, target_bottom = SUNKISSED2_PLACEMENT_BBOX
-            crop = crop.resize(
-                (target_right - target_left + 1, target_bottom - target_top + 1),
-                Image.Resampling.LANCZOS,
-            )
-            placed = Image.new("L", frame.size, 0)
-            placed.paste(crop, (target_left, target_top))
-            return overlay_alpha(
-                frame,
-                np.asarray(placed, dtype=np.float32) / 255.0,
-                (242, 112, 126),
-            )
-    if mask_id == "cheek-default2-mask-v1" and source_rgba.size != frame.size:
-        source_rgb = np.asarray(source_rgba.convert("RGB"), dtype=np.float32)
-        source_alpha = np.asarray(source_rgba.getchannel("A"), dtype=np.float32)
-        darkness = source_rgb.mean(axis=2)
-        mask_values = np.where((source_alpha > 8.0) & (darkness < 150.0), 255, 0).astype(np.uint8)
-        ys, xs = np.nonzero(mask_values > 8)
-        if len(xs) > 0:
-            left, top, right, bottom = int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())
-            crop = Image.fromarray(mask_values, mode="L").crop((left, top, right + 1, bottom + 1))
-            target_left, target_top, target_right, target_bottom = DEFAULT2_PLACEMENT_BBOX
-            crop = crop.resize(
-                (target_right - target_left + 1, target_bottom - target_top + 1),
-                Image.Resampling.LANCZOS,
-            )
-            placed = Image.new("L", frame.size, 0)
-            placed.paste(crop, (target_left, target_top))
-            return overlay_alpha(
-                frame,
-                np.asarray(placed, dtype=np.float32) / 255.0,
-                (242, 112, 126),
-            )
-
-    source = source_rgba.convert("RGB")
-    if source.size != frame.size:
-        source_rgba = source_rgba.resize(frame.size, Image.Resampling.BILINEAR)
-        source = source_rgba.convert("RGB")
-    source_rgb = np.asarray(source, dtype=np.float32)
-    source_alpha = np.asarray(source_rgba.getchannel("A"), dtype=np.float32) / 255.0
-    luminance = (
-        source_rgb[..., 0] * 0.2126
-        + source_rgb[..., 1] * 0.7152
-        + source_rgb[..., 2] * 0.0722
-    )
-    alpha = np.clip((245.0 - luminance) / 135.0, 0.0, 1.0)
-    alpha = np.where(luminance < 238.0, alpha, 0.0)
-    if float(alpha.max()) <= 0.0 and float(source_alpha.max()) > 0.0:
-        alpha = source_alpha
-    return overlay_alpha(frame, alpha, (242, 112, 126))
+        return Image.new("RGB", (320, 320), (246, 246, 246))
+    return Image.open(source_path).convert("RGB")
 
 
 def crop_thumb(image: Image.Image, width: int = 320, height: int = 260) -> Image.Image:
@@ -319,10 +332,18 @@ def crop_thumb(image: Image.Image, width: int = 320, height: int = 260) -> Image
     return tile
 
 
+def fit_thumb(image: Image.Image, width: int = 320, height: int = 260) -> Image.Image:
+    thumb = image.convert("RGB").copy()
+    thumb.thumbnail((width, height), Image.Resampling.LANCZOS)
+    tile = Image.new("RGB", (width, height), (246, 246, 246))
+    tile.paste(thumb, ((width - thumb.width) // 2, (height - thumb.height) // 2))
+    return tile
+
+
 def main() -> None:
     OUTPUT_ROOT.mkdir(parents=True, exist_ok=True)
     frame = Image.open(FRAME_PATH).convert("RGB")
-    columns = ("source drawing", "projected alpha", "projected density", "expected render")
+    columns = ("source 2D PNG", "face-local alpha", "face-local density", "expected render")
     tile_w, tile_h, label_h = 320, 260, 32
     sheet = Image.new(
         "RGB",
@@ -334,32 +355,64 @@ def main() -> None:
         draw.text((col * tile_w + 8, 9), label, fill=(0, 0, 0))
 
     summary: dict[str, object] = {
-        "previewId": "cheek-blush-expected-render-20260627-skin-aware",
-        "runtimeSelectionRule": "one cheek blush region mask is selected per cheek layer",
+        "previewId": "cheek-blush-expected-render-20260629-multiband-skin-aware",
+        "runtimeSelectionRule": "one user-supplied cheek blush 2D texture is selected per cheek layer",
+        "atlasSourceRule": "the user-provided 2D PNG is sampled directly; source RGB luminance defines where blush is applied and darker gray defines stronger density",
         "color": "#D94B74",
         "opacity": CHEEK_OPACITY,
-        "materialAlphaRule": "legacy blush uses opacity * lerp(0.06, 1.24, smoothstep(intensity)); blush_default2 keeps opacity stable and curves outer/mid/core inside shader",
-        "edgeContract": "coverage alpha stays wide/soft; blush_default2 renders outer skin tint, mid wash, and density core as smooth multi-band skin-aware multiply tint",
-        "blendContract": "cheek blush uses a density-gated multiply filter, not simple source-over alpha color",
-        "coreEdgeContract": "visible blush keeps smooth falloff between outer, mid, and core bands without hard thresholds",
+        "materialAlphaRule": "opacity stays independent from intensity; intensity curves outer, mid, and core bands separately",
+        "edgeContract": "coverage alpha keeps a wide soft support while the outer band stays skin-close so bright colors do not reveal a hard edge",
+        "blendContract": "cheek blush uses a three-band skin-aware multiply filter, not simple source-over alpha color",
+        "coreEdgeContract": "visible blush fades through outer, mid, and core bands with smoothstep/gaussian falloff and no hard thresholds",
+        "projectionNote": "source 2D PNGs are copied exactly; face-local alpha/density columns show the same texture sampled through cheek mesh face-local x/y UVs, so the flat drawing position is preserved on the face instead of being warped by the default ARFace UV layout",
+        "placementCalibrationRule": "cheek mesh UVs are rebuilt from face-local x/y coordinates; per-mask scale, component-aware part offset, and density gain are runtime shader parameters and do not replace or redraw the supplied 2D PNG atlases",
         "densityContract": {
-            "blush_daily": "outer/high cheekbone peak; fades inward toward nose and lower cheek",
-            "blush_default2": "wide user mask; outer band stays close to skin, mid band washes softly, and cheek cores rise from density",
-            "blush_lovely": "round apple-center radial peak; fades outward evenly",
-            "blush_sunkissed1": "outer cheek strongest; fades inward toward the nose; nose stays medium-light",
-            "blush_sunkissed2": "outer cheekbone shy blush strongest; fades horizontally inward; nose bridge stays very light",
-            "blush_under_eye": "under-eye band strongest near lower eyelid; fades gradually downward into cheek",
+            "blush_session_1": "direct session image-1 gray atlas; darker gray pixels become stronger density",
+            "blush_session_2": "direct session image-2 gray atlas; darker gray pixels become stronger density",
+            "blush_session_3": "direct session image-3 gray atlas; darker gray pixels become stronger density",
+            "blush_session_4": "direct session image-4 gray atlas; darker gray pixels become stronger density",
+            "blush_session_5": "direct session image-5 gray atlas; darker gray pixels become stronger density",
         },
         "frame": str(FRAME_PATH.relative_to(ROOT)),
         "rows": [],
     }
 
-    for row, (label, sample_name, mask_id, coverage, secondary_hex, intensity) in enumerate(MASKS, start=1):
+    for row, (
+        label,
+        sample_name,
+        mask_id,
+        coverage,
+        secondary_hex,
+        intensity,
+        uv_transform,
+        part_uv_transform,
+        part_blend,
+        density_gain,
+        center_gain,
+    ) in enumerate(MASKS, start=1):
         mask_path = MASK_ROOT / f"{mask_id}.png"
         uv_mask = Image.open(mask_path).convert("RGBA")
-        projected_alpha = project_uv_mask_to_screen(uv_mask, frame.size, "alpha")
-        projected_density = project_uv_mask_to_screen(uv_mask, frame.size, "density")
-        source = source_mask_overlay(frame, mask_id)
+        projected_alpha = project_uv_mask_to_screen(
+            uv_mask,
+            frame.size,
+            "alpha",
+            uv_transform,
+            part_uv_transform,
+            part_blend,
+            density_gain,
+            center_gain,
+        )
+        projected_density = project_uv_mask_to_screen(
+            uv_mask,
+            frame.size,
+            "density",
+            uv_transform,
+            part_uv_transform,
+            part_blend,
+            density_gain,
+            center_gain,
+        )
+        source = source_mask_preview(mask_id)
         alpha_overlay = overlay_alpha(frame, projected_alpha, (238, 111, 98))
         density_overlay = overlay_alpha(frame, projected_density, (196, 76, 110))
         expected = render_expected(
@@ -381,7 +434,8 @@ def main() -> None:
 
         y = row * (tile_h + label_h)
         draw.text((8, y + 8), f"{label} / {sample_name}", fill=(0, 0, 0))
-        for col, image in enumerate((source, alpha_overlay, density_overlay, expected)):
+        sheet.paste(fit_thumb(source, tile_w, tile_h), (0, y + label_h))
+        for col, image in enumerate((alpha_overlay, density_overlay, expected), start=1):
             sheet.paste(crop_thumb(image, tile_w, tile_h), (col * tile_w, y + label_h))
 
         active = projected_alpha > 0.03
@@ -395,10 +449,15 @@ def main() -> None:
                 "coverage": coverage,
                 "secondaryColor": secondary_hex,
                 "intensity": intensity,
-                "materialAlphaApprox": CHEEK_OPACITY
-                if sample_name == "blush_default2"
-                else CHEEK_OPACITY
-                * (0.06 + (1.24 - 0.06) * (intensity * intensity * (3.0 - 2.0 * intensity))),
+                "opacity": CHEEK_OPACITY,
+                "uvTransform": uv_transform,
+                "partUvTransform": part_uv_transform,
+                "partBlend": part_blend,
+                "densityGain": density_gain,
+                "centerGain": center_gain,
+                "outerStrengthCurve": "lerp(0.035,0.095,smoothstep(intensity))",
+                "midStrengthCurve": "lerp(0.065,0.620,pow(intensity,1.05))",
+                "coreStrengthCurve": "lerp(0.015,1.200,pow(intensity,1.18))",
                 "projectedAlphaActivePixelsGt003": int(active.sum()),
                 "expectedRender": str(expected_path.relative_to(ROOT)),
                 "projectedAlpha": str(alpha_path.relative_to(ROOT)),
@@ -410,7 +469,7 @@ def main() -> None:
     sheet.save(sheet_path)
     summary["sheet"] = str(sheet_path.relative_to(ROOT))
 
-    ramp_levels = (0.15, 0.55, 1.0)
+    ramp_levels = (0.08, 0.35, 0.70, 1.0)
     ramp_sheet = Image.new(
         "RGB",
         (tile_w * len(ramp_levels), (tile_h + label_h) * (len(MASKS) + 1)),
@@ -420,11 +479,41 @@ def main() -> None:
     for col, level in enumerate(ramp_levels):
         ramp_draw.text((col * tile_w + 8, 9), f"intensity {level:.2f}", fill=(0, 0, 0))
 
-    for row, (label, sample_name, mask_id, coverage, secondary_hex, _intensity) in enumerate(MASKS, start=1):
+    for row, (
+        label,
+        sample_name,
+        mask_id,
+        coverage,
+        secondary_hex,
+        _intensity,
+        uv_transform,
+        part_uv_transform,
+        part_blend,
+        density_gain,
+        center_gain,
+    ) in enumerate(MASKS, start=1):
         mask_path = MASK_ROOT / f"{mask_id}.png"
         uv_mask = Image.open(mask_path).convert("RGBA")
-        projected_alpha = project_uv_mask_to_screen(uv_mask, frame.size, "alpha")
-        projected_density = project_uv_mask_to_screen(uv_mask, frame.size, "density")
+        projected_alpha = project_uv_mask_to_screen(
+            uv_mask,
+            frame.size,
+            "alpha",
+            uv_transform,
+            part_uv_transform,
+            part_blend,
+            density_gain,
+            center_gain,
+        )
+        projected_density = project_uv_mask_to_screen(
+            uv_mask,
+            frame.size,
+            "density",
+            uv_transform,
+            part_uv_transform,
+            part_blend,
+            density_gain,
+            center_gain,
+        )
         y = row * (tile_h + label_h)
         ramp_draw.text((8, y + 8), f"{label} / {sample_name}", fill=(0, 0, 0))
         for col, level in enumerate(ramp_levels):
