@@ -4816,6 +4816,61 @@ expected fail: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-repo
 4. 그 다음에만 user-approved Xcode/iPhone build
 ```
 
+### 18.7B 2026-06-29 current-state revalidation
+
+Status: **source checks still pass, prebuild is intentionally blocked on stale UnityFramework**.
+
+재확인한 자동 체크:
+
+```txt
+pass: cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit
+pass: cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false
+  Tests: 26 passed
+pass: cd rn/MakeupARValidation && npm run lint
+pass: cd packages/lip-generate-core && npm run typecheck
+pass: cd packages/lip-generate-core && npm test
+pass: git diff --check
+
+pass: cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+  decision=sync-or-rebuild-unityframework-before-xcode
+  changedFiles=0
+  unityFrameworkSync=false reason=rn_reference_unityframework_missing
+
+expected fail: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+  result=fail pass=35 fail=1 warn=0
+  only failing check=unity.framework_contains_ack_persistence
+```
+
+framework freshness 확인:
+
+```txt
+- rn/MakeupARValidation/unity/builds/ios/UnityFramework.framework 없음
+- package-local UnityFramework.framework 있음, 약 117M
+- package-local framework contains: generated_lip_mask_applied.latest.json
+- package-local framework missing: overlaySyncPhase
+- package-local framework missing: validationControlRequestId
+- package-local framework missing: controlRequestId
+```
+
+Unity MCP read-only 진단:
+
+```txt
+- codex mcp list: unity-mcp enabled
+- Unity Editor process, UnityLicensingClient, relay_mac_arm64 process running
+- relay server-status after start: isProcessRunning=true
+- availableTools=[]
+- Unity_GetConsoleLogs는 tool discovery가 끝나지 않아 timeout 전 callable 상태가 되지 않음
+- diagnostic MCP server는 stop-server로 정리함
+```
+
+해석:
+
+```txt
+- MCP/Editor 존재는 확인했지만 console/scene/material/texture evidence는 아직 없다.
+- 이 턴의 MCP 결과는 iPhone runtime 증거를 대체하지 않는다.
+- 다음 실질 boundary는 여전히 user-approved UnityFramework regeneration이다.
+```
+
 ### 18.7 다음 실기기 테스트 시나리오
 
 빌드 후 사용자는 처음부터 끝까지 한 번만 흐름을 탄다. Codex는 로그와 화면을 같이 본다.
