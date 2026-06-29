@@ -5118,3 +5118,867 @@ Not Done:
 - AR만 좋아지고 조정/재촬영/stale state가 깨지는 상태
 - iPhone evidence 없이 release-quality claim
 ```
+
+### 18.9 2026-06-29 post-device issue resolution detailed plan
+
+Status: **planned / root-cause narrowed / implementation pending**.
+
+목표:
+
+```txt
+다음 iPhone 빌드에서 사용자가 다시 같은 실패를 보지 않게 한다.
+
+고쳐야 할 사용자 문제:
+1. Step 6 조정 +/-가 안 먹거나 한참 뒤 반영된다.
+2. 저장하고 AR 실행이 눌린 뒤 작동 중인지 알 수 없고, 오래 걸리거나 멈춘 것처럼 보인다.
+3. generated AR lip mask는 edge 품질이 일부 개선됐지만, 얼굴을 흔들면 입술에 붙어 움직이는 느낌이 약하다.
+4. blendshapeAssist 후보가 선택/전송은 되지만 실제 blend mask로 동작하지 않는다.
+5. preview, saved package, Unity runtime이 같은 품질/경계/상태를 보여준다는 증거가 부족하다.
+```
+
+핵심 판정:
+
+```txt
+- 조정 지연은 Unity runtime보다 RN async preview/package rebuild 경로가 주 원인이다.
+- 저장/AR 실행 지연은 native save + Unity apply + face tracking lost retry가 UI 진행도 없이 섞인 것이 주 원인이다.
+- 얼굴 흔들림 문제는 L1/L2 mesh sync 비용만의 문제가 아니다. live log상 overlaySyncDurationMs는 낮고 Tracking 상태에서도 mask가 평면 sticker처럼 보였다.
+- generated custom mask는 단일 capture frame의 2D lip boundary를 UV로 역투영한 static alpha texture다. 기존 smooth mask보다 포즈/표정/거리 변화에 민감하다.
+- blendshapeAssist는 현재 metadata/material feather/gloss 차이에 가깝다. capture set 6컷이 실제 raw UV alpha mask 생성에 합성되지 않는다.
+```
+
+#### 18.9.1 Evidence lock before edits
+
+수정 전 최신 실패 세션을 local-only evidence로 고정한다.
+
+입력:
+
+```txt
+- /Users/wiseungcheol/Downloads/ScreenRecording_06-29-2026 19-11-14_1.MP4
+- /Users/wiseungcheol/Downloads/IMG_4352.PNG
+- evidence/logs/e7-ar-lip-release-candidate-live-console-20260629.log
+```
+
+해야 할 일:
+
+```txt
+1. iPhone Documents에서 최신 generated evidence를 pull한다.
+   script:
+     scripts/e7_inapp_generate/pull_ios_generated_evidence.py
+
+   collect:
+     - generated_lip_package.json
+     - saved_record.json
+     - generated_lip_mask_applied.latest.json
+     - generated_lip_mask_applied.jsonl
+     - capture_summary.json
+
+2. pull이 막히면 blocked로 기록하고, 영상+live console log만으로 source fix를 진행한다.
+
+3. 실패 세션 분석 summary를 evidence/logs/ 아래에 짧게 남긴다.
+   required fields:
+     - selected provider
+     - selected expressionMode
+     - generatedMaskId
+     - adjustment values
+     - uvResolution
+     - alphaBoundingBoxTexels
+     - positiveTexels
+     - edgeBandRatio
+     - innerHolePositiveRatio
+     - previewVsUvRoundTripDelta
+     - payloadBytes
+     - first apply status / blockedReason
+     - retry count
+     - final applied / faceCount / maskTriangles
+     - overlaySyncDurationMs / overlaySyncWorstDurationMs
+     - recording frame notes for slow/fast yaw
+```
+
+Exit:
+
+```txt
+- one evidence note says whether the latest device package was pulled.
+- do not block RN responsiveness fixes on device pull if the device is unavailable.
+```
+
+#### 18.9.2 RN adjustment loop fix
+
+Problem:
+
+```txt
+updateLipUserAdjustment currently does too much per tap:
+- set adjustment
+- rebuild uvOnly and blendshapeAssist packages
+- render native preview PNGs
+- await preview results
+- then commit candidates
+- also posts legacy recipe batch
+
+There is no adjustment-specific request guard.
+Rapid taps can collapse on stale value or let older preview results overwrite newer adjustment state.
+```
+
+Source targets:
+
+```txt
+rn/MakeupARValidation/App.tsx
+- AdjustmentStepper
+- updateLipUserAdjustment
+- renderGeneratedCandidatePreviews
+- GeneratedAdjustmentPreview
+```
+
+Implementation:
+
+```txt
+1. Split immediate input state from slow preview/package state.
+
+   New state/ref:
+     - lipUserAdjustmentRef
+     - adjustmentPreviewState:
+         idle | rendering | ready | blocked
+     - adjustmentPreviewRequestSequenceRef
+     - activeAdjustmentPreviewRequestRef
+
+2. Make stepper updates functional.
+
+   Requirement:
+     pressing + three times quickly from 0.00 must produce 0.15,
+     not 0.05 due to stale prop value.
+
+3. On tap:
+   - update numeric adjustment immediately
+   - reset saved/apply state immediately
+   - show "미리보기 갱신 중"
+   - keep last preview image visible but mark it stale/rendering
+   - do not wait for native preview before the value changes
+
+4. Debounce expensive preview rebuild.
+
+   Recommended:
+     - 150-250ms debounce after the last tap
+     - rebuild candidates from already-extracted provider results
+     - only latest request id may commit generatedCandidates
+
+5. Drop stale preview results.
+
+   Guard fields:
+     - requestId
+     - captureSetId
+     - provider
+     - selectedCandidateKey
+     - adjustmentSignature
+
+6. Stop generated-adjust path from sending confusing legacy sample recipe updates.
+
+   Rule:
+     - Step 6 generated adjustment changes saved/generated package state.
+     - Unity runtime recipe post happens only after Save/AR apply or explicit AR validation controls.
+```
+
+Buildless tests:
+
+```txt
+RN Jest:
+- rapid + taps accumulate all steps.
+- stale preview promise resolving later does not overwrite latest candidate.
+- adjustment value text changes before renderLipMaskPreview promise resolves.
+- preview rendering state is visible while slow native preview is pending.
+- selected package generatedMaskId changes after final adjustment.
+
+TS/unit:
+- adjustmentSignature changes for every field.
+```
+
+Acceptance:
+
+```txt
+- User sees the numeric value change immediately.
+- User sees explicit preview-refresh state when native render is slow.
+- Latest adjustment package is the only package that can be saved.
+- No old preview result can re-enable a stale package.
+```
+
+#### 18.9.3 Save and AR apply progress fix
+
+Problem:
+
+```txt
+saveSelectedGeneratedPackage currently stays on Adjust until native save finishes.
+If save, JSON stringify, payload build, Unity view readiness, or face tracking retry is slow,
+the user sees only a button text change and cannot tell progress.
+
+Live evidence showed generated apply can be blocked by face_tracking_lost_hide before succeeding later.
+```
+
+Source targets:
+
+```txt
+rn/MakeupARValidation/App.tsx
+- saveSelectedGeneratedPackage
+- postPendingGeneratedApplyPayload
+- scheduleGeneratedApplyRetry
+- formatGeneratedApplyUserMessage
+- generated apply gate UI
+```
+
+Implementation:
+
+```txt
+1. Move to Apply screen immediately on Save/AR press.
+
+   On press:
+     - create saveRequestId
+     - setWizardStep("apply")
+     - setGeneratedApplyState("saving")
+     - show elapsed time
+     - show selected provider/expression in user-readable text
+
+2. Make apply states stage-specific.
+
+   Keep existing states but strengthen UI text:
+     saving:
+       "마스크를 기기에 저장하는 중"
+     posting:
+       "Unity AR 화면에 전송 중"
+     waitingAck:
+       "적용 확인 대기"
+     waitingAck + retry reason face tracking:
+       "얼굴 추적 대기: 얼굴을 화면 중앙에 맞춰주세요"
+     applied:
+       "AR 립 검증 가능"
+     blocked / timeout:
+       reason + retry / retake action
+
+3. Add progress metadata.
+
+   Track:
+     - saveStartedAtMs
+     - saveFinishedAtMs
+     - postStartedAtMs
+     - firstAckAtMs
+     - retryCount
+     - lastBlockedReason
+     - faceTrackingWaitMs
+
+4. Add save request guard.
+
+   Ignore save/apply completions after:
+     - retake
+     - close
+     - provider change
+     - new captureSetId
+     - newer saveRequestId
+
+5. Make payload size visible in debug/evidence only.
+
+   User UI must not show raw payload internals,
+   but evidence should record payloadBytes and stringify/save duration.
+```
+
+Buildless tests:
+
+```txt
+RN Jest:
+- pressing Save switches to Apply screen before saveGeneratedPackage resolves.
+- slow save shows saving progress, not Adjust screen.
+- face_tracking_lost_hide ack keeps state waiting/retrying, not hard failure.
+- retake during save prevents late save/apply result from polluting UI.
+- timeout shows user-readable recovery, not raw blockedReason.
+```
+
+Acceptance:
+
+```txt
+- User always sees where the flow is: saving, sending, waiting for face, applied, retry.
+- Save/AR can be slow without looking broken.
+- Face tracking lost is actionable and retryable.
+```
+
+#### 18.9.4 Real blend mask implementation
+
+Problem:
+
+```txt
+blendshapeAssist is currently selected and sent to Unity, but not used as a real blend mask.
+
+Current behavior:
+- RN creates uvOnly and blendshapeAssist candidates.
+- RN calls providers for all six shots.
+- Package stores captureSetShotResults and blendshape values.
+- Raw UV alpha texture is still generated from neutralResult only.
+- Unity reads expressionMode but mostly changes material/gloss/opacity values.
+
+This means blendshapeAssist can look nearly identical to uvOnly and cannot fix motion/pose stability.
+```
+
+Source targets:
+
+```txt
+rn/MakeupARValidation/src/e7PersonalizedGeneratePipeline.ts
+packages/lip-generate-core/src/contracts.ts
+rn/MakeupARValidation/ios/MakeupARValidation/E7NativeLipBoundaryProviders.swift
+rn/MakeupARValidation/__tests__/e7PersonalizedGeneratePipeline.test.ts
+rn/MakeupARValidation/__tests__/App.test.tsx
+scripts/e7_prebuild_gate/check_e7_prebuild_gate.mjs
+```
+
+Implementation phase A: static capture-set consensus UV mask.
+
+```txt
+1. Refactor UV raster output so per-shot masks can be composed.
+
+   Existing:
+     buildUvMaskRawRgba(boundary, arFaceExport) -> raw base64 + metrics
+
+   Add internal form:
+     buildUvMaskAlphaVotes(...) -> {
+       rawAlpha: Uint8Array;
+       positiveTexels;
+       coverageTexels;
+       innerHoleAlpha;
+       bbox;
+       diagnostics;
+     }
+
+2. Add:
+     buildCaptureSetBlendUvMask({
+       neutralResult,
+       providerResults,
+       adjustment,
+       resolution
+     })
+
+3. For uvOnly:
+     keep current neutral-only path.
+
+4. For blendshapeAssist:
+     build per-shot UV alpha from usable shots:
+       neutral
+       mouthOpen
+       smile
+       pucker
+       yawLeft
+       yawRight
+
+   Usable shot condition:
+     - status ready/partial
+     - boundary outerPoints >= 3
+     - arFaceExport has screenVertices/uvs/indices
+     - frame dimensions match enough to project
+
+5. Blend policy v1:
+     - neutral is anchor
+     - pucker/smile/mouthOpen add expression envelope
+     - yawLeft/yawRight add only low-weight support unless quality is high
+     - do not pure-union every positive texel
+     - final alpha = conservative consensus around neutral + limited expression allowance
+
+   Example policy:
+     neutralAlpha contributes 1.0
+     mouthOpen/smile/pucker contribute 0.45 each
+     yawLeft/yawRight contribute 0.25 each
+     final positive if:
+       neutralStrong
+       OR weightedScore >= threshold and inside neutral-expanded bbox
+     final edge band if:
+       weightedScore is near threshold
+
+6. Inner mouth guard:
+     - if any usable shot marks a texel as inner mouth, suppress strongly.
+     - record innerMouthSuppressedTexels.
+
+7. Lower lip guard:
+     - prevent lower alpha bbox height from growing beyond configured ratio versus neutral.
+     - record lowerLipGuardApplied and clippedTexels.
+
+8. Metadata:
+   Add fields under uvCoverageMetadata or blendshapeAssist diagnostics:
+     - blendMaskKind: capture_set_consensus_v1
+     - blendShotKindsUsed
+     - blendUsableShotCount
+     - blendFallbackReason
+     - uvOnlyAlphaChecksum
+     - blendAlphaChecksum
+     - uvOnlyVsBlendAlphaDelta
+     - innerMouthSuppressedTexels
+     - lowerLipGuardApplied
+     - consensusThreshold
+     - shotWeights
+
+9. Fallback:
+   If usable shots < 2:
+     - keep neutral-only mask
+     - add warning blend_fallback_single_shot
+     - UI must not imply active expression correction.
+```
+
+Implementation phase B: preview must reveal the real blend texture.
+
+```txt
+Current native preview draws lipBoundary2D on source frame.
+If blend raw texture changes but lipBoundary2D stays neutral, preview can still look identical.
+
+Fix:
+1. Add sourceFrameMetadata.arFaceExportPath or equivalent package field if needed.
+2. Swift renderLipMaskPreview reads:
+   - source frame
+   - arFaceExport
+   - runtimeApplyPayload.maskRawRgbaBase64
+   - maskTextureWidth/height
+3. Swift projects the UV raw alpha back to source screen points and overlays the actual runtime mask.
+4. Keep boundary stroke as optional debug overlay, but the fill must come from raw UV alpha.
+```
+
+Implementation phase C: UI honesty.
+
+```txt
+If blend alpha delta is meaningful:
+  label: "표정 보조"
+  description: "촬영한 여러 표정의 UV 합성 마스크"
+
+If fallback/no meaningful delta:
+  label: "표정 보조"
+  description: "표정 보조 신호 부족: 기본 후보와 거의 같음"
+  do not overpromise motion improvement.
+```
+
+Buildless tests:
+
+```txt
+unit:
+- blendshapeAssist raw alpha differs from uvOnly when providerResults include distinct shot boundaries.
+- blendshapeAssist alphaChecksum differs from uvOnly alphaChecksum.
+- blendShotKindsUsed includes at least neutral + pucker/smile/mouthOpen in fixture.
+- inner mouth hole remains suppressed after blending.
+- lowerLipGuard prevents excessive lower bbox growth.
+- fallback with one usable shot records blend_fallback_single_shot.
+
+RN Jest:
+- generated preview packages for blendshapeAssist include capture-set blend mask metadata.
+- candidate cards show fallback honesty text when no blend delta exists.
+
+prebuild gate:
+- replace or strengthen v2.capture_set_used_for_blendshape_assist.
+- new gate:
+  v2.capture_set_used_for_blendshape_mask
+  requires uvOnlyVsBlendAlphaDelta > 0 for multi-shot fixture.
+```
+
+Acceptance:
+
+```txt
+- blendshapeAssist must produce a different runtimeApplyPayload.maskRawRgbaBase64 from uvOnly when multi-shot data is usable.
+- preview must show the raw UV mask result, not only neutral lipBoundary2D.
+- saved package must prove which shots affected the mask.
+```
+
+#### 18.9.5 Runtime motion and Unity substrate validation
+
+Problem:
+
+```txt
+After RN responsiveness and real blend mask are fixed, remaining motion failure may still come from:
+- generated UV mask too broad/flat
+- ARFace tracking lost during close/fast motion
+- copied child mesh substrate mismatch
+- shader threshold/feather behavior
+```
+
+Implementation:
+
+```txt
+1. Do not start with Unity mesh rewrite.
+   First prove whether a better generated UV mask improves motion.
+
+2. Add/retain metrics in Unity/RN logs:
+   - overlaySyncPhase
+   - overlaySyncDurationMs
+   - overlaySyncWorstDurationMs
+   - overlaySyncCount
+   - overlayTopologyChanged
+   - face tracking lost/reacquired timestamps
+   - faceCount
+   - maskTriangles
+   - generatedMaskId
+   - expressionMode
+   - blendMaskKind
+
+3. Add visual scenario evidence:
+   - neutral still
+   - slow yaw
+   - fast yaw
+   - near/far
+   - mouth open/close
+   - smile
+   - pucker
+
+4. If mask still visually lags while tracking is good and overlaySync is low:
+   - classify as generated UV / mask shape issue.
+
+5. If mask disappears or freezes with trackingState=None:
+   - classify as tracking-lost behavior.
+   - UI should show "얼굴 추적 대기" and hide/fade stale-looking mask.
+
+6. If generated UV looks good but still shifts relative to ARFace:
+   add Unity comparison flag:
+     - current child copied mesh path
+     - ARFace original mesh/material path or equivalent shared mesh path
+   record overlayMeshSource in ack/log.
+```
+
+UnityFramework rule:
+
+```txt
+- RN/TS-only changes do not require UnityFramework regeneration.
+- Swift native preview changes require iOS app rebuild but not UnityFramework.
+- Unity C#/shader/material changes require:
+  npm run e7:build-plan -- --no-report
+  and if decision=run-unityframework-build:
+    bash scripts/build_m3_unityframework.sh
+```
+
+Acceptance:
+
+```txt
+- For slow yaw, generated lip should remain attached without obvious one-beat delay.
+- For fast yaw/near face, failure should be graceful: hide/fade or clear "face tracking wait", not stale sticker.
+- If not fixed, evidence must classify the remaining issue as UV shape, tracking lost, or Unity mesh substrate.
+```
+
+#### 18.9.6 Mask quality guards
+
+Problem:
+
+```txt
+Lower lip is still somewhat thick.
+Edge quality improved but needs automatic guardrails so future changes do not regress.
+```
+
+Implementation:
+
+```txt
+1. Add package-level quality thresholds:
+   - uvResolution >= 512
+   - edgeBandRatio within expected range
+   - innerHolePositiveRatio <= threshold
+   - previewVsUvRoundTripDelta <= threshold
+   - alpha bbox not absurdly wide/tall
+   - lower half ratio not excessive
+   - positiveTexels within min/max expected range
+
+2. Add before/after adjustment diagnostics:
+   - adjustmentBefore
+   - adjustmentAfter
+   - alphaChecksumBefore/After
+   - alphaBboxBefore/After
+   - uvDelta
+
+3. Add generated candidate warning text:
+   - lower_lip_guard_applied
+   - blend_fallback_single_shot
+   - inner_mouth_exclusion_weak
+   - preview_runtime_delta_high
+```
+
+Acceptance:
+
+```txt
+- The next package can explain why lower lip is broad or what guard clipped it.
+- Buildless tests fail if inner mouth is filled or lower bbox grows beyond guard.
+```
+
+#### 18.9.7 AR validation controls and stale-state hardening
+
+Problem:
+
+```txt
+Validation controls exist but must remain trustworthy under slow ack, retake, close, new capture, and controls-only reapply.
+```
+
+Implementation:
+
+```txt
+1. Keep request id/revision matching for controls.
+2. Add clear pending UI per control:
+   - ON/OFF pending
+   - strong mode pending
+   - color pending
+   - opacity pending
+   - boundary pending
+3. If ack mismatch arrives:
+   - keep pending
+   - log mismatch
+   - do not show success.
+4. On Close / Retake / Start / New capture:
+   - clear pendingGeneratedMaskId
+   - clear pendingGeneratedApplyPayload
+   - clear pendingGeneratedControlCheck
+   - hide Unity region overlay
+   - ignore late acks
+5. Add evidence fields:
+   - staleAckIgnored=true/false
+   - controlAckMatched=true/false
+   - requestId/revision
+```
+
+Acceptance:
+
+```txt
+- User can see every AR validation button has either changed visually or is waiting for confirmation.
+- Late acks cannot resurrect an old mask after retake/close.
+```
+
+#### 18.9.8 Verification matrix
+
+Run after implementation unless explicitly blocked.
+
+Buildless:
+
+```txt
+cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit
+cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false
+cd rn/MakeupARValidation && npm run lint
+cd packages/lip-generate-core && npm run typecheck
+cd packages/lip-generate-core && npm test
+cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+git diff --check
+```
+
+Native/Unity decision:
+
+```txt
+If RN TS only:
+  no UnityFramework regeneration needed.
+
+If Swift preview/native provider changed:
+  Xcode/iPhone rebuild needed before device proof.
+  UnityFramework regeneration not required unless Unity files changed.
+
+If Unity C#/shader/material changed:
+  build-plan must require or justify UnityFramework regeneration.
+  If required:
+    bash scripts/build_m3_unityframework.sh
+  If Unity licensing blocks:
+    record environment blocked.
+    do not claim final runtime success.
+```
+
+Device scenario after build approval:
+
+```txt
+1. Start clean app.
+2. Confirm no stale lip filter on first entry.
+3. Capture all required shots.
+4. Generate provider candidates.
+5. Confirm uvOnly vs blendshapeAssist:
+   - package metadata differs
+   - preview differs or fallback says why not
+6. Rapidly press adjustment +/-:
+   - value changes immediately
+   - preview shows rendering state
+   - final package uses latest value
+7. Save and AR run:
+   - progress moves saving -> posting -> waiting face/apply -> applied
+8. AR validation controls:
+   - ON/OFF
+   - strong
+   - boundary
+   - color
+   - opacity
+   each must visually change or show pending/blocked.
+9. Motion:
+   - slow yaw
+   - fast yaw
+   - near/far
+   - mouth open/close
+   - smile
+   - pucker
+10. Pull generated package and ack evidence.
+```
+
+Required result note:
+
+```txt
+evidence/logs/e7-ar-lip-post-device-fix-<timestamp>.md
+
+Must include:
+- fixes included
+- buildless command results
+- UnityFramework decision
+- iPhone build/install/launch status if run
+- device visual status
+- remaining risk by category:
+  RN adjustment
+  save/apply progress
+  blend mask
+  UV quality
+  Unity runtime motion
+  stale/ack controls
+```
+
+#### 18.9.9 Suggested execution order
+
+```txt
+Commit 1: RN adjustment responsiveness
+  - functional stepper
+  - latest-only preview guard
+  - preview rendering state
+  - stale preview tests
+
+Commit 2: Save/apply progress and stale save guard
+  - immediate Apply screen
+  - elapsed/retry UI
+  - saveRequestId guard
+  - face tracking wait copy/tests
+
+Commit 3: Real blend mask v1
+  - capture-set consensus UV builder
+  - metadata/gate/tests
+  - fallback honesty UI
+
+Commit 4: Native preview truth
+  - Swift preview overlays raw UV mask round-trip
+  - package source arFace export path if needed
+  - native preview smoke/gate
+
+Commit 5: Runtime/motion classification if needed
+  - only if post-blend evidence still shows lag
+  - Unity compare flag or tracking-lost fade
+  - UnityFramework regeneration required if Unity changes
+```
+
+Do not merge all fixes into one opaque change. Each commit must either close one root cause or improve one evidence gate.
+
+#### 18.9.10 Done / Not Done for this follow-up
+
+Done:
+
+```txt
+- Adjustment controls respond immediately and cannot be overwritten by stale preview results.
+- Save/AR always shows a staged progress screen.
+- Face tracking lost during apply is shown as retry/wait, not silent failure.
+- blendshapeAssist produces a real capture-set-derived raw UV mask or explicitly falls back with user-visible honesty.
+- Native preview shows the actual raw UV runtime mask shape, not only a neutral boundary drawing.
+- Generated package records enough metrics to compare uvOnly vs blendshapeAssist.
+- AR validation controls require matching ack and cannot be polluted by stale acks.
+- Buildless gates pass.
+- Build-plan decides correctly whether UnityFramework regeneration is required.
+```
+
+Not Done:
+
+```txt
+- Calling metadata-only blendshapeAssist "real blend".
+- Claiming motion fixed from overlaySync metrics only.
+- Claiming runtime success without iPhone visual/log evidence.
+- Hiding save/apply latency behind a changed button label.
+- Letting fallback blend look identical without telling the user.
+- Running a phone build after Unity changes without a fresh UnityFramework when build-plan requires it.
+```
+
+#### 18.9.11 2026-06-29 execution result
+
+Status:
+
+```txt
+buildless/source implemented
+device runtime proof pending
+```
+
+Implemented:
+
+```txt
+1. RN adjustment responsiveness
+   - adjustment value updates synchronously from the latest ref value.
+   - preview/package rebuild is debounced and guarded by requestId/captureSetId/provider/adjustmentSignature/selectedCandidateKey.
+   - stale adjustment preview results log and drop instead of overwriting current UI.
+   - generated candidates are marked stale while preview is rendering, so Save/AR cannot use an old package.
+
+2. UV/blend generation latency reduction
+   - 512 UV resolution and 2x2 antialiasing remain.
+   - lip boundary points are projected to UV first.
+   - rasterization only scans the lip UV bbox instead of the full face texture.
+   - capture-set blend scoring only scans the neutral-expanded bbox.
+   - App Jest full-flow time dropped from timeout/failure to 31 tests passing in about 26s.
+
+3. Save and AR apply progress
+   - Save/AR enters the Apply/progress state before native save resolves.
+   - apply state records saveStartedAtMs, saveFinishedAtMs, postStartedAtMs, payloadBytes, faceTrackingWaitMs, retryCount, and blocked reason fields.
+   - late native save results after retake/new capture are ignored by saveRequestId guard.
+
+4. Real blend mask v1
+   - blendshapeAssist now builds a capture_set_consensus_v1 raw UV mask from usable capture-set shots.
+   - package metadata records blendShotKindsUsed, blendUsableShotCount, fallback reason, uvOnly/blend checksums, uvOnlyVsBlendAlphaDelta, inner-mouth suppression, lower-lip guard, threshold, and shot weights.
+   - one-shot/no-delta cases explicitly fall back instead of claiming active blend.
+
+5. Preview/runtime match
+   - sourceFrameMetadata now carries arFaceExportPath.
+   - Swift native preview reads runtimeApplyPayload.maskRawRgbaBase64 and projects the runtime raw UV mask through ARFace UVs.
+   - lipBoundary2D fill is no longer the primary preview truth path.
+
+6. Gate hardening
+   - prebuild gate now checks raw UV native preview projection.
+   - prebuild gate now checks capture-set-derived blend mask source/test evidence.
+```
+
+Verification passed:
+
+```txt
+cd rn/MakeupARValidation && /opt/homebrew/bin/node ./node_modules/typescript/bin/tsc --noEmit
+cd rn/MakeupARValidation && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test -- --runInBand --watchman=false
+  -> 2 suites, 31 tests passed
+cd rn/MakeupARValidation && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run lint
+  -> 0 warnings
+cd packages/lip-generate-core && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run typecheck
+cd packages/lip-generate-core && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm test
+cd rn/MakeupARValidation && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/node scripts/check-e7-native-generate.js
+cd rn/MakeupARValidation && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run e7:build-plan -- --no-report
+  -> decision=skip-unityframework-run-rn-xcode-only
+  -> unityFrameworkSync=true reason=frameworks_synced
+cd rn/MakeupARValidation && PATH=/opt/homebrew/bin:$PATH /opt/homebrew/bin/npm run e7:prebuild:full -- --no-report
+  -> 38 pass / 0 fail / 0 warn
+git diff --check
+```
+
+Evidence note:
+
+```txt
+evidence/logs/e7-ar-lip-post-device-fix-20260629-211054.md
+```
+
+UnityFramework decision:
+
+```txt
+No Unity C#/shader/material file changed in this follow-up.
+Swift native preview and RN app-side code changed, so the next proof requires an iOS/Xcode app build.
+UnityFramework regeneration is not required for this diff according to build-plan.
+```
+
+Still not proven:
+
+```txt
+- real iPhone tap latency for adjustment controls
+- native save duration on device
+- Unity generated-mask ack timing on device
+- visual value of capture-set blend mask
+- lower-lip thickness/human visual acceptance
+- yaw/near-far/mouth-expression mask attachment
+- FPS/frame-time, memory, thermal
+- pulled device package/ack evidence for this exact build
+```
+
+Next iPhone scenario:
+
+```txt
+1. Start clean app and confirm no stale lip filter.
+2. Complete capture set and Generate.
+3. Compare uvOnly vs blendshapeAssist preview and metadata.
+4. Rapidly tap +/- and confirm value changes immediately, preview shows rendering, and final package uses the latest value.
+5. Save and AR run; confirm saving -> sending -> waiting face/apply -> applied progress.
+6. Toggle ON/OFF, strong view, boundary, color, and opacity; each must visually change or show pending/blocked.
+7. Run neutral, slow yaw, fast yaw, near/far, mouth open/close, smile, and pucker.
+8. If mask still lags, classify as UV shape, AR tracking lost, or Unity mesh substrate mismatch before changing Unity again.
+9. Pull generated package/saved record/generated ack evidence.
+```

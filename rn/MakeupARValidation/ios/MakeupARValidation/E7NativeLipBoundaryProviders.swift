@@ -244,6 +244,14 @@ final class E7NativeLipBoundaryProviders: NSObject {
             !framePath.isEmpty else {
         throw E7NativeProviderError.missingField("sourceFrameMetadata.framePath")
       }
+      let runtimeApplyPayload = package["runtimeApplyPayload"] as? [String: Any]
+      let arFaceExport: [String: Any]?
+      if let arFaceExportPath = sourceFrameMetadata["arFaceExportPath"] as? String,
+         !arFaceExportPath.isEmpty {
+        arFaceExport = try? readJsonObject(try resolveAppFilePath(arFaceExportPath))
+      } else {
+        arFaceExport = nil
+      }
       guard let lipBoundary = package["lipBoundary2D"] as? [String: Any] else {
         throw E7NativeProviderError.missingField("lipBoundary2D")
       }
@@ -275,19 +283,29 @@ final class E7NativeLipBoundaryProviders: NSObject {
         size: CGSize(width: width, height: height),
         format: rendererFormat
       )
+      var previewRenderer = "lipBoundary2D_fallback"
       let renderedImage = renderer.image { context in
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
         UIImage(cgImage: cgImage).draw(in: rect)
 
-        let maskPath = UIBezierPath()
-        appendSmoothClosedCurve(points: outerPoints, to: maskPath)
-        if innerPoints.count >= 3 {
-          appendSmoothClosedCurve(points: innerPoints.reversed(), to: maskPath)
+        let renderedRawUvMask = renderRawUvMaskProjection(
+          context: context.cgContext,
+          runtimeApplyPayload: runtimeApplyPayload,
+          arFaceExport: arFaceExport
+        )
+        if renderedRawUvMask {
+          previewRenderer = "raw_uv_mask_projection"
+        } else {
+          let maskPath = UIBezierPath()
+          appendSmoothClosedCurve(points: outerPoints, to: maskPath)
+          if innerPoints.count >= 3 {
+            appendSmoothClosedCurve(points: innerPoints.reversed(), to: maskPath)
+          }
+          maskPath.usesEvenOddFillRule = true
+          UIColor(red: 217.0 / 255.0, green: 75.0 / 255.0, blue: 116.0 / 255.0, alpha: 0.58)
+            .setFill()
+          maskPath.fill(with: .normal, alpha: 0.58)
         }
-        maskPath.usesEvenOddFillRule = true
-        UIColor(red: 217.0 / 255.0, green: 75.0 / 255.0, blue: 116.0 / 255.0, alpha: 0.58)
-          .setFill()
-        maskPath.fill(with: .normal, alpha: 0.58)
 
         let outerStroke = UIBezierPath()
         appendSmoothClosedCurve(points: outerPoints, to: outerStroke)
@@ -341,9 +359,10 @@ final class E7NativeLipBoundaryProviders: NSObject {
         "status": "ready",
         "generatedMaskId": generatedMaskId,
         "previewPath": outputUrl.path,
-        "previewUri": outputUrl.absoluteString,
-        "framePath": frameUrl.path,
-        "outerPointCount": outerPoints.count,
+	        "previewUri": outputUrl.absoluteString,
+	        "framePath": frameUrl.path,
+        "previewRenderer": previewRenderer,
+	        "outerPointCount": outerPoints.count,
         "innerPointCount": innerPoints.count,
         "privacy": [
           "localOnly": true,
@@ -405,6 +424,126 @@ final class E7NativeLipBoundaryProviders: NSObject {
     throw E7NativeProviderError.fileNotFound(value)
   }
 
+  private func renderRawUvMaskProjection(
+    context: CGContext,
+    runtimeApplyPayload: [String: Any]?,
+    arFaceExport: [String: Any]?
+  ) -> Bool {
+    guard let runtimeApplyPayload,
+          let arFaceExport,
+          let rawBase64 = runtimeApplyPayload["maskRawRgbaBase64"] as? String,
+          let rawData = Data(base64Encoded: rawBase64),
+          let maskWidth = intValue(runtimeApplyPayload["maskTextureWidth"]),
+          let maskHeight = intValue(runtimeApplyPayload["maskTextureHeight"]),
+          maskWidth > 0,
+          maskHeight > 0,
+          rawData.count >= maskWidth * maskHeight * 4,
+          let screenVertices = parseNumberArrayPairs(arFaceExport["screenVertices"]),
+          let uvs = parseNumberArrayPairs(arFaceExport["uvs"]),
+          let indices = parseIntArray(arFaceExport["indices"]),
+          indices.count >= 3 else {
+      return false
+    }
+
+    var drawnTriangleCount = 0
+    context.saveGState()
+    context.setBlendMode(.normal)
+    for index in stride(from: 0, to: indices.count - 2, by: 3) {
+      let i0 = indices[index]
+      let i1 = indices[index + 1]
+      let i2 = indices[index + 2]
+      guard i0 >= 0,
+            i1 >= 0,
+            i2 >= 0,
+            i0 < screenVertices.count,
+            i1 < screenVertices.count,
+            i2 < screenVertices.count,
+            i0 < uvs.count,
+            i1 < uvs.count,
+            i2 < uvs.count else {
+        continue
+      }
+      let alpha0 = sampleRawMaskAlpha(
+        rawData,
+        width: maskWidth,
+        height: maskHeight,
+        uv: uvs[i0]
+      )
+      let alpha1 = sampleRawMaskAlpha(
+        rawData,
+        width: maskWidth,
+        height: maskHeight,
+        uv: uvs[i1]
+      )
+      let alpha2 = sampleRawMaskAlpha(
+        rawData,
+        width: maskWidth,
+        height: maskHeight,
+        uv: uvs[i2]
+      )
+      let alpha = CGFloat(alpha0 + alpha1 + alpha2) / (255.0 * 3.0)
+      if alpha <= 0.03 {
+        continue
+      }
+      context.beginPath()
+      context.move(to: CGPoint(x: screenVertices[i0][0], y: screenVertices[i0][1]))
+      context.addLine(to: CGPoint(x: screenVertices[i1][0], y: screenVertices[i1][1]))
+      context.addLine(to: CGPoint(x: screenVertices[i2][0], y: screenVertices[i2][1]))
+      context.closePath()
+      context.setFillColor(
+        UIColor(
+          red: 217.0 / 255.0,
+          green: 75.0 / 255.0,
+          blue: 116.0 / 255.0,
+          alpha: min(0.68, max(0.12, alpha * 0.72))
+        ).cgColor
+      )
+      context.fillPath()
+      drawnTriangleCount += 1
+    }
+    context.restoreGState()
+    return drawnTriangleCount > 0
+  }
+
+  private func sampleRawMaskAlpha(
+    _ rawData: Data,
+    width: Int,
+    height: Int,
+    uv: [CGFloat]
+  ) -> Int {
+    guard uv.count >= 2 else {
+      return 0
+    }
+    let column = max(0, min(width - 1, Int(round(uv[0] * CGFloat(width - 1)))))
+    let row = max(0, min(height - 1, Int(round(uv[1] * CGFloat(height - 1)))))
+    let offset = (row * width + column) * 4 + 3
+    guard offset >= 0 && offset < rawData.count else {
+      return 0
+    }
+    return Int(rawData[offset])
+  }
+
+  private func parseNumberArrayPairs(_ value: Any?) -> [[CGFloat]]? {
+    guard let rows = value as? [[Any]] else {
+      return nil
+    }
+    return rows.compactMap { row in
+      guard row.count >= 2,
+            let x = numericValue(row[0]),
+            let y = numericValue(row[1]) else {
+        return nil
+      }
+      return [x, y]
+    }
+  }
+
+  private func parseIntArray(_ value: Any?) -> [Int]? {
+    guard let values = value as? [Any] else {
+      return nil
+    }
+    return values.compactMap { intValue($0) }
+  }
+
   private func parsePreviewPoints(_ value: Any?, field: String) throws -> [CGPoint] {
     guard let rawPoints = value as? [[String: Any]] else {
       throw E7NativeProviderError.missingField(field)
@@ -427,6 +566,19 @@ final class E7NativeLipBoundaryProviders: NSObject {
     }
     if let intValue = value as? Int {
       return CGFloat(intValue)
+    }
+    return nil
+  }
+
+  private func intValue(_ value: Any?) -> Int? {
+    if let number = value as? NSNumber {
+      return number.intValue
+    }
+    if let intValue = value as? Int {
+      return intValue
+    }
+    if let doubleValue = value as? Double {
+      return Int(doubleValue)
     }
     return nil
   }

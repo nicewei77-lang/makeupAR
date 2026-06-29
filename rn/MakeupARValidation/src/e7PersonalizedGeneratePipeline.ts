@@ -103,6 +103,18 @@ const GENERATED_UV_MASK_RESOLUTION = 512;
 const GENERATED_UV_SUPERSAMPLE_GRID = 2;
 const GENERATED_UV_ALPHA_EDGE_LOW = 8;
 const GENERATED_UV_ALPHA_EDGE_HIGH = 247;
+const BLEND_MASK_CONSENSUS_THRESHOLD = 0.55;
+const BLEND_MASK_NEUTRAL_EXPAND_RATIO = 0.18;
+const BLEND_EXPRESSION_MASK_RESOLUTION = 96;
+const BLEND_SHOT_WEIGHTS: Record<E7CaptureShotKind, number> = {
+  neutral: 1,
+  mouthOpen: 0.45,
+  mouthClosed: 0.35,
+  smile: 0.45,
+  pucker: 0.45,
+  yawLeft: 0.25,
+  yawRight: 0.25,
+};
 
 type E7UvAlphaBoundingBox = {
   minColumn: number;
@@ -126,6 +138,45 @@ type E7UvCoverageMetadataWithDiagnostics = NonNullable<
   boundarySmoothing: E7LipBoundarySmoothingAlgorithm;
   originalPointCount: number;
   smoothedPointCount: number;
+};
+
+type E7UvMaskRawRgbaResult = {
+  rawRgbaBase64: string;
+  rawAlpha: Uint8Array;
+  innerHoleAlpha: Uint8Array;
+  width: number;
+  height: number;
+  coverageTexels: number;
+  positiveTexels: number;
+  unknownTexels: number;
+  alphaSum: number;
+  alphaChecksum: number;
+  edgeBandTexels: number;
+  edgeBandRatio: number;
+  innerHoleSampleCount: number;
+  innerHolePositiveRatio: number;
+  previewVsUvRoundTripDelta: number;
+  alphaBoundingBoxTexels?: E7UvAlphaBoundingBox;
+};
+
+type E7BlendUvMaskResult = E7UvMaskRawRgbaResult & {
+  blendMaskKind: 'neutral_single_shot_v1' | 'capture_set_consensus_v1';
+  blendShotKindsUsed: E7CaptureShotKind[];
+  blendUsableShotCount: number;
+  blendFallbackReason?: string;
+  uvOnlyAlphaChecksum: number;
+  blendAlphaChecksum: number;
+  uvOnlyVsBlendAlphaDelta: number;
+  innerMouthSuppressedTexels: number;
+  lowerLipGuardApplied: boolean;
+  lowerLipGuardClippedTexels: number;
+  consensusThreshold: number;
+  shotWeights: Partial<Record<E7CaptureShotKind, number>>;
+};
+
+type E7PrecomputedNeutralUv = {
+  smoothedAdjustedBoundary: NonNullable<E7NativeBoundaryResult['boundary']>;
+  uvOnly: E7UvMaskRawRgbaResult;
 };
 
 function summarizeNativeProviderResult(result: E7NativeBoundaryResult) {
@@ -620,12 +671,125 @@ function estimatePreviewVsUvRoundTripDelta(input: {
   return sampleCount > 0 ? mismatchCount / sampleCount : 1;
 }
 
+function projectBoundaryPointsToUvPolygon(
+  points: E7Point2D[],
+  arFaceExport: E7ArFaceExport,
+) {
+  const uvPoints: E7Point2D[] = [];
+  for (const point of points) {
+    const uv = projectScreenPointToUv(point, arFaceExport);
+    if (!uv) {
+      return null;
+    }
+    uvPoints.push({ x: uv.u, y: uv.v });
+  }
+  return uvPoints.length >= 3 ? uvPoints : null;
+}
+
+function buildProjectedUvMaskRawRgba(input: {
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>;
+  arFaceExport: E7ArFaceExport;
+  resolution: number;
+  supersampleGrid: number;
+}) {
+  const outerUv = projectBoundaryPointsToUvPolygon(
+    input.boundary.outerPoints,
+    input.arFaceExport,
+  );
+  if (!outerUv) {
+    return null;
+  }
+  const innerUv =
+    input.boundary.innerPoints.length >= 3
+      ? projectBoundaryPointsToUvPolygon(
+          input.boundary.innerPoints,
+          input.arFaceExport,
+        ) ?? []
+      : [];
+  const outerBounds = bounds(outerUv);
+  if (!outerBounds) {
+    return null;
+  }
+
+  const resolution = input.resolution;
+  const texelCount = resolution * resolution;
+  const rawAlpha = new Uint8Array(texelCount);
+  const innerHoleAlpha = new Uint8Array(texelCount);
+  const minColumn = Math.max(
+    0,
+    Math.floor(Math.min(outerBounds[0], outerBounds[2]) * (resolution - 1)) - 1,
+  );
+  const maxColumn = Math.min(
+    resolution - 1,
+    Math.ceil(Math.max(outerBounds[0], outerBounds[2]) * (resolution - 1)) + 1,
+  );
+  const minRow = Math.max(
+    0,
+    Math.floor(Math.min(outerBounds[1], outerBounds[3]) * (resolution - 1)) - 1,
+  );
+  const maxRow = Math.min(
+    resolution - 1,
+    Math.ceil(Math.max(outerBounds[1], outerBounds[3]) * (resolution - 1)) + 1,
+  );
+  if (maxColumn < minColumn || maxRow < minRow) {
+    return null;
+  }
+
+  let coverageTexels = 0;
+  let innerHoleSampleCount = 0;
+  const samplesPerTexel = input.supersampleGrid * input.supersampleGrid;
+  for (let row = minRow; row <= maxRow; row++) {
+    for (let column = minColumn; column <= maxColumn; column++) {
+      let positiveSamples = 0;
+      let innerSamples = 0;
+      for (let sampleY = 0; sampleY < input.supersampleGrid; sampleY++) {
+        for (let sampleX = 0; sampleX < input.supersampleGrid; sampleX++) {
+          const samplePoint = {
+            x:
+              (column + (sampleX + 0.5) / input.supersampleGrid) /
+              resolution,
+            y:
+              (row + (sampleY + 0.5) / input.supersampleGrid) / resolution,
+          };
+          if (!pointInPolygon(samplePoint, outerUv)) {
+            continue;
+          }
+          const isInnerHole =
+            innerUv.length >= 3 && pointInPolygon(samplePoint, innerUv);
+          if (isInnerHole) {
+            innerSamples += 1;
+            innerHoleSampleCount += 1;
+          } else {
+            positiveSamples += 1;
+          }
+        }
+      }
+
+      const texelIndex = row * resolution + column;
+      coverageTexels += 1;
+      rawAlpha[texelIndex] = Math.round((positiveSamples / samplesPerTexel) * 255);
+      innerHoleAlpha[texelIndex] = Math.round((innerSamples / samplesPerTexel) * 255);
+    }
+  }
+
+  return summarizeRawAlphaMask({
+    rawAlpha,
+    innerHoleAlpha,
+    resolution,
+    coverageTexels,
+    boundary: input.boundary,
+    arFaceExport: input.arFaceExport,
+    innerHoleSampleCount,
+    innerHolePositiveRatio: 0,
+  });
+}
+
 export function buildUvMaskRawRgba(input: {
   boundary: NonNullable<E7NativeBoundaryResult['boundary']>;
   arFaceExport: E7ArFaceExport;
   resolution?: number;
   sampleStride?: number;
-}) {
+}): E7UvMaskRawRgbaResult {
   const resolution = input.resolution ?? GENERATED_UV_MASK_RESOLUTION;
   const supersampleGrid = Math.max(
     1,
@@ -634,9 +798,19 @@ export function buildUvMaskRawRgba(input: {
       Math.round(GENERATED_UV_SUPERSAMPLE_GRID * (2 / (input.sampleStride ?? 2))),
     ),
   );
+  const projectedMask = buildProjectedUvMaskRawRgba({
+    boundary: input.boundary,
+    arFaceExport: input.arFaceExport,
+    resolution,
+    supersampleGrid,
+  });
+  if (projectedMask) {
+    return projectedMask;
+  }
   const texelCount = resolution * resolution;
   const positiveVotes = new Uint16Array(texelCount);
   const totalVotes = new Uint16Array(texelCount);
+  const innerHoleVotes = new Uint16Array(texelCount);
   const { boundary, arFaceExport } = input;
   const { screenVertices, uvs, indices } = arFaceExport;
   let innerHoleSampleCount = 0;
@@ -711,6 +885,10 @@ export function buildUvMaskRawRgba(input: {
             totalVotes[texelIndex] = Math.min(65535, totalVotes[texelIndex] + 1);
             if (isInnerHole) {
               innerHoleSampleCount += 1;
+              innerHoleVotes[texelIndex] = Math.min(
+                65535,
+                innerHoleVotes[texelIndex] + 1,
+              );
             }
             if (isPositive) {
               positiveVotes[texelIndex] = Math.min(
@@ -728,6 +906,8 @@ export function buildUvMaskRawRgba(input: {
   }
 
   const raw = new Uint8Array(texelCount * 4);
+  const rawAlpha = new Uint8Array(texelCount);
+  const innerHoleAlpha = new Uint8Array(texelCount);
   let coverageTexels = 0;
   let positiveTexels = 0;
   let edgeBandTexels = 0;
@@ -741,7 +921,12 @@ export function buildUvMaskRawRgba(input: {
     const total = totalVotes[texelIndex];
     const probability = total > 0 ? positiveVotes[texelIndex] / total : 0;
     const alpha = Math.round(Math.max(0, Math.min(1, probability)) * 255);
+    const innerProbability = total > 0 ? innerHoleVotes[texelIndex] / total : 0;
     const rawIndex = texelIndex * 4;
+    rawAlpha[texelIndex] = alpha;
+    innerHoleAlpha[texelIndex] = Math.round(
+      Math.max(0, Math.min(1, innerProbability)) * 255,
+    );
     raw[rawIndex] = alpha;
     raw[rawIndex + 1] = alpha;
     raw[rawIndex + 2] = alpha;
@@ -769,6 +954,8 @@ export function buildUvMaskRawRgba(input: {
 
   return {
     rawRgbaBase64: encodeBase64(raw),
+    rawAlpha,
+    innerHoleAlpha,
     width: resolution,
     height: resolution,
     coverageTexels,
@@ -797,6 +984,417 @@ export function buildUvMaskRawRgba(input: {
   };
 }
 
+function encodeRawRgbaBase64FromAlpha(rawAlpha: Uint8Array) {
+  const raw = new Uint8Array(rawAlpha.length * 4);
+  for (let index = 0; index < rawAlpha.length; index++) {
+    const alpha = rawAlpha[index];
+    const rawIndex = index * 4;
+    raw[rawIndex] = alpha;
+    raw[rawIndex + 1] = alpha;
+    raw[rawIndex + 2] = alpha;
+    raw[rawIndex + 3] = alpha;
+  }
+  return {
+    raw,
+    rawRgbaBase64: encodeBase64(raw),
+  };
+}
+
+function summarizeRawAlphaMask(input: {
+  rawAlpha: Uint8Array;
+  innerHoleAlpha?: Uint8Array;
+  resolution: number;
+  coverageTexels?: number;
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>;
+  arFaceExport: E7ArFaceExport;
+  innerHoleSampleCount?: number;
+  innerHolePositiveRatio?: number;
+}): E7UvMaskRawRgbaResult {
+  const texelCount = input.resolution * input.resolution;
+  const { raw, rawRgbaBase64 } = encodeRawRgbaBase64FromAlpha(input.rawAlpha);
+  let positiveTexels = 0;
+  let edgeBandTexels = 0;
+  let alphaSum = 0;
+  let alphaChecksum = 0;
+  let minColumn = input.resolution;
+  let minRow = input.resolution;
+  let maxColumn = -1;
+  let maxRow = -1;
+
+  for (let texelIndex = 0; texelIndex < input.rawAlpha.length; texelIndex++) {
+    const alpha = input.rawAlpha[texelIndex];
+    alphaSum += alpha;
+    alphaChecksum =
+      (alphaChecksum + ((texelIndex + 1) * alpha) % UV_ALPHA_CHECKSUM_MOD) %
+      UV_ALPHA_CHECKSUM_MOD;
+    if (alpha > GENERATED_UV_ALPHA_EDGE_LOW) {
+      positiveTexels += 1;
+      const row = Math.floor(texelIndex / input.resolution);
+      const column = texelIndex % input.resolution;
+      minColumn = Math.min(minColumn, column);
+      minRow = Math.min(minRow, row);
+      maxColumn = Math.max(maxColumn, column);
+      maxRow = Math.max(maxRow, row);
+      if (alpha < GENERATED_UV_ALPHA_EDGE_HIGH) {
+        edgeBandTexels += 1;
+      }
+    }
+  }
+
+  const coverageTexels = input.coverageTexels ?? positiveTexels;
+  return {
+    rawRgbaBase64,
+    rawAlpha: input.rawAlpha,
+    innerHoleAlpha: input.innerHoleAlpha ?? new Uint8Array(texelCount),
+    width: input.resolution,
+    height: input.resolution,
+    coverageTexels,
+    positiveTexels,
+    unknownTexels: texelCount - coverageTexels,
+    alphaSum,
+    alphaChecksum,
+    edgeBandTexels,
+    edgeBandRatio:
+      positiveTexels > 0 ? edgeBandTexels / positiveTexels : 0,
+    innerHoleSampleCount: input.innerHoleSampleCount ?? 0,
+    innerHolePositiveRatio: input.innerHolePositiveRatio ?? 0,
+    previewVsUvRoundTripDelta: estimatePreviewVsUvRoundTripDelta({
+      boundary: input.boundary,
+      arFaceExport: input.arFaceExport,
+      raw,
+      resolution: input.resolution,
+    }),
+    alphaBoundingBoxTexels:
+      positiveTexels > 0
+        ? { minColumn, minRow, maxColumn, maxRow }
+        : undefined,
+  };
+}
+
+function isUsableBlendShot(result: E7NativeBoundaryResult) {
+  return (
+    (result.status === 'ready' || result.status === 'partial') &&
+    Boolean(result.boundary) &&
+    (result.boundary?.outerPoints.length ?? 0) >= 3 &&
+    Boolean(result.arFaceExport) &&
+    result.frameWidth > 0 &&
+    result.frameHeight > 0
+  );
+}
+
+function expandBoundingBox(
+  bbox: E7UvAlphaBoundingBox | undefined,
+  resolution: number,
+  ratio: number,
+) {
+  if (!bbox) {
+    return undefined;
+  }
+  const width = bbox.maxColumn - bbox.minColumn + 1;
+  const height = bbox.maxRow - bbox.minRow + 1;
+  const marginX = Math.max(1, Math.round(width * ratio));
+  const marginY = Math.max(1, Math.round(height * ratio));
+  return {
+    minColumn: Math.max(0, bbox.minColumn - marginX),
+    minRow: Math.max(0, bbox.minRow - marginY),
+    maxColumn: Math.min(resolution - 1, bbox.maxColumn + marginX),
+    maxRow: Math.min(resolution - 1, bbox.maxRow + marginY),
+  };
+}
+
+function isTexelInsideBbox(
+  texelIndex: number,
+  resolution: number,
+  bbox: E7UvAlphaBoundingBox | undefined,
+) {
+  if (!bbox) {
+    return false;
+  }
+  const row = Math.floor(texelIndex / resolution);
+  const column = texelIndex % resolution;
+  return (
+    column >= bbox.minColumn &&
+    column <= bbox.maxColumn &&
+    row >= bbox.minRow &&
+    row <= bbox.maxRow
+  );
+}
+
+function countAlphaDelta(previous: Uint8Array, next: Uint8Array) {
+  const count = Math.min(previous.length, next.length);
+  let delta = 0;
+  for (let index = 0; index < count; index++) {
+    delta += Math.abs(previous[index] - next[index]);
+  }
+  return delta;
+}
+
+function sampleAlphaFromMask(
+  alpha: Uint8Array,
+  sourceWidth: number,
+  sourceHeight: number,
+  targetTexelIndex: number,
+  targetResolution: number,
+) {
+  const targetRow = Math.floor(targetTexelIndex / targetResolution);
+  const targetColumn = targetTexelIndex % targetResolution;
+  const sourceColumn = Math.max(
+    0,
+    Math.min(
+      sourceWidth - 1,
+      Math.round((targetColumn / Math.max(1, targetResolution - 1)) * (sourceWidth - 1)),
+    ),
+  );
+  const sourceRow = Math.max(
+    0,
+    Math.min(
+      sourceHeight - 1,
+      Math.round((targetRow / Math.max(1, targetResolution - 1)) * (sourceHeight - 1)),
+    ),
+  );
+  return alpha[sourceRow * sourceWidth + sourceColumn] ?? 0;
+}
+
+export function buildCaptureSetBlendUvMask(input: {
+  neutralResult: E7NativeBoundaryResult;
+  providerResults: E7NativeBoundaryResult[];
+  adjustment: LipAdjustment;
+  resolution?: number;
+  precomputedNeutral?: E7PrecomputedNeutralUv;
+}): E7BlendUvMaskResult {
+  if (!input.neutralResult.boundary || !input.neutralResult.arFaceExport) {
+    throw new Error('neutral_result_missing_boundary_or_arface_export');
+  }
+
+  const resolution = input.resolution ?? GENERATED_UV_MASK_RESOLUTION;
+  const adjustedNeutralBoundary =
+    input.precomputedNeutral?.smoothedAdjustedBoundary ??
+    adjustNativeLipBoundary(input.neutralResult.boundary, input.adjustment, {
+      width: input.neutralResult.frameWidth,
+      height: input.neutralResult.frameHeight,
+    });
+  const smoothedNeutralBoundary =
+    input.precomputedNeutral?.smoothedAdjustedBoundary ??
+    smoothLipBoundaryCurveDensified(adjustedNeutralBoundary, {
+      width: input.neutralResult.frameWidth,
+      height: input.neutralResult.frameHeight,
+    });
+  const neutralUv =
+    input.precomputedNeutral?.uvOnly ??
+    buildUvMaskRawRgba({
+      boundary: smoothedNeutralBoundary,
+      arFaceExport: input.neutralResult.arFaceExport,
+      resolution,
+    });
+  const uniqueResults = [
+    input.neutralResult,
+    ...input.providerResults.filter(result => result !== input.neutralResult),
+  ].filter(isUsableBlendShot);
+  const seenShotKinds = new Set<E7CaptureShotKind>();
+  const usableShots = uniqueResults
+    .filter(result => {
+      if (seenShotKinds.has(result.captureShotKind)) {
+        return false;
+      }
+      seenShotKinds.add(result.captureShotKind);
+      return true;
+    })
+    .map(result => {
+      const adjustedBoundary = adjustNativeLipBoundary(
+        result.boundary!,
+        input.adjustment,
+        {
+          width: result.frameWidth,
+          height: result.frameHeight,
+        },
+      );
+      const smoothedBoundary = smoothLipBoundaryCurveDensified(adjustedBoundary, {
+        width: result.frameWidth,
+        height: result.frameHeight,
+      });
+      return {
+        result,
+        smoothedBoundary,
+        uv:
+          result.captureShotKind === 'neutral'
+            ? neutralUv
+            : buildUvMaskRawRgba({
+                boundary: smoothedBoundary,
+                arFaceExport: result.arFaceExport!,
+                resolution: Math.min(resolution, BLEND_EXPRESSION_MASK_RESOLUTION),
+                sampleStride: 3,
+              }),
+        weight: BLEND_SHOT_WEIGHTS[result.captureShotKind] ?? 0.25,
+      };
+    });
+
+  const shotWeights = usableShots.reduce(
+    (weights, shot) => ({
+      ...weights,
+      [shot.result.captureShotKind]: shot.weight,
+    }),
+    {} as Partial<Record<E7CaptureShotKind, number>>,
+  );
+  const blendShotKindsUsed = usableShots.map(shot => shot.result.captureShotKind);
+
+  if (usableShots.length < 2) {
+    return {
+      ...neutralUv,
+      blendMaskKind: 'neutral_single_shot_v1',
+      blendShotKindsUsed,
+      blendUsableShotCount: usableShots.length,
+      blendFallbackReason: 'blend_fallback_single_shot',
+      uvOnlyAlphaChecksum: neutralUv.alphaChecksum,
+      blendAlphaChecksum: neutralUv.alphaChecksum,
+      uvOnlyVsBlendAlphaDelta: 0,
+      innerMouthSuppressedTexels: 0,
+      lowerLipGuardApplied: false,
+      lowerLipGuardClippedTexels: 0,
+      consensusThreshold: BLEND_MASK_CONSENSUS_THRESHOLD,
+      shotWeights,
+    };
+  }
+
+  const texelCount = resolution * resolution;
+  const expandedNeutralBbox = expandBoundingBox(
+    neutralUv.alphaBoundingBoxTexels,
+    resolution,
+    BLEND_MASK_NEUTRAL_EXPAND_RATIO,
+  );
+  const processingBbox = expandedNeutralBbox ?? {
+    minColumn: 0,
+    minRow: 0,
+    maxColumn: resolution - 1,
+    maxRow: resolution - 1,
+  };
+  const score = new Float32Array(texelCount);
+  const coverage = new Uint8Array(texelCount);
+  const innerHoleMax = new Uint8Array(texelCount);
+  for (const shot of usableShots) {
+    for (let row = processingBbox.minRow; row <= processingBbox.maxRow; row++) {
+      for (
+        let column = processingBbox.minColumn;
+        column <= processingBbox.maxColumn;
+        column++
+      ) {
+        const texelIndex = row * resolution + column;
+      const alpha =
+        shot.uv.width === resolution
+          ? shot.uv.rawAlpha[texelIndex] ?? 0
+          : sampleAlphaFromMask(
+              shot.uv.rawAlpha,
+              shot.uv.width,
+              shot.uv.height,
+              texelIndex,
+              resolution,
+            );
+      const innerAlpha =
+        shot.uv.width === resolution
+          ? shot.uv.innerHoleAlpha[texelIndex] ?? 0
+          : sampleAlphaFromMask(
+              shot.uv.innerHoleAlpha,
+              shot.uv.width,
+              shot.uv.height,
+              texelIndex,
+              resolution,
+            );
+      if (alpha > 0 || innerAlpha > 0) {
+        coverage[texelIndex] = 1;
+      }
+      if (innerAlpha > innerHoleMax[texelIndex]) {
+        innerHoleMax[texelIndex] = innerAlpha;
+      }
+      if (alpha > 0) {
+        score[texelIndex] += (alpha / 255) * shot.weight;
+      }
+    }
+  }
+  }
+
+  const finalAlpha = new Uint8Array(texelCount);
+  const neutralBboxHeight = neutralUv.alphaBoundingBoxTexels
+    ? neutralUv.alphaBoundingBoxTexels.maxRow -
+      neutralUv.alphaBoundingBoxTexels.minRow +
+      1
+    : 0;
+  const lowerGuardMaxRow = neutralUv.alphaBoundingBoxTexels
+    ? Math.min(
+        resolution - 1,
+        neutralUv.alphaBoundingBoxTexels.maxRow +
+          Math.round(Math.max(1, neutralBboxHeight) * 0.22),
+      )
+    : resolution - 1;
+  let coverageTexels = 0;
+  let innerMouthSuppressedTexels = 0;
+  let lowerLipGuardClippedTexels = 0;
+
+  for (let row = processingBbox.minRow; row <= processingBbox.maxRow; row++) {
+    for (
+      let column = processingBbox.minColumn;
+      column <= processingBbox.maxColumn;
+      column++
+    ) {
+      const texelIndex = row * resolution + column;
+    if (coverage[texelIndex]) {
+      coverageTexels += 1;
+    }
+    const neutralAlpha = neutralUv.rawAlpha[texelIndex] ?? 0;
+    const weightedScore = score[texelIndex];
+    const expressionAllowed =
+      weightedScore >= BLEND_MASK_CONSENSUS_THRESHOLD &&
+      isTexelInsideBbox(texelIndex, resolution, expandedNeutralBbox);
+    let alpha = 0;
+    if (innerHoleMax[texelIndex] > GENERATED_UV_ALPHA_EDGE_HIGH / 2) {
+      if (neutralAlpha > GENERATED_UV_ALPHA_EDGE_LOW || weightedScore > 0) {
+        innerMouthSuppressedTexels += 1;
+      }
+    } else if (neutralAlpha > GENERATED_UV_ALPHA_EDGE_LOW) {
+      alpha = neutralAlpha;
+    } else if (expressionAllowed) {
+      alpha = Math.min(220, Math.round(weightedScore * 170));
+    }
+
+    if (alpha > 0 && row > lowerGuardMaxRow) {
+      lowerLipGuardClippedTexels += 1;
+      alpha = 0;
+    }
+    finalAlpha[texelIndex] = alpha;
+  }
+  }
+
+  const summarized = summarizeRawAlphaMask({
+    rawAlpha: finalAlpha,
+    innerHoleAlpha: innerHoleMax,
+    resolution,
+    coverageTexels,
+    boundary: smoothedNeutralBoundary,
+    arFaceExport: input.neutralResult.arFaceExport,
+    innerHoleSampleCount: neutralUv.innerHoleSampleCount,
+    innerHolePositiveRatio: 0,
+  });
+  const uvOnlyVsBlendAlphaDelta = countAlphaDelta(
+    neutralUv.rawAlpha,
+    summarized.rawAlpha,
+  );
+
+  return {
+    ...summarized,
+    blendMaskKind: 'capture_set_consensus_v1',
+    blendShotKindsUsed,
+    blendUsableShotCount: usableShots.length,
+    blendFallbackReason:
+      uvOnlyVsBlendAlphaDelta > 0 ? undefined : 'blend_no_alpha_delta',
+    uvOnlyAlphaChecksum: neutralUv.alphaChecksum,
+    blendAlphaChecksum: summarized.alphaChecksum,
+    uvOnlyVsBlendAlphaDelta,
+    innerMouthSuppressedTexels,
+    lowerLipGuardApplied: lowerLipGuardClippedTexels > 0,
+    lowerLipGuardClippedTexels,
+    consensusThreshold: BLEND_MASK_CONSENSUS_THRESHOLD,
+    shotWeights,
+  };
+}
+
 function formatAdjustmentHash(adjustment: LipAdjustment): string {
   const scaled = [
     adjustment.cornerReach,
@@ -811,12 +1409,44 @@ function formatAdjustmentHash(adjustment: LipAdjustment): string {
   return `adj-${scaled.join('-')}`;
 }
 
+function buildPrecomputedNeutralUv(
+  nativeResult: E7NativeBoundaryResult,
+  adjustment: LipAdjustment,
+): E7PrecomputedNeutralUv {
+  if (!nativeResult.boundary || !nativeResult.arFaceExport) {
+    throw new Error('native_boundary_or_arface_export_missing');
+  }
+  const adjustedBoundary = adjustNativeLipBoundary(
+    nativeResult.boundary,
+    adjustment,
+    {
+      width: nativeResult.frameWidth,
+      height: nativeResult.frameHeight,
+    },
+  );
+  const smoothedAdjustedBoundary = smoothLipBoundaryCurveDensified(
+    adjustedBoundary,
+    {
+      width: nativeResult.frameWidth,
+      height: nativeResult.frameHeight,
+    },
+  );
+  return {
+    smoothedAdjustedBoundary,
+    uvOnly: buildUvMaskRawRgba({
+      boundary: smoothedAdjustedBoundary,
+      arFaceExport: nativeResult.arFaceExport,
+    }),
+  };
+}
+
 export function buildGeneratedLipPackage(input: {
   nativeResult: E7NativeBoundaryResult;
   providerResults?: E7NativeBoundaryResult[];
   expressionMode: ExpressionAssistMode;
   adjustment: LipAdjustment;
   generatedAtMs?: number;
+  precomputedNeutralUv?: E7PrecomputedNeutralUv;
 }): E7GeneratedCandidate {
   const { nativeResult, expressionMode, adjustment } = input;
   const generatedAtMs = input.generatedAtMs ?? Date.now();
@@ -844,25 +1474,24 @@ export function buildGeneratedLipPackage(input: {
     };
   }
 
-  const adjustedBoundary = adjustNativeLipBoundary(
-    nativeResult.boundary,
-    adjustment,
-    {
-      width: nativeResult.frameWidth,
-      height: nativeResult.frameHeight,
-    },
-  );
-  const smoothedAdjustedBoundary = smoothLipBoundaryCurveDensified(
-    adjustedBoundary,
-    {
-      width: nativeResult.frameWidth,
-      height: nativeResult.frameHeight,
-    },
-  );
-  const uv = buildUvMaskRawRgba({
-    boundary: smoothedAdjustedBoundary,
-    arFaceExport: nativeResult.arFaceExport,
-  });
+  const precomputedNeutral =
+    input.precomputedNeutralUv ?? buildPrecomputedNeutralUv(nativeResult, adjustment);
+  const smoothedAdjustedBoundary = precomputedNeutral.smoothedAdjustedBoundary;
+  const uvOnly = precomputedNeutral.uvOnly;
+  const captureSetResults = input.providerResults ?? [nativeResult];
+  const uv =
+    expressionMode === 'blendshapeAssist'
+      ? buildCaptureSetBlendUvMask({
+          neutralResult: nativeResult,
+          providerResults: captureSetResults,
+          adjustment,
+          precomputedNeutral,
+        })
+      : uvOnly;
+  const blendUv: E7BlendUvMaskResult | undefined =
+    expressionMode === 'blendshapeAssist'
+      ? (uv as E7BlendUvMaskResult)
+      : undefined;
   const generatedMaskId = [
     'e7-generated-lip',
     nativeResult.captureSetId,
@@ -887,8 +1516,12 @@ export function buildGeneratedLipPackage(input: {
             (input.providerResults ?? [nativeResult]).length
           }_shots`
         : 'blendshape_assist_off',
+      blendUv
+        ? `blend_mask_${blendUv.blendMaskKind}_${blendUv.blendUsableShotCount}_shots`
+        : 'blend_mask_neutral_only',
+      blendUv?.blendFallbackReason,
     ]),
-  );
+  ).filter(Boolean) as string[];
   const uvCoverageMetadata: E7UvCoverageMetadataWithDiagnostics = {
     uvResolution: uv.width,
     coverageTexels: uv.coverageTexels,
@@ -902,6 +1535,18 @@ export function buildGeneratedLipPackage(input: {
     innerHolePositiveRatio: uv.innerHolePositiveRatio,
     previewVsUvRoundTripDelta: uv.previewVsUvRoundTripDelta,
     alphaBoundingBoxTexels: uv.alphaBoundingBoxTexels,
+    blendMaskKind: blendUv?.blendMaskKind,
+    blendShotKindsUsed: blendUv?.blendShotKindsUsed,
+    blendUsableShotCount: blendUv?.blendUsableShotCount,
+    blendFallbackReason: blendUv?.blendFallbackReason,
+    uvOnlyAlphaChecksum: blendUv?.uvOnlyAlphaChecksum,
+    blendAlphaChecksum: blendUv?.blendAlphaChecksum,
+    uvOnlyVsBlendAlphaDelta: blendUv?.uvOnlyVsBlendAlphaDelta,
+    innerMouthSuppressedTexels: blendUv?.innerMouthSuppressedTexels,
+    lowerLipGuardApplied: blendUv?.lowerLipGuardApplied,
+    lowerLipGuardClippedTexels: blendUv?.lowerLipGuardClippedTexels,
+    consensusThreshold: blendUv?.consensusThreshold,
+    shotWeights: blendUv?.shotWeights,
     boundarySmoothing: CURVE_DENSIFIED_ALGORITHM,
     originalPointCount: smoothedAdjustedBoundary.originalPointCount ?? 0,
     smoothedPointCount: smoothedAdjustedBoundary.smoothedPointCount ?? 0,
@@ -910,7 +1555,6 @@ export function buildGeneratedLipPackage(input: {
   const providerResults = Object.fromEntries(
     [nativeResult].map(result => [result.provider, summarizeNativeProviderResult(result)]),
   );
-  const captureSetResults = input.providerResults ?? [nativeResult];
   const captureSetShotResults = Object.fromEntries(
     captureSetResults.map(result => [
       result.captureShotKind,
@@ -936,15 +1580,23 @@ export function buildGeneratedLipPackage(input: {
       enabled: expressionMode === 'blendshapeAssist',
       source: 'arface-blendshapes',
       materialFeatherUvNormalized,
+      blendMaskKind: blendUv?.blendMaskKind,
+      blendShotKindsUsed: blendUv?.blendShotKindsUsed,
+      blendUsableShotCount: blendUv?.blendUsableShotCount,
+      blendFallbackReason: blendUv?.blendFallbackReason,
+      uvOnlyVsBlendAlphaDelta: blendUv?.uvOnlyVsBlendAlphaDelta,
       values: captureSetBlendShapeValues,
-      warning: captureSetBlendShapeValues
-        ? undefined
-        : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable',
+      warning:
+        blendUv?.blendFallbackReason ??
+        (captureSetBlendShapeValues
+          ? undefined
+          : nativeResult.blendShapes?.reason ?? 'blendshape_unavailable'),
     },
     adjustment,
     sourceFrameMetadata: {
       capturePairId: nativeResult.capturePairId,
       framePath: nativeResult.framePath,
+      arFaceExportPath: nativeResult.arFaceExportPath,
       frameWidth: nativeResult.frameWidth,
       frameHeight: nativeResult.frameHeight,
       orientation: nativeResult.arFaceExport.display?.orientation ?? 'unknown',
@@ -1003,4 +1655,43 @@ export function buildGeneratedLipPackage(input: {
     blockedReason:
       packageStatus === 'blocked' ? 'uv_projection_empty_mask' : undefined,
   };
+}
+
+export function buildGeneratedLipCandidateSet(input: {
+  nativeResult: E7NativeBoundaryResult;
+  providerResults?: E7NativeBoundaryResult[];
+  expressionModes: ExpressionAssistMode[];
+  adjustment: LipAdjustment;
+  generatedAtMs?: number;
+}): E7GeneratedCandidate[] {
+  if (
+    input.nativeResult.status === 'blocked' ||
+    !input.nativeResult.boundary ||
+    !input.nativeResult.arFaceExport
+  ) {
+    return input.expressionModes.map(expressionMode =>
+      buildGeneratedLipPackage({
+        nativeResult: input.nativeResult,
+        providerResults: input.providerResults,
+        expressionMode,
+        adjustment: input.adjustment,
+        generatedAtMs: input.generatedAtMs,
+      }),
+    );
+  }
+
+  const precomputedNeutralUv = buildPrecomputedNeutralUv(
+    input.nativeResult,
+    input.adjustment,
+  );
+  return input.expressionModes.map(expressionMode =>
+    buildGeneratedLipPackage({
+      nativeResult: input.nativeResult,
+      providerResults: input.providerResults,
+      expressionMode,
+      adjustment: input.adjustment,
+      generatedAtMs: input.generatedAtMs,
+      precomputedNeutralUv,
+    }),
+  );
 }

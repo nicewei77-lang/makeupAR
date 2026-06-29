@@ -32,7 +32,7 @@ import {
   LipMaskProvider as GeneratedLipMaskProvider,
 } from '../../packages/lip-generate-core/src';
 import {
-  buildGeneratedLipPackage,
+  buildGeneratedLipCandidateSet,
   E7CaptureShotKind,
   E7GeneratedCandidate,
   E7NativeBoundaryResult,
@@ -361,6 +361,7 @@ const GENERATED_APPLY_ACK_TIMEOUT_MS = 10_000;
 const GENERATED_APPLY_RETRY_DELAY_MS = 800;
 const GENERATED_APPLY_MAX_TRANSIENT_RETRIES = 8;
 const GENERATED_CONTROL_ACK_TIMEOUT_MS = 3_000;
+const ADJUSTMENT_PREVIEW_DEBOUNCE_MS = 180;
 const GENERATED_MASK_VALIDATION_COLORS = [
   { name: 'rose', color: '#D94B74' },
   { name: 'hot', color: '#FF2D8A' },
@@ -383,6 +384,7 @@ type LipFinish = (typeof LIP_FINISH_OPTIONS)[number]['name'];
 type LipTuningField = (typeof LIP_TUNING_FIELD_OPTIONS)[number]['name'];
 type LipAdjustmentField =
   (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number]['name'];
+type LipAdjustmentValueUpdate = number | ((currentValue: number) => number);
 type LipRuntimeCandidate =
   (typeof LIP_RUNTIME_CANDIDATE_OPTIONS)[number];
 type LipRuntimeCandidateId = LipRuntimeCandidate['candidateId'];
@@ -438,7 +440,8 @@ type E7SavedPackageRecord = {
   metadataPath?: string;
   status?: string;
 };
-type E7GeneratedPreviewState = 'pending' | 'ready' | 'blocked';
+type E7GeneratedPreviewState = 'pending' | 'rendering' | 'ready' | 'blocked';
+type E7AdjustmentPreviewState = 'idle' | 'rendering' | 'ready' | 'blocked';
 type E7GeneratedPreviewResult = {
   status?: E7GeneratedPreviewState;
   previewUri?: string;
@@ -456,6 +459,9 @@ type E7GenerationRequestGuard = {
   provider: GeneratedLipMaskProvider;
   adjustmentSignature: string;
 };
+type E7AdjustmentPreviewRequestGuard = E7GenerationRequestGuard & {
+  selectedCandidateKey: string;
+};
 type E7GeneratedApplyStatus =
   | 'idle'
   | 'saving'
@@ -467,11 +473,17 @@ type E7GeneratedApplyStatus =
 type E7GeneratedApplyState = {
   status: E7GeneratedApplyStatus;
   generatedMaskId?: string;
+  saveRequestId?: number;
   startedAtMs?: number;
+  saveStartedAtMs?: number;
+  saveFinishedAtMs?: number;
+  postStartedAtMs?: number;
   updatedAtMs: number;
   elapsedMs?: number;
   blockedReason?: string;
   retryCount?: number;
+  payloadBytes?: number;
+  faceTrackingWaitMs?: number;
   error?: string;
   ack?: UnityEventPayload;
 };
@@ -491,9 +503,21 @@ type PendingGeneratedControlCheck = {
 };
 type PendingGeneratedApplyPayload = {
   generatedMaskId: string;
+  saveRequestId: number;
   unityMessageJson: string;
   startedAtMs: number;
+  saveStartedAtMs?: number;
+  saveFinishedAtMs?: number;
+  payloadBytes?: number;
   retryCount: number;
+};
+type PendingGeneratedSaveRequest = {
+  saveRequestId: number;
+  generatedMaskId: string;
+  captureSetId: string;
+  provider: GeneratedLipMaskProvider;
+  selectedCandidateKey: string;
+  adjustmentSignature: string;
 };
 type E7AlignmentGateState = 'waiting' | 'ready' | 'blocked';
 type E7AlignmentGate = {
@@ -1113,6 +1137,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     useState('vision/uvOnly');
   const [generatedCandidatesStale, setGeneratedCandidatesStale] =
     useState(false);
+  const [adjustmentPreviewState, setAdjustmentPreviewState] =
+    useState<E7AdjustmentPreviewState>('idle');
   const [savedGeneratedPackage, setSavedGeneratedPackage] =
     useState<E7SavedPackageRecord | null>(null);
   const [generatedApplyState, setGeneratedApplyState] =
@@ -1135,12 +1161,21 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [isGeneratingCandidates, setIsGeneratingCandidates] = useState(false);
   const [isSavingGeneratedPackage, setIsSavingGeneratedPackage] =
     useState(false);
+  const lipUserAdjustmentRef = useRef<LipUserAdjustment>(DEFAULT_LIP_USER_ADJUSTMENT);
   const generationRequestSequenceRef = useRef(0);
   const activeGenerationRequestRef =
     useRef<E7GenerationRequestGuard | null>(null);
+  const adjustmentPreviewRequestSequenceRef = useRef(0);
+  const activeAdjustmentPreviewRequestRef =
+    useRef<E7AdjustmentPreviewRequestGuard | null>(null);
+  const adjustmentPreviewDebounceTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingGeneratedMaskIdRef = useRef<string | null>(null);
   const pendingGeneratedApplyPayloadRef =
     useRef<PendingGeneratedApplyPayload | null>(null);
+  const generatedSaveRequestSequenceRef = useRef(0);
+  const activeGeneratedSaveRequestRef =
+    useRef<PendingGeneratedSaveRequest | null>(null);
   const generatedApplyRetryTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
   const generatedControlRequestSequenceRef = useRef(0);
@@ -1162,10 +1197,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }
   }, []);
 
+  const clearAdjustmentPreviewDebounce = useCallback(() => {
+    if (adjustmentPreviewDebounceTimeoutRef.current) {
+      clearTimeout(adjustmentPreviewDebounceTimeoutRef.current);
+      adjustmentPreviewDebounceTimeoutRef.current = null;
+    }
+  }, []);
+
   const resetGeneratedApplyFlow = useCallback((reason: string) => {
     clearGeneratedApplyRetryTimeout();
     pendingGeneratedMaskIdRef.current = null;
     pendingGeneratedApplyPayloadRef.current = null;
+    activeGeneratedSaveRequestRef.current = null;
+    setIsSavingGeneratedPackage(false);
     setGeneratedApplyState(createGeneratedApplyState('idle'));
     setPendingGeneratedMaskId(null);
     setPendingGeneratedPackage(null);
@@ -1175,6 +1219,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   }, [clearGeneratedApplyRetryTimeout]);
 
   useEffect(() => {
+    lipUserAdjustmentRef.current = lipUserAdjustment;
+  }, [lipUserAdjustment]);
+
+  useEffect(() => {
     pendingGeneratedMaskIdRef.current = pendingGeneratedMaskId;
   }, [pendingGeneratedMaskId]);
 
@@ -1182,6 +1230,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     activeGenerationRequestRef.current = null;
     setIsGeneratingCandidates(false);
   }, [captureSetId, lipGenerateProvider, lipUserAdjustmentSignature]);
+
+  useEffect(() => {
+    activeAdjustmentPreviewRequestRef.current = null;
+    clearAdjustmentPreviewDebounce();
+  }, [
+    captureSetId,
+    clearAdjustmentPreviewDebounce,
+    lipGenerateProvider,
+  ]);
+
+  useEffect(() => clearAdjustmentPreviewDebounce, [clearAdjustmentPreviewDebounce]);
 
   useEffect(() => {
     const unityViewForCleanup = unityRef.current;
@@ -1920,15 +1979,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         map[result.provider] = result;
         return map;
       }, {} as Partial<Record<GeneratedLipMaskProvider, E7NativeBoundaryResult>>);
-      const candidates = LIP_GENERATE_EXPRESSION_OPTIONS.map(
-        expressionOption =>
-          buildGeneratedLipPackage({
-            nativeResult: neutralResult,
-            providerResults: results.length ? results : [neutralResult],
-            expressionMode: expressionOption.name,
-            adjustment: lipUserAdjustment,
-          }),
-      );
+      const candidates = buildGeneratedLipCandidateSet({
+        nativeResult: neutralResult,
+        providerResults: results.length ? results : [neutralResult],
+        expressionModes: LIP_GENERATE_EXPRESSION_OPTIONS.map(option => option.name),
+        adjustment: lipUserAdjustment,
+      });
       const candidatesWithPreviews =
         await renderGeneratedCandidatePreviews(candidates);
       if (!isCurrentGenerationRequest()) {
@@ -1987,6 +2043,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       if (!options?.stayOnStep) {
         setWizardStep('blend');
       }
+      setAdjustmentPreviewState('ready');
       setWizardNotice(
         candidatesWithPreviews.some(candidate => candidate.package)
           ? options?.reason === 'auto-adjustment'
@@ -2021,6 +2078,104 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     selectedGeneratedCandidateKey,
   ]);
 
+  const scheduleAdjustmentPreviewRebuild = useCallback(
+    (input: {
+      providerResult: E7NativeBoundaryResult;
+      providerShotResults: E7NativeBoundaryResult[];
+      nextAdjustment: LipUserAdjustment;
+      selectedCandidateKey: string;
+    }) => {
+      const adjustmentSignature = JSON.stringify(input.nextAdjustment);
+      const requestGuard: E7AdjustmentPreviewRequestGuard = {
+        requestId: (adjustmentPreviewRequestSequenceRef.current += 1),
+        captureSetId,
+        provider: lipGenerateProvider,
+        adjustmentSignature,
+        selectedCandidateKey: input.selectedCandidateKey,
+      };
+      activeAdjustmentPreviewRequestRef.current = requestGuard;
+      clearAdjustmentPreviewDebounce();
+      setAdjustmentPreviewState('rendering');
+      setGeneratedCandidatesStale(true);
+
+      const isCurrentAdjustmentRequest = () => {
+        const activeGuard = activeAdjustmentPreviewRequestRef.current;
+        return (
+          activeGuard?.requestId === requestGuard.requestId &&
+          activeGuard.captureSetId === requestGuard.captureSetId &&
+          activeGuard.provider === requestGuard.provider &&
+          activeGuard.adjustmentSignature === requestGuard.adjustmentSignature &&
+          activeGuard.selectedCandidateKey === requestGuard.selectedCandidateKey
+        );
+      };
+
+      adjustmentPreviewDebounceTimeoutRef.current = setTimeout(() => {
+        adjustmentPreviewDebounceTimeoutRef.current = null;
+        const rebuildAdjustmentPreview = async () => {
+          try {
+            const rebuiltCandidates = buildGeneratedLipCandidateSet({
+              nativeResult: input.providerResult,
+              providerResults: input.providerShotResults.length
+                ? input.providerShotResults
+                : [input.providerResult],
+              expressionModes: LIP_GENERATE_EXPRESSION_OPTIONS.map(
+                option => option.name,
+              ),
+              adjustment: input.nextAdjustment,
+            });
+            const rebuiltCandidatesWithPreviews =
+              await renderGeneratedCandidatePreviews(rebuiltCandidates);
+
+            if (!isCurrentAdjustmentRequest()) {
+              console.log(
+                '[E7] stale_adjustment_preview_dropped',
+                `requestId=${requestGuard.requestId}`,
+                `captureSetId=${requestGuard.captureSetId}`,
+                `provider=${requestGuard.provider}`,
+              );
+              return;
+            }
+
+            const selectedCandidateStillAvailable = rebuiltCandidates.some(
+              candidate =>
+                candidate.candidateKey === requestGuard.selectedCandidateKey &&
+                candidate.package,
+            );
+
+            setGeneratedCandidates(rebuiltCandidatesWithPreviews);
+            setSelectedGeneratedCandidateKey(
+              selectedCandidateStillAvailable
+                ? requestGuard.selectedCandidateKey
+                : rebuiltCandidatesWithPreviews.find(candidate => candidate.package)
+                    ?.candidateKey ?? `${requestGuard.provider}/uvOnly`,
+            );
+            setGeneratedCandidatesStale(false);
+            setAdjustmentPreviewState('ready');
+            setWizardNotice('조정값이 현재 사진과 저장 후보에 반영되었습니다.');
+          } catch (error) {
+            if (!isCurrentAdjustmentRequest()) {
+              return;
+            }
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'unknown_adjustment_preview_error';
+            setAdjustmentPreviewState('blocked');
+            setGeneratedCandidatesStale(true);
+            setWizardNotice(`조정 미리보기 갱신 실패: ${message}`);
+          }
+        };
+        rebuildAdjustmentPreview();
+      }, ADJUSTMENT_PREVIEW_DEBOUNCE_MS);
+    },
+    [
+      captureSetId,
+      clearAdjustmentPreviewDebounce,
+      lipGenerateProvider,
+      renderGeneratedCandidatePreviews,
+    ],
+  );
+
   const postPendingGeneratedApplyPayload = useCallback(
     (blockedReason: string) => {
       const pendingPayload = pendingGeneratedApplyPayloadRef.current;
@@ -2030,7 +2185,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
       const baseState = {
         generatedMaskId: pendingPayload.generatedMaskId,
+        saveRequestId: pendingPayload.saveRequestId,
         startedAtMs: pendingPayload.startedAtMs,
+        saveStartedAtMs: pendingPayload.saveStartedAtMs,
+        saveFinishedAtMs: pendingPayload.saveFinishedAtMs,
+        postStartedAtMs: pendingPayload.startedAtMs,
+        payloadBytes: pendingPayload.payloadBytes,
         blockedReason,
         retryCount: pendingPayload.retryCount,
       };
@@ -2082,7 +2242,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       setGeneratedApplyState(
         createGeneratedApplyState('waitingAck', {
           generatedMaskId: pendingPayload.generatedMaskId,
+          saveRequestId: pendingPayload.saveRequestId,
           startedAtMs: pendingPayload.startedAtMs,
+          saveStartedAtMs: pendingPayload.saveStartedAtMs,
+          saveFinishedAtMs: pendingPayload.saveFinishedAtMs,
+          postStartedAtMs: pendingPayload.startedAtMs,
+          payloadBytes: pendingPayload.payloadBytes,
+          faceTrackingWaitMs:
+            retryReason === 'waiting_for_live_face_tracking'
+              ? Date.now() - pendingPayload.startedAtMs
+              : undefined,
           blockedReason: retryReason,
           retryCount: pendingPayload.retryCount,
         }),
@@ -2114,11 +2283,37 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       return;
     }
 
+    const saveStartedAtMs = Date.now();
+    const saveRequestGuard: PendingGeneratedSaveRequest = {
+      saveRequestId: (generatedSaveRequestSequenceRef.current += 1),
+      generatedMaskId: selectedCandidate.package.generatedMaskId,
+      captureSetId,
+      provider: selectedCandidate.provider,
+      selectedCandidateKey: selectedCandidate.candidateKey,
+      adjustmentSignature: JSON.stringify(selectedCandidate.package.adjustment),
+    };
+    const isCurrentSaveRequest = () => {
+      const activeGuard = activeGeneratedSaveRequestRef.current;
+      return (
+        activeGuard?.saveRequestId === saveRequestGuard.saveRequestId &&
+        activeGuard.generatedMaskId === saveRequestGuard.generatedMaskId &&
+        activeGuard.captureSetId === saveRequestGuard.captureSetId &&
+        activeGuard.provider === saveRequestGuard.provider &&
+        activeGuard.selectedCandidateKey === saveRequestGuard.selectedCandidateKey &&
+        activeGuard.adjustmentSignature === saveRequestGuard.adjustmentSignature
+      );
+    };
+
+    activeGeneratedSaveRequestRef.current = saveRequestGuard;
     setIsSavingGeneratedPackage(true);
+    setWizardStep('apply');
+    setWizardNotice('마스크를 기기에 저장하는 중입니다.');
     setGeneratedApplyState(
       createGeneratedApplyState('saving', {
         generatedMaskId: selectedCandidate.package.generatedMaskId,
-        startedAtMs: Date.now(),
+        saveRequestId: saveRequestGuard.saveRequestId,
+        startedAtMs: saveStartedAtMs,
+        saveStartedAtMs,
         blockedReason: 'saving_local_generated_package',
       }),
     );
@@ -2127,26 +2322,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     setPendingGeneratedPackage(selectedCandidate.package);
     setAppliedGeneratedPackage(null);
     try {
-      if (!E7_NATIVE_BOUNDARY_MODULE?.saveGeneratedPackage) {
-        throw new Error('native_save_module_unavailable');
-      }
+	    if (!E7_NATIVE_BOUNDARY_MODULE?.saveGeneratedPackage) {
+	        throw new Error('native_save_module_unavailable');
+	      }
 
-      const packageJson = JSON.stringify(selectedCandidate.package);
-      const recordJson =
-        await E7_NATIVE_BOUNDARY_MODULE.saveGeneratedPackage(packageJson);
-      const record = JSON.parse(recordJson) as E7SavedPackageRecord;
-      const unityMessageJson = JSON.stringify(
-        buildGeneratedMaskUnityMessage(
+	      const packageJson = JSON.stringify(selectedCandidate.package);
+	      const recordJson =
+	        await E7_NATIVE_BOUNDARY_MODULE.saveGeneratedPackage(packageJson);
+      if (!isCurrentSaveRequest()) {
+        console.log(
+          '[E7] stale_generated_save_result_dropped',
+          `saveRequestId=${saveRequestGuard.saveRequestId}`,
+          `generatedMaskId=${saveRequestGuard.generatedMaskId}`,
+        );
+        return;
+      }
+	      const record = JSON.parse(recordJson) as E7SavedPackageRecord;
+	      const unityMessageJson = JSON.stringify(
+	        buildGeneratedMaskUnityMessage(
           selectedCandidate.package,
           generatedValidationControls,
           { includeTexture: true },
-        ),
-      );
-      const startedAtMs = Date.now();
+	        ),
+	      );
+      const saveFinishedAtMs = Date.now();
+      const startedAtMs = saveFinishedAtMs;
       pendingGeneratedApplyPayloadRef.current = {
         generatedMaskId: selectedCandidate.package.generatedMaskId,
+        saveRequestId: saveRequestGuard.saveRequestId,
         unityMessageJson,
         startedAtMs,
+        saveStartedAtMs,
+        saveFinishedAtMs,
+        payloadBytes: unityMessageJson.length,
         retryCount: 0,
       };
 
@@ -2156,14 +2364,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       );
       setActiveRegions(regions => ({ ...regions, lip: true }));
       setGeneratedApplyState(
-        createGeneratedApplyState('posting', {
-          generatedMaskId: selectedCandidate.package.generatedMaskId,
-          startedAtMs,
-          blockedReason: 'posting_apply_payload_to_unity',
-        }),
-      );
-      setWizardStep('apply');
-      setWizardNotice('저장 완료. AR 화면에서 적용 확인을 기다립니다.');
+	        createGeneratedApplyState('posting', {
+	          generatedMaskId: selectedCandidate.package.generatedMaskId,
+          saveRequestId: saveRequestGuard.saveRequestId,
+	          startedAtMs,
+          saveStartedAtMs,
+          saveFinishedAtMs,
+          postStartedAtMs: startedAtMs,
+          payloadBytes: unityMessageJson.length,
+	          blockedReason: 'posting_apply_payload_to_unity',
+	        }),
+	      );
+	      setWizardNotice('저장 완료. AR 화면에서 적용 확인을 기다립니다.');
       if (
         !postPendingGeneratedApplyPayload(
           'waiting_for_generated_lip_mask_applied_ack',
@@ -2171,33 +2383,42 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       ) {
         scheduleGeneratedApplyRetry('unity_view_not_ready_retrying');
       }
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'unknown_save_error';
-      clearGeneratedApplyRetryTimeout();
-      pendingGeneratedMaskIdRef.current = null;
-      pendingGeneratedApplyPayloadRef.current = null;
-      setPendingGeneratedMaskId(null);
-      setPendingGeneratedPackage(null);
-      setGeneratedApplyState(
-        createGeneratedApplyState('blocked', {
-          generatedMaskId: selectedCandidate.package.generatedMaskId,
-          blockedReason: 'save_or_post_failed',
-          error: message,
-        }),
+	    } catch (error) {
+      if (!isCurrentSaveRequest()) {
+        return;
+      }
+	      const message =
+	        error instanceof Error ? error.message : 'unknown_save_error';
+	      clearGeneratedApplyRetryTimeout();
+	      pendingGeneratedMaskIdRef.current = null;
+	      pendingGeneratedApplyPayloadRef.current = null;
+      activeGeneratedSaveRequestRef.current = null;
+	      setPendingGeneratedMaskId(null);
+	      setPendingGeneratedPackage(null);
+	      setGeneratedApplyState(
+	        createGeneratedApplyState('blocked', {
+	          generatedMaskId: selectedCandidate.package.generatedMaskId,
+          saveRequestId: saveRequestGuard.saveRequestId,
+          saveStartedAtMs,
+	          blockedReason: 'save_or_post_failed',
+	          error: message,
+	        }),
       );
       setWizardNotice(
         message === 'native_save_module_unavailable'
           ? '기기 저장 기능을 확인하지 못했습니다. 앱을 다시 빌드한 뒤 확인해 주세요.'
           : '마스크 저장에 실패했습니다. 다시 시도해 주세요.',
       );
-    } finally {
-      setIsSavingGeneratedPackage(false);
-    }
-  }, [
-    clearGeneratedApplyRetryTimeout,
-    generatedCandidates,
-    generatedCandidatesStale,
+	    } finally {
+      if (isCurrentSaveRequest()) {
+        setIsSavingGeneratedPackage(false);
+      }
+	    }
+	  }, [
+    captureSetId,
+	    clearGeneratedApplyRetryTimeout,
+	    generatedCandidates,
+	    generatedCandidatesStale,
     generatedValidationControls,
     isSavingGeneratedPackage,
     postPendingGeneratedApplyPayload,
@@ -2359,6 +2580,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             );
           } else if (isApplied) {
             clearGeneratedApplyRetryTimeout();
+            const appliedPendingPayload = pendingGeneratedApplyPayloadRef.current;
             pendingGeneratedApplyPayloadRef.current = null;
             const didConfirmPendingControls =
               Boolean(pendingGeneratedControlCheck) &&
@@ -2370,6 +2592,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             setGeneratedApplyState(
               createGeneratedApplyState('applied', {
                 generatedMaskId,
+                saveRequestId: appliedPendingPayload?.saveRequestId,
+                startedAtMs: appliedPendingPayload?.startedAtMs,
+                saveStartedAtMs: appliedPendingPayload?.saveStartedAtMs,
+                saveFinishedAtMs: appliedPendingPayload?.saveFinishedAtMs,
+                postStartedAtMs: appliedPendingPayload?.startedAtMs,
+                payloadBytes: appliedPendingPayload?.payloadBytes,
                 ack: parsed,
                 blockedReason: 'ack_applied_uv_mask_triangles_ready',
               }),
@@ -2406,10 +2634,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             );
           } else {
             clearGeneratedApplyRetryTimeout();
+            const blockedPendingPayload = pendingGeneratedApplyPayloadRef.current;
             pendingGeneratedApplyPayloadRef.current = null;
             setGeneratedApplyState(
               createGeneratedApplyState('blocked', {
                 generatedMaskId,
+                saveRequestId: blockedPendingPayload?.saveRequestId,
+                startedAtMs: blockedPendingPayload?.startedAtMs,
+                saveStartedAtMs: blockedPendingPayload?.saveStartedAtMs,
+                saveFinishedAtMs: blockedPendingPayload?.saveFinishedAtMs,
+                postStartedAtMs: blockedPendingPayload?.startedAtMs,
+                payloadBytes: blockedPendingPayload?.payloadBytes,
                 ack: parsed,
                 blockedReason,
                 error: String(parsed.error ?? ''),
@@ -2597,7 +2832,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
         return createGeneratedApplyState('timeout', {
           generatedMaskId: currentState.generatedMaskId,
+          saveRequestId: currentState.saveRequestId,
           startedAtMs: currentState.startedAtMs,
+          saveStartedAtMs: currentState.saveStartedAtMs,
+          saveFinishedAtMs: currentState.saveFinishedAtMs,
+          postStartedAtMs: currentState.postStartedAtMs,
+          payloadBytes: currentState.payloadBytes,
+          retryCount: currentState.retryCount,
           elapsedMs: Date.now() - (currentState.startedAtMs ?? Date.now()),
           blockedReason: 'generated_lip_mask_applied_ack_timeout',
         });
@@ -2786,7 +3027,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     isCapturedShot(captureShots.neutral) &&
     capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length;
   const canSaveGeneratedPackage = Boolean(
-    selectedGeneratedCandidate?.package && !generatedCandidatesStale,
+    selectedGeneratedCandidate?.package &&
+      !generatedCandidatesStale &&
+      adjustmentPreviewState !== 'rendering',
   );
   const wizardStepIndex = getWizardStepIndex(wizardStep);
   const hasGeneratedMaskApplied = generatedApplyState.status === 'applied';
@@ -2932,82 +3175,55 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
 
   const updateLipUserAdjustment = useCallback(
-    async (field: LipAdjustmentField, nextValue: number) => {
+    (field: LipAdjustmentField, nextValue: LipAdjustmentValueUpdate) => {
+      const currentAdjustment = lipUserAdjustmentRef.current;
+      const rawNextValue =
+        typeof nextValue === 'function'
+          ? nextValue(currentAdjustment[field])
+          : nextValue;
       const roundedValue = Number(
-        Math.max(-1, Math.min(1, nextValue)).toFixed(2),
+        Math.max(-1, Math.min(1, rawNextValue)).toFixed(2),
       );
       const nextAdjustment = {
-        ...lipUserAdjustment,
+        ...currentAdjustment,
         [field]: roundedValue,
       };
       const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
       const providerResult = nativeProviderResults[lipGenerateProvider];
       const providerShotResults =
-        nativeProviderShotResults[lipGenerateProvider] ??
-        (providerResult ? [providerResult] : []);
+	    nativeProviderShotResults[lipGenerateProvider] ??
+	    (providerResult ? [providerResult] : []);
 
+      lipUserAdjustmentRef.current = nextAdjustment;
       setLipUserAdjustment(nextAdjustment);
       setSavedGeneratedPackage(null);
       resetGeneratedApplyFlow(`lip_adjustment_${field}`);
       if (providerResult?.boundary && providerResult.arFaceExport) {
-        const rebuiltCandidates = LIP_GENERATE_EXPRESSION_OPTIONS.map(
-          expressionOption =>
-            buildGeneratedLipPackage({
-              nativeResult: providerResult,
-              providerResults: providerShotResults.length
-                ? providerShotResults
-                : [providerResult],
-              expressionMode: expressionOption.name,
-              adjustment: nextAdjustment,
-            }),
-        );
-        const rebuiltCandidatesWithPreviews =
-          await renderGeneratedCandidatePreviews(rebuiltCandidates);
-        const selectedCandidateStillAvailable = rebuiltCandidates.some(
-          candidate =>
-            candidate.candidateKey === selectedGeneratedCandidateKey &&
-            candidate.package,
-        );
-
-        setGeneratedCandidates(rebuiltCandidatesWithPreviews);
-        setSelectedGeneratedCandidateKey(
-          selectedCandidateStillAvailable
-            ? selectedGeneratedCandidateKey
-            : rebuiltCandidatesWithPreviews.find(candidate => candidate.package)
-                ?.candidateKey ?? `${lipGenerateProvider}/uvOnly`,
-        );
-        setGeneratedCandidatesStale(false);
-        setWizardNotice('조정값이 현재 사진과 저장 후보에 바로 반영되었습니다.');
+        scheduleAdjustmentPreviewRebuild({
+          providerResult,
+          providerShotResults: providerShotResults.length
+            ? providerShotResults
+            : [providerResult],
+          nextAdjustment,
+          selectedCandidateKey: selectedGeneratedCandidateKey,
+        });
+        setWizardNotice('조정값을 받았습니다. 미리보기를 갱신하는 중입니다.');
       } else {
         setGeneratedCandidatesStale(generatedCandidates.length > 0);
+        setAdjustmentPreviewState('blocked');
         setWizardNotice('추출 결과가 없어 조정 preview를 다시 만들 수 없습니다.');
       }
       setFocusedRegion('lip');
       setActiveRegions(nextActiveRegions);
-      postRecipeBatch(
-        regionRecipes,
-        nextActiveRegions,
-        'lip',
-        selectedRendererMode,
-        selectedLipSample,
-        selectedLipRuntimeCandidate,
-        nextAdjustment,
-      );
     },
     [
       generatedCandidates.length,
-      lipUserAdjustment,
       lipGenerateProvider,
       nativeProviderResults,
       nativeProviderShotResults,
-      postRecipeBatch,
-      regionRecipes,
-      renderGeneratedCandidatePreviews,
       resetGeneratedApplyFlow,
+      scheduleAdjustmentPreviewRebuild,
       selectedGeneratedCandidateKey,
-      selectedLipSample,
-      selectedLipRuntimeCandidate,
-      selectedRendererMode,
     ],
   );
 
@@ -3129,6 +3345,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             alignmentGates={alignmentGates}
             generatedCandidates={generatedCandidates}
             generatedCandidatesStale={generatedCandidatesStale}
+            adjustmentPreviewState={adjustmentPreviewState}
             generatedApplyState={generatedApplyState}
             isGeneratingCandidates={isGeneratingCandidates}
             isSavingGeneratedPackage={isSavingGeneratedPackage}
@@ -3686,6 +3903,7 @@ type E7GenerateWizardProps = {
   alignmentGates: E7AlignmentGate[];
   generatedCandidates: E7GeneratedCandidateWithPreview[];
   generatedCandidatesStale: boolean;
+  adjustmentPreviewState: E7AdjustmentPreviewState;
   generatedApplyState: E7GeneratedApplyState;
   isGeneratingCandidates: boolean;
   isSavingGeneratedPackage: boolean;
@@ -3712,7 +3930,10 @@ type E7GenerateWizardProps = {
   onGenerateCandidates: () => void;
   onSelectCandidate: (candidateKey: string) => void;
   onSelectAdjustmentField: (field: LipAdjustmentField) => void;
-  onAdjustLip: (field: LipAdjustmentField, nextValue: number) => void;
+  onAdjustLip: (
+    field: LipAdjustmentField,
+    nextValue: LipAdjustmentValueUpdate,
+  ) => void;
   onSave: () => void;
 };
 
@@ -3724,6 +3945,7 @@ function E7GenerateWizard({
   alignmentGates,
   generatedCandidates,
   generatedCandidatesStale,
+  adjustmentPreviewState,
   generatedApplyState,
   isGeneratingCandidates,
   isSavingGeneratedPackage,
@@ -4091,6 +4313,7 @@ function E7GenerateWizard({
             <GeneratedAdjustmentPreview
               candidate={selectedGeneratedCandidate}
               selectedCandidateKey={selectedCandidateKey}
+              previewState={adjustmentPreviewState}
             />
             <View style={styles.adjustmentFieldButtonRow}>
               {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
@@ -4127,9 +4350,10 @@ function E7GenerateWizard({
               onChange={value => onAdjustLip(activeLipAdjustment.name, value)}
             />
             <Text style={styles.generateWizardBodyText}>
-              {generatedCandidatesStale
-                ? '추출 결과가 없어 조정 preview를 만들 수 없습니다.'
-                : '조정값이 미리보기와 저장 후보에 바로 반영됩니다.'}
+              {formatAdjustmentPreviewStateMessage(
+                adjustmentPreviewState,
+                generatedCandidatesStale,
+              )}
             </Text>
             <Text style={styles.generateWizardBodyText}>
               선택 룩: {selectedLipSample.label} / 질감:{' '}
@@ -4178,7 +4402,7 @@ function E7GenerateWizard({
               {formatGeneratedApplyUserMessage(generatedApplyState)}
             </Text>
             <Text style={styles.generateWizardBodyText}>
-              저장 완료 후 AR 화면에서 마스크가 보일 때까지 확인합니다.
+              {formatGeneratedApplyDetailMessage(generatedApplyState)}
             </Text>
             <Text style={styles.generateWizardBodyText} numberOfLines={2}>
               {generatedApplyState.status === 'blocked' ||
@@ -4189,7 +4413,13 @@ function E7GenerateWizard({
             <View style={styles.generateWizardApplyGateGrid}>
               <ApplyGatePill
                 label="저장"
-                value={savedGeneratedPackage ? '완료' : '대기'}
+                value={
+                  savedGeneratedPackage
+                    ? '완료'
+                    : generatedApplyState.status === 'saving'
+                      ? '진행'
+                      : '대기'
+                }
                 ready={Boolean(savedGeneratedPackage)}
               />
               <ApplyGatePill
@@ -4500,6 +4730,27 @@ function formatGeneratedApplyUserMessage(state: E7GeneratedApplyState) {
   }
 }
 
+function formatGeneratedApplyDetailMessage(state: E7GeneratedApplyState) {
+  switch (state.status) {
+    case 'saving':
+      return '저장 중에도 화면은 계속 진행됩니다. 완료되면 AR 전송으로 넘어갑니다.';
+    case 'posting':
+      return '저장된 마스크를 AR 화면에 보내는 중입니다.';
+    case 'waitingAck':
+      if ((state.retryCount ?? 0) > 0) {
+        return '얼굴 추적을 기다리며 자동으로 다시 확인합니다.';
+      }
+      return 'AR 화면에서 실제 적용 확인을 기다립니다.';
+    case 'applied':
+      return '아래 컨트롤로 ON/OFF, 진하게 보기, 경계와 농도를 확인하세요.';
+    case 'blocked':
+    case 'timeout':
+      return '다시 시도하거나 촬영부터 다시 진행할 수 있습니다.';
+    case 'idle':
+      return '저장하고 AR 실행을 누르면 단계별 진행 상태를 표시합니다.';
+  }
+}
+
 function formatGeneratedApplyRecoveryMessage(state: E7GeneratedApplyState) {
   if (state.status === 'timeout') {
     return '다시 시도하거나 촬영부터 다시 진행할 수 있습니다.';
@@ -4567,9 +4818,11 @@ function isGeneratedApplyTransientBlocked(
 function GeneratedAdjustmentPreview({
   candidate,
   selectedCandidateKey,
+  previewState,
 }: {
   candidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
+  previewState: E7AdjustmentPreviewState;
 }) {
   return (
     <View style={styles.generatedAdjustmentPreview}>
@@ -4600,10 +4853,25 @@ function GeneratedAdjustmentPreview({
         </Text>
       </View>
       <Text style={styles.generatedAdjustmentPreviewCaption}>
-        전체 얼굴 기준 마스크 미리보기
+        {previewState === 'rendering'
+          ? '미리보기 갱신 중'
+          : '전체 얼굴 기준 마스크 미리보기'}
       </Text>
     </View>
   );
+}
+
+function formatAdjustmentPreviewStateMessage(
+  previewState: E7AdjustmentPreviewState,
+  generatedCandidatesStale: boolean,
+) {
+  if (previewState === 'rendering') {
+    return '숫자는 즉시 바뀌었습니다. 미리보기와 저장 후보를 갱신하는 중입니다.';
+  }
+  if (previewState === 'blocked' || generatedCandidatesStale) {
+    return '추출 결과가 없어 조정 preview를 만들 수 없습니다.';
+  }
+  return '조정값이 미리보기와 저장 후보에 바로 반영됩니다.';
 }
 
 function formatProviderLabel(provider: GeneratedLipMaskProvider) {
@@ -4645,7 +4913,15 @@ function formatGeneratedCandidateDescription(
     return '다시 생성하거나 다른 방식을 선택하세요.';
   }
   if (candidate.expressionMode === 'blendshapeAssist') {
-    return '표정 촬영 신호로 소재와 번짐 안정성을 보조합니다.';
+    const blendDelta =
+      candidate.package?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta ?? 0;
+    if (
+      candidate.package?.uvCoverageMetadata?.blendFallbackReason ||
+      blendDelta <= 0
+    ) {
+      return '표정 보조 신호 부족: 기본 후보와 거의 같음';
+    }
+    return '촬영한 여러 표정의 UV 합성 마스크';
   }
   return '기본 경계와 색감을 먼저 확인합니다.';
 }
@@ -5615,19 +5891,23 @@ function TuningSlider({
 type AdjustmentStepperProps = {
   label: string;
   value: number;
-  onChange: (value: number) => void;
+  onChange: (value: LipAdjustmentValueUpdate) => void;
 };
 
 function AdjustmentStepper({ label, value, onChange }: AdjustmentStepperProps) {
   const stepValue = useCallback(
     (direction: -1 | 1) => {
-      const nextValue =
-        Math.round((value + direction * LIP_ADJUSTMENT_STEP) / LIP_ADJUSTMENT_STEP) *
-        LIP_ADJUSTMENT_STEP;
+      onChange(currentValue => {
+        const nextValue =
+          Math.round(
+            (currentValue + direction * LIP_ADJUSTMENT_STEP) /
+              LIP_ADJUSTMENT_STEP,
+          ) * LIP_ADJUSTMENT_STEP;
 
-      onChange(Number(Math.max(-1, Math.min(1, nextValue)).toFixed(2)));
+        return Number(Math.max(-1, Math.min(1, nextValue)).toFixed(2));
+      });
     },
-    [onChange, value],
+    [onChange],
   );
 
   return (

@@ -581,7 +581,19 @@ function runMain() {
       nativeProviderSource,
     ) &&
       /RCT_EXTERN_METHOD\(renderLipMaskPreview/.test(nativeBridgeSource),
-    'Native iOS preview helper must render the actual lipBoundary2D to a file:// PNG for RN.',
+    'Native iOS preview helper must render a generated_lip_package.json preview PNG for RN.',
+  );
+  addCheck(
+    'v2.native_preview_raw_uv_projection',
+    matchesAll(nativeProviderSource, [
+      /renderRawUvMaskProjection/,
+      /maskRawRgbaBase64/,
+      /maskTextureWidth/,
+      /maskTextureHeight/,
+      /arFaceExportPath/,
+      /raw_uv_mask_projection/,
+    ]) && /sourceFrameMetadata[\s\S]{0,500}arFaceExportPath/.test(personalizedPipelineSource),
+    'Native preview must project runtimeApplyPayload.maskRawRgbaBase64 through the ARFace UV export, with lipBoundary2D only as fallback/debug stroke.',
   );
   addCheck(
     'rn.flow_ack_gate_present',
@@ -758,6 +770,39 @@ function runMain() {
     'v2.capture_set_used_for_blendshape_assist',
     hasCaptureSetNativeExtraction && hasCaptureSetPackageEvidence,
     `The n-shot capture flow must feed generation, not only gate UI. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'}`,
+  );
+  const hasCaptureSetBlendMaskSource = matchesAll(personalizedPipelineSource, [
+    /buildCaptureSetBlendUvMask/,
+    /capture_set_consensus_v1/,
+    /uvOnlyVsBlendAlphaDelta/,
+    /blendAlphaChecksum/,
+    /innerMouthSuppressedTexels/,
+    /lowerLipGuardApplied/,
+    /maskRawRgbaBase64:\s*uv\.rawRgbaBase64/,
+  ]);
+  const hasCaptureSetBlendMaskTests = matchesAll(rnFocusedProofSource, [
+    /blendshapeAssist builds a capture-set consensus raw UV mask/,
+    /maskRawRgbaBase64\)\.not\.toBe/,
+    /uvOnlyVsBlendAlphaDelta\)\.toBeGreaterThan\(0\)/,
+    /blend_fallback_single_shot/,
+  ]);
+  const fixtureHasBlendMaskDelta =
+    generatedPackage?.expressionMode === 'blendshapeAssist' &&
+    generatedPackage?.uvCoverageMetadata?.blendMaskKind ===
+      'capture_set_consensus_v1' &&
+    Number(generatedPackage?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta ?? 0) > 0;
+  addCheck(
+    'v2.capture_set_used_for_blendshape_mask',
+    hasCaptureSetNativeExtraction &&
+      hasCaptureSetPackageEvidence &&
+      hasCaptureSetBlendMaskSource &&
+      hasCaptureSetBlendMaskTests,
+    `blendshapeAssist must build a real capture-set raw UV mask, not metadata-only blend. nativeExtraction=${hasCaptureSetNativeExtraction ? 'yes' : 'no'} packageEvidence=${hasCaptureSetPackageEvidence ? 'yes' : 'no'} source=${hasCaptureSetBlendMaskSource ? 'yes' : 'no'} tests=${hasCaptureSetBlendMaskTests ? 'yes' : 'no'} fixtureDelta=${fixtureHasBlendMaskDelta ? 'yes' : 'not-current-fixture'}`,
+    {
+      fixtureBlendMaskKind: generatedPackage?.uvCoverageMetadata?.blendMaskKind,
+      fixtureUvOnlyVsBlendAlphaDelta:
+        generatedPackage?.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta,
+    },
   );
 
   const captureTimeoutAndPreviewReady = matchesAll(rnAppSource, [

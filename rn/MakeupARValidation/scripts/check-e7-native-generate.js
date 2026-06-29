@@ -91,8 +91,11 @@ assertCheck(
 );
 assertCheck(
   'Swift exposes actual package preview render',
-  /@objc\(renderLipMaskPreview:resolver:rejecter:\)/.test(providerSwift),
-  'RN preview must come from generated_lip_package.json, not bbox/rounded-rect View drawing',
+  /@objc\(renderLipMaskPreview:resolver:rejecter:\)/.test(providerSwift) &&
+    /renderRawUvMaskProjection/.test(providerSwift) &&
+    /maskRawRgbaBase64/.test(providerSwift) &&
+    /raw_uv_mask_projection/.test(providerSwift),
+  'RN preview must come from generated_lip_package.json runtime raw UV mask, not bbox/rounded-rect View drawing',
 );
 assertCheck(
   'Objective-C bridge exports native methods',

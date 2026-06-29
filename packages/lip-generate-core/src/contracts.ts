@@ -44,6 +44,7 @@ export type LipBoundary2D = {
 export type LipSourceFrameMetadata = {
   capturePairId?: string;
   framePath?: string;
+  arFaceExportPath?: string;
   frameWidth?: number;
   frameHeight?: number;
   orientation?: string;
@@ -61,7 +62,10 @@ export type LipSourceFaceState = {
 export type LipUvCoverageMetadata = {
   uvResolution?: number;
   coverageTexels?: number;
+  positiveTexels?: number;
   unknownTexels?: number;
+  alphaSum?: number;
+  alphaChecksum?: number;
   edgeBandTexels?: number;
   edgeBandRatio?: number;
   alphaBoundingBoxTexels?: {
@@ -70,6 +74,18 @@ export type LipUvCoverageMetadata = {
     maxColumn: number;
     maxRow: number;
   };
+  blendMaskKind?: 'neutral_single_shot_v1' | 'capture_set_consensus_v1';
+  blendShotKindsUsed?: string[];
+  blendUsableShotCount?: number;
+  blendFallbackReason?: string;
+  uvOnlyAlphaChecksum?: number;
+  blendAlphaChecksum?: number;
+  uvOnlyVsBlendAlphaDelta?: number;
+  innerMouthSuppressedTexels?: number;
+  lowerLipGuardApplied?: boolean;
+  lowerLipGuardClippedTexels?: number;
+  consensusThreshold?: number;
+  shotWeights?: Record<string, number>;
   innerHoleSampleCount?: number;
   innerHolePositiveRatio?: number;
   previewVsUvRoundTripDelta?: number;
@@ -125,6 +141,11 @@ export type LipBlendshapeAssistMetadata = {
   enabled: boolean;
   source: 'arface-blendshapes';
   materialFeatherUvNormalized: number;
+  blendMaskKind?: 'neutral_single_shot_v1' | 'capture_set_consensus_v1';
+  blendShotKindsUsed?: string[];
+  blendUsableShotCount?: number;
+  blendFallbackReason?: string;
+  uvOnlyVsBlendAlphaDelta?: number;
   values?: Record<string, number>;
   warning?: string;
 };

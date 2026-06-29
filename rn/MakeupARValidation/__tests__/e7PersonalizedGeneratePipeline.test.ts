@@ -88,6 +88,41 @@ function makeNativeBoundaryResult(): E7NativeBoundaryResult {
   };
 }
 
+function makeCaptureSetShot(
+  shotKind: E7NativeBoundaryResult['captureShotKind'],
+  delta: { x?: number; y?: number; scaleX?: number; scaleY?: number } = {},
+): E7NativeBoundaryResult {
+  const result = makeNativeBoundaryResult();
+  const scaleX = delta.scaleX ?? 1;
+  const scaleY = delta.scaleY ?? 1;
+  const center = { x: 120, y: 127 };
+  const transformPoint = (point: { x: number; y: number }) => ({
+    x: center.x + (point.x - center.x) * scaleX + (delta.x ?? 0),
+    y: center.y + (point.y - center.y) * scaleY + (delta.y ?? 0),
+  });
+
+  return {
+    ...result,
+    capturePairId: `pair_face_boundary_test_${shotKind}`,
+    captureShotKind: shotKind,
+    framePath: `Documents/e7-reference-atlas/capture_pairs/${shotKind}/frame.png`,
+    arFaceExportPath: `Documents/e7-reference-atlas/capture_pairs/${shotKind}/arface_export.json`,
+    boundary: {
+      ...result.boundary!,
+      outerPoints: result.boundary!.outerPoints.map(transformPoint),
+      innerPoints: result.boundary!.innerPoints.map(transformPoint),
+      generationMethod: `vision_${shotKind}_test`,
+    },
+    blendShapes: {
+      available: true,
+      keySignals: {
+        mouthSmileLeft: shotKind === 'smile' ? 0.62 : 0.12,
+        mouthPucker: shotKind === 'pucker' ? 0.58 : 0.03,
+      },
+    },
+  };
+}
+
 function outerBoundaryDelta(
   previous: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
   next: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints'],
@@ -398,6 +433,88 @@ test('generated UV mask defaults to 512 with antialias and hole metrics', () => 
   expect(metadata.innerHoleSampleCount).toBeGreaterThan(0);
   expect(metadata.innerHolePositiveRatio).toBeLessThanOrEqual(0.01);
   expect(metadata.previewVsUvRoundTripDelta).toBeLessThanOrEqual(0.35);
+});
+
+test('blendshapeAssist builds a capture-set consensus raw UV mask', () => {
+  const neutral = makeCaptureSetShot('neutral');
+  const smile = makeCaptureSetShot('smile', { scaleX: 1.16, scaleY: 1.05 });
+  const pucker = makeCaptureSetShot('pucker', { scaleX: 0.96, scaleY: 1.16 });
+  const mouthOpen = makeCaptureSetShot('mouthOpen', { scaleY: 1.2 });
+
+  const uvOnlyPackage = buildGeneratedLipPackage({
+    nativeResult: neutral,
+    providerResults: [neutral, smile, pucker, mouthOpen],
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const blendPackage = buildGeneratedLipPackage({
+    nativeResult: neutral,
+    providerResults: [neutral, smile, pucker, mouthOpen],
+    expressionMode: 'blendshapeAssist',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const blendMetadata = blendPackage.uvCoverageMetadata!;
+
+  expect(blendPackage.runtimeApplyPayload.maskRawRgbaBase64).not.toBe(
+    uvOnlyPackage.runtimeApplyPayload.maskRawRgbaBase64,
+  );
+  expect(blendMetadata.blendMaskKind).toBe('capture_set_consensus_v1');
+  expect(blendMetadata.blendShotKindsUsed).toEqual([
+    'neutral',
+    'smile',
+    'pucker',
+    'mouthOpen',
+  ]);
+  expect(blendMetadata.blendUsableShotCount).toBe(4);
+  expect(blendMetadata.uvOnlyAlphaChecksum).toBe(
+    uvOnlyPackage.uvCoverageMetadata?.alphaChecksum,
+  );
+  expect(blendMetadata.blendAlphaChecksum).not.toBe(
+    blendMetadata.uvOnlyAlphaChecksum,
+  );
+  expect(blendMetadata.uvOnlyVsBlendAlphaDelta).toBeGreaterThan(0);
+  expect(blendPackage.blendshapeAssist.blendMaskKind).toBe(
+    'capture_set_consensus_v1',
+  );
+  expect(blendPackage.blendshapeAssist.uvOnlyVsBlendAlphaDelta).toBeGreaterThan(0);
+  expect(blendPackage.qualityWarnings).toContain(
+    'blend_mask_capture_set_consensus_v1_4_shots',
+  );
+});
+
+test('blendshapeAssist records an honest fallback with one usable shot', () => {
+  const neutral = makeCaptureSetShot('neutral');
+  const uvOnlyPackage = buildGeneratedLipPackage({
+    nativeResult: neutral,
+    providerResults: [neutral],
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const blendPackage = buildGeneratedLipPackage({
+    nativeResult: neutral,
+    providerResults: [neutral],
+    expressionMode: 'blendshapeAssist',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+
+  expect(blendPackage.runtimeApplyPayload.maskRawRgbaBase64).toBe(
+    uvOnlyPackage.runtimeApplyPayload.maskRawRgbaBase64,
+  );
+  expect(blendPackage.uvCoverageMetadata?.blendMaskKind).toBe(
+    'neutral_single_shot_v1',
+  );
+  expect(blendPackage.uvCoverageMetadata?.blendFallbackReason).toBe(
+    'blend_fallback_single_shot',
+  );
+  expect(blendPackage.uvCoverageMetadata?.uvOnlyVsBlendAlphaDelta).toBe(0);
+  expect(blendPackage.blendshapeAssist.warning).toBe(
+    'blend_fallback_single_shot',
+  );
+  expect(blendPackage.qualityWarnings).toContain('blend_fallback_single_shot');
 });
 
 test('UV mask raw texture rows match Unity bottom-left texture memory', () => {
