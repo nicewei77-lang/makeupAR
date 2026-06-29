@@ -5014,6 +5014,73 @@ pass: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
 4. 결과를 L1/L2/L3/Q1/Q2/Q3/U1/S1/A1 중 남은 원인으로 다시 분류한다.
 ```
 
+### 18.7E 2026-06-29 iPhone build/install/launch checkpoint
+
+Status: **iPhone build/install/launch pass, AR visual/runtime quality still pending**.
+
+빌드 전 buildless 재검증:
+
+```txt
+pass: cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit
+pass: cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false
+  Tests: 26 passed
+pass: cd rn/MakeupARValidation && npm run lint
+pass: cd packages/lip-generate-core && npm run typecheck
+pass: cd packages/lip-generate-core && npm test
+pass: git diff --check
+
+pass: cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+  decision=no-phone-build-needed
+  reason=Only docs/tooling files changed.
+  unityFrameworkSync=true reason=frameworks_synced
+
+pass: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+  result=pass pass=36 fail=0 warn=0
+```
+
+빌드/install/launch:
+
+```txt
+fallback: npm run ios -- --device "위승철의 iPhone" --no-packager --extra-params DEVELOPMENT_TEAM=9G4K6N63MK
+  result=failed before Xcode
+  reason=No simulator available with udid "undefined"
+
+pass: xcodebuild direct retry
+  workspace=ios/MakeupARValidation.xcworkspace
+  scheme=MakeupARValidation
+  configuration=Debug
+  destination=id=6F504EE9-BABC-5F6F-A186-C734E04CA625
+  result=** BUILD SUCCEEDED **
+
+pass: xcrun devicectl device install app
+  bundleID=com.makeupar.rnvalidation
+
+pass: xcrun devicectl device process launch
+  bundleID=com.makeupar.rnvalidation
+
+pass: xcrun devicectl device info processes
+  found=/MakeupARValidation.app/MakeupARValidation
+  pid=3063
+```
+
+evidence:
+
+```txt
+evidence/logs/e7-ar-lip-release-candidate-rn-ios-xcodebuild-20260629-buildstart.log
+evidence/logs/e7-ar-lip-release-candidate-rn-ios-xcodebuild-20260629-buildstart-retry.log
+evidence/logs/e7-ar-lip-release-candidate-devicectl-install-20260629-buildstart.log
+evidence/logs/e7-ar-lip-release-candidate-devicectl-launch-20260629-buildstart.log
+evidence/logs/e7-ar-lip-release-candidate-devicectl-processes-20260629-buildstart.log
+```
+
+판정:
+
+```txt
+- This checkpoint proves build/install/launch only.
+- It does not prove AR lip mask edge quality, spill reduction, yaw latency, upper/lower +/- direction on-device, stale-mask prevention, validation-control ack behavior, FPS/frame-time, memory/thermal, or human visual acceptance.
+- Next gate remains the section 18.7 device scenario with screen/log evidence and generated_lip_mask_applied.latest.json pullback.
+```
+
 ### 18.7 다음 실기기 테스트 시나리오
 
 빌드 후 사용자는 처음부터 끝까지 한 번만 흐름을 탄다. Codex는 로그와 화면을 같이 본다.
