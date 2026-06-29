@@ -141,7 +141,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return latestRegionResults.TryGetValue(NormalizeRegion(region), out result);
     }
 
-    public void SetOverlayRenderingSuppressed(bool suppressed)
+    public void SetOverlayRenderingSuppressed(bool suppressed, string reason = "manual")
     {
         overlayRenderingSuppressed = suppressed;
         if (suppressed)
@@ -151,7 +151,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         Debug.Log(
             "[E7] region_overlay_suppression"
-            + " suppressed=" + overlayRenderingSuppressed.ToString().ToLowerInvariant());
+            + " suppressed=" + overlayRenderingSuppressed.ToString().ToLowerInvariant()
+            + " reason=" + NormalizeLogToken(reason));
     }
 
     public void ClearRecipesAndHideOverlays()
@@ -1341,6 +1342,30 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " regionDecision=smooth_mask_runtime"
             + " smoothing=smooth_alpha_mask"
             + " regionsInScope=lip,cheek,eye,blush,brow,eyeliner");
+    }
+
+    private static string NormalizeLogToken(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "none";
+        }
+
+        char[] chars = value.Trim().ToLowerInvariant().ToCharArray();
+        for (int index = 0; index < chars.Length; index++)
+        {
+            char current = chars[index];
+            bool allowed = (current >= 'a' && current <= 'z')
+                || (current >= '0' && current <= '9')
+                || current == '_'
+                || current == '-';
+            if (!allowed)
+            {
+                chars[index] = '_';
+            }
+        }
+
+        return new string(chars);
     }
 
     private static string BuildTopologyAuditStatus(ARFace face)

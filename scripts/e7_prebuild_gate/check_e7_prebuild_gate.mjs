@@ -604,6 +604,16 @@ function runMain() {
     ) && hasSmoothingPointGrowthProof,
     `TS package path must record curve_densified_v1, carry smoothing metadata into lipBoundary2D/UV diagnostics, and prove smoothedPointCount > originalPointCount. ${patternPresenceDetail(personalizedPipelineSource, smoothingContractRequirements)} pointGrowthProof=${hasSmoothingPointGrowthProof ? 'yes' : 'no'}`,
   );
+  addCheck(
+    'v2.unity_raw_uv_texture_origin',
+    /function\s+uvToIndex[\s\S]{0,220}row\s*=\s*Math\.round\(\s*v\s*\*\s*\(\s*resolution\s*-\s*1\s*\)\s*\)/.test(
+      personalizedPipelineSource,
+    ) &&
+      !/function\s+uvToIndex[\s\S]{0,220}row\s*=\s*Math\.round\(\s*\(\s*1\s*-\s*v\s*\)/.test(
+        personalizedPipelineSource,
+      ),
+    'Generated raw RGBA UV masks must use Unity Texture2D bottom-left row order; using 1-v here vertically flips the AR mask onto the wrong face region.',
+  );
 
   const renderPreviewUsesSmoothPath =
     /renderLipMaskPreview[\s\S]{0,5000}(appendSmoothClosedCurve|addCurve\s*\(|addQuadCurve\s*\()/i.test(

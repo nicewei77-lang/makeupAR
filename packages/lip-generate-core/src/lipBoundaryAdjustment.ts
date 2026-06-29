@@ -120,14 +120,14 @@ function applyLipAdjustmentToPoints(
     let y = point.y + adjustment.verticalOffset * height * 0.38;
 
     if (dy < 0) {
-      y +=
+      y -=
         adjustment.upperLipTightness *
         height *
         0.24 *
         verticalWeight *
         tightnessScale;
     } else if (dy > 0) {
-      y -=
+      y +=
         adjustment.lowerLipTightness *
         height *
         0.24 *

@@ -358,6 +358,8 @@ const E7_EVIDENCE_MODE = 'smooth-mask-validation';
 const LIP_ADJUSTMENT_STEP = 0.05;
 const E7_CAPTURE_ACK_TIMEOUT_MS = 7_000;
 const GENERATED_APPLY_ACK_TIMEOUT_MS = 10_000;
+const GENERATED_APPLY_RETRY_DELAY_MS = 800;
+const GENERATED_APPLY_MAX_TRANSIENT_RETRIES = 8;
 const GENERATED_CONTROL_ACK_TIMEOUT_MS = 3_000;
 const GENERATED_MASK_VALIDATION_COLORS = [
   { name: 'rose', color: '#D94B74' },
@@ -469,6 +471,7 @@ type E7GeneratedApplyState = {
   updatedAtMs: number;
   elapsedMs?: number;
   blockedReason?: string;
+  retryCount?: number;
   error?: string;
   ack?: UnityEventPayload;
 };
@@ -483,6 +486,12 @@ type PendingGeneratedControlCheck = {
   generatedMaskId: string;
   controls: GeneratedMaskValidationControls;
   requestedAtMs: number;
+};
+type PendingGeneratedApplyPayload = {
+  generatedMaskId: string;
+  unityMessageJson: string;
+  startedAtMs: number;
+  retryCount: number;
 };
 type E7AlignmentGateState = 'waiting' | 'ready' | 'blocked';
 type E7AlignmentGate = {
@@ -1101,6 +1110,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const activeGenerationRequestRef =
     useRef<E7GenerationRequestGuard | null>(null);
   const pendingGeneratedMaskIdRef = useRef<string | null>(null);
+  const pendingGeneratedApplyPayloadRef =
+    useRef<PendingGeneratedApplyPayload | null>(null);
+  const generatedApplyRetryTimeoutRef =
+    useRef<ReturnType<typeof setTimeout> | null>(null);
   const selectedLipSample =
     lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
   const lipUserAdjustmentSignature = useMemo(
@@ -1112,15 +1125,24 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       candidate => candidate.candidateId === selectedLipRuntimeCandidateId,
     ) ?? DEFAULT_LIP_RUNTIME_CANDIDATE;
 
+  const clearGeneratedApplyRetryTimeout = useCallback(() => {
+    if (generatedApplyRetryTimeoutRef.current) {
+      clearTimeout(generatedApplyRetryTimeoutRef.current);
+      generatedApplyRetryTimeoutRef.current = null;
+    }
+  }, []);
+
   const resetGeneratedApplyFlow = useCallback((reason: string) => {
+    clearGeneratedApplyRetryTimeout();
     pendingGeneratedMaskIdRef.current = null;
+    pendingGeneratedApplyPayloadRef.current = null;
     setGeneratedApplyState(createGeneratedApplyState('idle'));
     setPendingGeneratedMaskId(null);
     setPendingGeneratedPackage(null);
     setAppliedGeneratedPackage(null);
     setPendingGeneratedControlCheck(null);
     console.log('[E7] generated_apply_state_reset', reason);
-  }, []);
+  }, [clearGeneratedApplyRetryTimeout]);
 
   useEffect(() => {
     pendingGeneratedMaskIdRef.current = pendingGeneratedMaskId;
@@ -1958,6 +1980,86 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     selectedGeneratedCandidateKey,
   ]);
 
+  const postPendingGeneratedApplyPayload = useCallback(
+    (blockedReason: string) => {
+      const pendingPayload = pendingGeneratedApplyPayloadRef.current;
+      if (!pendingPayload) {
+        return false;
+      }
+
+      const baseState = {
+        generatedMaskId: pendingPayload.generatedMaskId,
+        startedAtMs: pendingPayload.startedAtMs,
+        blockedReason,
+        retryCount: pendingPayload.retryCount,
+      };
+
+      if (!unityRef.current) {
+        setGeneratedApplyState(
+          createGeneratedApplyState('waitingAck', {
+            ...baseState,
+            blockedReason: 'unity_view_not_ready_retrying',
+          }),
+        );
+        setWizardNotice('AR 화면을 준비하는 중입니다. 잠시만 기다려 주세요.');
+        return false;
+      }
+
+      postRegionOverlayVisibility(true, `generated_lip_mask_apply_${blockedReason}`);
+      unityRef.current.postMessage(
+        'RNBridge',
+        'ApplyGeneratedLipMaskJson',
+        pendingPayload.unityMessageJson,
+      );
+      setGeneratedApplyState(
+        createGeneratedApplyState('waitingAck', baseState),
+      );
+      return true;
+    },
+    [postRegionOverlayVisibility],
+  );
+
+  const scheduleGeneratedApplyRetry = useCallback(
+    (blockedReason: string) => {
+      const pendingPayload = pendingGeneratedApplyPayloadRef.current;
+      if (!pendingPayload) {
+        return false;
+      }
+
+      const elapsedMs = Date.now() - pendingPayload.startedAtMs;
+      if (
+        pendingPayload.retryCount >= GENERATED_APPLY_MAX_TRANSIENT_RETRIES ||
+        elapsedMs + GENERATED_APPLY_RETRY_DELAY_MS >=
+          GENERATED_APPLY_ACK_TIMEOUT_MS
+      ) {
+        return false;
+      }
+
+      clearGeneratedApplyRetryTimeout();
+      pendingPayload.retryCount += 1;
+      const retryReason = normalizeGeneratedApplyTransientReason(blockedReason);
+      setGeneratedApplyState(
+        createGeneratedApplyState('waitingAck', {
+          generatedMaskId: pendingPayload.generatedMaskId,
+          startedAtMs: pendingPayload.startedAtMs,
+          blockedReason: retryReason,
+          retryCount: pendingPayload.retryCount,
+        }),
+      );
+      setWizardNotice(formatGeneratedApplyRetryNotice(retryReason));
+      generatedApplyRetryTimeoutRef.current = setTimeout(() => {
+        if (
+          pendingGeneratedMaskIdRef.current !== pendingPayload.generatedMaskId
+        ) {
+          return;
+        }
+        postPendingGeneratedApplyPayload(retryReason);
+      }, GENERATED_APPLY_RETRY_DELAY_MS);
+      return true;
+    },
+    [clearGeneratedApplyRetryTimeout, postPendingGeneratedApplyPayload],
+  );
+
   const saveSelectedGeneratedPackage = useCallback(async () => {
     if (isSavingGeneratedPackage || generatedCandidatesStale) {
       setWizardNotice('조정값은 현재 후보에 즉시 반영되어야 합니다. 후보를 다시 확인하세요.');
@@ -1999,6 +2101,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           { includeTexture: true },
         ),
       );
+      const startedAtMs = Date.now();
+      pendingGeneratedApplyPayloadRef.current = {
+        generatedMaskId: selectedCandidate.package.generatedMaskId,
+        unityMessageJson,
+        startedAtMs,
+        retryCount: 0,
+      };
 
       setSavedGeneratedPackage(record);
       setLastGeneratedLipMaskSummary(
@@ -2008,28 +2117,25 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       setGeneratedApplyState(
         createGeneratedApplyState('posting', {
           generatedMaskId: selectedCandidate.package.generatedMaskId,
-          startedAtMs: Date.now(),
+          startedAtMs,
           blockedReason: 'posting_apply_payload_to_unity',
-        }),
-      );
-      unityRef.current?.postMessage(
-        'RNBridge',
-        'ApplyGeneratedLipMaskJson',
-        unityMessageJson,
-      );
-      setGeneratedApplyState(
-        createGeneratedApplyState('waitingAck', {
-          generatedMaskId: selectedCandidate.package.generatedMaskId,
-          startedAtMs: Date.now(),
-          blockedReason: 'waiting_for_generated_lip_mask_applied_ack',
         }),
       );
       setWizardStep('apply');
       setWizardNotice('저장 완료. AR 화면에서 적용 확인을 기다립니다.');
+      if (
+        !postPendingGeneratedApplyPayload(
+          'waiting_for_generated_lip_mask_applied_ack',
+        )
+      ) {
+        scheduleGeneratedApplyRetry('unity_view_not_ready_retrying');
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'unknown_save_error';
+      clearGeneratedApplyRetryTimeout();
       pendingGeneratedMaskIdRef.current = null;
+      pendingGeneratedApplyPayloadRef.current = null;
       setPendingGeneratedMaskId(null);
       setPendingGeneratedPackage(null);
       setGeneratedApplyState(
@@ -2048,10 +2154,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       setIsSavingGeneratedPackage(false);
     }
   }, [
+    clearGeneratedApplyRetryTimeout,
     generatedCandidates,
     generatedCandidatesStale,
     generatedValidationControls,
     isSavingGeneratedPackage,
+    postPendingGeneratedApplyPayload,
+    scheduleGeneratedApplyRetry,
     selectedGeneratedCandidateKey,
   ]);
 
@@ -2081,6 +2190,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           includeTexture: false,
         }),
       );
+      postRegionOverlayVisibility(true, 'generated_lip_mask_controls_update');
       unityRef.current?.postMessage(
         'RNBridge',
         'ApplyGeneratedLipMaskJson',
@@ -2103,6 +2213,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       appliedGeneratedPackage,
       generatedValidationControls,
       pendingGeneratedPackage,
+      postRegionOverlayVisibility,
     ],
   );
 
@@ -2184,6 +2295,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               `generatedMaskId=${generatedMaskId || 'missing'}`,
             );
           } else if (isApplied) {
+            clearGeneratedApplyRetryTimeout();
+            pendingGeneratedApplyPayloadRef.current = null;
             const didConfirmPendingControls =
               Boolean(pendingGeneratedControlCheck) &&
               generatedMaskId === pendingGeneratedControlCheck?.generatedMaskId &&
@@ -2218,7 +2331,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 ? 'AR 검증 변경이 반영되었습니다. 화면에서 마스크 차이를 확인하세요.'
                 : 'AR 화면입니다. 마스크가 보이는지 아래 컨트롤로 확인하세요.',
             );
+          } else if (
+            isMatchingPendingMask &&
+            isGeneratedApplyTransientBlocked(parsed, blockedReason) &&
+            scheduleGeneratedApplyRetry(blockedReason)
+          ) {
+            console.log(
+              '[E7] generated_lip_mask_apply_retry_scheduled',
+              `generatedMaskId=${generatedMaskId || 'missing'}`,
+              `reason=${blockedReason}`,
+            );
           } else {
+            clearGeneratedApplyRetryTimeout();
+            pendingGeneratedApplyPayloadRef.current = null;
             setGeneratedApplyState(
               createGeneratedApplyState('blocked', {
                 generatedMaskId,
@@ -2374,7 +2499,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       pendingCaptureShotKind,
       pendingGeneratedControlCheck,
       pendingGeneratedPackage,
+      clearGeneratedApplyRetryTimeout,
       postRecipeAck,
+      scheduleGeneratedApplyRetry,
       validationViewMode,
     ],
   );
@@ -2393,6 +2520,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       GENERATED_APPLY_ACK_TIMEOUT_MS - elapsedMs,
     );
     const timeout = setTimeout(() => {
+      clearGeneratedApplyRetryTimeout();
+      pendingGeneratedApplyPayloadRef.current = null;
+      pendingGeneratedMaskIdRef.current = null;
+      setPendingGeneratedMaskId(null);
       setGeneratedApplyState(currentState => {
         if (
           currentState.status !== 'waitingAck' ||
@@ -2414,7 +2545,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     }, remainingMs);
 
     return () => clearTimeout(timeout);
-  }, [generatedApplyState.generatedMaskId, generatedApplyState.startedAtMs, generatedApplyState.status]);
+  }, [
+    clearGeneratedApplyRetryTimeout,
+    generatedApplyState.generatedMaskId,
+    generatedApplyState.startedAtMs,
+    generatedApplyState.status,
+  ]);
 
   useEffect(() => {
     if (!pendingCapturePairId || !pendingCaptureShotKind) {
@@ -2499,14 +2635,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
   const unityInitializedAt =
     unityEventStatus.unity_initialized?.receivedAtMs ?? 0;
-
-  useEffect(() => {
-    postRegionOverlayVisibility(true, 'validation_view_mode_changed');
-  }, [
-    postRegionOverlayVisibility,
-    validationViewMode,
-    unityInitializedAt,
-  ]);
 
   const latestRecipeRecord = unityEventStatus.recipe_applied;
   const recipeLatencyMs = getRecipeAckLatencyMs(
@@ -2599,7 +2727,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   );
   const wizardStepIndex = getWizardStepIndex(wizardStep);
   const hasGeneratedMaskApplied = generatedApplyState.status === 'applied';
+  const shouldShowGeneratedRegionOverlay =
+    generatedApplyState.status === 'posting' ||
+    generatedApplyState.status === 'waitingAck' ||
+    hasGeneratedMaskApplied;
   const isUsingCapturedFrameReview =
+    wizardStep !== 'apply' &&
     (wizardStepIndex >= getWizardStepIndex('extract') ||
       capturedShotCount >= E7_CAPTURE_SHOT_OPTIONS.length) &&
     !hasGeneratedMaskApplied;
@@ -2611,6 +2744,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     nativeProviderShotResults[lipGenerateProvider]?.find(result =>
       Boolean(result.framePreviewUri),
     )?.framePreviewUri;
+
+  useEffect(() => {
+    postRegionOverlayVisibility(
+      shouldShowGeneratedRegionOverlay,
+      shouldShowGeneratedRegionOverlay
+        ? 'generated_lip_mask_applied_visible'
+        : `generated_wizard_overlay_hidden_${wizardStep}`,
+    );
+  }, [
+    postRegionOverlayVisibility,
+    shouldShowGeneratedRegionOverlay,
+    unityInitializedAt,
+    wizardStep,
+  ]);
   const showCompactControls = false;
 
   const toggleRegion = useCallback(
@@ -4277,6 +4424,9 @@ function formatGeneratedApplyUserMessage(state: E7GeneratedApplyState) {
     case 'posting':
       return 'AR 화면에 마스크를 보내는 중입니다.';
     case 'waitingAck':
+      if ((state.retryCount ?? 0) > 0) {
+        return 'AR 화면에서 얼굴을 찾는 중입니다.';
+      }
       return 'AR 화면에서 적용 여부를 확인하는 중입니다.';
     case 'applied':
       return 'AR 화면에 마스크가 적용되었습니다.';
@@ -4302,6 +4452,53 @@ function formatGeneratedApplyBlockedNotice(reason: string) {
     return 'AR 적용 응답이 늦습니다. 다시 시도하거나 촬영부터 다시 진행할 수 있습니다.';
   }
   return 'AR 적용을 확인하지 못했습니다. 다시 시도하거나 촬영부터 다시 진행해 주세요.';
+}
+
+function normalizeGeneratedApplyTransientReason(reason: string) {
+  const normalized = reason.toLowerCase();
+  if (
+    normalized.includes('face') ||
+    normalized.includes('arface') ||
+    normalized.includes('tracking')
+  ) {
+    return 'waiting_for_live_face_tracking';
+  }
+  if (normalized.includes('uv')) {
+    return 'waiting_for_arface_uv';
+  }
+  if (normalized.includes('unity_view')) {
+    return 'unity_view_not_ready_retrying';
+  }
+  return 'retrying_runtime_apply';
+}
+
+function formatGeneratedApplyRetryNotice(reason: string) {
+  if (reason === 'waiting_for_arface_uv') {
+    return 'AR 얼굴 메쉬를 준비하는 중입니다. 얼굴을 화면 중앙에 두고 기다려 주세요.';
+  }
+  if (reason === 'unity_view_not_ready_retrying') {
+    return 'AR 화면을 준비하는 중입니다. 잠시만 기다려 주세요.';
+  }
+  return 'AR 화면에서 얼굴을 찾는 중입니다. 얼굴을 화면 중앙에 두고 기다려 주세요.';
+}
+
+function isGeneratedApplyTransientBlocked(
+  event: UnityEventPayload,
+  reason: string,
+) {
+  const normalized = reason.toLowerCase();
+  if (
+    normalized.includes('face_tracking') ||
+    normalized.includes('no_tracked_arface') ||
+    normalized.includes('face_manager') ||
+    normalized.includes('arface_uv_unavailable')
+  ) {
+    return true;
+  }
+
+  const faceCount = readNumber(event.faceCount) ?? 0;
+  const maskTriangles = readNumber(event.maskTriangles) ?? 0;
+  return event.applied !== true && faceCount === 0 && maskTriangles === 0;
 }
 
 function GeneratedAdjustmentPreview({

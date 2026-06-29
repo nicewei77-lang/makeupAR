@@ -26,25 +26,44 @@ MediaPipe upper eyelid anchor를 기준으로 아이라인 band 후보 **144개*
 ## 4. Geometry 기준
 
 <figure>
-  <img src="assets/01-mediapipe-upper-eyelid-anchor.png" width="760" alt="MediaPipe upper eyelid anchor">
+  <img src="assets/01-mediapipe-upper-eyelid-anchor.png" width="820" alt="MediaPipe upper eyelid anchor">
   <figcaption>그림 1. 초록색이 MediaPipe upper eyelid anchor다. 이번 후보들은 이 선을 기준으로 두께와 눈꼬리 band를 확장했다.</figcaption>
 </figure>
 
 ## 5. 전체 Top 후보
 
 <figure>
-  <img src="assets/02-contact-sheet-top-36.png" width="980" alt="Top 36 eyeliner anchor to band candidates">
+  <img src="assets/02-contact-sheet-top-36.png" width="1080" alt="Top 36 eyeliner anchor to band candidates">
   <figcaption>그림 2. 사용자가 고르기 좋도록 family와 shape를 섞은 review 후보 36개 eye crop이다. score는 정렬 보조일 뿐이고 최종 선택은 사람이 한다.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/02b-left-eye-top-36.png" width="980" alt="Left eye top 36 eyeliner candidates">
+  <img src="assets/02b-left-eye-top-36.png" width="1200" alt="Left eye top 36 eyeliner candidates">
   <figcaption>그림 2-1. 왼쪽 눈만 확대한 review 후보 36개다. wide crop에서 잘 안 보이는 tail 두께와 눈꼬리 채움 차이를 여기서 본다.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/02c-right-eye-top-36.png" width="980" alt="Right eye top 36 eyeliner candidates">
+  <img src="assets/02c-right-eye-top-36.png" width="1200" alt="Right eye top 36 eyeliner candidates">
   <figcaption>그림 2-2. 오른쪽 눈만 확대한 review 후보 36개다. 좌우 대칭과 한쪽 눈에서만 어색한 후보를 확인한다.</figcaption>
+</figure>
+
+### 5.1 선택용 고대비 보기
+
+검은 제품색 preview는 실제 아이라인 느낌을 보기에는 맞지만, 후보 선택 단계에서는 속눈썹/눈꺼풀 그림자와 겹쳐 tail 길이와 band 두께가 잘 안 보일 수 있다. 아래 이미지는 같은 후보를 cyan + white halo로 다시 표시한 **선택용 debug preview**다. 앱 제품색이나 최종 렌더링 스타일을 의미하지 않는다.
+
+<figure>
+  <img src="assets/13-high-contrast-top-36.png" width="1080" alt="High contrast top 36 eyeliner candidates">
+  <figcaption>그림 2-3. 전체 눈 crop 기준 고대비 review 후보 36개다. 검은색 preview에서 묻히는 아이라인 면적과 꼬리 방향을 확인하기 위한 용도다.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/13b-left-eye-high-contrast-top-36.png" width="1200" alt="Left eye high contrast eyeliner candidates">
+  <figcaption>그림 2-4. 왼쪽 눈 고대비 view. 후보 선택 시 tail 길이, 두께, 눈꼬리 채움 차이를 우선 확인한다.</figcaption>
+</figure>
+
+<figure>
+  <img src="assets/13c-right-eye-high-contrast-top-36.png" width="1200" alt="Right eye high contrast eyeliner candidates">
+  <figcaption>그림 2-5. 오른쪽 눈 고대비 view. 좌우에서 한쪽만 과하거나 어색한 후보를 걸러내기 위한 용도다.</figcaption>
 </figure>
 
 ## 6. Family별 후보
@@ -63,51 +82,51 @@ MediaPipe upper eyelid anchor를 기준으로 아이라인 band 후보 **144개*
 | tail_only_safe | 6 |
 
 <figure>
-  <img src="assets/03-family-cat.png" width="980" alt="Cat eyeliner candidates">
+  <img src="assets/03-family-cat.png" width="1000" alt="Cat eyeliner candidates">
   <figcaption>그림 3. Cat: sharp, lifted, outer-focused.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/04-family-puppy.png" width="980" alt="Puppy eyeliner candidates">
+  <img src="assets/04-family-puppy.png" width="1000" alt="Puppy eyeliner candidates">
   <figcaption>그림 4. Puppy: soft, rounded, slightly lowered.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/05-family-sexy.png" width="980" alt="Sexy eyeliner candidates">
+  <img src="assets/05-family-sexy.png" width="1000" alt="Sexy eyeliner candidates">
   <figcaption>그림 5. Sexy: longer, smoky, outer third emphasized.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/06-family-winged.png" width="980" alt="Winged eyeliner candidates">
+  <img src="assets/06-family-winged.png" width="1250" alt="Winged eyeliner candidates">
   <figcaption>그림 6. Winged: clean default wing 후보군. 기본 preset이 여기서 나올 가능성이 높다.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/07-family-colored.png" width="980" alt="Colored eyeliner candidates">
+  <img src="assets/07-family-colored.png" width="1000" alt="Colored eyeliner candidates">
   <figcaption>그림 7. Colored: 색 자체보다 soft wing shape를 보기 위한 후보군이다.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/08-family-doll.png" width="980" alt="Doll eyeliner candidates">
+  <img src="assets/08-family-doll.png" width="1000" alt="Doll eyeliner candidates">
   <figcaption>그림 8. Doll: rounder, shorter, softer 후보군.</figcaption>
 </figure>
 
 <figure>
-  <img src="assets/09-family-balanced-and-tail-safe.png" width="980" alt="Balanced reference and tail-only safe candidates">
+  <img src="assets/09-family-balanced-and-tail-safe.png" width="1040" alt="Balanced reference and tail-only safe candidates">
   <figcaption>그림 9. Balanced reference와 Tail-only safe. 기본 후보가 과하면 여기서 fallback을 고른다.</figcaption>
 </figure>
 
 ## 7. Reject 후보
 
 <figure>
-  <img src="assets/11-contact-sheet-rejected.png" width="980" alt="Rejected eyeliner candidates">
+  <img src="assets/11-contact-sheet-rejected.png" width="1080" alt="Rejected eyeliner candidates">
   <figcaption>그림 10. 자동 reject sheet. eye opening 침범, component 불안정, 과한 lid fill risk 등을 확인하기 위한 참고용이다.</figcaption>
 </figure>
 
 ## 8. UV round-trip Top 12
 
 <figure>
-  <img src="assets/12-uv-round-trip-top-12.png" width="980" alt="UV round trip top eyeliner candidates">
+  <img src="assets/12-uv-round-trip-top-12.png" width="900" alt="UV round trip top eyeliner candidates">
   <figcaption>그림 11. 상위 12개 후보의 ARFace UV round-trip sanity check. 얇은 선은 IoU가 낮게 나올 수 있으므로 깨짐/위치 이탈 여부를 위주로 본다.</figcaption>
 </figure>
 

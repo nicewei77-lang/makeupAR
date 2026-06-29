@@ -382,14 +382,14 @@ function applyLipAdjustmentToPoints(
       adjustment.verticalOffset * height * ADJUSTMENT_VERTICAL_OFFSET_SCALE;
 
     if (dy < 0) {
-      y +=
+      y -=
         adjustment.upperLipTightness *
         height *
         ADJUSTMENT_LIP_TIGHTNESS_SCALE *
         verticalWeight *
         tightnessScale;
     } else if (dy > 0) {
-      y -=
+      y +=
         adjustment.lowerLipTightness *
         height *
         ADJUSTMENT_LIP_TIGHTNESS_SCALE *
@@ -479,7 +479,7 @@ function interpolateUv(
 
 function uvToIndex(u: number, v: number, resolution: number) {
   const column = Math.round(u * (resolution - 1));
-  const row = Math.round((1 - v) * (resolution - 1));
+  const row = Math.round(v * (resolution - 1));
   return row * resolution + column;
 }
 

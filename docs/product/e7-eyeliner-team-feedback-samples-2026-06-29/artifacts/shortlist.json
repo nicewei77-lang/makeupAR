@@ -1,0 +1,2292 @@
+{
+  "schemaVersion": "e7-eyeliner-team-feedback-v2-shortlist-v0",
+  "createdAt": "2026-06-28T16:41:02.523301Z",
+  "status": "pending_user_visual_pick",
+  "selectionInstructionKo": "cat/winged/puppy family에서 마음에 드는 candidateId를 골라주세요.",
+  "reviewCandidates": [
+    {
+      "candidateId": "team-v2-cat-01-tail26-angle24-fill32",
+      "candidateIndex": 1,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.4,
+        "upperLineOffset": -5.4,
+        "lineThickness": 6.2,
+        "innerStart": 0.2,
+        "innerCornerStart": 0.2,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.26,
+        "tailLength": 0.26,
+        "tailAngle": -24.0,
+        "tailLift": -2.0,
+        "taper": 1.2,
+        "softness": 2.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.32,
+        "outerCanthusFill": 0.32,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1177,
+        "bbox": {
+          "minX": 203,
+          "minY": 1082,
+          "maxX": 886,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 591,
+          "rightPixels": 586,
+          "leftRightAbsDiffRatio": 0.004248,
+          "smallLargeRatio": 0.99154
+        },
+        "eyeOpeningOverlapPixels": 457,
+        "eyeOpeningOverlapRatio": 0.388275,
+        "upperLidMeanDistancePx": 8.887,
+        "upperLidP95DistancePx": 29.986,
+        "tailStartDistanceFromOuterCornerPx": 3.132,
+        "componentCount": 10,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.739444,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.32
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-01-tail26-angle24-fill32.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-02-tail30-angle26-fill34",
+      "candidateIndex": 2,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.2,
+        "upperLineOffset": -5.2,
+        "lineThickness": 6.6,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.3,
+        "tailLength": 0.3,
+        "tailAngle": -26.0,
+        "tailLift": -2.5,
+        "taper": 1.3,
+        "softness": 3.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.34,
+        "outerCanthusFill": 0.34,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1443,
+        "bbox": {
+          "minX": 196,
+          "minY": 1076,
+          "maxX": 893,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 744,
+          "rightPixels": 699,
+          "leftRightAbsDiffRatio": 0.031185,
+          "smallLargeRatio": 0.939516
+        },
+        "eyeOpeningOverlapPixels": 445,
+        "eyeOpeningOverlapRatio": 0.308385,
+        "upperLidMeanDistancePx": 10.335,
+        "upperLidP95DistancePx": 35.748,
+        "tailStartDistanceFromOuterCornerPx": 2.766,
+        "componentCount": 9,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.746194,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.34
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-02-tail30-angle26-fill34.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-03-tail34-angle28-fill36",
+      "candidateIndex": 3,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.0,
+        "upperLineOffset": -5.0,
+        "lineThickness": 6.8,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.34,
+        "tailLength": 0.34,
+        "tailAngle": -28.0,
+        "tailLift": -3.0,
+        "taper": 1.38,
+        "softness": 3.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.36,
+        "outerCanthusFill": 0.36,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1718,
+        "bbox": {
+          "minX": 190,
+          "minY": 1069,
+          "maxX": 900,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 898,
+          "rightPixels": 820,
+          "leftRightAbsDiffRatio": 0.045402,
+          "smallLargeRatio": 0.91314
+        },
+        "eyeOpeningOverlapPixels": 430,
+        "eyeOpeningOverlapRatio": 0.250291,
+        "upperLidMeanDistancePx": 11.713,
+        "upperLidP95DistancePx": 41.308,
+        "tailStartDistanceFromOuterCornerPx": 2.484,
+        "componentCount": 5,
+        "lineContinuityScore": 0.5,
+        "smoothnessScore": 0.736285,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.36
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-03-tail34-angle28-fill36.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-04-tail38-angle30-fill38",
+      "candidateIndex": 4,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.0,
+        "upperLineOffset": -5.0,
+        "lineThickness": 7.2,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.38,
+        "tailLength": 0.38,
+        "tailAngle": -30.0,
+        "tailLift": -3.8,
+        "taper": 1.48,
+        "softness": 3.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.38,
+        "outerCanthusFill": 0.38,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2096,
+        "bbox": {
+          "minX": 182,
+          "minY": 1061,
+          "maxX": 907,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 1069,
+          "rightPixels": 1027,
+          "leftRightAbsDiffRatio": 0.020038,
+          "smallLargeRatio": 0.960711
+        },
+        "eyeOpeningOverlapPixels": 443,
+        "eyeOpeningOverlapRatio": 0.211355,
+        "upperLidMeanDistancePx": 14.553,
+        "upperLidP95DistancePx": 55.19,
+        "tailStartDistanceFromOuterCornerPx": 2.42,
+        "componentCount": 5,
+        "lineContinuityScore": 0.5,
+        "smoothnessScore": 0.744362,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.38
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-04-tail38-angle30-fill38.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-05-tail42-angle32-fill40",
+      "candidateIndex": 5,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.8,
+        "upperLineOffset": -4.8,
+        "lineThickness": 7.6,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.42,
+        "tailLength": 0.42,
+        "tailAngle": -32.0,
+        "tailLift": -4.4,
+        "taper": 1.58,
+        "softness": 3.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.4,
+        "outerCanthusFill": 0.4,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2391,
+        "bbox": {
+          "minX": 175,
+          "minY": 1052,
+          "maxX": 914,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 1212,
+          "rightPixels": 1179,
+          "leftRightAbsDiffRatio": 0.013802,
+          "smallLargeRatio": 0.972772
+        },
+        "eyeOpeningOverlapPixels": 461,
+        "eyeOpeningOverlapRatio": 0.192806,
+        "upperLidMeanDistancePx": 16.156,
+        "upperLidP95DistancePx": 61.879,
+        "tailStartDistanceFromOuterCornerPx": 2.35,
+        "componentCount": 6,
+        "lineContinuityScore": 0.333333,
+        "smoothnessScore": 0.736609,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.4
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-05-tail42-angle32-fill40.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-06-tail32-angle34-fill42",
+      "candidateIndex": 6,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.8,
+        "upperLineOffset": -4.8,
+        "lineThickness": 7.0,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.32,
+        "tailLength": 0.32,
+        "tailAngle": -34.0,
+        "tailLift": -4.0,
+        "taper": 1.45,
+        "softness": 3.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.42,
+        "outerCanthusFill": 0.42,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2167,
+        "bbox": {
+          "minX": 192,
+          "minY": 1060,
+          "maxX": 897,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 1102,
+          "rightPixels": 1065,
+          "leftRightAbsDiffRatio": 0.017074,
+          "smallLargeRatio": 0.966425
+        },
+        "eyeOpeningOverlapPixels": 459,
+        "eyeOpeningOverlapRatio": 0.211814,
+        "upperLidMeanDistancePx": 12.838,
+        "upperLidP95DistancePx": 47.713,
+        "tailStartDistanceFromOuterCornerPx": 2.392,
+        "componentCount": 7,
+        "lineContinuityScore": 0.166667,
+        "smoothnessScore": 0.7225,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.42
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-06-tail32-angle34-fill42.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-07-tail36-angle36-fill44",
+      "candidateIndex": 7,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.6,
+        "upperLineOffset": -4.6,
+        "lineThickness": 7.8,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.36,
+        "tailLength": 0.36,
+        "tailAngle": -36.0,
+        "tailLift": -4.8,
+        "taper": 1.64,
+        "softness": 3.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.44,
+        "outerCanthusFill": 0.44,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2599,
+        "bbox": {
+          "minX": 185,
+          "minY": 1051,
+          "maxX": 903,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1315,
+          "rightPixels": 1284,
+          "leftRightAbsDiffRatio": 0.011928,
+          "smallLargeRatio": 0.976426
+        },
+        "eyeOpeningOverlapPixels": 483,
+        "eyeOpeningOverlapRatio": 0.185841,
+        "upperLidMeanDistancePx": 14.758,
+        "upperLidP95DistancePx": 55.68,
+        "tailStartDistanceFromOuterCornerPx": 2.423,
+        "componentCount": 5,
+        "lineContinuityScore": 0.5,
+        "smoothnessScore": 0.72274,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.44
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-07-tail36-angle36-fill44.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-08-tail28-angle30-fill46",
+      "candidateIndex": 8,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.9,
+        "upperLineOffset": -4.9,
+        "lineThickness": 7.4,
+        "innerStart": 0.18,
+        "innerCornerStart": 0.18,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.28,
+        "tailLength": 0.28,
+        "tailAngle": -30.0,
+        "tailLift": -3.2,
+        "taper": 1.34,
+        "softness": 3.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.46,
+        "outerCanthusFill": 0.46,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1963,
+        "bbox": {
+          "minX": 199,
+          "minY": 1071,
+          "maxX": 890,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1003,
+          "rightPixels": 960,
+          "leftRightAbsDiffRatio": 0.021905,
+          "smallLargeRatio": 0.957129
+        },
+        "eyeOpeningOverlapPixels": 460,
+        "eyeOpeningOverlapRatio": 0.234335,
+        "upperLidMeanDistancePx": 10.104,
+        "upperLidP95DistancePx": 36.546,
+        "tailStartDistanceFromOuterCornerPx": 2.367,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.738723,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.46
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-08-tail28-angle30-fill46.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-09-tail40-angle28-fill36",
+      "candidateIndex": 9,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.4,
+        "upperLineOffset": -5.4,
+        "lineThickness": 6.4,
+        "innerStart": 0.26,
+        "innerCornerStart": 0.26,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.4,
+        "tailLength": 0.4,
+        "tailAngle": -28.0,
+        "tailLift": -3.2,
+        "taper": 1.7,
+        "softness": 2.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.36,
+        "outerCanthusFill": 0.36,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1720,
+        "bbox": {
+          "minX": 179,
+          "minY": 1063,
+          "maxX": 910,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 879,
+          "rightPixels": 841,
+          "leftRightAbsDiffRatio": 0.022093,
+          "smallLargeRatio": 0.956769
+        },
+        "eyeOpeningOverlapPixels": 434,
+        "eyeOpeningOverlapRatio": 0.252326,
+        "upperLidMeanDistancePx": 15.171,
+        "upperLidP95DistancePx": 53.377,
+        "tailStartDistanceFromOuterCornerPx": 2.709,
+        "componentCount": 9,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.726824,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.36
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-09-tail40-angle28-fill36.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-cat-10-tail44-angle34-fill48",
+      "candidateIndex": 10,
+      "familyKey": "cat",
+      "policy": "team-feedback-v2-cat",
+      "family": "team_feedback_v2_cat",
+      "styleTaxonomy": "lifted_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.6,
+        "upperLineOffset": -4.6,
+        "lineThickness": 8.0,
+        "innerStart": 0.3,
+        "innerCornerStart": 0.3,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.44,
+        "tailLength": 0.44,
+        "tailAngle": -34.0,
+        "tailLift": -5.0,
+        "taper": 1.72,
+        "softness": 3.6,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.48,
+        "outerCanthusFill": 0.48,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2961,
+        "bbox": {
+          "minX": 171,
+          "minY": 1045,
+          "maxX": 917,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1493,
+          "rightPixels": 1468,
+          "leftRightAbsDiffRatio": 0.008443,
+          "smallLargeRatio": 0.983255
+        },
+        "eyeOpeningOverlapPixels": 501,
+        "eyeOpeningOverlapRatio": 0.1692,
+        "upperLidMeanDistancePx": 18.083,
+        "upperLidP95DistancePx": 66.813,
+        "tailStartDistanceFromOuterCornerPx": 2.61,
+        "componentCount": 3,
+        "lineContinuityScore": 0.833333,
+        "smoothnessScore": 0.712702,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.48
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/cat/team-v2-cat-10-tail44-angle34-fill48.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-01-tail26-angle02-fill32",
+      "candidateIndex": 11,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.2,
+        "upperLineOffset": -5.2,
+        "lineThickness": 6.0,
+        "innerStart": 0.2,
+        "innerCornerStart": 0.2,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.26,
+        "tailLength": 0.26,
+        "tailAngle": -2.0,
+        "tailLift": -0.4,
+        "taper": 1.1,
+        "softness": 2.9,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.32,
+        "outerCanthusFill": 0.32,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1182,
+        "bbox": {
+          "minX": 203,
+          "minY": 1084,
+          "maxX": 886,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 591,
+          "rightPixels": 591,
+          "leftRightAbsDiffRatio": 0.0,
+          "smallLargeRatio": 1.0
+        },
+        "eyeOpeningOverlapPixels": 455,
+        "eyeOpeningOverlapRatio": 0.384941,
+        "upperLidMeanDistancePx": 8.627,
+        "upperLidP95DistancePx": 27.687,
+        "tailStartDistanceFromOuterCornerPx": 3.066,
+        "componentCount": 12,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.739723,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.32
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-01-tail26-angle02-fill32.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-02-tail30-angle01-fill34",
+      "candidateIndex": 12,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -5.0,
+        "upperLineOffset": -5.0,
+        "lineThickness": 6.4,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.3,
+        "tailLength": 0.3,
+        "tailAngle": -1.0,
+        "tailLift": -0.3,
+        "taper": 1.18,
+        "softness": 3.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.34,
+        "outerCanthusFill": 0.34,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1429,
+        "bbox": {
+          "minX": 196,
+          "minY": 1084,
+          "maxX": 893,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 731,
+          "rightPixels": 698,
+          "leftRightAbsDiffRatio": 0.023093,
+          "smallLargeRatio": 0.954856
+        },
+        "eyeOpeningOverlapPixels": 465,
+        "eyeOpeningOverlapRatio": 0.325402,
+        "upperLidMeanDistancePx": 10.173,
+        "upperLidP95DistancePx": 32.708,
+        "tailStartDistanceFromOuterCornerPx": 2.783,
+        "componentCount": 12,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.746258,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.34
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-02-tail30-angle01-fill34.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-03-tail34-angle00-fill36",
+      "candidateIndex": 13,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.8,
+        "upperLineOffset": -4.8,
+        "lineThickness": 6.8,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.34,
+        "tailLength": 0.34,
+        "tailAngle": 0.0,
+        "tailLift": 0.0,
+        "taper": 1.28,
+        "softness": 3.1,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.36,
+        "outerCanthusFill": 0.36,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1699,
+        "bbox": {
+          "minX": 189,
+          "minY": 1082,
+          "maxX": 900,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 861,
+          "rightPixels": 838,
+          "leftRightAbsDiffRatio": 0.013537,
+          "smallLargeRatio": 0.973287
+        },
+        "eyeOpeningOverlapPixels": 441,
+        "eyeOpeningOverlapRatio": 0.259564,
+        "upperLidMeanDistancePx": 11.101,
+        "upperLidP95DistancePx": 39.337,
+        "tailStartDistanceFromOuterCornerPx": 2.528,
+        "componentCount": 5,
+        "lineContinuityScore": 0.5,
+        "smoothnessScore": 0.73817,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.36
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-03-tail34-angle00-fill36.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-04-tail38-angle01-fill38",
+      "candidateIndex": 14,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.8,
+        "upperLineOffset": -4.8,
+        "lineThickness": 7.0,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.38,
+        "tailLength": 0.38,
+        "tailAngle": 1.0,
+        "tailLift": 0.2,
+        "taper": 1.38,
+        "softness": 3.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.38,
+        "outerCanthusFill": 0.38,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1929,
+        "bbox": {
+          "minX": 183,
+          "minY": 1081,
+          "maxX": 907,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 981,
+          "rightPixels": 948,
+          "leftRightAbsDiffRatio": 0.017107,
+          "smallLargeRatio": 0.966361
+        },
+        "eyeOpeningOverlapPixels": 457,
+        "eyeOpeningOverlapRatio": 0.23691,
+        "upperLidMeanDistancePx": 12.315,
+        "upperLidP95DistancePx": 43.725,
+        "tailStartDistanceFromOuterCornerPx": 2.528,
+        "componentCount": 3,
+        "lineContinuityScore": 0.833333,
+        "smoothnessScore": 0.74641,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.38
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-04-tail38-angle01-fill38.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-05-tail42-angle02-fill40",
+      "candidateIndex": 15,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.6,
+        "upperLineOffset": -4.6,
+        "lineThickness": 7.4,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.42,
+        "tailLength": 0.42,
+        "tailAngle": 2.0,
+        "tailLift": 0.4,
+        "taper": 1.46,
+        "softness": 3.3,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.4,
+        "outerCanthusFill": 0.4,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2182,
+        "bbox": {
+          "minX": 176,
+          "minY": 1081,
+          "maxX": 914,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 1112,
+          "rightPixels": 1070,
+          "leftRightAbsDiffRatio": 0.019248,
+          "smallLargeRatio": 0.96223
+        },
+        "eyeOpeningOverlapPixels": 480,
+        "eyeOpeningOverlapRatio": 0.219982,
+        "upperLidMeanDistancePx": 13.227,
+        "upperLidP95DistancePx": 46.332,
+        "tailStartDistanceFromOuterCornerPx": 2.31,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.738335,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.4
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-05-tail42-angle02-fill40.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-06-tail32-angle00-fill44",
+      "candidateIndex": 16,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.6,
+        "upperLineOffset": -4.6,
+        "lineThickness": 7.2,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.32,
+        "tailLength": 0.32,
+        "tailAngle": 0.0,
+        "tailLift": -0.2,
+        "taper": 1.34,
+        "softness": 3.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.44,
+        "outerCanthusFill": 0.44,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1996,
+        "bbox": {
+          "minX": 193,
+          "minY": 1081,
+          "maxX": 897,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1022,
+          "rightPixels": 974,
+          "leftRightAbsDiffRatio": 0.024048,
+          "smallLargeRatio": 0.953033
+        },
+        "eyeOpeningOverlapPixels": 491,
+        "eyeOpeningOverlapRatio": 0.245992,
+        "upperLidMeanDistancePx": 10.221,
+        "upperLidP95DistancePx": 33.706,
+        "tailStartDistanceFromOuterCornerPx": 2.263,
+        "componentCount": 6,
+        "lineContinuityScore": 0.333333,
+        "smoothnessScore": 0.722275,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.44
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-06-tail32-angle00-fill44.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-07-tail36-angle03-fill42",
+      "candidateIndex": 17,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.7,
+        "upperLineOffset": -4.7,
+        "lineThickness": 7.8,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.36,
+        "tailLength": 0.36,
+        "tailAngle": -3.0,
+        "tailLift": -0.6,
+        "taper": 1.52,
+        "softness": 3.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.42,
+        "outerCanthusFill": 0.42,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2086,
+        "bbox": {
+          "minX": 186,
+          "minY": 1081,
+          "maxX": 903,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 1057,
+          "rightPixels": 1029,
+          "leftRightAbsDiffRatio": 0.013423,
+          "smallLargeRatio": 0.97351
+        },
+        "eyeOpeningOverlapPixels": 482,
+        "eyeOpeningOverlapRatio": 0.231064,
+        "upperLidMeanDistancePx": 10.893,
+        "upperLidP95DistancePx": 37.376,
+        "tailStartDistanceFromOuterCornerPx": 2.329,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.722271,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.42
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-07-tail36-angle03-fill42.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-08-tail44-angle00-fill46",
+      "candidateIndex": 18,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.8,
+        "upperLineOffset": -4.8,
+        "lineThickness": 7.6,
+        "innerStart": 0.26,
+        "innerCornerStart": 0.26,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.44,
+        "tailLength": 0.44,
+        "tailAngle": 0.0,
+        "tailLift": 0.0,
+        "taper": 1.62,
+        "softness": 3.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.46,
+        "outerCanthusFill": 0.46,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2468,
+        "bbox": {
+          "minX": 173,
+          "minY": 1081,
+          "maxX": 917,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1262,
+          "rightPixels": 1206,
+          "leftRightAbsDiffRatio": 0.02269,
+          "smallLargeRatio": 0.955626
+        },
+        "eyeOpeningOverlapPixels": 503,
+        "eyeOpeningOverlapRatio": 0.203809,
+        "upperLidMeanDistancePx": 14.138,
+        "upperLidP95DistancePx": 48.716,
+        "tailStartDistanceFromOuterCornerPx": 2.353,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.727043,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.46
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-08-tail44-angle00-fill46.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-09-tail40-angle03-fill48",
+      "candidateIndex": 19,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.5,
+        "upperLineOffset": -4.5,
+        "lineThickness": 8.0,
+        "innerStart": 0.3,
+        "innerCornerStart": 0.3,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.4,
+        "tailLength": 0.4,
+        "tailAngle": 3.0,
+        "tailLift": 0.5,
+        "taper": 1.54,
+        "softness": 3.5,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.48,
+        "outerCanthusFill": 0.48,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2493,
+        "bbox": {
+          "minX": 179,
+          "minY": 1081,
+          "maxX": 910,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1259,
+          "rightPixels": 1234,
+          "leftRightAbsDiffRatio": 0.010028,
+          "smallLargeRatio": 0.980143
+        },
+        "eyeOpeningOverlapPixels": 525,
+        "eyeOpeningOverlapRatio": 0.21059,
+        "upperLidMeanDistancePx": 12.415,
+        "upperLidP95DistancePx": 40.458,
+        "tailStartDistanceFromOuterCornerPx": 2.177,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.712124,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.48
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-09-tail40-angle03-fill48.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-winged-10-tail46-angle01-fill50",
+      "candidateIndex": 20,
+      "familyKey": "winged",
+      "policy": "team-feedback-v2-winged",
+      "family": "team_feedback_v2_winged",
+      "styleTaxonomy": "horizontal_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.5,
+        "upperLineOffset": -4.5,
+        "lineThickness": 8.2,
+        "innerStart": 0.3,
+        "innerCornerStart": 0.3,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.46,
+        "tailLength": 0.46,
+        "tailAngle": 1.0,
+        "tailLift": 0.3,
+        "taper": 1.72,
+        "softness": 3.7,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.5,
+        "outerCanthusFill": 0.5,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.82
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2837,
+        "bbox": {
+          "minX": 169,
+          "minY": 1081,
+          "maxX": 921,
+          "maxY": 1122
+        },
+        "leftRight": {
+          "leftPixels": 1424,
+          "rightPixels": 1413,
+          "leftRightAbsDiffRatio": 0.003877,
+          "smallLargeRatio": 0.992275
+        },
+        "eyeOpeningOverlapPixels": 516,
+        "eyeOpeningOverlapRatio": 0.181882,
+        "upperLidMeanDistancePx": 15.088,
+        "upperLidP95DistancePx": 51.367,
+        "tailStartDistanceFromOuterCornerPx": 2.173,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.712043,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.5
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/winged/team-v2-winged-10-tail46-angle01-fill50.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-01-tail22-angle08-fill28",
+      "candidateIndex": 21,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.4,
+        "upperLineOffset": -4.4,
+        "lineThickness": 5.8,
+        "innerStart": 0.22,
+        "innerCornerStart": 0.22,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.22,
+        "tailLength": 0.22,
+        "tailAngle": 8.0,
+        "tailLift": 1.0,
+        "taper": 0.9,
+        "softness": 3.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.28,
+        "outerCanthusFill": 0.28,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1164,
+        "bbox": {
+          "minX": 209,
+          "minY": 1088,
+          "maxX": 880,
+          "maxY": 1119
+        },
+        "leftRight": {
+          "leftPixels": 566,
+          "rightPixels": 598,
+          "leftRightAbsDiffRatio": 0.027491,
+          "smallLargeRatio": 0.946488
+        },
+        "eyeOpeningOverlapPixels": 479,
+        "eyeOpeningOverlapRatio": 0.411512,
+        "upperLidMeanDistancePx": 8.118,
+        "upperLidP95DistancePx": 20.101,
+        "tailStartDistanceFromOuterCornerPx": 3.401,
+        "componentCount": 4,
+        "lineContinuityScore": 0.666667,
+        "smoothnessScore": 0.746414,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.28
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-01-tail22-angle08-fill28.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-02-tail26-angle10-fill30",
+      "candidateIndex": 22,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.2,
+        "upperLineOffset": -4.2,
+        "lineThickness": 6.0,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.26,
+        "tailLength": 0.26,
+        "tailAngle": 10.0,
+        "tailLift": 1.2,
+        "taper": 0.96,
+        "softness": 4.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.3,
+        "outerCanthusFill": 0.3,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1338,
+        "bbox": {
+          "minX": 203,
+          "minY": 1088,
+          "maxX": 887,
+          "maxY": 1120
+        },
+        "leftRight": {
+          "leftPixels": 668,
+          "rightPixels": 670,
+          "leftRightAbsDiffRatio": 0.001495,
+          "smallLargeRatio": 0.997015
+        },
+        "eyeOpeningOverlapPixels": 495,
+        "eyeOpeningOverlapRatio": 0.369955,
+        "upperLidMeanDistancePx": 9.272,
+        "upperLidP95DistancePx": 23.396,
+        "tailStartDistanceFromOuterCornerPx": 3.361,
+        "componentCount": 5,
+        "lineContinuityScore": 0.5,
+        "smoothnessScore": 0.738286,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.3
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-02-tail26-angle10-fill30.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-03-tail30-angle12-fill32",
+      "candidateIndex": 23,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -4.0,
+        "upperLineOffset": -4.0,
+        "lineThickness": 6.3,
+        "innerStart": 0.26,
+        "innerCornerStart": 0.26,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.3,
+        "tailLength": 0.3,
+        "tailAngle": 12.0,
+        "tailLift": 1.5,
+        "taper": 1.02,
+        "softness": 4.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.32,
+        "outerCanthusFill": 0.32,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1491,
+        "bbox": {
+          "minX": 196,
+          "minY": 1087,
+          "maxX": 894,
+          "maxY": 1121
+        },
+        "leftRight": {
+          "leftPixels": 734,
+          "rightPixels": 757,
+          "leftRightAbsDiffRatio": 0.015426,
+          "smallLargeRatio": 0.969617
+        },
+        "eyeOpeningOverlapPixels": 507,
+        "eyeOpeningOverlapRatio": 0.34004,
+        "upperLidMeanDistancePx": 10.619,
+        "upperLidP95DistancePx": 28.254,
+        "tailStartDistanceFromOuterCornerPx": 3.323,
+        "componentCount": 6,
+        "lineContinuityScore": 0.333333,
+        "smoothnessScore": 0.729328,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.32
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-03-tail30-angle12-fill32.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-04-tail34-angle14-fill34",
+      "candidateIndex": 24,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.9,
+        "upperLineOffset": -3.9,
+        "lineThickness": 6.5,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.34,
+        "tailLength": 0.34,
+        "tailAngle": 14.0,
+        "tailLift": 1.9,
+        "taper": 1.08,
+        "softness": 4.4,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.34,
+        "outerCanthusFill": 0.34,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1695,
+        "bbox": {
+          "minX": 189,
+          "minY": 1091,
+          "maxX": 900,
+          "maxY": 1125
+        },
+        "leftRight": {
+          "leftPixels": 839,
+          "rightPixels": 856,
+          "leftRightAbsDiffRatio": 0.010029,
+          "smallLargeRatio": 0.98014
+        },
+        "eyeOpeningOverlapPixels": 533,
+        "eyeOpeningOverlapRatio": 0.314454,
+        "upperLidMeanDistancePx": 12.127,
+        "upperLidP95DistancePx": 33.807,
+        "tailStartDistanceFromOuterCornerPx": 3.555,
+        "componentCount": 2,
+        "lineContinuityScore": 1.0,
+        "smoothnessScore": 0.724339,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.34
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-04-tail34-angle14-fill34.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-05-tail38-angle16-fill36",
+      "candidateIndex": 25,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.8,
+        "upperLineOffset": -3.8,
+        "lineThickness": 6.8,
+        "innerStart": 0.3,
+        "innerCornerStart": 0.3,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.38,
+        "tailLength": 0.38,
+        "tailAngle": 16.0,
+        "tailLift": 2.3,
+        "taper": 1.14,
+        "softness": 4.6,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.36,
+        "outerCanthusFill": 0.36,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2016,
+        "bbox": {
+          "minX": 182,
+          "minY": 1083,
+          "maxX": 907,
+          "maxY": 1130
+        },
+        "leftRight": {
+          "leftPixels": 1006,
+          "rightPixels": 1010,
+          "leftRightAbsDiffRatio": 0.001984,
+          "smallLargeRatio": 0.99604
+        },
+        "eyeOpeningOverlapPixels": 530,
+        "eyeOpeningOverlapRatio": 0.262897,
+        "upperLidMeanDistancePx": 14.27,
+        "upperLidP95DistancePx": 41.542,
+        "tailStartDistanceFromOuterCornerPx": 3.627,
+        "componentCount": 13,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.714314,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.36
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-05-tail38-angle16-fill36.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-06-tail28-angle18-fill38",
+      "candidateIndex": 26,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.7,
+        "upperLineOffset": -3.7,
+        "lineThickness": 7.0,
+        "innerStart": 0.24,
+        "innerCornerStart": 0.24,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.28,
+        "tailLength": 0.28,
+        "tailAngle": 18.0,
+        "tailLift": 2.5,
+        "taper": 1.0,
+        "softness": 4.6,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.38,
+        "outerCanthusFill": 0.38,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 1807,
+        "bbox": {
+          "minX": 199,
+          "minY": 1082,
+          "maxX": 890,
+          "maxY": 1127
+        },
+        "leftRight": {
+          "leftPixels": 908,
+          "rightPixels": 899,
+          "leftRightAbsDiffRatio": 0.004981,
+          "smallLargeRatio": 0.990088
+        },
+        "eyeOpeningOverlapPixels": 557,
+        "eyeOpeningOverlapRatio": 0.308246,
+        "upperLidMeanDistancePx": 11.122,
+        "upperLidP95DistancePx": 29.138,
+        "tailStartDistanceFromOuterCornerPx": 3.7,
+        "componentCount": 14,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.738341,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.38
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-06-tail28-angle18-fill38.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-07-tail32-angle20-fill40",
+      "candidateIndex": 27,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.6,
+        "upperLineOffset": -3.6,
+        "lineThickness": 7.2,
+        "innerStart": 0.26,
+        "innerCornerStart": 0.26,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.32,
+        "tailLength": 0.32,
+        "tailAngle": 20.0,
+        "tailLift": 3.0,
+        "taper": 1.08,
+        "softness": 4.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.4,
+        "outerCanthusFill": 0.4,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2165,
+        "bbox": {
+          "minX": 192,
+          "minY": 1082,
+          "maxX": 897,
+          "maxY": 1132
+        },
+        "leftRight": {
+          "leftPixels": 1088,
+          "rightPixels": 1077,
+          "leftRightAbsDiffRatio": 0.005081,
+          "smallLargeRatio": 0.98989
+        },
+        "eyeOpeningOverlapPixels": 595,
+        "eyeOpeningOverlapRatio": 0.274827,
+        "upperLidMeanDistancePx": 12.916,
+        "upperLidP95DistancePx": 33.776,
+        "tailStartDistanceFromOuterCornerPx": 3.776,
+        "componentCount": 15,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.728946,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.4
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-07-tail32-angle20-fill40.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-08-tail36-angle16-fill42",
+      "candidateIndex": 28,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.5,
+        "upperLineOffset": -3.5,
+        "lineThickness": 7.4,
+        "innerStart": 0.28,
+        "innerCornerStart": 0.28,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.36,
+        "tailLength": 0.36,
+        "tailAngle": 16.0,
+        "tailLift": 2.6,
+        "taper": 1.18,
+        "softness": 4.8,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.42,
+        "outerCanthusFill": 0.42,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2289,
+        "bbox": {
+          "minX": 185,
+          "minY": 1082,
+          "maxX": 904,
+          "maxY": 1129
+        },
+        "leftRight": {
+          "leftPixels": 1131,
+          "rightPixels": 1158,
+          "leftRightAbsDiffRatio": 0.011796,
+          "smallLargeRatio": 0.976684
+        },
+        "eyeOpeningOverlapPixels": 595,
+        "eyeOpeningOverlapRatio": 0.259939,
+        "upperLidMeanDistancePx": 13.647,
+        "upperLidP95DistancePx": 36.844,
+        "tailStartDistanceFromOuterCornerPx": 3.676,
+        "componentCount": 12,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.724372,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.42
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-08-tail36-angle16-fill42.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-09-tail40-angle18-fill44",
+      "candidateIndex": 29,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.5,
+        "upperLineOffset": -3.5,
+        "lineThickness": 7.6,
+        "innerStart": 0.3,
+        "innerCornerStart": 0.3,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.4,
+        "tailLength": 0.4,
+        "tailAngle": 18.0,
+        "tailLift": 3.2,
+        "taper": 1.24,
+        "softness": 5.0,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.44,
+        "outerCanthusFill": 0.44,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2547,
+        "bbox": {
+          "minX": 179,
+          "minY": 1082,
+          "maxX": 911,
+          "maxY": 1134
+        },
+        "leftRight": {
+          "leftPixels": 1274,
+          "rightPixels": 1273,
+          "leftRightAbsDiffRatio": 0.000393,
+          "smallLargeRatio": 0.999215
+        },
+        "eyeOpeningOverlapPixels": 622,
+        "eyeOpeningOverlapRatio": 0.244209,
+        "upperLidMeanDistancePx": 15.381,
+        "upperLidP95DistancePx": 41.846,
+        "tailStartDistanceFromOuterCornerPx": 3.855,
+        "componentCount": 15,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.714064,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.44
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-09-tail40-angle18-fill44.trace.json"
+      }
+    },
+    {
+      "candidateId": "team-v2-puppy-10-tail42-angle20-fill46",
+      "candidateIndex": 30,
+      "familyKey": "puppy",
+      "policy": "team-feedback-v2-puppy",
+      "family": "team_feedback_v2_puppy",
+      "styleTaxonomy": "downturned_long_tail_outer_canthus_fill",
+      "sourceSignals": [
+        "mediapipeLandmarks",
+        "parametricCurve",
+        "arfaceUv",
+        "localOnly"
+      ],
+      "adjustment": {
+        "lineHeight": -3.4,
+        "upperLineOffset": -3.4,
+        "lineThickness": 7.8,
+        "innerStart": 0.32,
+        "innerCornerStart": 0.32,
+        "outerReach": 1.0,
+        "outerCornerReach": 0.42,
+        "tailLength": 0.42,
+        "tailAngle": 20.0,
+        "tailLift": 3.5,
+        "taper": 1.3,
+        "softness": 5.2,
+        "blinkFade": 0.25,
+        "leftRightBalance": 0.0,
+        "outerCornerFill": 0.46,
+        "outerCanthusFill": 0.46,
+        "outerCanthusPatch": 1.0,
+        "previewOpacity": 0.72
+      },
+      "warnings": [
+        "buildless static frame only; blink/yaw iPhone test deferred",
+        "team feedback v2: longer tail and outer canthus fill emphasized",
+        "outer canthus fill intentionally allows a small outer-eye patch; central eye opening remains protected"
+      ],
+      "metrics": {
+        "maskPixels": 2765,
+        "bbox": {
+          "minX": 175,
+          "minY": 1082,
+          "maxX": 914,
+          "maxY": 1139
+        },
+        "leftRight": {
+          "leftPixels": 1390,
+          "rightPixels": 1375,
+          "leftRightAbsDiffRatio": 0.005425,
+          "smallLargeRatio": 0.989209
+        },
+        "eyeOpeningOverlapPixels": 629,
+        "eyeOpeningOverlapRatio": 0.227486,
+        "upperLidMeanDistancePx": 16.817,
+        "upperLidP95DistancePx": 47.468,
+        "tailStartDistanceFromOuterCornerPx": 3.935,
+        "componentCount": 13,
+        "lineContinuityScore": 0.0,
+        "smoothnessScore": 0.708474,
+        "uvRoundTrip": {
+          "status": "not_computed_for_all_candidates"
+        },
+        "directionContractOk": true,
+        "outerCanthusFillRequested": 0.46
+      },
+      "paths": {
+        "mask": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.mask.png",
+        "alpha": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.alpha.png",
+        "productEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.product_eye_crop.png",
+        "highContrastEyeCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.high_contrast_eye_crop.png",
+        "leftHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.left_high_contrast_crop.png",
+        "rightHighContrastCrop": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.right_high_contrast_crop.png",
+        "trace": "evidence/e7-eyeliner-team-feedback-samples/experiment-20260628T163907Z/candidates/puppy/team-v2-puppy-10-tail42-angle20-fill46.trace.json"
+      }
+    }
+  ],
+  "recommendedPickShape": {
+    "firstPass": "각 family에서 2개 이하로 좁힌 뒤 최종 default 1개 + fallback 1개를 고른다.",
+    "candidateFormat": "team-v2-{family}-{index}-tail{tailLength}-angle{tailAngle}-fill{outerCornerFill}"
+  }
+}

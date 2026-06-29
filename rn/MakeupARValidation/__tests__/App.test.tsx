@@ -466,6 +466,9 @@ test('opens forced wizard as the default app flow', async () => {
   expect(text).not.toContain('Regions');
   expect(text).not.toContain('daily');
   expect(text).not.toContain('Full-face');
+  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+    visible: false,
+  });
 });
 
 test('keeps later steps locked until previous gates are reached', async () => {
@@ -845,6 +848,9 @@ test('renders full-face mask preview and applies only after matching Unity ack',
   await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
   const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
   expect(applyPayload.generatedMaskId).toContain('e7-generated-lip');
+  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+    visible: true,
+  });
   expect(collectText(renderer!)).toContain('AR 화면에서 적용 여부');
   expect(collectText(renderer!)).toContain('AR 화면에서 적용 확인을 기다립니다');
   expect(collectText(renderer!)).not.toContain('ApplyGeneratedLipMaskJson');
@@ -942,6 +948,50 @@ test('shows apply timeout and retries from a user-readable blocked state', async
   expect(text).not.toContain('Debug에서 원인');
   expect(text).toContain('저장/적용 재시도');
   expect(text).toContain('촬영부터 다시');
+});
+
+test('keeps AR apply pending and retries when Unity reports transient no-face ack', async () => {
+  installNativeGenerateSuccessMock('vision');
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  await advanceToGeneratedAdjustStep(renderer!);
+  await pressByTestIDAsync(renderer!, 'e7-wizard-save-and-run');
+
+  const applyPayload = getLastUnityPostPayload('ApplyGeneratedLipMaskJson');
+  const postCountBeforeAck = getUnityPostMessageCalls(
+    'ApplyGeneratedLipMaskJson',
+  ).length;
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+    status: 'blocked',
+    applied: false,
+    faceCount: 0,
+    maskTriangles: 0,
+    uvAvailable: true,
+  });
+
+  let text = collectText(renderer!);
+  expect(text).toContain('AR 화면에서 얼굴을 찾는 중입니다');
+  expect(text).not.toContain('AR 적용을 확인하지 못했습니다');
+
+  ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(800);
+  });
+
+  expect(
+    getUnityPostMessageCalls('ApplyGeneratedLipMaskJson').length,
+  ).toBeGreaterThan(postCountBeforeAck);
+
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+  });
+
+  text = collectText(renderer!);
+  expect(text).toContain('AR 립 적용됨');
+  expect(text).toContain('AR 화면입니다');
 });
 
 test('posts AR validation controls without resending texture after Unity ack', async () => {

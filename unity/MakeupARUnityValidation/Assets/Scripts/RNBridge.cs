@@ -522,7 +522,7 @@ public sealed class RNBridge : MonoBehaviour
                 throw new InvalidOperationException("E3 region mask overlay is unavailable.");
             }
 
-            regionMaskOverlay.SetOverlayRenderingSuppressed(false);
+            regionMaskOverlay.SetOverlayRenderingSuppressed(false, "generated_lip_mask_apply");
 
             if (hasRawMaskPayload)
             {
@@ -637,7 +637,9 @@ public sealed class RNBridge : MonoBehaviour
                 throw new InvalidOperationException("E3 region mask overlay is unavailable.");
             }
 
-            regionMaskOverlay.SetOverlayRenderingSuppressed(!visible);
+            regionMaskOverlay.SetOverlayRenderingSuppressed(
+                !visible,
+                payload != null ? payload.reason : "region_overlay_visibility");
             SetFaceRenderersSuppressed(true);
 
             if (statusReporter != null)
@@ -1018,7 +1020,6 @@ public sealed class RNBridge : MonoBehaviour
         float maskFeather = payload.maskFeatherUvNormalized > 0.0f
             ? payload.maskFeatherUvNormalized
             : 0.07f;
-        LipAdjustmentPayload adjustment = payload.adjustment ?? new LipAdjustmentPayload();
         float validationOpacity = ResolveGeneratedLipValidationOpacity(payload, strongValidationMode);
         float effectiveOpacity = validationVisible ? validationOpacity : 0.0f;
 
@@ -1067,10 +1068,10 @@ public sealed class RNBridge : MonoBehaviour
             MaskTextureId = maskTextureId,
             MaskThreshold = maskThreshold,
             MaskFeatherUvNormalized = maskFeather,
-            CornerReach = adjustment.cornerReach,
-            UpperLipTightness = adjustment.upperLipTightness,
-            LowerLipTightness = adjustment.lowerLipTightness,
-            VerticalOffset = adjustment.verticalOffset,
+            CornerReach = 0.0f,
+            UpperLipTightness = 0.0f,
+            LowerLipTightness = 0.0f,
+            VerticalOffset = 0.0f,
             CameraBackdropAvailable = false,
             LightEstimateAvailable = false,
             ValidationVisible = validationVisible,
@@ -1356,7 +1357,7 @@ public sealed class RNBridge : MonoBehaviour
         bool hasRuntimeTexture = result.Applied
             && result.UvAvailable
             && result.MaskTriangleCount > 0;
-        string status = hasRuntimeTexture ? "partial" : "blocked";
+        string status = hasRuntimeTexture ? "ready" : "blocked";
         string blockedReason = BuildRegionApplyBlockedReason(layer, result);
         string eventJson =
             "{\"type\":\"generated_lip_mask_applied\",\"status\":\"" + status + "\""
@@ -1365,7 +1366,7 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"generatedMaskId\":\"" + EscapeJsonString(payload.generatedMaskId) + "\""
             + ",\"captureSetId\":\"" + EscapeJsonString(NormalizeOptional(payload.captureSetId)) + "\""
             + ",\"maskTextureId\":\"" + EscapeJsonString(layer.MaskTextureId) + "\""
-            + ",\"runtimeReady\":" + payload.runtimeReady.ToString().ToLowerInvariant()
+            + ",\"runtimeReady\":" + hasRuntimeTexture.ToString().ToLowerInvariant()
             + ",\"applied\":" + result.Applied.ToString().ToLowerInvariant()
             + ",\"faceCount\":" + result.FaceCount.ToString(CultureInfo.InvariantCulture)
             + ",\"maskTriangles\":" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)

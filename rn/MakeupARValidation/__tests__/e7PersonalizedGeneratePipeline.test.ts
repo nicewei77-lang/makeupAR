@@ -2,6 +2,7 @@ import type { LipAdjustment } from '../../../packages/lip-generate-core/src';
 import type { E7NativeBoundaryResult } from '../src/e7PersonalizedGeneratePipeline';
 import {
   buildGeneratedLipPackage,
+  buildUvMaskRawRgba,
   smoothLipBoundaryCurveDensified,
 } from '../src/e7PersonalizedGeneratePipeline';
 
@@ -101,6 +102,14 @@ function outerBoundaryDelta(
   return total;
 }
 
+function maxY(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+  return Math.max(...points.map(point => point.y));
+}
+
+function minY(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+  return Math.min(...points.map(point => point.y));
+}
+
 test('curve_densified_v1 increases package lip boundary point count', () => {
   const nativeResult = makeNativeBoundaryResult();
   const originalPointCount =
@@ -175,4 +184,137 @@ test('visible lip adjustment changes smoothed boundary and UV alpha diagnostics'
     basePackage.runtimeApplyPayload.maskRawRgbaBase64,
   );
   expect(adjustedPackage.generatedMaskId).not.toBe(basePackage.generatedMaskId);
+});
+
+test('lower lip adjustment plus expands downward in top-left frame coordinates', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const basePackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const lowerPlusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      lowerLipTightness: 0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+  const lowerMinusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      lowerLipTightness: -0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const baseBoundary = basePackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const lowerPlusBoundary = lowerPlusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const lowerMinusBoundary = lowerMinusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+
+  expect(maxY(lowerPlusBoundary.outerPoints)).toBeGreaterThan(
+    maxY(baseBoundary.outerPoints),
+  );
+  expect(maxY(lowerMinusBoundary.outerPoints)).toBeLessThan(
+    maxY(baseBoundary.outerPoints),
+  );
+});
+
+test('upper lip adjustment plus expands upward in top-left frame coordinates', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const basePackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const upperPlusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      upperLipTightness: 0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+  const upperMinusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      upperLipTightness: -0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const baseBoundary = basePackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const upperPlusBoundary = upperPlusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const upperMinusBoundary = upperMinusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+
+  expect(minY(upperPlusBoundary.outerPoints)).toBeLessThan(
+    minY(baseBoundary.outerPoints),
+  );
+  expect(minY(upperMinusBoundary.outerPoints)).toBeGreaterThan(
+    minY(baseBoundary.outerPoints),
+  );
+});
+
+test('UV mask raw texture rows match Unity bottom-left texture memory', () => {
+  const uv = buildUvMaskRawRgba({
+    boundary: {
+      coordinateSpace: 'frame_image_pixel_top_left',
+      source: 'vision',
+      generationMethod: 'test_top_half_boundary',
+      outerPoints: [
+        { x: 70, y: 24 },
+        { x: 170, y: 24 },
+        { x: 170, y: 64 },
+        { x: 70, y: 64 },
+      ],
+      innerPoints: [],
+    },
+    arFaceExport: {
+      capturePairId: 'pair_face_boundary_test_0001',
+      screenVertices: [
+        [0, 0, 1],
+        [240, 0, 1],
+        [0, 240, 1],
+        [240, 240, 1],
+      ],
+      uvs: [
+        [0, 1],
+        [1, 1],
+        [0, 0],
+        [1, 0],
+      ],
+      indices: [0, 1, 2, 1, 3, 2],
+      display: {
+        videoFrameSize: [240, 240],
+        orientation: 'portrait',
+        isMirrored: false,
+      },
+    },
+    resolution: 32,
+    sampleStride: 2,
+  });
+
+  expect(uv.positiveTexels).toBeGreaterThan(0);
+  expect(uv.alphaBoundingBoxTexels?.minRow).toBeGreaterThan(20);
 });

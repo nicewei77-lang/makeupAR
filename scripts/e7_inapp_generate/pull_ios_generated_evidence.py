@@ -76,7 +76,7 @@ def run(command: list[str], cwd: Path = REPO_ROOT) -> subprocess.CompletedProces
 def read_json_if_present(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
-    with path.open("r", encoding="utf-8") as file:
+    with path.open("r", encoding="utf-8-sig") as file:
         payload = json.load(file)
     return payload if isinstance(payload, dict) else {"value": payload}
 
