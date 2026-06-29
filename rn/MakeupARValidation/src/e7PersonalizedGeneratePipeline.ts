@@ -99,6 +99,10 @@ const ADJUSTMENT_CORNER_REACH_SCALE = 0.46;
 const ADJUSTMENT_VERTICAL_OFFSET_SCALE = 0.72;
 const ADJUSTMENT_LIP_TIGHTNESS_SCALE = 0.48;
 const UV_ALPHA_CHECKSUM_MOD = 2147483647;
+const GENERATED_UV_MASK_RESOLUTION = 512;
+const GENERATED_UV_SUPERSAMPLE_GRID = 2;
+const GENERATED_UV_ALPHA_EDGE_LOW = 8;
+const GENERATED_UV_ALPHA_EDGE_HIGH = 247;
 
 type E7UvAlphaBoundingBox = {
   minColumn: number;
@@ -113,6 +117,11 @@ type E7UvCoverageMetadataWithDiagnostics = NonNullable<
   positiveTexels: number;
   alphaSum: number;
   alphaChecksum: number;
+  edgeBandTexels: number;
+  edgeBandRatio: number;
+  innerHoleSampleCount: number;
+  innerHolePositiveRatio: number;
+  previewVsUvRoundTripDelta: number;
   alphaBoundingBoxTexels?: E7UvAlphaBoundingBox;
   boundarySmoothing: E7LipBoundarySmoothingAlgorithm;
   originalPointCount: number;
@@ -378,7 +387,7 @@ function applyLipAdjustmentToPoints(
             cornerWeight *
             cornerScale);
     let y =
-      point.y +
+      point.y -
       adjustment.verticalOffset * height * ADJUSTMENT_VERTICAL_OFFSET_SCALE;
 
     if (dy < 0) {
@@ -483,19 +492,155 @@ function uvToIndex(u: number, v: number, resolution: number) {
   return row * resolution + column;
 }
 
+function interpolateScreen(
+  weights: readonly [number, number, number],
+  triangleScreen: number[][],
+) {
+  return {
+    x:
+      weights[0] * triangleScreen[0][0] +
+      weights[1] * triangleScreen[1][0] +
+      weights[2] * triangleScreen[2][0],
+    y:
+      weights[0] * triangleScreen[0][1] +
+      weights[1] * triangleScreen[1][1] +
+      weights[2] * triangleScreen[2][1],
+  };
+}
+
+function sampleAlphaAtUv(raw: Uint8Array, resolution: number, u: number, v: number) {
+  const texelIndex = uvToIndex(
+    Math.max(0, Math.min(1, u)),
+    Math.max(0, Math.min(1, v)),
+    resolution,
+  );
+  return raw[texelIndex * 4 + 3] ?? 0;
+}
+
+function projectScreenPointToUv(
+  point: E7Point2D,
+  arFaceExport: E7ArFaceExport,
+) {
+  const { screenVertices, uvs, indices } = arFaceExport;
+  for (let index = 0; index + 2 < indices.length; index += 3) {
+    const triangle = [indices[index], indices[index + 1], indices[index + 2]];
+    if (
+      triangle.some(
+        vertexIndex =>
+          vertexIndex < 0 ||
+          vertexIndex >= screenVertices.length ||
+          vertexIndex >= uvs.length,
+      )
+    ) {
+      continue;
+    }
+
+    const triScreen = triangle.map(vertexIndex => screenVertices[vertexIndex]);
+    const weights = barycentric(
+      point.x,
+      point.y,
+      triScreen[0][0],
+      triScreen[0][1],
+      triScreen[1][0],
+      triScreen[1][1],
+      triScreen[2][0],
+      triScreen[2][1],
+    );
+    if (!weights) {
+      continue;
+    }
+
+    return interpolateUv(weights, triangle.map(vertexIndex => uvs[vertexIndex]), triScreen);
+  }
+
+  return null;
+}
+
+function estimatePreviewVsUvRoundTripDelta(input: {
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>;
+  arFaceExport: E7ArFaceExport;
+  raw: Uint8Array;
+  resolution: number;
+}) {
+  const outerPoints = input.boundary.outerPoints ?? [];
+  const innerPoints = input.boundary.innerPoints ?? [];
+  const outerBounds = bounds(outerPoints);
+  const innerBounds = bounds(innerPoints) ?? outerBounds;
+  const outerCenter = outerBounds
+    ? {
+        x: outerBounds[0] + (outerBounds[2] - outerBounds[0]) * 0.5,
+        y: outerBounds[1] + (outerBounds[3] - outerBounds[1]) * 0.5,
+      }
+    : { x: 0, y: 0 };
+  const innerCenter = innerBounds
+    ? {
+        x: innerBounds[0] + (innerBounds[2] - innerBounds[0]) * 0.5,
+        y: innerBounds[1] + (innerBounds[3] - innerBounds[1]) * 0.5,
+      }
+    : outerCenter;
+  let sampleCount = 0;
+  let mismatchCount = 0;
+
+  for (const point of outerPoints) {
+    const samplePoint = {
+      x: point.x + (outerCenter.x - point.x) * 0.04,
+      y: point.y + (outerCenter.y - point.y) * 0.04,
+    };
+    const uv = projectScreenPointToUv(samplePoint, input.arFaceExport);
+    if (!uv) {
+      continue;
+    }
+    sampleCount += 1;
+    if (
+      sampleAlphaAtUv(input.raw, input.resolution, uv.u, uv.v) <=
+      GENERATED_UV_ALPHA_EDGE_LOW
+    ) {
+      mismatchCount += 1;
+    }
+  }
+
+  for (const point of innerPoints) {
+    const samplePoint = {
+      x: point.x + (innerCenter.x - point.x) * 0.12,
+      y: point.y + (innerCenter.y - point.y) * 0.12,
+    };
+    const uv = projectScreenPointToUv(samplePoint, input.arFaceExport);
+    if (!uv) {
+      continue;
+    }
+    sampleCount += 1;
+    if (
+      sampleAlphaAtUv(input.raw, input.resolution, uv.u, uv.v) >
+      GENERATED_UV_ALPHA_EDGE_LOW
+    ) {
+      mismatchCount += 1;
+    }
+  }
+
+  return sampleCount > 0 ? mismatchCount / sampleCount : 1;
+}
+
 export function buildUvMaskRawRgba(input: {
   boundary: NonNullable<E7NativeBoundaryResult['boundary']>;
   arFaceExport: E7ArFaceExport;
   resolution?: number;
   sampleStride?: number;
 }) {
-  const resolution = input.resolution ?? 128;
-  const sampleStride = input.sampleStride ?? 4;
+  const resolution = input.resolution ?? GENERATED_UV_MASK_RESOLUTION;
+  const supersampleGrid = Math.max(
+    1,
+    Math.min(
+      GENERATED_UV_SUPERSAMPLE_GRID,
+      Math.round(GENERATED_UV_SUPERSAMPLE_GRID * (2 / (input.sampleStride ?? 2))),
+    ),
+  );
   const texelCount = resolution * resolution;
   const positiveVotes = new Uint16Array(texelCount);
   const totalVotes = new Uint16Array(texelCount);
   const { boundary, arFaceExport } = input;
   const { screenVertices, uvs, indices } = arFaceExport;
+  let innerHoleSampleCount = 0;
+  let innerHolePositiveSamples = 0;
 
   for (let index = 0; index + 2 < indices.length; index += 3) {
     const triangle = [indices[index], indices[index + 1], indices[index + 2]];
@@ -512,46 +657,71 @@ export function buildUvMaskRawRgba(input: {
 
     const triScreen = triangle.map(vertexIndex => screenVertices[vertexIndex]);
     const triUv = triangle.map(vertexIndex => uvs[vertexIndex]);
-    const minX = Math.max(0, Math.floor(Math.min(...triScreen.map(v => v[0]))));
-    const maxX = Math.min(
-      Math.max(0, input.boundary.outerPoints.reduce((max, p) => Math.max(max, p.x), 0) * 3),
-      Math.ceil(Math.max(...triScreen.map(v => v[0]))),
+    const minColumn = Math.max(
+      0,
+      Math.floor(Math.min(...triUv.map(uv => uv[0])) * (resolution - 1)),
     );
-    const minY = Math.max(0, Math.floor(Math.min(...triScreen.map(v => v[1]))));
-    const maxY = Math.ceil(Math.max(...triScreen.map(v => v[1])));
-    if (maxX < minX || maxY < minY) {
+    const maxColumn = Math.min(
+      resolution - 1,
+      Math.ceil(Math.max(...triUv.map(uv => uv[0])) * (resolution - 1)),
+    );
+    const minRow = Math.max(
+      0,
+      Math.floor(Math.min(...triUv.map(uv => uv[1])) * (resolution - 1)),
+    );
+    const maxRow = Math.min(
+      resolution - 1,
+      Math.ceil(Math.max(...triUv.map(uv => uv[1])) * (resolution - 1)),
+    );
+    if (maxColumn < minColumn || maxRow < minRow) {
       continue;
     }
 
-    for (let y = minY; y <= maxY; y += sampleStride) {
-      for (let x = minX; x <= maxX; x += sampleStride) {
-        const weights = barycentric(
-          x,
-          y,
-          triScreen[0][0],
-          triScreen[0][1],
-          triScreen[1][0],
-          triScreen[1][1],
-          triScreen[2][0],
-          triScreen[2][1],
-        );
-        if (!weights) {
-          continue;
-        }
-        const uv = interpolateUv(weights, triUv, triScreen);
-        const texelIndex = uvToIndex(uv.u, uv.v, resolution);
-        totalVotes[texelIndex] = Math.min(65535, totalVotes[texelIndex] + 1);
-        if (
-          isInLipMask(
-            { x, y },
-            boundary.outerPoints,
-            boundary.innerPoints,
-          )
-        ) {
-          positiveVotes[texelIndex] = Math.min(
-            65535,
-            positiveVotes[texelIndex] + 1,
-          );
+    for (let row = minRow; row <= maxRow; row++) {
+      for (let column = minColumn; column <= maxColumn; column++) {
+        const texelIndex = row * resolution + column;
+        for (let sampleY = 0; sampleY < supersampleGrid; sampleY++) {
+          for (let sampleX = 0; sampleX < supersampleGrid; sampleX++) {
+            const u = (column + (sampleX + 0.5) / supersampleGrid) / resolution;
+            const v = (row + (sampleY + 0.5) / supersampleGrid) / resolution;
+            const weights = barycentric(
+              u,
+              v,
+              triUv[0][0],
+              triUv[0][1],
+              triUv[1][0],
+              triUv[1][1],
+              triUv[2][0],
+              triUv[2][1],
+            );
+            if (!weights) {
+              continue;
+            }
+
+            const screenPoint = interpolateScreen(weights, triScreen);
+            const isInnerHole =
+              boundary.innerPoints.length >= 3 &&
+              pointInPolygon(screenPoint, boundary.innerPoints);
+            const isPositive = isInLipMask(
+              screenPoint,
+              boundary.outerPoints,
+              boundary.innerPoints,
+            );
+
+            totalVotes[texelIndex] = Math.min(65535, totalVotes[texelIndex] + 1);
+            if (isInnerHole) {
+              innerHoleSampleCount += 1;
+            }
+            if (isPositive) {
+              positiveVotes[texelIndex] = Math.min(
+                65535,
+                positiveVotes[texelIndex] + 1,
+              );
+            }
+            if (isInnerHole && isPositive) {
+              innerHolePositiveSamples += 1;
+            }
+          }
         }
       }
     }
@@ -560,6 +730,7 @@ export function buildUvMaskRawRgba(input: {
   const raw = new Uint8Array(texelCount * 4);
   let coverageTexels = 0;
   let positiveTexels = 0;
+  let edgeBandTexels = 0;
   let alphaSum = 0;
   let alphaChecksum = 0;
   let minColumn = resolution;
@@ -582,7 +753,7 @@ export function buildUvMaskRawRgba(input: {
     alphaChecksum =
       (alphaChecksum + ((texelIndex + 1) * alpha) % UV_ALPHA_CHECKSUM_MOD) %
       UV_ALPHA_CHECKSUM_MOD;
-    if (alpha > 8) {
+    if (alpha > GENERATED_UV_ALPHA_EDGE_LOW) {
       positiveTexels += 1;
       const row = Math.floor(texelIndex / resolution);
       const column = texelIndex % resolution;
@@ -590,6 +761,9 @@ export function buildUvMaskRawRgba(input: {
       minRow = Math.min(minRow, row);
       maxColumn = Math.max(maxColumn, column);
       maxRow = Math.max(maxRow, row);
+      if (alpha < GENERATED_UV_ALPHA_EDGE_HIGH) {
+        edgeBandTexels += 1;
+      }
     }
   }
 
@@ -602,6 +776,20 @@ export function buildUvMaskRawRgba(input: {
     unknownTexels: texelCount - coverageTexels,
     alphaSum,
     alphaChecksum,
+    edgeBandTexels,
+    edgeBandRatio:
+      positiveTexels > 0 ? edgeBandTexels / positiveTexels : 0,
+    innerHoleSampleCount,
+    innerHolePositiveRatio:
+      innerHoleSampleCount > 0
+        ? innerHolePositiveSamples / innerHoleSampleCount
+        : 0,
+    previewVsUvRoundTripDelta: estimatePreviewVsUvRoundTripDelta({
+      boundary,
+      arFaceExport,
+      raw,
+      resolution,
+    }),
     alphaBoundingBoxTexels:
       positiveTexels > 0
         ? { minColumn, minRow, maxColumn, maxRow }
@@ -708,6 +896,11 @@ export function buildGeneratedLipPackage(input: {
     unknownTexels: uv.unknownTexels,
     alphaSum: uv.alphaSum,
     alphaChecksum: uv.alphaChecksum,
+    edgeBandTexels: uv.edgeBandTexels,
+    edgeBandRatio: uv.edgeBandRatio,
+    innerHoleSampleCount: uv.innerHoleSampleCount,
+    innerHolePositiveRatio: uv.innerHolePositiveRatio,
+    previewVsUvRoundTripDelta: uv.previewVsUvRoundTripDelta,
     alphaBoundingBoxTexels: uv.alphaBoundingBoxTexels,
     boundarySmoothing: CURVE_DENSIFIED_ALGORITHM,
     originalPointCount: smoothedAdjustedBoundary.originalPointCount ?? 0,

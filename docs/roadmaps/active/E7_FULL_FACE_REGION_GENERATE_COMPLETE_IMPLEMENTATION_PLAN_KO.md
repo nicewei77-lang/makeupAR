@@ -4709,6 +4709,53 @@ Unity gate 예외 처리:
 - RN-only diff라고 build-plan이 판정할 때만 UnityFramework 재생성을 생략한다.
 ```
 
+### 18.7 2026-06-29 buildless implementation checkpoint
+
+Status: **source/buildless pass, Unity compile/build blocked by licensing, iPhone visual proof pending**.
+
+원인별 처리:
+
+| ID | 처리 | buildless evidence |
+| --- | --- | --- |
+| L1 | `E3RegionMaskOverlay` sync를 `LateUpdate`로 옮기고 `ARFaceManager.trackablesChanged` sequence/frame을 ack/log에 싣는다. | overlaySyncPhase/frame, trackablesChangedSequence |
+| L2 | per-frame `new List`/topology rebuild/normal recalculation을 제거하고 mesh buffers를 재사용한다. | overlaySyncDurationMs, overlaySyncWorstDurationMs, overlaySyncCount, overlayTopologyChanged |
+| L3 | child mesh path는 유지하되 transform mismatch 판정을 위해 sync frame/topology metric을 먼저 남긴다. | 다음 iPhone yaw/fast yaw에서 판정 필요 |
+| Q1 | generated UV mask default를 512로 올리고 UV-space 2x2 AA raster로 바꿨다. | Jest asserts `uvResolution=512`, `edgeBandRatio > 0` |
+| Q2 | preview/package/runtime이 같은 adjusted boundary를 쓰도록 `previewVsUvRoundTripDelta`, `alphaBoundingBoxTexels`, inner-hole metric을 metadata에 기록한다. | Jest asserts `innerHolePositiveRatio <= 0.01`, `previewVsUvRoundTripDelta <= 0.35` |
+| Q3 | shader upper/lower threshold sign을 `+ = more include` 쪽으로 보정했다. | Unity compile은 licensing blocked, next device strong/boundary screenshots 필요 |
+| U1 | RN pipeline과 `packages/lip-generate-core`의 `verticalOffset +`를 위로 이동하도록 수정했다. | Jest covers upper/lower/corner/y direction |
+| S1 | default lip auto-enable을 끄고 Unity screen unmount/hidden wizard 상태에서 overlay clear를 보낸다. | Jest covers initial timer post `activeRegions=none`, stale ack after retake |
+| A1 | control request id/revision을 RN -> Unity -> ack로 왕복시키고 mismatch ack는 성공 처리하지 않는다. `maskVisible`과 overlay visibility도 같은 값으로 보낸다. | Jest covers mismatched control ack stays pending, matching ack confirms |
+
+검증:
+
+```txt
+pass: cd rn/MakeupARValidation && ./node_modules/.bin/tsc --noEmit
+pass: cd rn/MakeupARValidation && npm test -- --runInBand --watchman=false
+pass: cd rn/MakeupARValidation && npm run lint
+pass: cd packages/lip-generate-core && npm run typecheck
+pass: cd packages/lip-generate-core && npm test
+pass: cd rn/MakeupARValidation && npm run e7:build-plan -- --no-report
+  decision=run-unityframework-build
+  reason=Unity runtime source/assets changed
+  unityFrameworkSync=false reason=rn_reference_unityframework_missing
+pass: cd rn/MakeupARValidation && npm run e7:prebuild:full -- --no-report
+  result=pass pass=36 fail=0 warn=0
+pass: git diff --check
+blocked: Unity batchmode smoke
+  log=evidence/logs/e7-generated-lip-mask-smoke-20260629.log
+  reason=Unity Licensing Client channel timeout
+```
+
+다음 boundary:
+
+```txt
+1. Unity licensing/channel을 해결한다.
+2. bash scripts/build_m3_unityframework.sh를 실행해 UnityFramework를 재생성/sync한다.
+3. 그 다음에만 Xcode/iPhone build로 간다.
+4. iPhone에서는 neutral, slow yaw, fast yaw, mouth open/close, ON/OFF, strong, boundary, color, opacity를 화면 변화와 ack로 확인한다.
+```
+
 첫 iPhone build의 판정 방식:
 
 ```txt

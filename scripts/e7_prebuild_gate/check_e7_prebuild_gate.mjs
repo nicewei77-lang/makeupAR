@@ -272,6 +272,7 @@ function analyzeRawRgba(payload) {
   const expectedBytes = width * height * 4;
   let nonzeroAlpha = 0;
   let strongAlpha = 0;
+  let edgeBandAlpha = 0;
   let maxAlpha = 0;
   let minX = width;
   let minY = height;
@@ -293,6 +294,9 @@ function analyzeRawRgba(payload) {
       if (alpha >= 128) {
         strongAlpha += 1;
       }
+      if (alpha > 8 && alpha < 247) {
+        edgeBandAlpha += 1;
+      }
     }
   }
 
@@ -303,6 +307,8 @@ function analyzeRawRgba(payload) {
     expectedBytes,
     nonzeroAlpha,
     strongAlpha,
+    edgeBandAlpha,
+    edgeBandRatio: nonzeroAlpha > 0 ? edgeBandAlpha / nonzeroAlpha : 0,
     maxAlpha,
     bbox: maxX >= minX ? { minX, minY, maxX, maxY } : null,
   };
@@ -424,6 +430,13 @@ function runMain() {
     addCheck('fixture.json_parse', false, error.message);
   }
 
+  const rnAppSource = safeReadText(rnAppPath);
+  const personalizedPipelineSource = safeReadText(personalizedPipelinePath);
+  const nativeProviderSource = safeReadText(nativeProviderPath);
+  const nativeBridgeSource = safeReadText(nativeBridgePath);
+  const unityBridgeSource = safeReadText(unityBridgePath);
+  const unityCaptureExporterSource = safeReadText(unityCaptureExporterPath);
+
   if (generatedPackage && arFaceExport && savedRecord) {
     const boundary = generatedPackage.lipBoundary2D;
     const outer = boundary?.outerPoints ?? [];
@@ -477,8 +490,34 @@ function runMain() {
       uvStats.bytes === uvStats.expectedBytes &&
         uvStats.nonzeroAlpha > 0 &&
         uvStats.strongAlpha > 0,
-      `bytes=${uvStats.bytes}/${uvStats.expectedBytes} nonzeroAlpha=${uvStats.nonzeroAlpha} strongAlpha=${uvStats.strongAlpha} maxAlpha=${uvStats.maxAlpha} bbox=${JSON.stringify(uvStats.bbox)}`,
+      `bytes=${uvStats.bytes}/${uvStats.expectedBytes} nonzeroAlpha=${uvStats.nonzeroAlpha} strongAlpha=${uvStats.strongAlpha} edgeBandAlpha=${uvStats.edgeBandAlpha} edgeBandRatio=${uvStats.edgeBandRatio.toFixed(4)} maxAlpha=${uvStats.maxAlpha} bbox=${JSON.stringify(uvStats.bbox)}`,
       { uvStats },
+    );
+    const fixtureHasUvQualityMetrics =
+      Number(generatedPackage.uvCoverageMetadata?.uvResolution ?? 0) >= 512 &&
+      Number(generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0) >= 512 &&
+      Number(generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0) >= 512 &&
+      Number(generatedPackage.uvCoverageMetadata?.edgeBandRatio ?? -1) >= 0 &&
+      Number(generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 1) <= 0.05 &&
+      Number(generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ?? 1) <= 0.5;
+    const sourceHasUvQualityMetrics = matchesAll(personalizedPipelineSource, [
+      /GENERATED_UV_MASK_RESOLUTION\s*=\s*512/,
+      /GENERATED_UV_SUPERSAMPLE_GRID\s*=\s*2/,
+      /edgeBandRatio/,
+      /innerHolePositiveRatio/,
+      /previewVsUvRoundTripDelta/,
+    ]);
+    addCheck(
+      'package.uv_mask_quality_metrics',
+      fixtureHasUvQualityMetrics || sourceHasUvQualityMetrics,
+      `fixtureReady=${fixtureHasUvQualityMetrics ? 'yes' : 'no'} sourceReady=${sourceHasUvQualityMetrics ? 'yes' : 'no'} uvResolution=${generatedPackage.uvCoverageMetadata?.uvResolution ?? 'missing'} texture=${generatedPackage.runtimeApplyPayload?.maskTextureWidth ?? 0}x${generatedPackage.runtimeApplyPayload?.maskTextureHeight ?? 0} edgeBandRatio=${generatedPackage.uvCoverageMetadata?.edgeBandRatio ?? 'missing'} innerHolePositiveRatio=${generatedPackage.uvCoverageMetadata?.innerHolePositiveRatio ?? 'missing'} previewVsUvRoundTripDelta=${generatedPackage.uvCoverageMetadata?.previewVsUvRoundTripDelta ?? 'missing'}`,
+      {
+        uvCoverageMetadata: generatedPackage.uvCoverageMetadata,
+        runtimeApplyPayload: {
+          maskTextureWidth: generatedPackage.runtimeApplyPayload?.maskTextureWidth,
+          maskTextureHeight: generatedPackage.runtimeApplyPayload?.maskTextureHeight,
+        },
+      },
     );
     addCheck(
       'package.saved_record_is_not_apply_proof',
@@ -505,12 +544,6 @@ function runMain() {
     }
   }
 
-  const rnAppSource = safeReadText(rnAppPath);
-  const personalizedPipelineSource = safeReadText(personalizedPipelinePath);
-  const nativeProviderSource = safeReadText(nativeProviderPath);
-  const nativeBridgeSource = safeReadText(nativeBridgePath);
-  const unityBridgeSource = safeReadText(unityBridgePath);
-  const unityCaptureExporterSource = safeReadText(unityCaptureExporterPath);
   const rnFocusedProofSource = [
     safeReadText(rnAppTestPath),
     readTextFilesUnder(
@@ -808,9 +841,16 @@ function runMain() {
   const validationControlAckReady = matchesAll(rnAppSource, [
     /pendingGeneratedControlCheck/,
     /doesGeneratedControlAckMatch/,
+    /controlRequestId/,
+    /generated_lip_mask_control_ack_mismatch/,
+    /postRegionOverlayVisibility\(\s*nextControls\.maskVisible/,
     /GENERATED_CONTROL_ACK_TIMEOUT_MS/,
     /AR 검증 변경이 반영되었습니다/,
     /AR 검증 변경 확인이 늦습니다/,
+  ]) && matchesAll(unityBridgeSource, [
+    /controlRequestId/,
+    /validationControlRequestId/,
+    /validationControls[\s\S]{0,240}controlRequestId/,
   ]);
   addCheck(
     'v2.ar_validation_controls_ack_confirmed',

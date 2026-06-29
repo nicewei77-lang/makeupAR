@@ -62,6 +62,17 @@ export type LipUvCoverageMetadata = {
   uvResolution?: number;
   coverageTexels?: number;
   unknownTexels?: number;
+  edgeBandTexels?: number;
+  edgeBandRatio?: number;
+  alphaBoundingBoxTexels?: {
+    minColumn: number;
+    minRow: number;
+    maxColumn: number;
+    maxRow: number;
+  };
+  innerHoleSampleCount?: number;
+  innerHolePositiveRatio?: number;
+  previewVsUvRoundTripDelta?: number;
   roundTripKind?: 'same_frame_self_reconstruction' | 'held_out_projection';
   roundTripScore?: {
     iou?: number;

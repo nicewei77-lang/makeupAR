@@ -97,7 +97,7 @@ Shader "MakeupAR/SmoothRegionMask"
                 float lowerBand = smoothstep(0.44, 0.52, maskUv.y);
                 float localTightness = _UpperLipTightness * upperBand
                     + _LowerLipTightness * lowerBand;
-                float threshold = saturate(_Threshold + (0.70 - coverage) * 0.08 + localTightness * 0.08);
+                float threshold = saturate(_Threshold + (0.70 - coverage) * 0.08 - localTightness * 0.08);
                 float high = min(1.0, threshold + max(_Feather, 0.00001));
                 float alpha = smoothstep(threshold, high, probability)
                     * _Opacity

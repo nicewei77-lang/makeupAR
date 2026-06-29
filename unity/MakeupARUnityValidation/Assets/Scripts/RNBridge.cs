@@ -164,6 +164,10 @@ public sealed class RNBridge : MonoBehaviour
         public bool debugBoundary;
         public bool showBoundary;
         public bool debugOverlayVisible;
+        public int controlRequestId;
+        public int validationControlRequestId;
+        public int controlRevision;
+        public int validationControlRevision;
     }
 
     [Serializable]
@@ -256,6 +260,8 @@ public sealed class RNBridge : MonoBehaviour
         public float ValidationOpacity;
         public bool BoundaryDebugVisible;
         public string BoundaryDebugMode;
+        public int ValidationControlRequestId;
+        public int ValidationControlRevision;
     }
 
     private sealed class RegionFeatureState
@@ -314,6 +320,13 @@ public sealed class RNBridge : MonoBehaviour
         public int MeshTriangleCount;
         public string TopologyAuditStatus = "not_run";
         public string TopologyAuditSummary = "none";
+        public string OverlaySyncPhase = "not_started";
+        public int OverlaySyncFrame;
+        public int TrackablesChangedSequence;
+        public float OverlaySyncDurationMs;
+        public float OverlaySyncWorstDurationMs;
+        public int OverlaySyncCount;
+        public bool OverlayTopologyChanged;
         public bool ValidationVisible = true;
         public bool ValidationStrongMode;
         public string ValidationMode = "standard";
@@ -1081,7 +1094,13 @@ public sealed class RNBridge : MonoBehaviour
             BoundaryDebugVisible = boundaryDebugVisible,
             BoundaryDebugMode = boundaryDebugVisible
                 ? "requested_no_separate_boundary_renderer"
-                : "none"
+                : "none",
+            ValidationControlRequestId = payload.controlRequestId != 0
+                ? payload.controlRequestId
+                : payload.validationControlRequestId,
+            ValidationControlRevision = payload.controlRevision != 0
+                ? payload.controlRevision
+                : payload.validationControlRevision
         };
     }
 
@@ -1382,8 +1401,14 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"effectiveOpacity\":" + layer.Opacity.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"boundaryDebugVisible\":" + layer.BoundaryDebugVisible.ToString().ToLowerInvariant()
             + ",\"boundaryDebugMode\":\"" + EscapeJsonString(layer.BoundaryDebugMode) + "\""
+            + ",\"controlRequestId\":" + layer.ValidationControlRequestId.ToString(CultureInfo.InvariantCulture)
+            + ",\"validationControlRequestId\":" + layer.ValidationControlRequestId.ToString(CultureInfo.InvariantCulture)
+            + ",\"controlRevision\":" + layer.ValidationControlRevision.ToString(CultureInfo.InvariantCulture)
+            + ",\"validationControlRevision\":" + layer.ValidationControlRevision.ToString(CultureInfo.InvariantCulture)
             + ",\"validationControls\":{"
             + "\"visible\":" + layer.ValidationVisible.ToString().ToLowerInvariant()
+            + ",\"controlRequestId\":" + layer.ValidationControlRequestId.ToString(CultureInfo.InvariantCulture)
+            + ",\"controlRevision\":" + layer.ValidationControlRevision.ToString(CultureInfo.InvariantCulture)
             + ",\"strongMode\":" + layer.ValidationStrongMode.ToString().ToLowerInvariant()
             + ",\"mode\":\"" + EscapeJsonString(layer.ValidationMode) + "\""
             + ",\"color\":\"" + EscapeJsonString(layer.ColorHex) + "\""
@@ -1399,6 +1424,13 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"verticalOffset\":" + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"appliedAtMs\":" + appliedAtMs.ToString(CultureInfo.InvariantCulture)
             + ",\"appliedFrame\":" + appliedFrame.ToString(CultureInfo.InvariantCulture)
+            + ",\"overlaySyncPhase\":\"" + EscapeJsonString(result.OverlaySyncPhase) + "\""
+            + ",\"overlaySyncFrame\":" + result.OverlaySyncFrame.ToString(CultureInfo.InvariantCulture)
+            + ",\"trackablesChangedSequence\":" + result.TrackablesChangedSequence.ToString(CultureInfo.InvariantCulture)
+            + ",\"overlaySyncDurationMs\":" + result.OverlaySyncDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncWorstDurationMs\":" + result.OverlaySyncWorstDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncCount\":" + result.OverlaySyncCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"overlayTopologyChanged\":" + result.OverlayTopologyChanged.ToString().ToLowerInvariant()
             + "}";
         SendAndPersistGeneratedLipMaskAppliedEvent(eventJson);
     }
@@ -1523,6 +1555,13 @@ public sealed class RNBridge : MonoBehaviour
             MeshTriangleCount = result.MeshTriangleCount,
             TopologyAuditStatus = result.TopologyAuditStatus,
             TopologyAuditSummary = result.TopologyAuditSummary,
+            OverlaySyncPhase = result.OverlaySyncPhase,
+            OverlaySyncFrame = result.OverlaySyncFrame,
+            TrackablesChangedSequence = result.TrackablesChangedSequence,
+            OverlaySyncDurationMs = result.OverlaySyncDurationMs,
+            OverlaySyncWorstDurationMs = result.OverlaySyncWorstDurationMs,
+            OverlaySyncCount = result.OverlaySyncCount,
+            OverlayTopologyChanged = result.OverlayTopologyChanged,
             ValidationVisible = layer.ValidationVisible,
             ValidationStrongMode = layer.ValidationStrongMode,
             ValidationMode = layer.ValidationMode,
@@ -1572,6 +1611,13 @@ public sealed class RNBridge : MonoBehaviour
             state.TopologyAuditSummary = result.TopologyAuditSummary;
             state.MaskThreshold = result.MaskThreshold;
             state.MaskFeatherUvNormalized = result.MaskFeatherUvNormalized;
+            state.OverlaySyncPhase = result.OverlaySyncPhase;
+            state.OverlaySyncFrame = result.OverlaySyncFrame;
+            state.TrackablesChangedSequence = result.TrackablesChangedSequence;
+            state.OverlaySyncDurationMs = result.OverlaySyncDurationMs;
+            state.OverlaySyncWorstDurationMs = result.OverlaySyncWorstDurationMs;
+            state.OverlaySyncCount = result.OverlaySyncCount;
+            state.OverlayTopologyChanged = result.OverlayTopologyChanged;
         }
     }
 
@@ -1677,6 +1723,13 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"meshUvCount\":" + state.MeshUvCount.ToString(CultureInfo.InvariantCulture)
                 + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state.TopologyAuditStatus) + "\""
                 + ",\"topologyAuditSummary\":\"" + EscapeJsonString(state.TopologyAuditSummary) + "\""
+                + ",\"overlaySyncPhase\":\"" + EscapeJsonString(state.OverlaySyncPhase) + "\""
+                + ",\"overlaySyncFrame\":" + state.OverlaySyncFrame.ToString(CultureInfo.InvariantCulture)
+                + ",\"trackablesChangedSequence\":" + state.TrackablesChangedSequence.ToString(CultureInfo.InvariantCulture)
+                + ",\"overlaySyncDurationMs\":" + state.OverlaySyncDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"overlaySyncWorstDurationMs\":" + state.OverlaySyncWorstDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"overlaySyncCount\":" + state.OverlaySyncCount.ToString(CultureInfo.InvariantCulture)
+                + ",\"overlayTopologyChanged\":" + state.OverlayTopologyChanged.ToString().ToLowerInvariant()
                 + "}");
         }
 
@@ -1742,6 +1795,9 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"appliedTriangles\":" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
                 + ",\"uvAvailable\":" + (state != null && state.UvAvailable).ToString().ToLowerInvariant()
                 + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state != null ? state.TopologyAuditStatus : "not_run") + "\""
+                + ",\"overlaySyncPhase\":\"" + EscapeJsonString(state != null ? state.OverlaySyncPhase : "not_started") + "\""
+                + ",\"overlaySyncDurationMs\":" + (state != null ? state.OverlaySyncDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+                + ",\"overlaySyncWorstDurationMs\":" + (state != null ? state.OverlaySyncWorstDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"lastUpdatedMs\":" + (state != null ? state.LastUpdatedMs : 0L).ToString(CultureInfo.InvariantCulture)
                 + "}");
         }
@@ -1815,7 +1871,14 @@ public sealed class RNBridge : MonoBehaviour
             + " regionMaskTriangles=" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + " regionAppliedTriangles=" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + " topologyAuditStatus=" + (state != null ? state.TopologyAuditStatus : "not_run")
-            + " topologyAuditSummary=" + SanitizeLogValue(state != null ? state.TopologyAuditSummary : "none");
+            + " topologyAuditSummary=" + SanitizeLogValue(state != null ? state.TopologyAuditSummary : "none")
+            + " overlaySyncPhase=" + (state != null ? state.OverlaySyncPhase : "not_started")
+            + " overlaySyncFrame=" + (state != null ? state.OverlaySyncFrame : 0).ToString(CultureInfo.InvariantCulture)
+            + " trackablesChangedSequence=" + (state != null ? state.TrackablesChangedSequence : 0).ToString(CultureInfo.InvariantCulture)
+            + " overlaySyncDurationMs=" + (state != null ? state.OverlaySyncDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncWorstDurationMs=" + (state != null ? state.OverlaySyncWorstDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncCount=" + (state != null ? state.OverlaySyncCount : 0).ToString(CultureInfo.InvariantCulture)
+            + " overlayTopologyChanged=" + (state != null && state.OverlayTopologyChanged).ToString().ToLowerInvariant();
     }
 
     public string BuildE7SmoothMaskStateJsonFragment()
@@ -1884,7 +1947,14 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"regionMaskTriangles\":" + (state != null ? state.MaskTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"regionAppliedTriangles\":" + (state != null ? state.MeshTriangleCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"topologyAuditStatus\":\"" + EscapeJsonString(state != null ? state.TopologyAuditStatus : "not_run") + "\""
-            + ",\"topologyAuditSummary\":\"" + EscapeJsonString(state != null ? state.TopologyAuditSummary : "none") + "\"";
+            + ",\"topologyAuditSummary\":\"" + EscapeJsonString(state != null ? state.TopologyAuditSummary : "none") + "\""
+            + ",\"overlaySyncPhase\":\"" + EscapeJsonString(state != null ? state.OverlaySyncPhase : "not_started") + "\""
+            + ",\"overlaySyncFrame\":" + (state != null ? state.OverlaySyncFrame : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"trackablesChangedSequence\":" + (state != null ? state.TrackablesChangedSequence : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"overlaySyncDurationMs\":" + (state != null ? state.OverlaySyncDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncWorstDurationMs\":" + (state != null ? state.OverlaySyncWorstDurationMs : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncCount\":" + (state != null ? state.OverlaySyncCount : 0).ToString(CultureInfo.InvariantCulture)
+            + ",\"overlayTopologyChanged\":" + (state != null && state.OverlayTopologyChanged).ToString().ToLowerInvariant();
     }
 
     public string GetE7MetricPhase()
@@ -2013,7 +2083,14 @@ public sealed class RNBridge : MonoBehaviour
             + " maskTriangles=" + result.MaskTriangleCount.ToString(CultureInfo.InvariantCulture)
             + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
             + " topologyAuditStatus=" + result.TopologyAuditStatus
-            + " topologyAuditSummary=" + SanitizeLogValue(result.TopologyAuditSummary));
+            + " topologyAuditSummary=" + SanitizeLogValue(result.TopologyAuditSummary)
+            + " overlaySyncPhase=" + result.OverlaySyncPhase
+            + " overlaySyncFrame=" + result.OverlaySyncFrame.ToString(CultureInfo.InvariantCulture)
+            + " trackablesChangedSequence=" + result.TrackablesChangedSequence.ToString(CultureInfo.InvariantCulture)
+            + " overlaySyncDurationMs=" + result.OverlaySyncDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncWorstDurationMs=" + result.OverlaySyncWorstDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncCount=" + result.OverlaySyncCount.ToString(CultureInfo.InvariantCulture)
+            + " overlayTopologyChanged=" + result.OverlayTopologyChanged.ToString().ToLowerInvariant());
 
         Debug.Log(
             "[E7] recipe_latency"
@@ -2136,6 +2213,20 @@ public sealed class RNBridge : MonoBehaviour
             + "\",\"topologyAuditSummary\":\""
             + EscapeJsonString(result.TopologyAuditSummary)
             + "\""
+            + ",\"overlaySyncPhase\":\""
+            + EscapeJsonString(result.OverlaySyncPhase)
+            + "\",\"overlaySyncFrame\":"
+            + result.OverlaySyncFrame.ToString(CultureInfo.InvariantCulture)
+            + ",\"trackablesChangedSequence\":"
+            + result.TrackablesChangedSequence.ToString(CultureInfo.InvariantCulture)
+            + ",\"overlaySyncDurationMs\":"
+            + result.OverlaySyncDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncWorstDurationMs\":"
+            + result.OverlaySyncWorstDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"overlaySyncCount\":"
+            + result.OverlaySyncCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"overlayTopologyChanged\":"
+            + result.OverlayTopologyChanged.ToString().ToLowerInvariant()
             + ",\"color\":\""
             + EscapeJsonString(layer.ColorHex)
             + "\",\"opacity\":"

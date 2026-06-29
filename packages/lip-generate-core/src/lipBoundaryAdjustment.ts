@@ -117,7 +117,7 @@ function applyLipAdjustmentToPoints(
             0.22 *
             cornerWeight *
             cornerScale);
-    let y = point.y + adjustment.verticalOffset * height * 0.38;
+    let y = point.y - adjustment.verticalOffset * height * 0.38;
 
     if (dy < 0) {
       y -=

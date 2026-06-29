@@ -471,6 +471,31 @@ test('opens forced wizard as the default app flow', async () => {
   });
 });
 
+test('initial recipe post keeps lip disabled until the user applies a mask', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterGenerateWizard(renderer!);
+
+  ReactTestRenderer.act(() => {
+    jest.advanceTimersByTime(1000);
+  });
+
+  const recipePayload = getLastUnityPostPayload('ApplyRecipeJson');
+  expect(recipePayload.activeRegions).toBe('none');
+  expect(recipePayload.enabledLayerCount).toBe(0);
+  expect(
+    recipePayload.layers.find((layer: { region: string }) => layer.region === 'lip')
+      ?.enabled,
+  ).toBe(false);
+  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+    visible: false,
+  });
+  expect(renderer).toBeTruthy();
+});
+
 test('keeps later steps locked until previous gates are reached', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -1020,17 +1045,46 @@ test('posts AR validation controls without resending texture after Unity ack', a
   expect(controlPayload.generatedMaskId).toBe(applyPayload.generatedMaskId);
   expect(controlPayload.maskVisible).toBe(false);
   expect(controlPayload.visible).toBe(false);
+  expect(controlPayload.controlRequestId).toBeGreaterThan(0);
+  expect(controlPayload.validationControlRequestId).toBe(
+    controlPayload.controlRequestId,
+  );
+  expect(controlPayload.controlRevision).toBe(controlPayload.controlRequestId);
   expect(controlPayload.colorHex).toBe('#FF2D8A');
   expect(controlPayload.validationColor).toBe('#FF2D8A');
   expect(controlPayload.opacity).toBeCloseTo(0.76);
   expect(controlPayload.maskRawRgbaBase64).toBeUndefined();
   expect(controlPayload.maskPngBase64).toBeUndefined();
+  expect(getLastUnityPostPayload('SetE7RegionOverlayVisibleJson')).toMatchObject({
+    visible: false,
+  });
   expect(collectText(renderer!)).toContain('AR 검증 변경을 확인하는 중입니다');
 
   emitGeneratedLipMaskApplied(renderer!, {
     generatedMaskId: applyPayload.generatedMaskId,
     provider: 'mediapipe',
     validationControls: {
+      controlRequestId: controlPayload.controlRequestId + 100,
+      controlRevision: controlPayload.controlRevision,
+      visible: false,
+      strongMode: true,
+      colorHex: '#FF2D8A',
+      opacity: 0.76,
+      boundaryDebugVisible: false,
+    },
+  });
+
+  expect(collectText(renderer!)).toContain('AR 검증 변경을 확인하는 중입니다');
+  expect(collectText(renderer!)).not.toContain('AR 검증 변경이 반영되었습니다');
+
+  emitGeneratedLipMaskApplied(renderer!, {
+    generatedMaskId: applyPayload.generatedMaskId,
+    provider: 'mediapipe',
+    controlRequestId: controlPayload.controlRequestId,
+    controlRevision: controlPayload.controlRevision,
+    validationControls: {
+      controlRequestId: controlPayload.controlRequestId,
+      controlRevision: controlPayload.controlRevision,
       visible: false,
       strongMode: true,
       colorHex: '#FF2D8A',

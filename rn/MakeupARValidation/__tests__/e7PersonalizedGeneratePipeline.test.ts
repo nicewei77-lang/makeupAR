@@ -110,6 +110,14 @@ function minY(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoin
   return Math.min(...points.map(point => point.y));
 }
 
+function minX(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+  return Math.min(...points.map(point => point.x));
+}
+
+function maxX(points: NonNullable<E7NativeBoundaryResult['boundary']>['outerPoints']) {
+  return Math.max(...points.map(point => point.x));
+}
+
 test('curve_densified_v1 increases package lip boundary point count', () => {
   const nativeResult = makeNativeBoundaryResult();
   const originalPointCount =
@@ -274,6 +282,122 @@ test('upper lip adjustment plus expands upward in top-left frame coordinates', (
   expect(minY(upperMinusBoundary.outerPoints)).toBeGreaterThan(
     minY(baseBoundary.outerPoints),
   );
+});
+
+test('vertical offset plus moves lip boundary upward in top-left frame coordinates', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const basePackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const offsetPlusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      verticalOffset: 0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+  const offsetMinusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      verticalOffset: -0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const baseBoundary = basePackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const offsetPlusBoundary = offsetPlusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const offsetMinusBoundary = offsetMinusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+
+  expect(minY(offsetPlusBoundary.outerPoints)).toBeLessThan(
+    minY(baseBoundary.outerPoints),
+  );
+  expect(maxY(offsetMinusBoundary.outerPoints)).toBeGreaterThan(
+    maxY(baseBoundary.outerPoints),
+  );
+});
+
+test('corner reach plus expands horizontal boundary width', () => {
+  const nativeResult = makeNativeBoundaryResult();
+  const basePackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const cornerPlusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      cornerReach: 0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+  const cornerMinusPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      cornerReach: -0.35,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+
+  const baseBoundary = basePackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const cornerPlusBoundary = cornerPlusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+  const cornerMinusBoundary = cornerMinusPackage.lipBoundary2D as NonNullable<
+    E7NativeBoundaryResult['boundary']
+  >;
+
+  expect(minX(cornerPlusBoundary.outerPoints)).toBeLessThan(
+    minX(baseBoundary.outerPoints),
+  );
+  expect(maxX(cornerPlusBoundary.outerPoints)).toBeGreaterThan(
+    maxX(baseBoundary.outerPoints),
+  );
+  expect(minX(cornerMinusBoundary.outerPoints)).toBeGreaterThan(
+    minX(baseBoundary.outerPoints),
+  );
+  expect(maxX(cornerMinusBoundary.outerPoints)).toBeLessThan(
+    maxX(baseBoundary.outerPoints),
+  );
+});
+
+test('generated UV mask defaults to 512 with antialias and hole metrics', () => {
+  const generatedPackage = buildGeneratedLipPackage({
+    nativeResult: makeNativeBoundaryResult(),
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+  const metadata = generatedPackage.uvCoverageMetadata!;
+
+  expect(generatedPackage.runtimeApplyPayload.maskTextureWidth).toBe(512);
+  expect(generatedPackage.runtimeApplyPayload.maskTextureHeight).toBe(512);
+  expect(metadata.uvResolution).toBe(512);
+  expect(metadata.alphaBoundingBoxTexels).toBeTruthy();
+  expect(metadata.edgeBandTexels).toBeGreaterThan(0);
+  expect(metadata.edgeBandRatio).toBeGreaterThan(0);
+  expect(metadata.innerHoleSampleCount).toBeGreaterThan(0);
+  expect(metadata.innerHolePositiveRatio).toBeLessThanOrEqual(0.01);
+  expect(metadata.previewVsUvRoundTripDelta).toBeLessThanOrEqual(0.35);
 });
 
 test('UV mask raw texture rows match Unity bottom-left texture memory', () => {

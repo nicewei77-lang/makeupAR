@@ -46,6 +46,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float UpperLipTightness;
         public float LowerLipTightness;
         public float VerticalOffset;
+        public string OverlaySyncPhase;
+        public int OverlaySyncFrame;
+        public int TrackablesChangedSequence;
+        public float OverlaySyncDurationMs;
+        public float OverlaySyncWorstDurationMs;
+        public int OverlaySyncCount;
+        public bool OverlayTopologyChanged;
     }
 
     private sealed class RegionRecipeState
@@ -98,6 +105,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public Mesh Mesh;
         public MeshRenderer MeshRenderer;
         public Material MaskMaterial;
+        public readonly List<Vector3> Vertices = new List<Vector3>();
+        public readonly List<Vector2> Uvs = new List<Vector2>();
+        public readonly List<int> Triangles = new List<int>();
+        public string LastAppearanceSignature = string.Empty;
+        public int LastVertexCount = -1;
+        public int LastUvCount = -1;
+        public int LastIndexCount = -1;
+        public int LastTriangleCount = -1;
+        public int SyncCount;
+        public float WorstSyncDurationMs;
     }
 
     private sealed class MaskDefinition
@@ -115,6 +132,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string RendererMode = "smooth-region-mask";
     private const string MaskSource = "smooth_region_mask";
     private const string BoundaryRenderer = "smooth_alpha_mask";
+    private static readonly Bounds StableFaceMaskBounds =
+        new Bounds(Vector3.zero, new Vector3(0.36f, 0.42f, 0.28f));
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -127,6 +146,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private readonly Dictionary<string, Texture2D> generatedMaskTextures =
         new Dictionary<string, Texture2D>();
     private bool overlayRenderingSuppressed;
+    private ARFaceManager subscribedFaceManager;
+    private int trackablesChangedSequence;
 
     public void Configure(ARFaceManager manager)
     {
@@ -212,7 +233,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return true;
     }
 
-    private void Update()
+    private void OnEnable()
+    {
+        RefreshSceneReferences();
+    }
+
+    private void OnDisable()
+    {
+        UnsubscribeFaceManager();
+    }
+
+    private void LateUpdate()
     {
         if (recipes.Count == 0)
         {
@@ -294,6 +325,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         RefreshSceneReferences();
         RegionApplyResult result = CreateResult(region);
+        float syncStartedAt = Time.realtimeSinceStartup;
+        result.OverlaySyncPhase = emitLog ? "immediate_apply" : "late_update";
+        result.OverlaySyncFrame = Time.frameCount;
+        result.TrackablesChangedSequence = trackablesChangedSequence;
 
         if (!recipes.TryGetValue(region, out RegionRecipeState recipe))
         {
@@ -364,14 +399,22 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
             result.FaceCount++;
             int triangleCount = 0;
-            bool meshApplied = useMeshMasks && TryUpdateFullFaceUvMesh(face, view, recipe, out triangleCount);
+            bool topologyChanged = false;
+            bool meshApplied = useMeshMasks
+                && TryUpdateFullFaceUvMesh(face, view, recipe, out triangleCount, out topologyChanged);
             result.MeshTriangleCount += triangleCount;
             result.MaskTriangleCount += triangleCount;
+            result.OverlayTopologyChanged = result.OverlayTopologyChanged || topologyChanged;
+            result.OverlaySyncWorstDurationMs = Mathf.Max(
+                result.OverlaySyncWorstDurationMs,
+                view.WorstSyncDurationMs);
+            result.OverlaySyncCount = Mathf.Max(result.OverlaySyncCount, view.SyncCount);
 
             SetViewVisibility(view, meshApplied);
             result.Applied = result.Applied || meshApplied;
         }
 
+        result.OverlaySyncDurationMs = (Time.realtimeSinceStartup - syncStartedAt) * 1000.0f;
         latestRegionResults[region] = result;
         if (emitLog)
         {
@@ -423,6 +466,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             UpperLipTightness = 0.0f,
             LowerLipTightness = 0.0f,
             VerticalOffset = 0.0f,
+            OverlaySyncPhase = "not_started",
+            OverlaySyncFrame = 0,
+            TrackablesChangedSequence = 0,
+            OverlaySyncDurationMs = 0.0f,
+            OverlaySyncWorstDurationMs = 0.0f,
+            OverlaySyncCount = 0,
+            OverlayTopologyChanged = false,
         };
     }
 
@@ -457,6 +507,36 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             faceManager = FindFirstObjectByType<ARFaceManager>();
         }
+
+        SubscribeFaceManager();
+    }
+
+    private void SubscribeFaceManager()
+    {
+        if (faceManager == null || subscribedFaceManager == faceManager)
+        {
+            return;
+        }
+
+        UnsubscribeFaceManager();
+        subscribedFaceManager = faceManager;
+        subscribedFaceManager.trackablesChanged.AddListener(OnFaceTrackablesChanged);
+    }
+
+    private void UnsubscribeFaceManager()
+    {
+        if (subscribedFaceManager == null)
+        {
+            return;
+        }
+
+        subscribedFaceManager.trackablesChanged.RemoveListener(OnFaceTrackablesChanged);
+        subscribedFaceManager = null;
+    }
+
+    private void OnFaceTrackablesChanged(ARTrackablesChangedEventArgs<ARFace> args)
+    {
+        trackablesChangedSequence++;
     }
 
     private FaceOverlayState EnsureFaceOverlayState(ARFace face)
@@ -499,6 +579,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             name = "E3 " + region + " smooth mask"
         };
         mesh.MarkDynamic();
+        mesh.bounds = StableFaceMaskBounds;
 
         MeshFilter meshFilter = root.AddComponent<MeshFilter>();
         MeshRenderer meshRenderer = root.AddComponent<MeshRenderer>();
@@ -519,13 +600,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         ARFace face,
         RegionOverlayView view,
         RegionRecipeState recipe,
-        out int triangleCount)
+        out int triangleCount,
+        out bool topologyChanged)
     {
         triangleCount = 0;
+        topologyChanged = false;
+        float syncStartedAt = Time.realtimeSinceStartup;
 
         if (!HasUsableUv(face) || view.MeshRenderer == null)
         {
             view.Mesh.Clear();
+            ResetMeshCacheState(view);
             return false;
         }
 
@@ -534,6 +619,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (maskTexture == null)
         {
             view.Mesh.Clear();
+            ResetMeshCacheState(view);
             return false;
         }
 
@@ -541,56 +627,106 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             || !view.MeshRenderer.sharedMaterial.HasProperty("_MaskTex"))
         {
             view.Mesh.Clear();
+            ResetMeshCacheState(view);
             return false;
         }
 
-        List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
-        List<Vector2> textureCoordinates = new List<Vector2>(face.uvs.Length);
-        List<int> triangles = new List<int>(face.indices.Length);
+        int vertexCount = face.vertices.Length;
+        int uvCount = face.uvs.Length;
+        int indexCount = face.indices.Length;
+        topologyChanged = view.LastVertexCount != vertexCount
+            || view.LastUvCount != uvCount
+            || view.LastIndexCount != indexCount;
 
-        for (int index = 0; index < face.vertices.Length; index++)
+        EnsureCapacity(view.Vertices, vertexCount);
+        view.Vertices.Clear();
+        for (int index = 0; index < vertexCount; index++)
         {
-            vertices.Add(face.vertices[index]);
+            view.Vertices.Add(face.vertices[index]);
         }
 
-        for (int index = 0; index < face.uvs.Length; index++)
+        if (topologyChanged)
         {
-            textureCoordinates.Add(face.uvs[index]);
-        }
+            EnsureCapacity(view.Uvs, uvCount);
+            EnsureCapacity(view.Triangles, indexCount);
+            view.Uvs.Clear();
+            view.Triangles.Clear();
 
-        for (int index = 0; index + 2 < face.indices.Length; index += 3)
-        {
-            int sourceA = face.indices[index];
-            int sourceB = face.indices[index + 1];
-            int sourceC = face.indices[index + 2];
-
-            if (sourceA < 0 || sourceB < 0 || sourceC < 0
-                || sourceA >= face.vertices.Length
-                || sourceB >= face.vertices.Length
-                || sourceC >= face.vertices.Length)
+            for (int index = 0; index < uvCount; index++)
             {
-                continue;
+                view.Uvs.Add(face.uvs[index]);
             }
 
-            triangles.Add(sourceA);
-            triangles.Add(sourceB);
-            triangles.Add(sourceC);
+            for (int index = 0; index + 2 < indexCount; index += 3)
+            {
+                int sourceA = face.indices[index];
+                int sourceB = face.indices[index + 1];
+                int sourceC = face.indices[index + 2];
+
+                if (sourceA < 0 || sourceB < 0 || sourceC < 0
+                    || sourceA >= vertexCount
+                    || sourceB >= vertexCount
+                    || sourceC >= vertexCount)
+                {
+                    continue;
+                }
+
+                view.Triangles.Add(sourceA);
+                view.Triangles.Add(sourceB);
+                view.Triangles.Add(sourceC);
+            }
+
+            view.LastVertexCount = vertexCount;
+            view.LastUvCount = uvCount;
+            view.LastIndexCount = indexCount;
+            view.LastTriangleCount = view.Triangles.Count / 3;
         }
 
-        triangleCount = triangles.Count / 3;
+        triangleCount = view.LastTriangleCount;
         if (triangleCount == 0)
         {
             view.Mesh.Clear();
+            ResetMeshCacheState(view);
             return false;
         }
 
-        view.Mesh.Clear();
-        view.Mesh.SetVertices(vertices);
-        view.Mesh.SetUVs(0, textureCoordinates);
-        view.Mesh.SetTriangles(triangles, 0);
-        view.Mesh.RecalculateNormals();
-        view.Mesh.RecalculateBounds();
+        if (topologyChanged)
+        {
+            view.Mesh.Clear(false);
+            view.Mesh.SetVertices(view.Vertices);
+            view.Mesh.SetUVs(0, view.Uvs);
+            view.Mesh.SetTriangles(view.Triangles, 0);
+            view.Mesh.bounds = StableFaceMaskBounds;
+        }
+        else
+        {
+            view.Mesh.SetVertices(view.Vertices);
+        }
+
+        view.SyncCount++;
+        view.WorstSyncDurationMs = Mathf.Max(
+            view.WorstSyncDurationMs,
+            (Time.realtimeSinceStartup - syncStartedAt) * 1000.0f);
         return true;
+    }
+
+    private static void ResetMeshCacheState(RegionOverlayView view)
+    {
+        view.Vertices.Clear();
+        view.Uvs.Clear();
+        view.Triangles.Clear();
+        view.LastVertexCount = -1;
+        view.LastUvCount = -1;
+        view.LastIndexCount = -1;
+        view.LastTriangleCount = 0;
+    }
+
+    private static void EnsureCapacity<T>(List<T> values, int capacity)
+    {
+        if (values.Capacity < capacity)
+        {
+            values.Capacity = capacity;
+        }
     }
 
     private static MaskDefinition ResolveMask(string region)
@@ -1329,6 +1465,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " meshUvCount=" + result.MeshUvCount.ToString(CultureInfo.InvariantCulture)
             + " uvAvailable=" + result.UvAvailable.ToString().ToLowerInvariant()
             + " appliedTriangles=" + result.MeshTriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " overlaySyncPhase=" + result.OverlaySyncPhase
+            + " overlaySyncFrame=" + result.OverlaySyncFrame.ToString(CultureInfo.InvariantCulture)
+            + " trackablesChangedSequence=" + result.TrackablesChangedSequence.ToString(CultureInfo.InvariantCulture)
+            + " overlaySyncDurationMs=" + result.OverlaySyncDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncWorstDurationMs=" + result.OverlaySyncWorstDurationMs.ToString("0.###", CultureInfo.InvariantCulture)
+            + " overlaySyncCount=" + result.OverlaySyncCount.ToString(CultureInfo.InvariantCulture)
+            + " overlayTopologyChanged=" + result.OverlayTopologyChanged.ToString().ToLowerInvariant()
             + " threshold=" + result.MaskThreshold.ToString("0.###", CultureInfo.InvariantCulture)
             + " featherUvNormalized=" + result.MaskFeatherUvNormalized.ToString("0.######", CultureInfo.InvariantCulture)
             + " coverage=" + result.Coverage.ToString("0.##", CultureInfo.InvariantCulture)

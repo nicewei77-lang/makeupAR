@@ -484,6 +484,8 @@ type GeneratedMaskValidationControls = {
 };
 type PendingGeneratedControlCheck = {
   generatedMaskId: string;
+  requestId: number;
+  revision: number;
   controls: GeneratedMaskValidationControls;
   requestedAtMs: number;
 };
@@ -547,7 +549,7 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   eye: 'eye-smooth-mask-v1',
 };
 const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
-  lip: true,
+  lip: false,
   cheek: false,
   eye: false,
 };
@@ -611,7 +613,11 @@ function createGeneratedApplyState(
 function buildGeneratedMaskUnityMessage(
   generatedPackage: LipGeneratePackage,
   controls: GeneratedMaskValidationControls,
-  options: { includeTexture: boolean },
+  options: {
+    includeTexture: boolean;
+    controlRequestId?: number;
+    controlRevision?: number;
+  },
 ) {
   const message: Record<string, unknown> = {
     ...buildUnityMessageFromPackage(generatedPackage),
@@ -638,6 +644,14 @@ function buildGeneratedMaskUnityMessage(
     showBoundary: controls.boundaryDebugVisible,
     debugOverlayVisible: controls.boundaryDebugVisible,
   };
+  if (options.controlRequestId !== undefined) {
+    message.controlRequestId = options.controlRequestId;
+    message.validationControlRequestId = options.controlRequestId;
+  }
+  if (options.controlRevision !== undefined) {
+    message.controlRevision = options.controlRevision;
+    message.validationControlRevision = options.controlRevision;
+  }
 
   if (!options.includeTexture) {
     delete message.maskPngBase64;
@@ -649,11 +663,24 @@ function buildGeneratedMaskUnityMessage(
 
 function doesGeneratedControlAckMatch(
   event: UnityEventPayload,
-  controls: GeneratedMaskValidationControls,
+  pendingCheck: PendingGeneratedControlCheck,
 ) {
+  const { controls } = pendingCheck;
   const validationControls = isRecord(event.validationControls)
     ? event.validationControls
     : {};
+  const controlRequestId = readNumber(
+    validationControls.controlRequestId ??
+      validationControls.requestId ??
+      event.controlRequestId ??
+      event.validationControlRequestId,
+  );
+  const controlRevision = readNumber(
+    validationControls.controlRevision ??
+      validationControls.revision ??
+      event.controlRevision ??
+      event.validationControlRevision,
+  );
   const visible = readBoolean(
     validationControls.visible ??
       event.visible ??
@@ -683,6 +710,8 @@ function doesGeneratedControlAckMatch(
   );
 
   return (
+    controlRequestId === pendingCheck.requestId &&
+    controlRevision === pendingCheck.revision &&
     visible === controls.maskVisible &&
     strongMode === controls.strongMode &&
     boundaryDebugVisible === controls.boundaryDebugVisible &&
@@ -1114,6 +1143,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     useRef<PendingGeneratedApplyPayload | null>(null);
   const generatedApplyRetryTimeoutRef =
     useRef<ReturnType<typeof setTimeout> | null>(null);
+  const generatedControlRequestSequenceRef = useRef(0);
   const selectedLipSample =
     lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
   const lipUserAdjustmentSignature = useMemo(
@@ -1154,6 +1184,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   }, [captureSetId, lipGenerateProvider, lipUserAdjustmentSignature]);
 
   useEffect(() => {
+    const unityViewForCleanup = unityRef.current;
     console.log(
       '[E7] unity_screen_mounted',
       `entry=${entryCount}`,
@@ -1161,9 +1192,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     );
 
     return () => {
+      unityViewForCleanup?.postMessage(
+        'RNBridge',
+        'SetE7RegionOverlayVisibleJson',
+        JSON.stringify({
+          visible: false,
+          validationViewMode,
+          reason: 'unity_screen_unmounted_clear_generated_mask',
+          entryCount,
+        }),
+      );
       console.log('[E7] unity_screen_unmounted', `entry=${entryCount}`);
     };
-  }, [entryCount, mountedAt]);
+  }, [entryCount, mountedAt, validationViewMode]);
 
   const handleClose = useCallback(() => {
     console.log('[E7] unity_screen_close_pressed', `entry=${entryCount}`);
@@ -2185,19 +2226,29 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         return;
       }
 
+      const requestId = generatedControlRequestSequenceRef.current + 1;
+      generatedControlRequestSequenceRef.current = requestId;
+      const revision = requestId;
       const unityMessageJson = JSON.stringify(
         buildGeneratedMaskUnityMessage(packageForUpdate, nextControls, {
           includeTexture: false,
+          controlRequestId: requestId,
+          controlRevision: revision,
         }),
       );
-      postRegionOverlayVisibility(true, 'generated_lip_mask_controls_update');
       unityRef.current?.postMessage(
         'RNBridge',
         'ApplyGeneratedLipMaskJson',
         unityMessageJson,
       );
+      postRegionOverlayVisibility(
+        nextControls.maskVisible,
+        'generated_lip_mask_controls_update',
+      );
       setPendingGeneratedControlCheck({
         generatedMaskId: packageForUpdate.generatedMaskId,
+        requestId,
+        revision,
         controls: nextControls,
         requestedAtMs: Date.now(),
       });
@@ -2294,6 +2345,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               '[E7] stale_generated_lip_mask_applied_ignored',
               `generatedMaskId=${generatedMaskId || 'missing'}`,
             );
+          } else if (
+            isApplied &&
+            pendingGeneratedControlCheck &&
+            generatedMaskId === pendingGeneratedControlCheck.generatedMaskId &&
+            !doesGeneratedControlAckMatch(parsed, pendingGeneratedControlCheck)
+          ) {
+            console.log(
+              '[E7] generated_lip_mask_control_ack_mismatch',
+              `generatedMaskId=${generatedMaskId || 'missing'}`,
+              `requestId=${pendingGeneratedControlCheck.requestId}`,
+              `revision=${pendingGeneratedControlCheck.revision}`,
+            );
           } else if (isApplied) {
             clearGeneratedApplyRetryTimeout();
             pendingGeneratedApplyPayloadRef.current = null;
@@ -2302,7 +2365,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               generatedMaskId === pendingGeneratedControlCheck?.generatedMaskId &&
               doesGeneratedControlAckMatch(
                 parsed,
-                pendingGeneratedControlCheck.controls,
+                pendingGeneratedControlCheck,
               );
             setGeneratedApplyState(
               createGeneratedApplyState('applied', {
@@ -2776,7 +2839,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const selectLipSample = useCallback(
     (lipSample: LipSample) => {
-      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
       const nextLipSample = lipSampleSettings[lipSample.name] ?? lipSample;
 
       setSelectedLipSampleName(lipSample.name);
@@ -2810,7 +2873,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ...currentLipSample,
         ...patch,
       };
-      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
 
       setLipSampleSettings(currentSettings => ({
         ...currentSettings,
@@ -2844,7 +2907,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const selectLipRuntimeCandidate = useCallback(
     (candidate: LipRuntimeCandidate) => {
-      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
 
       setSelectedLipRuntimeCandidateId(candidate.candidateId);
       setFocusedRegion('lip');
@@ -2877,7 +2940,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ...lipUserAdjustment,
         [field]: roundedValue,
       };
-      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS };
+      const nextActiveRegions = { ...DEFAULT_ACTIVE_REGIONS, lip: true };
       const providerResult = nativeProviderResults[lipGenerateProvider];
       const providerShotResults =
         nativeProviderShotResults[lipGenerateProvider] ??
