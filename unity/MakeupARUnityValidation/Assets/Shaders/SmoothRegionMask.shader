@@ -275,8 +275,15 @@ Shader "MakeupAR/SmoothRegionMask"
                         float cheekPartGrayRaw = CheekSourceGrayStrength(cheekPartMask.rgb);
                         float cheekPartGrayBlurred = CheekSourceGrayBlur(cheekPartUv);
                         float2 cheekPartCenterUv = cheekPartUv - float2(0.5, 0.5);
-                        float cheekPartGate = (1.0 - smoothstep(0.020, 0.220, abs(cheekPartCenterUv.x)))
-                            * (1.0 - smoothstep(0.018, 0.205, abs(cheekPartCenterUv.y)));
+                        float cheekPartEllipse = length(float2(
+                            cheekPartCenterUv.x / 0.220,
+                            cheekPartCenterUv.y / 0.170));
+                        float cheekPartGate = 1.0 - smoothstep(0.74, 1.04, cheekPartEllipse);
+                        float cheekSideGate = smoothstep(0.19, 0.32, abs(maskUv.x - 0.5));
+                        float cheekUpperGate = 1.0 - smoothstep(0.74, 0.91, maskUv.y);
+                        float cheekOuterPatchGate = saturate(max(cheekSideGate * cheekUpperGate, 0.18));
+                        cheekGrayRaw *= lerp(1.0, cheekOuterPatchGate, cheekPartBlend * 0.58);
+                        cheekGrayBlurred *= lerp(1.0, cheekOuterPatchGate, cheekPartBlend * 0.48);
                         float cheekOriginalCenterSuppress = cheekCenterGate * cheekPartBlend;
                         cheekGrayRaw = max(
                             cheekGrayRaw * (1.0 - cheekOriginalCenterSuppress * 0.90),

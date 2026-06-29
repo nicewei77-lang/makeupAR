@@ -20,8 +20,8 @@ OUTPUT_ROOT = EVIDENCE_ROOT / "expected_render_20260629_current_session_png"
 MASKS = (
     ("Mask 1", "blush_session_1", "cheek-session-mask-1-v1", 0.78, "#F2A59A", 0.76, (1.00, 1.00, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.00),
     ("Mask 2", "blush_session_2", "cheek-session-mask-2-v1", 0.78, "#F3A1A6", 0.76, (1.02, 0.84, 0.000, 0.000), (1.00, 1.00, 0.000, 0.000), 0.00, 0.98, 0.00),
-    ("Mask 3", "blush_session_3", "cheek-session-mask-3-v1", 0.78, "#F0A0B0", 0.76, (1.18, 1.92, 0.000, 0.030), (1.00, 1.00, 0.000, 0.000), 0.00, 2.35, 0.00),
-    ("Mask 4", "blush_session_4", "cheek-session-mask-4-v1", 0.78, "#EFA07F", 0.76, (1.72, 1.24, 0.000, -0.006), (1.95, 1.70, 0.000, -0.020), 1.00, 1.18, 2.60),
+    ("Mask 3", "blush_session_3", "cheek-session-mask-3-v1", 0.78, "#F0A0B0", 0.76, (1.28, 1.72, 0.000, -0.015), (1.00, 1.00, 0.000, 0.000), 0.00, 2.05, 0.00),
+    ("Mask 4", "blush_session_4", "cheek-session-mask-4-v1", 0.78, "#EFA07F", 0.76, (1.14, 1.20, 0.000, 0.018), (2.038, 0.981, 0.000, -0.037), 1.00, 1.70, 0.36),
     ("Mask 5", "blush_session_5", "cheek-session-mask-5-v1", 0.78, "#EAA07A", 0.76, (1.02, 0.96, 0.000, -0.018), (1.00, 1.00, 0.000, 0.000), 0.00, 0.94, 0.36),
 )
 SOURCE_DRAWINGS = {
@@ -180,11 +180,15 @@ def project_uv_mask_to_screen(
             part_sample_x = np.rint(part_uv[..., 0] * (mask_width - 1)).astype(np.int32)
             part_sample_y = np.rint((1.0 - part_uv[..., 1]) * (mask_height - 1)).astype(np.int32)
             part_center_uv = part_uv - np.array([0.5, 0.5], dtype=np.float32)
-            part_gate = (
-                1.0 - smoothstep(0.020, 0.220, np.abs(part_center_uv[..., 0]))
-            ) * (
-                1.0 - smoothstep(0.018, 0.205, np.abs(part_center_uv[..., 1]))
+            part_ellipse = np.sqrt(
+                (part_center_uv[..., 0] / 0.220) ** 2
+                + (part_center_uv[..., 1] / 0.170) ** 2
             )
+            part_gate = 1.0 - smoothstep(0.74, 1.04, part_ellipse)
+            side_gate = smoothstep(0.19, 0.32, np.abs(valid_uv[..., 0] - 0.5))
+            upper_gate = 1.0 - smoothstep(0.74, 0.91, valid_uv[..., 1])
+            outer_patch_gate = np.clip(np.maximum(side_gate * upper_gate, 0.18), 0.0, 1.0)
+            sampled_gray *= 1.0 - part_strength * 0.58 + part_strength * 0.58 * outer_patch_gate
             original_center_suppress = center_gate * part_strength
             sampled_gray = np.maximum(
                 sampled_gray * (1.0 - original_center_suppress * 0.90),

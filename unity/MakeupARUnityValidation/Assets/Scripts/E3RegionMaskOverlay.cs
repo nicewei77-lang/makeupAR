@@ -3117,9 +3117,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case CheekSessionMask2Id:
                 return new Vector4(1.02f, 0.84f, 0.0f, 0.0f);
             case CheekSessionMask3Id:
-                return new Vector4(1.18f, 1.92f, 0.0f, 0.030f);
+                return new Vector4(1.28f, 1.72f, 0.0f, -0.015f);
             case CheekSessionMask4Id:
-                return new Vector4(1.72f, 1.24f, 0.0f, -0.006f);
+                return new Vector4(1.14f, 1.20f, 0.0f, 0.018f);
             case CheekSessionMask5Id:
                 return new Vector4(1.02f, 0.96f, 0.0f, -0.018f);
             default:
@@ -3136,7 +3136,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return new Vector4(1.95f, 1.70f, 0.0f, -0.020f);
+                return new Vector4(2.038f, 0.981f, 0.0f, -0.037f);
             default:
                 return new Vector4(1.0f, 1.0f, 0.0f, 0.0f);
         }
@@ -3170,9 +3170,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case CheekSessionMask2Id:
                 return 0.98f;
             case CheekSessionMask3Id:
-                return 2.35f;
+                return 2.05f;
             case CheekSessionMask4Id:
-                return 1.18f;
+                return 1.70f;
             case CheekSessionMask5Id:
                 return 0.94f;
             default:
@@ -3189,7 +3189,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (maskTextureId)
         {
             case CheekSessionMask4Id:
-                return 2.60f;
+                return 0.36f;
             case CheekSessionMask5Id:
                 return 0.36f;
             default:
