@@ -407,13 +407,16 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - M0 기준 고정: 완료. dirty 파일 분류(`lip` 보호 대상 + `runbook` 변경 예정 + `앱/Unity` 변경), merge 이전 점검 완료.
 - M1 정리: 완료. cache/generated 정리 후보는 별도 runbook 반영 후 다음 게이트에서 문서 증빙 반영 예정.
 - M2 계약 인벤토리: 완료. 위 테이블로 채움.
-- M3 source branch inventory: 부분 완료. `origin/blush-mask`는 cheek v1 기반 에셋만 존재하고, `feature/brow-0626`는 `e7-brow-*` 공식 식별자 자산이 없어 **최신 brow asset 경로가 불명확**.
-- M4~M12: `feature/brow-0626` 최신 자산 모호성 때문에 중단 상태(아래 M12 Stop rules 기준).
+- M3 source branch inventory: 완료. `origin/blush-mask`는 cheek v1 기반 에셋만 존재하고, `feature/brow-0626`는 `e7-brow-*` 공식 식별자 자산이 없어 **최신 brow asset 경로가 불명확**.
+- M4 blush transplant: 완료. `lip/blush/brow/eyeliner` 런타임 계약에서 `blush` 값 정렬, `e7-blush-balanced-uv-v0` 경로 확인, legacy `cheek` alias 보존 정책 반영.
+- M5 brow transplant: 중단. `feature/brow-0626`의 최신 `e7-brow-*` 자산/파라미터/스키마/렌더링 source-of-truth 미확정.
+- M6~M9: M5 중단으로 대기.
+- M10~M12: M5 중단으로 대기(`M12 Stop rules` 및 Risk Register R4/M12 기준, 사용자 확인 전환 대기).
 
 ### 6.2 고정된 stop rule 기록
 
-- `feature/brow-0626` 최신 `e7` brow 공식 식별자 자산 미확정.
-- 최신 brow asset를 `feature/brow-0626`에서 확정하지 못하면 `M5` 이식을 강행하지 않음.
+- `feature/brow-0626`에서 확인 가능한 brow 후보는 `brow-*`/`psd-arcore-*` 계열(v1) 중심이며, `e7-brow-*` 경로-매핑-검증이 한 번에 동일한 증빙으로 확정되지 않음.
+- `feature/brow-0626`에서 `e7-brow-*` 소스가 확정되지 않으면 `M5` 강행 금지(이식 중단)하고 `brow`는 경고/skip 정책으로 문서 추적을 유지한다.
 - `M10`~`M12`는 본 이식 가드 조건 충족 전까지 대기 상태로 둠.
 
 Inventory 작성 시 확인할 항목:
