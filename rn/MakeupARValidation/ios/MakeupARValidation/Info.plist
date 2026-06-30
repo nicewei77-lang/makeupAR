@@ -35,6 +35,8 @@
 	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Camera access is required to validate Unity AR face tracking on iPhone.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Photo library add access is used only when you save AR makeup photos or videos locally.</string>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>

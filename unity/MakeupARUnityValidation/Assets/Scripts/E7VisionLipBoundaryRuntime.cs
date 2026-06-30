@@ -69,8 +69,8 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         public Vector2 Size;
     }
 
-    private const float CaptureIntervalSeconds = 0.20f;
-    private const long FreshBoundaryMaxAgeMs = 300;
+    private const float CaptureIntervalSeconds = 0.35f;
+    private const long FreshBoundaryMaxAgeMs = 900;
     private const long BoundaryTransitionDurationMs = 160;
     private const float BoundarySmoothBlend = 0.56f;
     private const float BoundaryLargeMotionBlend = 0.86f;
@@ -88,7 +88,6 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
     private BoundarySnapshot transitionToSnapshot;
     private long transitionStartedAtMs;
     private RNBridge rnBridge;
-    private E3RegionMaskOverlay regionMaskOverlay;
     private FaceTrackingStatusReporter statusReporter;
     private ARFaceManager faceManager;
 
@@ -206,11 +205,6 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         RefreshSceneReferences();
         bool originalDebugOverlayVisible = statusReporter != null && statusReporter.DebugOverlayVisible;
 
-        if (regionMaskOverlay != null)
-        {
-            regionMaskOverlay.SetVisionCaptureSuppressed(true);
-        }
-
         if (statusReporter != null)
         {
             statusReporter.SetDebugOverlayVisible(false);
@@ -269,11 +263,6 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
                 Destroy(frameTexture);
             }
 
-            if (regionMaskOverlay != null)
-            {
-                regionMaskOverlay.SetVisionCaptureSuppressed(false);
-            }
-
             if (statusReporter != null)
             {
                 statusReporter.SetDebugOverlayVisible(originalDebugOverlayVisible);
@@ -289,11 +278,6 @@ public sealed class E7VisionLipBoundaryRuntime : MonoBehaviour
         if (rnBridge == null)
         {
             rnBridge = FindFirstObjectByType<RNBridge>();
-        }
-
-        if (regionMaskOverlay == null)
-        {
-            regionMaskOverlay = FindFirstObjectByType<E3RegionMaskOverlay>();
         }
 
         if (statusReporter == null)

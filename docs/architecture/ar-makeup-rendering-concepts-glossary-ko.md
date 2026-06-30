@@ -92,7 +92,7 @@ makeup alpha = mask value * opacity
 ```mermaid
 flowchart LR
   Recipe["RN recipe\ncolor/finish/maskTextureId"] --> Bridge["Unity RNBridge"]
-  Bridge --> Region["Region state\nlip / cheek / eye"]
+  Bridge --> Region["Region state\nlip / cheek / eye / brow"]
   ARFace["ARFace mesh\nvertices / indices / UV"] --> Region
   MaskSource["Mask source\nATLAS / VISION / DRAWN"] --> MaskTex["Mask texture\nRGBA or grayscale"]
   MaskTex --> Shader["SmoothRegionMask shader"]
@@ -108,7 +108,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | MASK | 실제로 메이크업을 칠할 영역 또는 그 영역을 시각화한 overlay | "칠해지는 범위" | mask texture/channel에서 나온 alpha. threshold/feather 후 최종 coverage를 만든다 |
 | GUIDE | 사용자가/QA가 위치를 이해하도록 보여주는 기준선, 안내선, 디버그 보조 | "가이드" | 최종 렌더 입력이 아니라 진단 overlay인 경우가 많다 |
-| MESH | ARKit/AR Foundation이 추적한 얼굴 3D 메시의 삼각형 구조 | 보통 일반 사용자는 숨김 | vertices, indices, UV, triangle count, topology audit의 기준 |
+| MESH | ARKit/AR Foundation이 추적한 얼굴 3D 메시의 삼각형 wireframe 구조 | 보통 일반 사용자는 숨김 | vertices, indices, UV, triangle count, topology audit의 기준. QA용 MESH는 삼각형 선만 보여야 하며, ARFace prefab의 채워진 face surface renderer는 계속 억제한다 |
 | HUD | debug head-up display | QA/개발 모드에서만 노출 | 이벤트, latency, tracking state, mask stats를 텍스트로 표시 |
 | Clean | 진단 표시를 숨긴 보기 | 실제 사용자 품질 확인 | 메이크업 결과만 볼 때 사용 |
 | Debug | 상세 진단 보기 | 내부 QA | MASK/GUIDE/MESH/HUD를 조합해 문제를 찾는다 |
@@ -167,11 +167,41 @@ flowchart LR
 | NDC | clip을 w로 나눈 normalized device coordinates | `clipPos.xy / clipPos.w` | screen-space mask 계산 전 단계 |
 | Screen space | 화면 픽셀/정규화 좌표 | `_UseScreenSpaceMask`, Vision screen mask | 기기 회전, safe area, top-left/bottom-left가 문제 |
 | UV space | texture 좌표 0..1 | `input.uv`, ARFace UV | atlas mask의 핵심. ARFace topology와 맞아야 함 |
+| MediaPipe/ARCore canonical texture space | MediaPipe/ARCore 기준 얼굴을 2D로 펼친 asset 도화지 | `psd-arcore-*`, `face_landmarker.task` | asset 도화지와 런타임 얼굴 인식은 다름. 이 공간에 그렸다고 실제 눈썹 위치를 자동 인식하는 것은 아님 |
 | Raw Vision image space | Apple Vision 결과가 나온 이미지 좌표 | `raw-y` | Y축 방향/원점이 Unity screen과 다를 수 있음 |
 | Face-local warped space | Vision 경계를 얼굴 bounds 기준으로 보정한 공간 | `face-local-warp` | motion이 크면 보정이 흔들릴 수 있음 |
 | ARFace UV baked space | Vision boundary를 ARFace UV mask로 구운 결과 | `arface-uv-bake` | Vision과 UV를 연결하는 복잡한 변환 |
 
 현재 Vision 경로의 대표 좌표 로그는 `raw-y->flip-y->face-local-warp->arface-uv-bake`다. 이 문자열은 색감이 아니라 "좌표가 어떤 변환을 거쳐 마스크가 되었는지"를 기록한다.
+
+### MediaPipe Canonical Face 도화지
+
+MediaPipe Canonical Face는 우리 앱에서 새 메이크업 asset을 그릴 때의
+기준 도화지로 쓴다. PSD 원본이 4096px 얼굴 텍스처라면, 생성기는 그
+전체 도화지를 `512x512` runtime mask로 줄이되 lip/cheek/brow를 ARKit
+전용 bbox에 억지로 맞추지 않는다. 즉 asset의 기준은
+MediaPipe/ARCore canonical face이고, ARKit UV mask는 기존 호환/비교용
+좌표계로 남긴다.
+
+다만 이 도화지는 "어디에 그려야 하는지"의 기준이지, 카메라 속 실제
+눈썹을 찾아주는 인식 결과가 아니다. 실제 얼굴에서 눈썹 위치를 맞추려면
+MediaPipe Face Landmarker가 런타임 full-face landmark packet을 만들고,
+그 packet을 Unity 배치값으로 넘기는 단계가 따로 필요하다. Apple Vision
+경로는 과거/중간 실험과 iOS 진단 맥락으로만 남기며, 새 제품 placement
+contract의 기준은 MediaPipe다.
+
+Apple Vision, MediaPipe, Face Parsing의 자세한 비교와 `smooth-region-mask` 보강 전략은 learning 문서의 `Apple Vision, MediaPipe, custom parsing 조합` 섹션에 둔다. 이 glossary는 용어 뜻을 빠르게 찾는 목적이므로 중복 설명을 두지 않는다.
+
+학습 문서: `learning/runbooks/E7_SMOOTH_REGION_MASK_UV_POSITION_LEARNING_GUIDE_KO.md`
+
+### 2026-06-30 Product Coordinate Decision
+
+2026-06-30 기준 product makeup placement의 장기 좌표계는 MediaPipe
+canonical face space다. ARKit/AR Foundation은 iOS camera/session/depth와
+fallback, compatibility/debug route를 계속 도울 수 있지만, ARKit `ARFace`
+UV는 lip, cheek, brow, eye 메이크업의 장기 semantic coordinate source가
+아니다. 새 asset과 placement contract는 MediaPipe canonical asset과
+MediaPipe full-face landmark packet을 기준으로 해석한다.
 
 ## Mesh / topology 용어
 
@@ -191,16 +221,71 @@ flowchart LR
 
 ## Blend / compositing 용어
 
-Unity ShaderLab의 blend는 대략 `결과 = source * sourceFactor + destination * destinationFactor`로 이해하면 된다. 여기서 source는 지금 shader가 그리는 메이크업, destination은 이미 화면에 있는 카메라/피부다.
+Blend 또는 compositing은 "이미 그려진 카메라/피부 픽셀 위에 지금 shader가 만든 메이크업 픽셀을 어떻게 합칠지"를 정하는 단계다. Unity ShaderLab의 일반식은 대략 아래처럼 이해하면 된다.
 
-| 모드 | 일반적 의미 | 현재 구현 | 용도/주의 |
+```text
+result = source * sourceFactor + destination * destinationFactor
+```
+
+여기서 `source`는 지금 shader가 그리는 메이크업 색이고, `destination`은 이미 화면에 있는 카메라/피부 색이다. `GPU multiply`라고 부르는 이유는 이 곱셈/덧셈이 PNG를 미리 저장할 때 일어나는 것이 아니라, 앱 실행 중 GPU가 매 프레임 화면 픽셀을 그리면서 실시간으로 처리하기 때문이다.
+
+### 자주 쓰는 blend mode와 연산 방식
+
+아래 식은 이해를 위한 단순화다. 실제 shader에서는 alpha, mask, feather, coverage, color space, render queue, multi-pass가 함께 들어간다.
+
+| 모드 | 단순 연산식 | 느낌 | AR 메이크업에서 좋은 점 | 약점 |
+| --- | --- | --- | --- | --- |
+| `normal` / straight alpha | `src * alpha + dst * (1 - alpha)` | 가장 기본적인 반투명 덮기 | 색을 예측하기 쉽고 UI opacity와 잘 맞음 | alpha가 높으면 스티커처럼 떠 보이고, 피부 질감이 죽을 수 있음 |
+| `multiply` | `dst * src` 또는 `dst * pigmentFilter` | 아래 피부를 어둡게 착색 | 피부/털결/명암이 비교적 살아 보임. 눈썹, 섀도우, 립 stain에 유용 | 전체가 탁해지고 어두워질 수 있음. 밝은 눈썹이나 밝은 립 표현에 불리함 |
+| `screen` | `1 - (1 - src) * (1 - dst)` | 밝게 띄우기 | 하이라이트, 쉬머, 글리터, 밝은 눈두덩 표현에 유리 | 피부가 뿌옇게 뜨거나 흰 막처럼 보일 수 있음 |
+| additive | `dst + src * strength` | 빛을 더함 | 젖은 립 광택, 작은 specular highlight, 글리터 sparkle에 좋음 | 과하면 번쩍이고 AR 스티커처럼 보임. 어두운 피부/강한 조명에서 튈 수 있음 |
+| overlay | 어두운 dst에는 multiply, 밝은 dst에는 screen 계열 | 대비를 올림 | 피부 명암을 유지하면서 색감과 contrast를 동시에 줄 수 있음 | 중간톤에서 색이 예측하기 어렵고 얼굴 조명에 따라 결과가 크게 달라짐 |
+| soft light | overlay보다 약한 contrast blend | 부드러운 명암 보정 | 블러셔, 컨투어, 자연스러운 톤 보정에 후보 | 효과가 약해서 사용자는 차이를 못 느낄 수 있음 |
+| darken | `min(src, dst)` | 더 어두운 값만 선택 | 눈썹/아이라인처럼 "밝아지면 안 되는" 디테일 보호에 후보 | 색이 더러워지고 경계가 딱딱해질 수 있음 |
+| lighten | `max(src, dst)` | 더 밝은 값만 선택 | 하이라이트나 밝은 털 일부 보존에 후보 | 메이크업 색이 잘 안 보일 수 있음 |
+| premultiplied alpha | `srcPremul + dst * (1 - alpha)` | alpha가 이미 RGB에 곱해진 투명 합성 | PNG edge halo를 줄이고 부드러운 반투명 asset에 강함 | asset export/import 규칙이 틀리면 오히려 흰/검은 테두리가 생김 |
+
+현재 레포의 `normal`은 `_SrcBlend = SrcAlpha`, `_DstBlend = OneMinusSrcAlpha`에 가깝다. `multiply`는 material blend state로는 `_SrcBlend = DstColor`, `_DstBlend = Zero`를 쓰고, shader 내부에서는 `_PigmentMultiply`로 pigment filter를 만드는 경로가 있다. Gloss 계열은 별도 pass에서 `Blend One One` additive 방식으로 하이라이트만 더한다.
+
+### Blend mode별 보정기법
+
+상용 품질에 가까워지려면 blend mode 하나만 고르는 것으로 끝나지 않는다. 각 모드의 약점을 보완하는 보정 레이어가 필요하다.
+
+| 모드 | 흔한 실패 | 보정기법 | 구현 힌트 |
 | --- | --- | --- | --- |
-| `normal` | source alpha로 일반 합성 | `_SrcBlend = SrcAlpha`, `_DstBlend = OneMinusSrcAlpha` | 단순 색 overlay. 너무 강하면 스티커처럼 보임 |
-| `multiply` | destination을 pigment color로 어둡게/착색 | `_SrcBlend = DstColor`, `_DstBlend = Zero`, `_PigmentMultiply = 1` | 피부 디테일 보존에 유리. 어두워질 수 있음 |
-| `screen` | 밝게 합성하는 계열 | 현재 material blend는 normal과 같은 fallback | shimmer/eye 계열의 의도는 있지만 실제 screen 수식 구현 확인 필요 |
-| additive | source를 더함 | gloss pass가 `Blend One One` | wet highlight/gloss에 좋지만 과하면 번쩍임 |
-| alpha blend | `src * a + dst * (1-a)` | normal fallback | 투명도 기반 합성 |
-| premultiplied alpha | RGB에 alpha가 미리 곱해진 합성 | 현재 기본 구조는 straight alpha에 가까움 | asset/export 규칙이 다르면 halo가 생길 수 있음 |
+| `normal` | 스티커처럼 붙음 | mask feather 확대, edge alpha 감쇠, skin detail 보존 계수, alpha 상한 | edge band에서 alpha를 낮추고 core에서만 opacity를 유지한다 |
+| `normal` | 피부 질감이 사라짐 | detail-preserve multiply를 약하게 추가, luminance texture를 alpha 안쪽에만 적용 | `finalColor = lerp(flatColor, flatColor * detail, detailAmount)` |
+| `multiply` | 너무 어두움 | multiply strength 상한, 밝기 보상, shadow-only detail 분리 | `pigmentStrength`를 `maxPigmentStrength`로 cap하고 밝은 색은 normal layer 비중을 늘린다 |
+| `multiply` | 밝은 눈썹/밝은 립이 표현 안 됨 | color layer는 normal alpha로 입히고, hair/detail 명암만 controlled multiply | 눈썹 PNG 전체를 곱하지 말고 털결 luminance만 추출해서 `detailAmount`로 섞는다 |
+| `multiply` | 회색 배경/글로우가 같이 묻음 | 배경 제거, alpha matte 정리, glow channel 폐기 또는 별도 halo로 분리 | PNG 원본을 바로 multiply하지 않고 alpha/detail/color layer로 분해한다 |
+| `screen` | 하얗게 뜸 | screen 영역 축소, luminance threshold, highlight mask 사용 | 밝은 픽셀만 screen하고 중간톤은 normal로 fallback한다 |
+| additive | 번쩍임/과노출 | specular mask, roughness 기반 감쇠, temporal clamp, 작은 highlight footprint | gloss pass alpha를 넓히지 말고 A channel highlight seed로 제한한다 |
+| overlay / soft light | 색 예측 어려움 | 피부 밝기 구간별 strength curve, color calibration swatch, alpha cap | 어두운 피부와 밝은 피부에서 별도 QA preset을 둔다 |
+| premultiplied alpha | 가장자리 halo | premultiply 규칙 통일, transparent pixel RGB 정리, import sRGB/data 구분 | 색 PNG는 premul/straight 중 하나로 고정하고 mask PNG는 non-sRGB data로 유지한다 |
+
+### 눈썹 PNG 텍스처에 대한 권장 구조
+
+눈썹 PNG를 그대로 한 장으로 `multiply`하면 회색 배경, 글로우, 원래 색까지 얼굴 위에 함께 곱해질 수 있다. 제품용 SDK에 가까운 구조는 PNG를 아래처럼 분해해서 쓰는 것이다.
+
+| 레이어 | 역할 | blend 권장 |
+| --- | --- | --- |
+| Shape / alpha layer | 눈썹이 그려질 영역 제한 | mask alpha + feather |
+| Color layer | 사용자가 고른 눈썹 색, 밝기, 온도, 농도 적용 | normal alpha 중심 |
+| Hair detail layer | 털결 방향, 밀도, 미세 명암 보존 | controlled multiply 또는 luminance modulation |
+| Optional highlight layer | 밝은 털/윤기 일부 | 약한 screen/lighten, 기본은 꺼두거나 낮게 |
+
+이 구조에서는 "multiply를 쓰지 않는다"가 아니라 "전체 PNG를 무작정 multiply하지 않는다"가 핵심이다. 눈썹 털결 디테일에는 multiply 계열이 유용하지만, 색상 변경과 밝은 눈썹 표현은 color layer가 맡아야 한다. 그래서 밝은 눈썹은 `Color layer`를 밝게 만들고, `Hair detail layer`는 너무 세게 어둡히지 않도록 `detailAmount`와 `multiplyStrength`를 낮게 두는 편이 좋다.
+
+### 실기기 QA에서 볼 것
+
+| 확인 항목 | 봐야 하는 현상 |
+| --- | --- |
+| 색 재현 | 75% opacity에서 충분히 보이고, 100%에서는 의도적으로 살짝 과할 정도인지 |
+| 피부 적응 | 밝은 피부/어두운 피부/노란 조명/실내 조명에서 너무 탁해지지 않는지 |
+| 경계 | 눈썹 끝과 앞머리가 네모나게 잘리지 않는지 |
+| 디테일 | 털결이 살아있지만 멀리서 노이즈처럼 깨지지 않는지 |
+| 밝은 눈썹 | Depth를 낮췄을 때 회색 안개가 아니라 실제 밝은 브라운/베이지 눈썹처럼 보이는지 |
+| 움직임 | 표정/고개 회전에서 multiply/detail이 깜빡이거나 얼룩처럼 움직이지 않는지 |
 
 현재 shader render state:
 

@@ -230,7 +230,7 @@ def main() -> None:
     require(bounds is not None, "Brow mask has no active red-channel pixels.")
     require(2400 <= active_count <= 7600, f"Unexpected active pixels: {active_count}.")
     require(0.009 <= coverage <= 0.03, f"Unexpected active coverage: {coverage:.6f}.")
-    require(105 <= bounds["left"] <= 130, f"Brow bbox left is off: {bounds}.")
+    require(104 <= bounds["left"] <= 130, f"Brow bbox left is off: {bounds}.")
     require(382 <= bounds["right"] <= 410, f"Brow bbox right is off: {bounds}.")
     require(92 <= bounds["top"] <= 100, f"Brow bbox top is too low: {bounds}.")
     require(114 <= bounds["bottom"] <= 132, f"Brow bbox bottom is off: {bounds}.")

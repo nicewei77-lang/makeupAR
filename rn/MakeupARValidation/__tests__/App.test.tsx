@@ -32,6 +32,17 @@ declare function require(moduleName: string): any;
 
 const fs = require('fs');
 const path = require('path');
+const mockMakeupARLocalMedia = {
+  capturePhoto: jest.fn(() =>
+    Promise.resolve({ status: 'saved', mediaType: 'photo' }),
+  ),
+  startVideoRecording: jest.fn(() =>
+    Promise.resolve({ status: 'recording', mediaType: 'video' }),
+  ),
+  stopVideoRecording: jest.fn(() =>
+    Promise.resolve({ status: 'saved', mediaType: 'video' }),
+  ),
+};
 
 jest.mock('react-native', () => {
   const ReactRuntime = require('react');
@@ -76,9 +87,11 @@ jest.mock('react-native', () => {
     GestureResponderEvent: {},
     LayoutChangeEvent: {},
     LogBox: { ignoreAllLogs: jest.fn() },
+    NativeModules: { MakeupARLocalMedia: mockMakeupARLocalMedia },
     PanResponder: {
       create: jest.fn(() => ({ panHandlers: {} })),
     },
+    Platform: { OS: 'ios', select: (values: any) => values.ios },
     Pressable,
     ScrollView,
     StatusBar: jest.fn(() => null),
@@ -126,8 +139,13 @@ let consoleErrorSpy: jest.SpyInstance;
 
 beforeEach(() => {
   (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
+  require('react-native').NativeModules.MakeupARLocalMedia =
+    mockMakeupARLocalMedia;
   consoleLogSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
   consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  mockMakeupARLocalMedia.capturePhoto.mockClear();
+  mockMakeupARLocalMedia.startVideoRecording.mockClear();
+  mockMakeupARLocalMedia.stopVideoRecording.mockClear();
   jest.useFakeTimers();
 });
 
@@ -174,6 +192,13 @@ function collectText(renderer: ReactTestRenderer.ReactTestRenderer) {
 }
 
 function enterUnityScreen(renderer: ReactTestRenderer.ReactTestRenderer) {
+  const existingUnityViews = renderer.root.findAll(
+    node => node.props.testID === 'unity-view',
+  );
+  if (existingUnityViews.length > 0) {
+    return;
+  }
+
   const startButton = renderer.root
     .findAll(node => typeof node.props.onPress === 'function')
     .find(node => collectInstanceText(node).includes('Start AR'));
@@ -210,6 +235,19 @@ function pressByTestID(
 
   ReactTestRenderer.act(() => {
     button.props.onPress();
+  });
+}
+
+async function pressByTestIDAsync(
+  renderer: ReactTestRenderer.ReactTestRenderer,
+  testID: string,
+) {
+  const button = renderer.root.findByProps({ testID });
+
+  expect(button).toBeTruthy();
+
+  await ReactTestRenderer.act(async () => {
+    await button.props.onPress();
   });
 }
 
@@ -253,7 +291,7 @@ function sendUnityMessage(
   });
 }
 
-test('renders home with neutral validation copy', async () => {
+test('opens AR by default and keeps home available after close', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -262,11 +300,18 @@ test('renders home with neutral validation copy', async () => {
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('Makeup AR Validation');
-  expect(text).toContain('Ready to start AR');
+  expect(text).toContain('Close');
+  expect(text).toContain('HUD');
+  expect(text).toContain('AR Status');
   expect(text).not.toContain('Region ' + 'Precision');
   expect(text).not.toContain('Validation status');
   expect(text).not.toContain('E7.3');
+
+  pressByText(renderer!, 'Close');
+
+  const homeText = collectText(renderer!);
+  expect(homeText).toContain('Makeup AR Validation');
+  expect(homeText).toContain('Ready to start AR');
 });
 
 test('does not render old selector controls', async () => {
@@ -317,6 +362,37 @@ test('keeps validation modes visually compact before build', async () => {
   pressByText(renderer!, 'Debug');
   expect(collectText(renderer!)).toContain('Evidence metadata');
   expect(collectText(renderer!)).toContain('Regions');
+});
+
+test('saves user-triggered photo and video locally without reference capture', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+  pressByText(renderer!, 'Clean');
+
+  expect(collectText(renderer!)).toContain('Save Photo');
+  expect(collectText(renderer!)).toContain('Record Video');
+
+  await pressByTestIDAsync(renderer!, 'local-photo-save-button');
+
+  expect(mockMakeupARLocalMedia.capturePhoto).toHaveBeenCalledTimes(1);
+  expect(collectText(renderer!)).toContain('photo saved locally');
+
+  await pressByTestIDAsync(renderer!, 'local-video-record-button');
+
+  expect(mockMakeupARLocalMedia.startVideoRecording).toHaveBeenCalledTimes(1);
+  expect(collectText(renderer!)).toContain('recording video');
+  expect(collectText(renderer!)).toContain('Stop Video');
+
+  await pressByTestIDAsync(renderer!, 'local-video-record-button');
+
+  expect(mockMakeupARLocalMedia.stopVideoRecording).toHaveBeenCalledTimes(1);
+  expect(collectText(renderer!)).toContain('video saved locally');
+  expect(mockMakeupARLocalMedia.capturePhoto.mock.calls[0]).toEqual([]);
+  expect(consoleLogSpy.mock.calls.join('\n')).not.toContain('frame.png');
 });
 
 test('shows lip color, finish type, area style, and intensity controls in HUD mode', async () => {
@@ -397,7 +473,7 @@ test('marks lip finish and area options as one-selected radio groups', async () 
   expect(selectedAreaButtons[0].props.testID).toBe('lip-area-gradient');
 });
 
-test('shows gradient density atlas as the Atlas mask source in UI', () => {
+test('maps gradient density atlas to the Atlas diagnostic UI option', () => {
   expect(
     getSelectedMaskTextureOptionId(
       'lip',
@@ -481,7 +557,7 @@ test('posts green guide and yellow mesh overlay visibility toggles immediately',
   expect(meshVisibilityCall).toContain('meshColor=yellow');
   expect(meshVisibilityCall).toContain('meshRenderMode=wireframe');
   expect(meshVisibilityCall).toContain('guideOverlayMode=mesh_landmarks');
-  expect(meshVisibilityCall).toContain('faceDebugSurfaceSuppressed=false');
+  expect(meshVisibilityCall).toContain('faceDebugSurfaceSuppressed=true');
 
   pressByText(renderer!, 'RAW');
 
@@ -592,23 +668,37 @@ test('posts eyebrow as a fourth independent region layer', () => {
 
   expect(browSample).toBeTruthy();
   expect(softBrowSample).toBeTruthy();
-  expect(browSample!.intensity).toBe(0.75);
-  expect(browSample!.feather).toBe(0.48);
-  expect(browSample!.coverage).toBe(0.62);
+  expect(browSample!.intensity).toBe(0.76);
+  expect(browSample!.feather).toBe(0.42);
+  expect(browSample!.coverage).toBe(0.66);
   expect(browSample!.specular).toBe(0);
-  expect(softBrowSample!.intensity).toBe(0.75);
-  expect(softBrowSample!.coverage).toBe(0.62);
+  expect(softBrowSample!.intensity).toBe(0.62);
+  expect(softBrowSample!.coverage).toBe(0.54);
   expect(softBrowSample!.feather).toBe(0.48);
   expect(DEFAULT_REGION_RECIPES.brow.opacity).toBe(0.75);
   expect(DEFAULT_REGION_RECIPES.brow.color).toBe(BROW_COLOR_OPTIONS[1]);
-  expect(DEFAULT_REGION_TUNING.brow.maskTextureId).toBe(
-    'brow-png-dailyflat-sharp-v1',
+  expect(DEFAULT_REGION_TUNING.lip.maskTextureId).toBe(
+    'psd-arcore-lip-style-v1',
   );
-  expect(DEFAULT_REGION_TUNING.brow.detailAmount).toBe(0.68);
-  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0.28);
-  expect((DEFAULT_REGION_TUNING.brow as any).browGap).toBe(0.28);
+  expect(DEFAULT_REGION_TUNING.cheek.maskTextureId).toBe(
+    'psd-arcore-cheek-undereye-v1',
+  );
+  expect(DEFAULT_REGION_TUNING.brow.maskTextureId).toBe(
+    'psd-arcore-brow-semi-arch-v1',
+  );
+  expect(DEFAULT_REGION_TUNING.brow.detailAmount).toBe(0.52);
+  expect(DEFAULT_REGION_TUNING.brow.maskSpreadX).toBe(0);
+  expect(DEFAULT_REGION_TUNING.brow.maskOffsetY).toBe(0);
+  expect((DEFAULT_REGION_TUNING.brow as any).browGap).toBe(0);
   expect((DEFAULT_REGION_TUNING.brow as any).browAngle).toBe(0);
   expect((DEFAULT_REGION_TUNING.brow as any).browArch).toBe(0);
+  expect((DEFAULT_REGION_TUNING.brow as any).browArchPosition).toBe(0);
+  expect((DEFAULT_REGION_TUNING.brow as any).browCleanupStrength).toBe(0.24);
+  expect((DEFAULT_REGION_TUNING.brow as any).browCleanupEnabled).toBe(true);
+  expect((DEFAULT_REGION_TUNING.brow as any).browReshapeStrength).toBe(0.16);
+  expect((DEFAULT_REGION_TUNING.brow as any).browCleanupSourceMode).toBe(
+    'grabpass',
+  );
 
   const payload = buildValidationRecipeBatchPayload(
     {
@@ -658,24 +748,134 @@ test('posts eyebrow as a fourth independent region layer', () => {
   expect(browLayer.enabled).toBe(true);
   expect(browLayer.texture).toBe('natural_brow');
   expect(browLayer.sample).toBe('natural_brow');
-  expect(browLayer.maskTextureId).toBe('brow-png-dailyflat-sharp-v1');
+  expect(browLayer.maskTextureId).toBe('psd-arcore-brow-semi-arch-v1');
   expect(browLayer.color).toBe('#4A342B');
   expect(browLayer.opacity).toBe(0.75);
-  expect(browLayer.intensity).toBe(0.75);
-  expect(browLayer.detailAmount).toBe(0.68);
-  expect(browLayer.feather).toBe(0.48);
-  expect(browLayer.coverage).toBe(0.62);
-  expect(browLayer.maskSpreadX).toBe(0.28);
+  expect(browLayer.intensity).toBe(0.76);
+  expect(browLayer.detailAmount).toBe(0.52);
+  expect(browLayer.feather).toBe(0.42);
+  expect(browLayer.coverage).toBe(0.66);
+  expect(browLayer.maskSpreadX).toBe(0);
   expect(browLayer.maskOffsetY).toBe(0);
-  expect((browLayer as any).browGap).toBe(0.28);
+  expect((browLayer as any).browGap).toBe(0);
   expect((browLayer as any).browAngle).toBe(0);
   expect((browLayer as any).browArch).toBe(0);
+  expect((browLayer as any).browArchPosition).toBe(0);
+  expect((browLayer as any).browCleanupEnabled).toBe(true);
+  expect((browLayer as any).browCleanupStrength).toBe(0.24);
+  expect((browLayer as any).browReshapeStrength).toBe(0.16);
+  expect((payload as any).browCleanupEnabled).toBe(true);
+  expect((payload as any).browCleanupSourceMode).toBe('grabpass');
+  expect((browLayer as any).browCleanupSourceMode).toBe('grabpass');
   expect(browLayer.specular).toBe(0);
   expect(browLayer.materialId).toBe('natural_brow-validation-material');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
 
-test('passes eyebrow gap, angle, arch, and vertical offset parameters to payload', () => {
+test('passes runtime texture override settings through focused region and layers', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    260629,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...(DEFAULT_REGION_TUNING.brow as any),
+        runtimeTextureOverrideMode: 'documents_png',
+        runtimeTextureOverridePath: 'runtime-overrides/brow-test.png',
+      },
+    } as any,
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const lipLayer = payload.layers.find(layer => layer.region === 'lip')!;
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect((payload as any).runtimeTextureOverrideMode).toBe('documents_png');
+  expect((payload as any).runtimeTextureOverridePath).toBe(
+    'runtime-overrides/brow-test.png',
+  );
+  expect((browLayer as any).runtimeTextureOverrideMode).toBe('documents_png');
+  expect((browLayer as any).runtimeTextureOverridePath).toBe(
+    'runtime-overrides/brow-test.png',
+  );
+  expect((lipLayer as any).runtimeTextureOverrideMode).toBe('off');
+  expect((lipLayer as any).runtimeTextureOverridePath).toBe('');
+});
+
+test('can disable eyebrow skin restoration without losing cleanup slider value', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24688,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        browCleanupEnabled: false,
+        browCleanupStrength: 0.41,
+      } as any,
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+  const lipLayer = payload.layers.find(layer => layer.region === 'lip')!;
+
+  expect((payload as any).browCleanupEnabled).toBe(false);
+  expect((payload as any).browCleanupStrength).toBe(0);
+  expect((payload as any).browCleanupSourceMode).toBe('none');
+  expect((browLayer as any).browCleanupEnabled).toBe(false);
+  expect((browLayer as any).browCleanupStrength).toBe(0);
+  expect((browLayer as any).browCleanupSourceMode).toBe('none');
+  expect((lipLayer as any).browCleanupEnabled).toBe(false);
+  expect((lipLayer as any).browCleanupStrength).toBe(0);
+  expect((lipLayer as any).browCleanupSourceMode).toBe('none');
+});
+
+test('can switch eyebrow cleanup source to AR camera background in payload', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24689,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        browCleanupSourceMode: 'ar_camera_background',
+      } as any,
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+  const lipLayer = payload.layers.find(layer => layer.region === 'lip')!;
+
+  expect((payload as any).browCleanupSourceMode).toBe(
+    'ar_camera_background',
+  );
+  expect((browLayer as any).browCleanupSourceMode).toBe(
+    'ar_camera_background',
+  );
+  expect((lipLayer as any).browCleanupSourceMode).toBe('none');
+});
+
+test('passes eyebrow placement deltas without hidden ARKit UV baseline offsets', () => {
   const payload = buildValidationRecipeBatchPayload(
     DEFAULT_REGION_RECIPES,
     {
@@ -694,6 +894,7 @@ test('passes eyebrow gap, angle, arch, and vertical offset parameters to payload
         browGap: 0.12,
         browAngle: -0.12,
         browArch: 0.027,
+        browArchPosition: -0.08,
       },
     },
     DEFAULT_DEBUG_DISPLAY_OPTIONS,
@@ -702,15 +903,106 @@ test('passes eyebrow gap, angle, arch, and vertical offset parameters to payload
   const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
   expect(payload.maskSpreadX).toBe(0.12);
-  expect(payload.maskOffsetY).toBe(0.024);
+  expect(payload.maskOffsetY).toBeCloseTo(0.024);
   expect((payload as any).browGap).toBe(0.12);
   expect((payload as any).browAngle).toBe(-0.12);
   expect((payload as any).browArch).toBe(0.027);
+  expect((payload as any).browArchPosition).toBe(-0.08);
   expect(browLayer.maskSpreadX).toBe(0.12);
-  expect(browLayer.maskOffsetY).toBe(0.024);
+  expect(browLayer.maskOffsetY).toBeCloseTo(0.024);
   expect((browLayer as any).browGap).toBe(0.12);
   expect((browLayer as any).browAngle).toBe(-0.12);
   expect((browLayer as any).browArch).toBe(0.027);
+  expect((browLayer as any).browArchPosition).toBe(-0.08);
+});
+
+test('keeps MediaPipe canonical brow styles free of hidden ARKit UV placement offsets', () => {
+  const softFlatPayload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24687,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        maskTextureId: 'brow-back-arch-soft-mix-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const pngHairPayload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24688,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        maskTextureId: 'brow-png-natural-hair-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+  const psdPayload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24689,
+    DEFAULT_REGION_TUNING,
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  expect(softFlatPayload.maskSpreadX).toBe(0);
+  expect(softFlatPayload.maskOffsetY).toBe(0);
+  expect(pngHairPayload.maskSpreadX).toBe(0);
+  expect(pngHairPayload.maskOffsetY).toBe(0);
+  expect(psdPayload.maskTextureId).toBe('psd-arcore-brow-semi-arch-v1');
+  expect(psdPayload.maskSpreadX).toBe(0);
+  expect(psdPayload.maskOffsetY).toBe(0);
+});
+
+test('keeps PSD semi-arch brow at the source-brow placement baseline', () => {
+  const payload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      ...DEFAULT_ACTIVE_REGIONS,
+      brow: true,
+    },
+    'brow',
+    DEFAULT_RENDERER_MODE,
+    24689,
+    {
+      ...DEFAULT_REGION_TUNING,
+      brow: {
+        ...DEFAULT_REGION_TUNING.brow,
+        maskTextureId: 'psd-arcore-brow-semi-arch-v1',
+      },
+    },
+    DEFAULT_DEBUG_DISPLAY_OPTIONS,
+  );
+
+  const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
+
+  expect(payload.maskTextureId).toBe('psd-arcore-brow-semi-arch-v1');
+  expect(payload.maskSpreadX).toBe(0);
+  expect(payload.maskOffsetY).toBe(0);
+  expect(browLayer.maskTextureId).toBe('psd-arcore-brow-semi-arch-v1');
+  expect(browLayer.maskOffsetY).toBe(0);
 });
 
 test('applies eyebrow color warmth and depth parameters to payload color', () => {
@@ -771,7 +1063,7 @@ test('passes PNG eyebrow hair texture and light brow blend controls to payload',
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        detailAmount: 0.68,
+        detailAmount: 0.52,
         maskTextureId: 'brow-png-daily-hair-v1',
       },
     },
@@ -781,10 +1073,10 @@ test('passes PNG eyebrow hair texture and light brow blend controls to payload',
   const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
   expect(payload.maskTextureId).toBe('brow-png-daily-hair-v1');
-  expect(payload.detailAmount).toBe(0.68);
+  expect(payload.detailAmount).toBe(0.52);
   expect(payload.color).toBe('#A7836F');
   expect(browLayer.maskTextureId).toBe('brow-png-daily-hair-v1');
-  expect(browLayer.detailAmount).toBe(0.68);
+  expect(browLayer.detailAmount).toBe(0.52);
   expect(browLayer.blendMode).toBe('normal');
   expect(browLayer.shaderMode).toBe('unlit-alpha-validation');
 });
@@ -817,7 +1109,7 @@ test('compares flatter daily PNG normal, sharp, and multiply detail probes', () 
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        detailAmount: 0.82,
+        detailAmount: 0.56,
         maskTextureId: 'brow-png-dailyflat-sharp-v1',
       },
     },
@@ -843,7 +1135,7 @@ test('compares flatter daily PNG normal, sharp, and multiply detail probes', () 
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        detailAmount: 0.82,
+        detailAmount: 0.56,
         maskTextureId: 'brow-png-dailyflat-multiply-v1',
       },
     },
@@ -855,10 +1147,10 @@ test('compares flatter daily PNG normal, sharp, and multiply detail probes', () 
   )!;
 
   expect(sharpPayload.maskTextureId).toBe('brow-png-dailyflat-sharp-v1');
-  expect(sharpPayload.detailAmount).toBe(0.82);
+  expect(sharpPayload.detailAmount).toBe(0.56);
   expect(sharpLayer.blendMode).toBe('normal');
   expect(multiplyPayload.maskTextureId).toBe('brow-png-dailyflat-multiply-v1');
-  expect(multiplyPayload.detailAmount).toBe(0.82);
+  expect(multiplyPayload.detailAmount).toBe(0.56);
   expect(multiplyLayer.blendMode).toBe('multiply');
 });
 
@@ -887,7 +1179,7 @@ test('keeps darker PNG eyebrow hair textures on multiply blend', () => {
       ...DEFAULT_REGION_TUNING,
       brow: {
         ...DEFAULT_REGION_TUNING.brow,
-        detailAmount: 0.68,
+        detailAmount: 0.52,
         maskTextureId: 'brow-png-daily-hair-v1',
       },
     },
@@ -897,7 +1189,7 @@ test('keeps darker PNG eyebrow hair textures on multiply blend', () => {
   const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
   expect(browLayer.maskTextureId).toBe('brow-png-daily-hair-v1');
-  expect(browLayer.detailAmount).toBe(0.68);
+  expect(browLayer.detailAmount).toBe(0.52);
   expect(browLayer.blendMode).toBe('multiply');
 });
 
@@ -949,7 +1241,7 @@ test('combines lip finish type and area style independently in payload', () => {
 
   expect(lipLayer.texture).toBe('gradient_lip');
   expect(lipLayer.finish).toBe('gloss');
-  expect(lipLayer.maskTextureId).toBe('lip-drawn-gradient-density-atlas-v1');
+  expect(lipLayer.maskTextureId).toBe('psd-arcore-lip-style-v1');
   expect(lipLayer.passCount).toBe(2);
   expect(lipLayer.specular).toBeGreaterThan(0.7);
   expect(lipLayer.glossBoost).toBeGreaterThan(0.6);
@@ -1178,20 +1470,34 @@ test('surfaces eyebrow placement diagnostics from Unity recipe events', async ()
     topologyAuditStatus: 'pass_uv_topology_ready',
     maskSource: 'brow-back-arch-soft-mix-v1',
     boundaryRenderer: 'brow_smooth_region_mask',
+    browCleanupSource: 'ar_camera_background_texture',
+    browCleanupFallback: 'grabpass_live_frame_skin_sample',
+    browCleanupStatus: 'ar_camera_background_ready',
+    browCleanupSourceMode: 'ar_camera_background',
+    browCleanupFallbackAvailable: true,
+    browCleanupCameraTextureWidth: 1179,
+    browCleanupCameraTextureHeight: 2556,
   });
 
   const text = collectText(renderer!);
 
-  expect(text).toContain('Renderer brow-smooth-region-mask-renderer');
+  expect(text).toContain('Renderer Legacy mask');
   expect(text).toContain('recipe_applied region=brow');
+  expect(text).toContain('renderer=brow-smooth-region-mask-renderer');
   expect(text).toContain('maskTex=brow-back-arch-soft-mix-v1');
   expect(text).toContain('gap=0.120');
   expect(text).toContain('y=0.024');
   expect(text).toContain('angle=-0.120');
   expect(text).toContain('arch=0.027');
+  expect(text).toContain('cleanupSource=ar_camera_background_texture');
+  expect(text).toContain('cleanupFallback=grabpass_live_frame_skin_sample');
+  expect(text).toContain('cleanupStatus=ar_camera_background_ready');
+  expect(text).toContain('cleanupMode=ar_camera_background');
+  expect(text).toContain('cleanupFallbackAvailable=true');
+  expect(text).toContain('cleanupCameraTex=1179x2556');
 });
 
-test('posts smooth mask renderer by default before build', async () => {
+test('posts MediaPipe region overlay renderer by default before build', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
   await ReactTestRenderer.act(() => {
@@ -1208,13 +1514,45 @@ test('posts smooth mask renderer by default before build', async () => {
   );
 
   expect(recipePostCall).toBeTruthy();
-  expect(recipePostCall).toContain('rendererMode=smooth-region-mask');
+  expect(recipePostCall).toContain('rendererMode=mediapipe-region-overlay');
   expect(recipePostCall).toContain('focusRegion=lip');
-  expect(recipePostCall).toContain('focusMaskTextureId=lip-drawn-style-atlas-v1');
-  expect(recipePostCall).toContain('lipMaskTextureId=lip-drawn-style-atlas-v1');
+  expect(recipePostCall).toContain('focusMaskTextureId=psd-arcore-lip-style-v1');
+  expect(recipePostCall).toContain('lipMaskTextureId=psd-arcore-lip-style-v1');
   expect(recipePostCall).not.toContain('lipMaskTextureId=lip-vision-boundary-v1');
   expect(recipePostCall).not.toContain('cand' + 'idateId=');
   expect(recipePostCall).not.toContain('vari' + 'antId=');
+});
+
+test('presents MediaPipe as the product route and labels alternate sources as diagnostics', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'lip',
+    rendererMode: 'mediapipe-region-overlay',
+    rendererId: 'lip-mediapipe-region-overlay-renderer',
+    maskTextureId: 'psd-arcore-lip-style-v1',
+    stateAction: 'mediapipe_region_rendered',
+  });
+
+  const text = collectText(renderer!);
+  expect(text).toContain('Renderer MediaPipe');
+  expect(text).toContain('MediaPipe lip');
+  expect(text).toContain('MediaPipe flat');
+  expect(text).toContain('Legacy atlas diagnostic');
+  expect(text).toContain('Vision diagnostic');
+  expect(text).toContain('Legacy mask');
+  expect(text).not.toContain('Renderer lip-mediapipe-region-overlay-renderer');
+  expect(text).not.toContain('PSD ARCORE');
+  expect(text).not.toContain('PSD FLAT');
+  expect(text).not.toContain('ATLAS');
+  expect(text).not.toContain('VISION');
+  expect(text).not.toContain('FLAT SHARP');
 });
 
 test('builds five lip style recipe payloads with preset material fields', () => {
@@ -1250,16 +1588,12 @@ test('builds five lip style recipe payloads with preset material fields', () => 
     const browLayer = payload.layers.find(layer => layer.region === 'brow')!;
 
     expect(payload.layers).toHaveLength(4);
-    expect(payload.rendererMode).toBe('smooth-region-mask');
+    expect(payload.rendererMode).toBe('mediapipe-region-overlay');
     expect(payload.lookId).toBe('lip_makeup_validation_v1');
     expect(payload.activeRegions).toBe('lip');
     expect(payload.enabledLayerCount).toBe(1);
     expect(lipLayer.texture).toBe(textureSample.name);
-    expect(lipLayer.maskTextureId).toBe(
-      textureSample.name === 'gradient_lip'
-        ? 'lip-drawn-gradient-density-atlas-v1'
-        : 'lip-drawn-style-atlas-v1',
-    );
+    expect(lipLayer.maskTextureId).toBe('psd-arcore-lip-style-v1');
     expect(lipLayer.enabled).toBe(true);
     expect(lipLayer.intensity).toBe(DEFAULT_REGION_RECIPES.lip.intensity);
     expect(lipLayer.textureAmount).toBe(DEFAULT_REGION_RECIPES.lip.intensity);
@@ -1285,23 +1619,73 @@ test('builds five lip style recipe payloads with preset material fields', () => 
       expect(lipLayer.passCount).toBe(1);
     }
     if (textureSample.name === 'gradient_lip') {
-      expect(lipLayer.maskTextureId).toBe(
-        'lip-drawn-gradient-density-atlas-v1',
-      );
+      expect(lipLayer.maskTextureId).toBe('psd-arcore-lip-style-v1');
       expect(lipLayer.coverage).toBeGreaterThan(0.9);
       expect(lipLayer.gradientAmount).toBe(1);
       expect(lipLayer.passCount).toBe(1);
     }
     expect(cheekLayer.texture).toBe('soft_blush');
-    expect(cheekLayer.maskTextureId).toBe('cheek-drawn-mask-v1');
+    expect(cheekLayer.maskTextureId).toBe('psd-arcore-cheek-undereye-v1');
     expect(cheekLayer.enabled).toBe(false);
     expect(eyeLayer.texture).toBe('shimmer_eye');
     expect(eyeLayer.maskTextureId).toBe('eye-drawn-mask-v1');
     expect(eyeLayer.enabled).toBe(false);
     expect(browLayer.texture).toBe('natural_brow');
-    expect(browLayer.maskTextureId).toBe('brow-png-dailyflat-sharp-v1');
+    expect(browLayer.maskTextureId).toBe('psd-arcore-brow-semi-arch-v1');
     expect(browLayer.enabled).toBe(false);
   });
+});
+
+test('keeps Unity cheek PSD mask allowlist in sync with RN options', () => {
+  const overlayPath = path.resolve(
+    __dirname,
+    '../../../unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs',
+  );
+  const overlaySource = fs.readFileSync(overlayPath, 'utf8');
+
+  [
+    'psd-arcore-cheek-undereye-v1',
+    'psd-arcore-cheek-asia-z-v1',
+    'psd-arcore-cheek-sunkissed-v1',
+    'psd-arcore-cheek-daily-oval-v1',
+    'psd-arcore-cheek-undereye2-v1',
+    'psd-arcore-cheek-lovely-round-v1',
+    'psd-arcore-cheek-lifted-diagonal-v1',
+  ].forEach(maskTextureId => {
+    expect(overlaySource).toContain(`maskTextureId == "${maskTextureId}"`);
+  });
+});
+
+test('keeps brow rendering from auto-starting MediaPipe screen capture', () => {
+  const rnBridgePath = path.resolve(
+    __dirname,
+    '../../../unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs',
+  );
+  const rnBridgeSource = fs.readFileSync(rnBridgePath, 'utf8');
+
+  expect(rnBridgeSource).not.toContain(
+    'SetRuntimeRequested(IsActiveRegionIncluded(activeRegions, "brow"))',
+  );
+  expect(rnBridgeSource).toContain(
+    'mediaPipeBrowLandmarkRuntime.SetRuntimeRequested(false)',
+  );
+});
+
+test('keeps Vision lip boundary updates from hiding makeup overlays during capture', () => {
+  const visionRuntimePath = path.resolve(
+    __dirname,
+    '../../../unity/MakeupARUnityValidation/Assets/Scripts/E7VisionLipBoundaryRuntime.cs',
+  );
+  const visionRuntimeSource = fs.readFileSync(visionRuntimePath, 'utf8');
+
+  expect(visionRuntimeSource).toContain('CaptureIntervalSeconds = 0.35f');
+  expect(visionRuntimeSource).toContain('FreshBoundaryMaxAgeMs = 900');
+  expect(visionRuntimeSource).not.toContain(
+    'regionMaskOverlay.SetVisionCaptureSuppressed(true)',
+  );
+  expect(visionRuntimeSource).not.toContain(
+    'regionMaskOverlay.SetVisionCaptureSuppressed(false)',
+  );
 });
 
 test('passes selected lip color, finish, and intensity through payload', () => {
@@ -1418,8 +1802,10 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   const text = collectText(renderer!);
 
   expect(text).toContain('focus brow');
-  expect(text).toContain('natural_brow');
-  expect(text).toContain('soft_brow');
+  expect(text).toContain('Natural');
+  expect(text).toContain('Soft Powder');
+  expect(text).not.toContain('natural_brow');
+  expect(text).not.toContain('soft_brow');
   expect(text).toContain('ash_brown');
   expect(text).toContain('neutral_brown');
   expect(text).toContain('dark_brown');
@@ -1435,6 +1821,7 @@ test('shows eyebrow region and brow texture controls in HUD mode', async () => {
   expect(text).toContain('Gap');
   expect(text).toContain('Angle');
   expect(text).toContain('Arch');
+  expect(text).toContain('Arch Position');
   expect(text).not.toContain('Brow Spread');
   expect(text).not.toContain('Brow X');
   expect(text).toContain('Brow Y');
@@ -1483,14 +1870,70 @@ test('shows region-specific tuning controls for lip and brow', async () => {
   const browText = collectText(renderer!);
 
   expect(browText).toContain('focus brow');
-  expect(browText).toContain('natural_brow');
-  expect(browText).toContain('soft_brow');
+  expect(browText).toContain('Natural');
+  expect(browText).toContain('Soft Powder');
+  expect(browText).not.toContain('natural_brow');
+  expect(browText).not.toContain('soft_brow');
   expect(browText).toContain('Gap');
   expect(browText).toContain('Angle');
   expect(browText).toContain('Arch');
+  expect(browText).toContain('Arch Position');
+  expect(browText).toContain('Skin Restore');
+  expect(browText).toContain('Cleanup');
+  expect(browText).toContain('Reshape');
   expect(browText).toContain('Texture Detail');
+  expect(browText).toContain('Coverage');
+  expect(browText).toContain('Feather');
   expect(browText).not.toContain('Normal');
   expect(browText).not.toContain('Overlip');
+  expect(browText).not.toContain('Roughness');
+  expect(browText).not.toContain('Specular');
+  expect(browText).not.toContain('Glossy');
+  expect(browText).not.toContain('Gradient');
+});
+
+test('toggles eyebrow skin restoration from brow QA controls', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  pressByTestID(renderer!, 'brow-cleanup-enabled-toggle');
+
+  const toggle = renderer!.root.findByProps({
+    testID: 'brow-cleanup-enabled-toggle',
+  });
+  const latestRecipePostCall = [...consoleLogSpy.mock.calls]
+    .reverse()
+    .map(call => call.join(' '))
+    .find(call => call.includes('[E7] rn_texture_recipe_batch_post'));
+
+  expect(toggle.props.accessibilityState.checked).toBe(false);
+  expect(collectText(renderer!)).toContain('Skin Restore Off');
+  expect(latestRecipePostCall).toBeTruthy();
+  expect(latestRecipePostCall).toContain('focusRegion=brow');
+  expect(latestRecipePostCall).toContain('payloadBytes=');
+});
+
+test('adds fine nudge buttons for brow placement sliders', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  pressByTestID(renderer!, 'brow-gap-slider-increment');
+
+  expect(collectText(renderer!)).toContain('gap 0.007');
+
+  pressByTestID(renderer!, 'brow-gap-slider-decrement');
+
+  expect(collectText(renderer!)).toContain('gap 0.000');
 });
 
 test('keeps selected brow mask and placement warp when switching natural and soft brow presets', async () => {
@@ -1506,6 +1949,7 @@ test('keeps selected brow mask and placement warp when switching natural and sof
   incrementSliderByTestID(renderer!, 'brow-gap-slider');
   incrementSliderByTestID(renderer!, 'brow-angle-slider', 5);
   incrementSliderByTestID(renderer!, 'brow-arch-slider', 5);
+  incrementSliderByTestID(renderer!, 'brow-arch-position-slider', 5);
 
   let dailyHairButton = renderer!.root.findByProps({
     testID: 'brow-mask-brow-png-daily-hair-v1',
@@ -1525,10 +1969,64 @@ test('keeps selected brow mask and placement warp when switching natural and sof
   expect(flatSharpButton.props.accessibilityState?.selected).toBe(false);
   const text = collectText(renderer!);
 
-  expect(text).toContain('sample soft_brow');
-  expect(text).toContain('gap 0.306');
+  expect(text).toContain('style Soft Powder');
+  expect(text).toContain('gap 0.034');
   expect(text).toContain('angle 0.080');
   expect(text).toContain('arch 0.025');
+  expect(text).toContain('archPos 0.075');
+});
+
+test('resets brow placement deltas when changing brow mask design', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  incrementSliderByTestID(renderer!, 'brow-gap-slider');
+  incrementSliderByTestID(renderer!, 'brow-y-slider');
+  incrementSliderByTestID(renderer!, 'brow-angle-slider', 5);
+  incrementSliderByTestID(renderer!, 'brow-arch-slider', 5);
+  incrementSliderByTestID(renderer!, 'brow-arch-position-slider', 5);
+
+  expect(collectText(renderer!)).toContain('gap 0.034');
+
+  pressByTestID(renderer!, 'brow-mask-brow-png-dailyflat-sharp-v1');
+  const flatSharpButton = renderer!.root.findByProps({
+    testID: 'brow-mask-brow-png-dailyflat-sharp-v1',
+  });
+  const text = collectText(renderer!);
+
+  expect(flatSharpButton.props.accessibilityState?.selected).toBe(true);
+  expect(text).toContain('gap 0.000');
+  expect(text).toContain('y 0.000');
+  expect(text).toContain('angle 0.000');
+  expect(text).toContain('arch 0.000');
+  expect(text).toContain('archPos 0.000');
+});
+
+test('applies PSD semi-arch brow detail and cleanup defaults on mask selection', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  pressByText(renderer!, 'brow');
+  pressByTestID(renderer!, 'brow-mask-psd-arcore-brow-semi-arch-v1');
+
+  const psdButton = renderer!.root.findByProps({
+    testID: 'brow-mask-psd-arcore-brow-semi-arch-v1',
+  });
+  const text = collectText(renderer!);
+
+  expect(psdButton.props.accessibilityState?.selected).toBe(true);
+  expect(text).toContain('detail 64%');
+  expect(text).toContain('cleanup 52%');
+  expect(text).toContain('y 0.000');
 });
 
 test('allows cheek and eye toggles for placement validation while preserving 4-layer batch', async () => {
@@ -1599,6 +2097,33 @@ test('allows cheek and eye toggles for placement validation while preserving 4-l
   expect(payload.layers.find(layer => layer.region === 'brow')!.enabled).toBe(
     false,
   );
+});
+
+test('keeps active regions enabled when selecting them from another focus', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByProps({ testID: 'region-toggle-cheek' }).props.onPress();
+  });
+
+  expect(collectText(renderer!)).toContain('active=lip,cheek');
+  expect(collectText(renderer!)).toContain('focus cheek');
+
+  ReactTestRenderer.act(() => {
+    renderer!.root.findByProps({ testID: 'region-toggle-lip' }).props.onPress();
+  });
+
+  expect(collectText(renderer!)).toContain('active=lip,cheek');
+  expect(collectText(renderer!)).toContain('focus lip');
+  expect(
+    renderer!.root.findByProps({ testID: 'region-toggle-lip' }).props
+      .accessibilityState.checked,
+  ).toBe(true);
 });
 
 test('toggles lip region on and off', async () => {

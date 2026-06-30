@@ -22,11 +22,19 @@ DEFAULT_ROUTES = Path(
 DEFAULT_BROW_MASK_DIR = Path(
     "unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks"
 )
-DEFAULT_BROW_MASK_ID = "brow-png-dailyflat-sharp-v1"
+DEFAULT_BROW_MASK_ID = "psd-arcore-brow-semi-arch-v1"
 LEGACY_BROW_MASK_ID = "brow-drawn-mask-v1"
+BROW_CLEANUP_SOURCE_MASK_ID = "brow-cleanup-source-v1"
+PSD_ARCORE_MASK_IDS = (
+    "psd-arcore-lip-style-v1",
+    "psd-arcore-lip-mask-v1",
+    "psd-arcore-cheek-undereye-v1",
+    "psd-arcore-brow-semi-arch-v1",
+)
 SELECTED_BROW_MASK_IDS = (
     DEFAULT_BROW_MASK_ID,
     "brow-png-dailyflat-hair-v1",
+    "brow-png-dailyflat-sharp-v1",
     "brow-png-dailyflat-multiply-v1",
     "brow-back-arch-soft-mix-v1",
     "brow-slim-tail-fine-hair-v1",
@@ -77,6 +85,10 @@ def require_contains(text: str, needle: str, message: str) -> None:
     require(needle in text, message)
 
 
+def require_not_contains(text: str, needle: str, message: str) -> None:
+    require(needle not in text, message)
+
+
 def main() -> None:
     args = parse_args()
     repo = args.repo_root.resolve()
@@ -88,12 +100,17 @@ def main() -> None:
     mask_dir = resolve(repo, args.mask_dir)
     mask_paths = [
         mask_dir / f"{mask_id}.png"
-        for mask_id in (*SELECTED_BROW_MASK_IDS, LEGACY_BROW_MASK_ID)
+        for mask_id in (
+            *SELECTED_BROW_MASK_IDS,
+            LEGACY_BROW_MASK_ID,
+            BROW_CLEANUP_SOURCE_MASK_ID,
+        )
     ]
+    mask_paths.extend(mask_dir / f"{mask_id}.png" for mask_id in PSD_ARCORE_MASK_IDS)
     mask_paths.extend(resolve(repo, mask) for mask in args.mask)
 
     for mask_path in mask_paths:
-        require(mask_path.exists(), f"Missing brow mask asset: {mask_path}")
+        require(mask_path.exists(), f"Missing smooth-region mask asset: {mask_path}")
 
     require_contains(
         rn_app,
@@ -116,16 +133,33 @@ def main() -> None:
             f"| '{mask_id}'",
             f"RN mask texture ids must include {mask_id}.",
         )
+    for mask_id in PSD_ARCORE_MASK_IDS:
+        require_contains(
+            rn_app,
+            f"| '{mask_id}'",
+            f"RN mask texture ids must include PSD-derived mask {mask_id}.",
+        )
     for mask_id in SELECTED_BROW_MASK_IDS:
         require_contains(
             rn_app,
             f"id: '{mask_id}'",
             f"RN brow HUD options must include {mask_id}.",
         )
-
+    for mask_id in PSD_ARCORE_MASK_IDS:
+        require_contains(
+            rn_app,
+            f"id: '{mask_id}'",
+            f"RN HUD mask options must expose PSD-derived mask {mask_id}.",
+        )
     require_contains(
         rn_app,
-        f"brow: '{DEFAULT_BROW_MASK_ID}'",
+        "psd-arcore-brow-semi-arch-v1",
+        "RN must expose the PSD brow as a separate tintable mask id, not replace an existing brow asset.",
+    )
+
+    require(
+        f"brow: '{DEFAULT_BROW_MASK_ID}'" in rn_app
+        or "brow: PSD_ARCORE_BROW_MASK_TEXTURE_ID" in rn_app,
         f"RN default brow mask must be {DEFAULT_BROW_MASK_ID}.",
     )
 
@@ -155,6 +189,12 @@ def main() -> None:
             f'"{mask_id}"',
             f"RNBridge NormalizeMaskTextureId must accept {mask_id}.",
         )
+    for mask_id in PSD_ARCORE_MASK_IDS:
+        require_contains(
+            rn_bridge,
+            f'"{mask_id}"',
+            f"RNBridge NormalizeMaskTextureId must accept PSD-derived mask {mask_id}.",
+        )
     require_contains(
         rn_bridge,
         "public float maskSpreadX;",
@@ -172,6 +212,26 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        "public float browCleanupStrength;",
+        "RNBridge recipe payloads must accept brow cleanup strength.",
+    )
+    require_contains(
+        rn_bridge,
+        "public bool browCleanupEnabled",
+        "RNBridge recipe payloads must accept brow cleanup enabled toggle.",
+    )
+    require_contains(
+        rn_bridge,
+        "public string browCleanupSourceMode;",
+        "RNBridge recipe payloads must accept brow cleanup source mode.",
+    )
+    require_contains(
+        rn_bridge,
+        "public float browReshapeStrength;",
+        "RNBridge recipe payloads must accept brow reshape strength.",
+    )
+    require_contains(
+        rn_bridge,
         "public float browGap;",
         "RNBridge recipe payloads must accept browGap.",
     )
@@ -184,6 +244,11 @@ def main() -> None:
         rn_bridge,
         "public float browArch;",
         "RNBridge recipe payloads must accept browArch.",
+    )
+    require_contains(
+        rn_bridge,
+        "public float browArchPosition;",
+        "RNBridge recipe payloads must accept browArchPosition.",
     )
     require_contains(
         rn_bridge,
@@ -212,13 +277,33 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        "return region == \"brow\" ? Mathf.Clamp(browArchPosition, -0.15f, 0.15f) : 0.0f;",
+        "RNBridge must clamp browArchPosition to the conservative brow warp range.",
+    )
+    require_contains(
+        rn_bridge,
         "SetFaceMeshOverlayVisible(faceMeshVisible);",
-        "RNBridge overlay visibility must apply the requested face mesh visibility.",
+        "RNBridge overlay visibility must preserve the requested wire mesh visibility state.",
     )
     require_contains(
         rn_bridge,
         "faceMeshOverlayVisible = visible;",
-        "RNBridge SetFaceMeshOverlayVisible must preserve the requested visible state.",
+        "RNBridge SetFaceMeshOverlayVisible must preserve the requested wire overlay state.",
+    )
+    require_contains(
+        rn_bridge,
+        "statusReporter.SetMeshOverlayVisible(faceMeshVisible);",
+        "RNBridge must route meshOverlayVisible to the wireframe status reporter.",
+    )
+    require_contains(
+        rn_bridge,
+        "SetFaceRenderersSuppressed(true);",
+        "RNBridge must keep the filled ARFace debug surface suppressed while mesh wireframe is visible.",
+    )
+    require_not_contains(
+        rn_bridge,
+        "ApplyFaceMeshOverlay();\n            return;",
+        "RNBridge SetFaceMeshOverlayVisible must not enable the filled yellow ARFace surface.",
     )
     require_contains(
         rn_bridge,
@@ -229,6 +314,26 @@ def main() -> None:
         rn_bridge,
         "DetailAmount = Mathf.Clamp01(layer.detailAmount > 0.0f",
         "RNBridge must normalize PNG brow detailAmount into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "BrowCleanupStrength = NormalizeBrowCleanupStrength(",
+        "RNBridge must normalize brow cleanup strength into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "BrowCleanupEnabled = NormalizeBrowCleanupEnabled(",
+        "RNBridge must normalize brow cleanup enabled into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "BrowCleanupSourceMode = NormalizeBrowCleanupSourceMode(",
+        "RNBridge must normalize brow cleanup source mode into parsed layers.",
+    )
+    require_contains(
+        rn_bridge,
+        "BrowReshapeStrength = NormalizeBrowReshapeStrength(",
+        "RNBridge must normalize brow reshape strength into parsed layers.",
     )
     require_contains(
         rn_bridge,
@@ -257,6 +362,51 @@ def main() -> None:
     )
     require_contains(
         rn_bridge,
+        '",\\\"browArchPosition\\\":"',
+        "RNBridge recipe_applied event must emit applied browArchPosition for QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupSource\\\":\\\"',
+        "RNBridge recipe_applied event must emit browCleanupSource for device QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupEnabled\\\":',
+        "RNBridge recipe_applied event must emit browCleanupEnabled for device QA diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupFallback\\\":\\\"',
+        "RNBridge recipe_applied event must emit browCleanupFallback for fallback decisions.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupStatus\\\":\\\"',
+        "RNBridge recipe_applied event must emit browCleanupStatus for GrabPass acceptance.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupSourceMode\\\":\\\"',
+        "RNBridge recipe_applied event must emit browCleanupSourceMode for source switching QA.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupFallbackAvailable\\\":',
+        "RNBridge recipe_applied event must emit browCleanupFallbackAvailable for AR BG fallback readiness.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupCameraTextureWidth\\\":',
+        "RNBridge recipe_applied event must emit browCleanupCameraTextureWidth for fallback RT diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
+        '",\\\"browCleanupCameraTextureHeight\\\":',
+        "RNBridge recipe_applied event must emit browCleanupCameraTextureHeight for fallback RT diagnostics.",
+    )
+    require_contains(
+        rn_bridge,
         ' + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)',
         "RNBridge recipe_applied log must include applied maskSpreadX.",
     )
@@ -279,6 +429,41 @@ def main() -> None:
         rn_bridge,
         ' + " browArch=" + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)',
         "RNBridge recipe_applied log must include applied browArch.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browArchPosition=" + result.BrowArchPosition.ToString("0.###", CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include applied browArchPosition.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupSource=" + result.BrowCleanupSource',
+        "RNBridge recipe_applied log must include browCleanupSource.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupFallback=" + result.BrowCleanupFallback',
+        "RNBridge recipe_applied log must include browCleanupFallback.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupStatus=" + result.BrowCleanupStatus',
+        "RNBridge recipe_applied log must include browCleanupStatus.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupSourceMode=" + result.BrowCleanupSourceMode',
+        "RNBridge recipe_applied log must include browCleanupSourceMode.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupFallbackAvailable=" + result.BrowCleanupFallbackAvailable.ToString().ToLowerInvariant()',
+        "RNBridge recipe_applied log must include browCleanupFallbackAvailable.",
+    )
+    require_contains(
+        rn_bridge,
+        ' + " browCleanupCameraTextureSize=" + result.BrowCleanupCameraTextureWidth.ToString(CultureInfo.InvariantCulture)',
+        "RNBridge recipe_applied log must include fallback RT size.",
     )
     require_contains(
         rn_bridge,
@@ -307,6 +492,102 @@ def main() -> None:
             f'"{mask_id}"',
             f"E3RegionMaskOverlay NormalizeMaskTextureId must accept {mask_id}.",
         )
+    for mask_id in PSD_ARCORE_MASK_IDS:
+        require_contains(
+            overlay,
+            f'"{mask_id}"',
+            f"E3RegionMaskOverlay NormalizeMaskTextureId must accept PSD-derived mask {mask_id}.",
+        )
+    require_contains(
+        overlay,
+        "public string BrowCleanupSource;",
+        "Region apply result must expose brow cleanup source.",
+    )
+    require_contains(
+        overlay,
+        "public string BrowCleanupFallback;",
+        "Region apply result must expose brow cleanup fallback.",
+    )
+    require_contains(
+        overlay,
+        "public string BrowCleanupStatus;",
+        "Region apply result must expose brow cleanup status.",
+    )
+    require_contains(
+        overlay,
+        "public string BrowCleanupSourceMode;",
+        "Region apply result must expose brow cleanup source mode.",
+    )
+    require_contains(
+        overlay,
+        "public bool BrowCleanupEnabled;",
+        "Region apply result must expose brow cleanup enabled state.",
+    )
+    require_contains(
+        overlay,
+        "public bool BrowCleanupFallbackAvailable;",
+        "Region apply result must expose whether the ARCameraBackground fallback texture is ready.",
+    )
+    require_contains(
+        overlay,
+        "public int BrowCleanupCameraTextureWidth;",
+        "Region apply result must expose fallback texture width.",
+    )
+    require_contains(
+        overlay,
+        "public int BrowCleanupCameraTextureHeight;",
+        "Region apply result must expose fallback texture height.",
+    )
+    require_contains(
+        overlay,
+        "grabpass_live_frame_skin_sample",
+        "Brow cleanup source must identify the GrabPass live-frame path.",
+    )
+    require_contains(
+        overlay,
+        "ar_camera_background_texture",
+        "Brow cleanup fallback must identify the ARCameraBackground texture path.",
+    )
+    require_contains(
+        overlay,
+        "[SerializeField] private ARCameraBackground arCameraBackground;",
+        "E3RegionMaskOverlay must hold ARCameraBackground for the fallback source.",
+    )
+    require_contains(
+        overlay,
+        "private RenderTexture browCleanupCameraTexture;",
+        "E3RegionMaskOverlay must keep a GPU-only brow cleanup camera texture.",
+    )
+    require_contains(
+        overlay,
+        "Graphics.Blit(sourceTexture, browCleanupCameraTexture, backgroundMaterial);",
+        "E3RegionMaskOverlay must render ARCameraBackground material into the fallback texture.",
+    )
+    require_contains(
+        overlay,
+        'material.SetTexture("_BrowCleanupCameraTex", browCleanupCameraTexture);',
+        "E3RegionMaskOverlay must bind the fallback texture to the cleanup shader.",
+    )
+    require_contains(
+        overlay,
+        f'private const string BrowCleanupSourceMaskId = "{BROW_CLEANUP_SOURCE_MASK_ID}";',
+        "E3RegionMaskOverlay must define a canonical source-brow cleanup mask.",
+    )
+    require_contains(
+        overlay,
+        'material.SetTexture("_BrowCleanupSourceTex", GetBrowCleanupSourceMaskTexture(recipe));',
+        "E3RegionMaskOverlay must bind the source-brow cleanup mask independently of the target brow asset.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_BrowCleanupFrameSource",',
+        "E3RegionMaskOverlay must switch the cleanup shader source without changing the default path.",
+    )
+    require_contains(
+        overlay,
+        "ApplyBrowCleanupFallbackDiagnostics(ref result, recipe, browCleanupDiagnostics);",
+        "E3RegionMaskOverlay must update recipe results with actual fallback texture readiness.",
+    )
     require_contains(
         overlay,
         'case "natural_brow":',
@@ -352,6 +633,36 @@ def main() -> None:
         "private const float BrowMaskRecipeFeatherMax = 0.48f;",
         "E3RegionMaskOverlay must define a brow recipe feather maximum.",
     )
+    require_contains(
+        overlay,
+        "IsPngBrowHairMask(recipe.MaskTextureId) ? 1.0f : 0.0f",
+        "E3RegionMaskOverlay must enable photo-detail rendering for PNG brow hair masks.",
+    )
+    require_contains(
+        overlay,
+        "IsPsdArcoreBrowMask(recipe.MaskTextureId) ? 1.0f : 0.0f",
+        "E3RegionMaskOverlay must enable PSD brow powder fill only for the PSD semi-arch mask.",
+    )
+    require_contains(
+        overlay,
+        'return maskTextureId == "psd-arcore-brow-semi-arch-v1";',
+        "E3RegionMaskOverlay must identify the PSD semi-arch brow mask separately from PNG hair masks.",
+    )
+    require_contains(
+        overlay,
+        "private const float BrowMeshVertexSmoothing = 0.58f;",
+        "E3RegionMaskOverlay must define brow mesh vertex smoothing.",
+    )
+    require_contains(
+        overlay,
+        "BuildOverlayVertices(face, view, recipe)",
+        "E3RegionMaskOverlay must build stable brow overlay vertices before rendering.",
+    )
+    require_contains(
+        overlay,
+        "recipe.Region == \"brow\" ? BrowMeshVertexSmoothing : 0.0f",
+        "E3RegionMaskOverlay must apply vertex smoothing only to brow overlays.",
+    )
     require_match(
         overlay,
         r"bool\s+browMask\s*=\s*region\s*==\s*\"brow\".*"
@@ -382,6 +693,16 @@ def main() -> None:
     )
     require_contains(
         overlay,
+        "public float BrowCleanupStrength;",
+        "E3RegionMaskOverlay result/state must expose brow cleanup strength.",
+    )
+    require_contains(
+        overlay,
+        "public float BrowReshapeStrength;",
+        "E3RegionMaskOverlay result/state must expose brow reshape strength.",
+    )
+    require_contains(
+        overlay,
         "public float BrowGap;",
         "E3RegionMaskOverlay result must expose browGap.",
     )
@@ -394,6 +715,11 @@ def main() -> None:
         overlay,
         "public float BrowArch;",
         "E3RegionMaskOverlay result must expose browArch.",
+    )
+    require_contains(
+        overlay,
+        "public float BrowArchPosition;",
+        "E3RegionMaskOverlay result must expose browArchPosition.",
     )
     require_contains(
         overlay,
@@ -417,6 +743,11 @@ def main() -> None:
     )
     require_contains(
         overlay,
+        "BrowArchPosition = isBrow ? Mathf.Clamp(browArchPosition, -0.15f, 0.15f) : 0.0f",
+        "E3RegionMaskOverlay must clamp browArchPosition.",
+    )
+    require_contains(
+        overlay,
         'material.SetVector("_MaskOffset"',
         "E3RegionMaskOverlay must pass mask offset to the shader.",
     )
@@ -437,8 +768,23 @@ def main() -> None:
     )
     require_contains(
         overlay,
+        'material.SetFloat("_BrowArchPosition", recipe.Region == "brow" ? recipe.BrowArchPosition : 0.0f)',
+        "E3RegionMaskOverlay must pass browArchPosition to the shader for brow only.",
+    )
+    require_contains(
+        overlay,
         'material.SetFloat("_DetailAmount", recipe.DetailAmount)',
         "E3RegionMaskOverlay must pass PNG brow detail amount to the shader.",
+    )
+    require_contains(
+        overlay,
+        'recipe.Region == "brow" && recipe.BrowCleanupEnabled',
+        "E3RegionMaskOverlay must pass brow cleanup strength only when brow cleanup is enabled.",
+    )
+    require_contains(
+        overlay,
+        'material.SetFloat("_BrowReshapeStrength", recipe.Region == "brow" ? recipe.BrowReshapeStrength : 0.0f)',
+        "E3RegionMaskOverlay must pass brow reshape strength to the shader for brow only.",
     )
     require_contains(
         shader,
@@ -482,13 +828,53 @@ def main() -> None:
     )
     require_contains(
         shader,
+        '_BrowPhotoDetailMode ("Brow Photo Detail Mode", Float) = 0',
+        "SmoothRegionMask shader must define a PNG brow photo-detail mode property.",
+    )
+    require_contains(
+        shader,
+        '_BrowPowderFill ("Brow Powder Fill", Range(0, 1)) = 0',
+        "SmoothRegionMask shader must define a PSD brow powder fill property.",
+    )
+    require_contains(
+        shader,
+        "float _BrowPhotoDetailMode;",
+        "SmoothRegionMask shader must expose _BrowPhotoDetailMode to shader code.",
+    )
+    require_contains(
+        shader,
+        "float _BrowPowderFill;",
+        "SmoothRegionMask shader must expose _BrowPowderFill to shader code.",
+    )
+    require_contains(
+        shader,
         '_DetailAmount ("Detail Amount", Range(0, 1)) = 0',
         "SmoothRegionMask shader must define a PNG brow detail amount property.",
     )
     require_contains(
         shader,
+        '_BrowCleanupStrength ("Brow Cleanup Strength", Range(0, 1)) = 0',
+        "SmoothRegionMask shader must define a brow cleanup strength property.",
+    )
+    require_contains(
+        shader,
+        '_BrowReshapeStrength ("Brow Reshape Strength", Range(0, 1)) = 0',
+        "SmoothRegionMask shader must define a brow reshape strength property.",
+    )
+    require_contains(
+        shader,
         "float _DetailAmount;",
         "SmoothRegionMask shader must expose _DetailAmount to shader code.",
+    )
+    require_contains(
+        shader,
+        "float _BrowCleanupStrength;",
+        "SmoothRegionMask shader must expose _BrowCleanupStrength to shader code.",
+    )
+    require_contains(
+        shader,
+        "float _BrowReshapeStrength;",
+        "SmoothRegionMask shader must expose _BrowReshapeStrength to shader code.",
     )
     require_contains(
         shader,
@@ -510,15 +896,255 @@ def main() -> None:
         "maskUv = ApplyBrowWarp(maskUv);",
         "SmoothRegionMask shader must apply brow angle/arch warp before sampling.",
     )
-    require_contains(
+    require_not_contains(
         shader,
-        "float hairNeedle = saturate(rawHairDetail - softHairDetail * 0.38);",
-        "SmoothRegionMask shader must preserve thin PNG brow hair needles.",
+        "ApplyPsdBrowCanonicalMap",
+        "SmoothRegionMask shader must not use hand-tuned PSD brow canonical UV correction constants.",
+    )
+    require_not_contains(
+        shader,
+        "uv.y = saturate(uv.y * 1.342857 - 0.01875);",
+        "SmoothRegionMask shader must not vertically place PSD brows with a manual correction constant.",
     )
     require_contains(
         shader,
-        "hairContrast * coverage * detailAmount * 0.62",
-        "SmoothRegionMask shader must strengthen PNG brow detail response.",
+        "if (_BrowPhotoDetailMode > 0.5 && _LipStyleMode < -0.5 && (detailAmount > 0.001 || _BrowPowderFill > 0.001))",
+        "SmoothRegionMask shader must route PNG brow masks through a photo-detail branch.",
+    )
+    require_contains(
+        shader,
+        "float BrowFiberAlpha(float2 uv, float shapeRaw, float detailAmount, float powderFill)",
+        "SmoothRegionMask shader must use a brow-specific fiber alpha extractor instead of broad region fill.",
+    )
+    require_contains(
+        shader,
+        "float psdStrokePreserve = saturate(powderFill);",
+        "SmoothRegionMask shader must preserve PSD-drawn hair strokes instead of treating them as broad fill.",
+    )
+    require_contains(
+        shader,
+        "softDetail * lerp(0.72, 0.52, psdStrokePreserve)",
+        "SmoothRegionMask shader must relax high-pass suppression for PSD semi-arch hair strokes.",
+    )
+    require_contains(
+        shader,
+        "directStroke * psdStrokePreserve",
+        "SmoothRegionMask shader must keep direct PSD hair stroke coverage visible.",
+    )
+    require_contains(
+        shader,
+        "float detailNeedle = saturate((",
+        "SmoothRegionMask shader must high-pass brow detail so broad density does not clump into a block.",
+    )
+    require_contains(
+        shader,
+        "float powderRaw = saturate(max(mask.g, softMask.g * 0.82));",
+        "SmoothRegionMask shader must read PSD semi-arch powder from the green gradient channel.",
+    )
+    require_contains(
+        shader,
+        "pow(powderRaw, 1.36) * coverage * 0.075",
+        "SmoothRegionMask shader must keep PSD semi-arch powder very light.",
+    )
+    require_contains(
+        shader,
+        "float fiberCoverage = detailAmount > 0.001",
+        "SmoothRegionMask shader must let the Texture Detail slider control the fiber contribution.",
+    )
+    require_contains(
+        shader,
+        "maskStrength = saturate(shapeVeil + fiberAlpha * fiberCoverage);",
+        "SmoothRegionMask shader must make extracted brow fibers drive opacity.",
+    )
+    require_contains(
+        shader,
+        "float psdBrowMask = saturate(_BrowPowderFill);",
+        "SmoothRegionMask shader must carry the PSD brow flag into later full-shape suppression logic.",
+    )
+    require_contains(
+        shader,
+        "powderRaw * powderFill * 0.32",
+        "SmoothRegionMask raw debug mask must show PSD gradient powder rather than full-shape fill.",
+    )
+    require_not_contains(
+        shader,
+        "shapeRaw * powderFill * 0.32",
+        "SmoothRegionMask shader must not make the PSD full/protect channel visible as a filled raw mask.",
+    )
+    require_not_contains(
+        shader,
+        "maskStrength = saturate(shapeVeil + hairLine * coverage * lerp(0.58, 1.10, detailAmount));",
+        "SmoothRegionMask shader must not use the older broad hairLine fill formula for photo brow masks.",
+    )
+    require_contains(
+        shader,
+        "float cleanupHalo = saturate(browCleanup * (softMask.r - fullCore * 0.82));",
+        "SmoothRegionMask shader must compute a target-mask cleanup halo for brow reshape mode.",
+    )
+    require_contains(
+        shader,
+        "float reshapeBoost = saturate(browReshape * fullSoft * (1.0 - fullCore) * (1.0 - psdBrowMask));",
+        "SmoothRegionMask shader must not turn the PSD full/protect channel into visible reshape makeup.",
+    )
+    require_contains(
+        shader,
+        'GrabPass\n        {\n            "_BrowCleanupFrameTex"\n        }',
+        "SmoothRegionMask shader must grab the live camera frame before brow cleanup passes.",
+    )
+    require_contains(
+        shader,
+        "sampler2D _BrowCleanupFrameTex;",
+        "Brow cleanup pass must sample the grabbed camera frame texture.",
+    )
+    require_contains(
+        shader,
+        '_BrowCleanupCameraTex ("Brow Cleanup Camera Texture", 2D) = "black" {}',
+        "SmoothRegionMask shader must define the ARCameraBackground fallback texture.",
+    )
+    require_contains(
+        shader,
+        '_BrowCleanupSourceTex ("Brow Cleanup Source Mask", 2D) = "black" {}',
+        "SmoothRegionMask shader must define a source-brow cleanup mask texture.",
+    )
+    require_contains(
+        shader,
+        '_BrowCleanupFrameSource ("Brow Cleanup Frame Source", Float) = 0',
+        "SmoothRegionMask shader must define a cleanup frame source switch.",
+    )
+    require_contains(
+        shader,
+        "sampler2D _BrowCleanupCameraTex;",
+        "Brow cleanup pass must sample the ARCameraBackground fallback texture.",
+    )
+    require_contains(
+        shader,
+        "sampler2D _BrowCleanupSourceTex;",
+        "Brow cleanup pass must sample the canonical source-brow mask.",
+    )
+    require_contains(
+        shader,
+        "float _BrowCleanupFrameSource;",
+        "Brow cleanup pass must expose the cleanup frame source switch.",
+    )
+    require_contains(
+        shader,
+        "float4 _BrowCleanupFrameTex_TexelSize;",
+        "Brow cleanup pass must know grabbed frame texel size for nearby skin sampling.",
+    )
+    require_contains(
+        shader,
+        "float4 _BrowCleanupSourceTex_TexelSize;",
+        "Brow cleanup pass must know source-brow mask texel size for soft expansion.",
+    )
+    require_contains(
+        shader,
+        "output.grabPos = ComputeGrabScreenPos(output.vertex);",
+        "Brow cleanup pass must compute screen-space coordinates for frame sampling.",
+    )
+    require_contains(
+        shader,
+        "float3 SampleGrabbedFrameSkin(float4 grabPos)",
+        "Brow cleanup pass must restore color from neighboring grabbed-frame skin samples.",
+    )
+    require_contains(
+        shader,
+        "float SkinSampleWeight(float3 color)",
+        "Brow cleanup pass must reject dark brow-hair samples when estimating skin color.",
+    )
+    require_contains(
+        shader,
+        "AccumulateGrabbedSkinSample(",
+        "Brow cleanup pass must use weighted grabbed-frame skin samples instead of a raw local average.",
+    )
+    require_contains(
+        shader,
+        "AccumulateCameraBackgroundSkinSample(",
+        "Brow cleanup pass must use weighted ARCameraBackground skin samples instead of a raw local average.",
+    )
+    require_not_contains(
+        shader,
+        "float3 cleanupTint = float3(0.76, 0.61, 0.50);",
+        "Brow cleanup must not bake a fixed beige tint before live skin restoration.",
+    )
+    require_not_contains(
+        shader,
+        "lerp(pigmentColor, cleanupTint",
+        "Brow cleanup pigment pass must not tint cleanup with a fixed skin color.",
+    )
+    require_contains(
+        shader,
+        "float3 SampleCameraBackgroundSkin(float4 grabPos)",
+        "Brow cleanup pass must restore color from neighboring ARCameraBackground samples.",
+    )
+    require_contains(
+        shader,
+        "float3 SampleBrowCleanupFrameSkin(float4 grabPos)",
+        "Brow cleanup pass must route skin sampling through the selected frame source.",
+    )
+    require_contains(
+        shader,
+        "if (_BrowCleanupFrameSource > 0.5)",
+        "Brow cleanup pass must use ARCameraBackground only when the source switch requests it.",
+    )
+    require_contains(
+        shader,
+        "tex2Dproj(_BrowCleanupFrameTex, UNITY_PROJ_COORD(samplePos))",
+        "Brow cleanup pass must directly sample the grabbed live camera frame.",
+    )
+    require_contains(
+        shader,
+        "float cleanupWide = BrowCleanupWideAlpha(maskUv);",
+        "Brow cleanup pass must use a widened target-mask zone for original brow peeking.",
+    )
+    require_contains(
+        shader,
+        "float BrowCleanupSourceAlpha(float2 baseUv)",
+        "Brow cleanup pass must compute source-brow cleanup alpha from unshifted face UVs.",
+    )
+    require_contains(
+        shader,
+        "float cleanupSourceRaw = BrowCleanupSourceAlpha(input.uv);",
+        "Brow cleanup pass must sample the source-brow mask using original face UVs, not moved target UVs.",
+    )
+    require_contains(
+        shader,
+        "float cleanupSource = saturate(cleanupSourceRaw * (1.0 - fullCore * 0.72));",
+        "Brow cleanup pass must protect the newly drawn target full/core from source cleanup overpaint.",
+    )
+    require_contains(
+        shader,
+        "float cleanupTarget = saturate(cleanupWide + softMask.r - fullCore * 0.82);",
+        "Brow cleanup pass must keep a target-mask cleanup zone for near-target peeking.",
+    )
+    require_contains(
+        shader,
+        "float cleanupHalo = saturate(browCleanup * max(cleanupSource, cleanupTarget));",
+        "Brow cleanup pass must cover the union of original brow and moved target cleanup zones.",
+    )
+    require_not_contains(
+        shader,
+        "float cleanupHalo = saturate(browCleanup * (cleanupWide + softMask.r - fullCore * 0.82));",
+        "Brow cleanup pass must not rely only on moved target-mask cleanup alpha.",
+    )
+    require_contains(
+        shader,
+        "float3 restoredSkin = SampleBrowCleanupFrameSkin(input.grabPos);",
+        "Brow cleanup pass must use sampled skin color as the restoration color.",
+    )
+    require_contains(
+        shader,
+        "return fixed4(restoredSkin, saturate(alpha));",
+        "Brow cleanup pass must alpha-blend sampled skin color back over the original brow.",
+    )
+    require_contains(
+        shader,
+        "pigmentColor * 0.42",
+        "SmoothRegionMask shader must keep extracted brow fibers dark enough for multiply-like rendering.",
+    )
+    require_contains(
+        shader,
+        "float3 pigmentColor = saturate(_RegionColor.rgb);",
+        "SmoothRegionMask shader must derive makeup color from recipe _RegionColor rather than baked white PSD pixels.",
     )
 
     print("brow_unity_contract_ok")

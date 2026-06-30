@@ -12,6 +12,10 @@
 		463A7F6197DF044F1AEEE315 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		B5C7D9E1F30416283A4C6E80 /* MakeupARLocalMedia.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4B6C8D0E2F406182A3C5E70 /* MakeupARLocalMedia.swift */; };
+		C0D3A11E0000000000000001 /* MakeupARMediaPipeFaceLandmarker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A11E0000000000000003 /* MakeupARMediaPipeFaceLandmarker.swift */; };
+		C0D3A11E0000000000000002 /* face_landmarker.task in Resources */ = {isa = PBXBuildFile; fileRef = C0D3A11E0000000000000004 /* face_landmarker.task */; };
+		C0D3A11E0000000000000005 /* MakeupARMediaPipeFrameSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0D3A11E0000000000000006 /* MakeupARMediaPipeFrameSource.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -24,6 +28,10 @@
 		5DCACB8F33CDC322A6C60F78 /* libPods-MakeupARValidation.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-MakeupARValidation.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = MakeupARValidation/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = MakeupARValidation/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		A4B6C8D0E2F406182A3C5E70 /* MakeupARLocalMedia.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MakeupARLocalMedia.swift; path = MakeupARValidation/MakeupARLocalMedia.swift; sourceTree = "<group>"; };
+		C0D3A11E0000000000000003 /* MakeupARMediaPipeFaceLandmarker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MakeupARMediaPipeFaceLandmarker.swift; path = MakeupARValidation/MakeupARMediaPipeFaceLandmarker.swift; sourceTree = "<group>"; };
+		C0D3A11E0000000000000004 /* face_landmarker.task */ = {isa = PBXFileReference; lastKnownFileType = file; name = face_landmarker.task; path = MakeupARValidation/face_landmarker.task; sourceTree = "<group>"; };
+		C0D3A11E0000000000000006 /* MakeupARMediaPipeFrameSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = MakeupARMediaPipeFrameSource.swift; path = MakeupARValidation/MakeupARMediaPipeFrameSource.swift; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -44,6 +52,10 @@
 			children = (
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
+				A4B6C8D0E2F406182A3C5E70 /* MakeupARLocalMedia.swift */,
+				C0D3A11E0000000000000003 /* MakeupARMediaPipeFaceLandmarker.swift */,
+				C0D3A11E0000000000000006 /* MakeupARMediaPipeFrameSource.swift */,
+				C0D3A11E0000000000000004 /* face_landmarker.task */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
@@ -161,6 +173,7 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				463A7F6197DF044F1AEEE315 /* PrivacyInfo.xcprivacy in Resources */,
+				C0D3A11E0000000000000002 /* face_landmarker.task in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -247,6 +260,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
+				B5C7D9E1F30416283A4C6E80 /* MakeupARLocalMedia.swift in Sources */,
+				C0D3A11E0000000000000001 /* MakeupARMediaPipeFaceLandmarker.swift in Sources */,
+				C0D3A11E0000000000000005 /* MakeupARMediaPipeFrameSource.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -260,7 +276,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X5C5U3T6B4;
 				ENABLE_BITCODE = NO;
 				INFOPLIST_FILE = MakeupARValidation/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
@@ -277,6 +292,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.celeste.makeupar.validation;
 				PRODUCT_NAME = MakeupARValidation;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "MakeupARValidation/MakeupARValidation-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -291,7 +307,6 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = X5C5U3T6B4;
 				INFOPLIST_FILE = MakeupARValidation/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -307,6 +322,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.celeste.makeupar.validation;
 				PRODUCT_NAME = MakeupARValidation;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_OBJC_BRIDGING_HEADER = "MakeupARValidation/MakeupARValidation-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";

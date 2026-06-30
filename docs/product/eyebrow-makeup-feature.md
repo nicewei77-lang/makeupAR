@@ -1,7 +1,7 @@
 # Eyebrow Makeup Feature
 
-Status: Flat daily source-2 fill fix verified locally; iPhone rebuild pending
-Date: 2026-06-27
+Status: MediaPipe canonical asset standard linked; live landmark bridge implemented
+Date: 2026-06-30
 Related strategy: `docs/product/two-stage-ar-makeup-product-strategy.md`
 Related architecture: `docs/architecture/eyebrow-ar-rendering-design.md`
 
@@ -29,8 +29,9 @@ The user should be able to:
 Out of scope for the first loop:
 
 - Full camera/photo/video product workflow.
-- Backend upload, recommendation, AI inference, raw-frame storage, or face data
-  persistence.
+- Backend upload, recommendation, raw-frame storage, or face data persistence.
+- AI/model inference except the explicitly approved on-device MediaPipe brow
+  landmark runtime described below.
 - Android.
 - Payment, ads, brand partnership, product sale links, or commercial SDKs.
 - App Store submission automation.
@@ -56,10 +57,12 @@ Important quality questions for device QA:
 First-loop presets use natural brow colors rather than lip colors:
 
 - `natural_brow`: neutral brown, multiply blend, opacity `0.75`,
-  intensity `0.75`, feather `0.48`, coverage `0.62`, roughness `1`,
-  specular `0`, gloss boost `0`.
-- `soft_brow`: lighter brown, intensity `0.75`, feather `0.48`,
-  coverage `0.62`, roughness `1`, specular `0`, gloss boost `0`.
+  intensity `0.76`, feather `0.42`, coverage `0.66`, roughness `1`,
+  specular `0`, gloss boost `0`. This is the fuller everyday brow preset.
+- `soft_brow`: lighter powder brow, opacity `0.75`, intensity `0.62`,
+  feather `0.48`, coverage `0.54`, roughness `1`, specular `0`, gloss boost
+  `0`. This is intentionally softer and should be labeled `Soft Powder` in UI
+  rather than shown as a raw texture id.
 - Brow color choices are separate from lip colors: `ash_brown`,
   `neutral_brown`, `dark_brown`, `soft_black`, and `light_brown`.
 - Brow color is also parameterized in the RN HUD with user-facing
@@ -72,14 +75,99 @@ First-loop presets use natural brow colors rather than lip colors:
   generated Unity textures remove the grey/black background and glow, store
   soft alpha in red/alpha, and store hair detail in blue so the shader can apply
   color separately.
-- `Flat sharp` is the current local default candidate. It uses the flatter
-  `brow_dailyflat.png` source, a thinner target height, stronger extracted hair
-  detail, and the same non-filled alpha/detail extraction pipeline as the
-  visible `Daily hair`, `Natural hair`, and `Narrow hair` candidates. Default
-  `Texture Detail` is `0.68`.
+- PSD-derived MediaPipe/ARCore canonical-face candidates are now the authored
+  asset standard for lip, cheek, and brow:
+  `psd-arcore-lip-style-v1`, `psd-arcore-lip-mask-v1`,
+  seven cheek masks (`psd-arcore-cheek-undereye-v1`,
+  `psd-arcore-cheek-asia-z-v1`, `psd-arcore-cheek-sunkissed-v1`,
+  `psd-arcore-cheek-daily-oval-v1`, `psd-arcore-cheek-undereye2-v1`,
+  `psd-arcore-cheek-lovely-round-v1`,
+  `psd-arcore-cheek-lifted-diagonal-v1`), and
+  `psd-arcore-brow-semi-arch-v1`.
+  RN defaults to these PSD/canonical masks for lip, cheek, and brow. Eye remains
+  on `eye-drawn-mask-v1` until a canonical eye asset is authored.
+  `archive`/`archieve` layers are excluded. White or gray PSD pixels are
+  interpreted as coverage/density masks, not white makeup color; the actual
+  lip, cheek, or brow color still comes from the RN/Unity recipe parameters.
+  The current local conversion preserves the PSD full-canvas canonical layout
+  instead of bbox-fitting the layers into existing ARKit/Unity mask positions.
+  PSD intake now selects runtime source layers by canonical layer path instead
+  of trusting Photoshop visibility alone, so hidden-but-named source layers can
+  still be force-composited. Recommended PSD delivery is to keep makeup source
+  layers visible and named consistently, while keeping guide layers such as
+  `preview`, `UVs`, `lines`, `background`, `archive`, and `mask` hidden or
+  outside the runtime source set.
+  The 2026-06-30 updated PSD keeps the same semantic source layers but changes
+  some path details: eyebrow group `Semi-arch` may be capitalized and cheek can
+  arrive as `Root/blush/Undereye/all`. The extractor now matches runtime
+  layer paths case-insensitively and treats `Undereye/all` as the cheek runtime
+  source.
+- Next brow asset intake should use three left/right pairs, delivered as six
+  transparent PNGs named from the wearer's perspective, for example
+  `daily_wearer_left.png` and `daily_wearer_right.png`. Recommended master
+  canvas is `2048x1024` per single brow side, sRGB straight-alpha PNG, with the
+  brow occupying roughly `1500..1700px` width and `220..360px` height plus
+  consistent transparent padding. Individual hair strokes should remain visible
+  at `6..12px` source thickness with varied opacity; avoid filled silhouettes,
+  baked skin, grey backgrounds, glow, drop shadow, or premultiplied-alpha edge
+  halos. The current Unity-ready brow masks are `512x512`, which is tight for
+  photo-like hair grain; the next asset-generation pass should downsample the
+  2048 masters into a `1024x1024` Unity brow atlas, then fall back to `512x512`
+  only for performance comparison.
+- `Natural hair` remains the comparison baseline for the PNG hair family, but
+  the current canonical-asset default path uses `PSD semi arch` for brow.
+  Default PNG `Texture Detail` remains `0.52`; `Soft Powder` lowers detail by
+  default so the result reads as powder instead of harsh strokes.
 - Brow texture detail is parameterized with a `Texture Detail` slider that maps
   to `detailAmount`. This preserves the color layer while allowing a controlled
   multiply-like darkening of only the extracted hair detail.
+- Brow rendering is intentionally different from lip and cheek rendering. Lip
+  and cheek can use broad smooth-region fill, but brow must be fiber-first:
+  the blue detail channel drives visible opacity, the red shape channel only
+  gates the brow area and adds a very weak powder veil. This avoids turning
+  eyebrow masks into a filled block when a source asset has broad density.
+- `PSD semi arch` uses the same tintable brow color path, but its PSD layers
+  are interpreted separately: `left/right` drive the hair-detail channel,
+  `gradient` adds only a very light powder layer, and `full` marks the target
+  brow core that should be protected from skin restoration. In the current
+  non-AI cleanup path, the app approximates "recognized original brow" with the
+  canonical source-brow mask and restores sampled skin color only outside the
+  PSD `full` core. The PSD semi-arch generator keeps the 4096px PSD source
+  canvas as the source of truth and downscales the full canonical canvas to the
+  runtime texture, without fitting the side bboxes into ARKit/source-brow target
+  boxes. This preserves the authored semi-arch proportions and avoids hidden
+  per-asset stretching. This is a canonical asset-space reference, not a runtime
+  MediaPipe camera inference path. The mask uses controlled initial
+  `Texture Detail` (`0.64`) and `Cleanup` defaults.
+- 2026-06-30 device feedback showed that the above static fitting is not enough
+  to "recognize" the real eyebrow. A MediaPipe canonical target only defines the
+  asset coordinate system; it does not tell the Unity/ARKit runtime where the
+  user's current brow is. Do not add hidden per-asset correction constants to
+  make PSD semi-arch line up. Apple Vision eyebrow landmarks were considered as
+  an interim iOS diagnostic path, but the accepted product placement contract is
+  MediaPipe-first: runtime brow placement belongs to the MediaPipe full-face
+  landmark packet. Raw camera frames must not be stored; only transient
+  in-memory analysis, landmarks, and diagnostics are allowed.
+- MediaPipe Face Landmarker is an approved brow-runtime exception as of
+  2026-06-30. The approval is constrained to on-device eyebrow landmark
+  placement with `face_landmarker.task` bundled in the app, no raw frame storage
+  or upload, policy keyword `no raw frame storage or upload`, and numeric diagnostics only (`landmark`, `bbox`, `confidence`,
+  timing, and status). User-triggered final photo/video capture remains allowed
+  through the local Photos save flow, but detector frames are not capture media.
+  The iOS dependency is installed with `MediaPipeTasksVision` `0.10.14`, the
+  model is bundled, and the first live bridge is implemented. Unity captures a
+  transient in-memory frame only while brow is active, UnityFramework calls an
+  Objective-C++ bridge that resolves the app-owned Swift MediaPipe runtime,
+  Swift runs Face Landmarker and returns eyebrow point counts, bbox,
+  confidence, latency, and status, and RN surfaces this as
+  `e7_mediapipe_brow_landmarks` diagnostics.
+  This bridge proves live landmark packet access, but it does not yet move or
+  warp the brow asset by those landmarks.
+- Implementation note: brow assets should now be interpreted as MediaPipe
+  canonical assets, not ARKit UV semantic-placement assets. Runtime brow
+  placement belongs to the MediaPipe full-face landmark packet; the current
+  live bridge is only the proof of packet access until a later renderer step
+  maps, moves, or warps the brow asset from those landmarks.
 - `Flat multiply` uses the same flatter/sharper extracted texture as
   `Flat sharp`, but forces multiply composition even for `light_brown` so the
   next device QA can compare normal color-layer composition against a multiply
@@ -88,21 +176,70 @@ First-loop presets use natural brow colors rather than lip colors:
   keeping `detailAmount` active. Darker PNG brow colors keep multiply
   composition. This prevents the light brow option from being darkened by a
   full multiply pass while preserving hair texture contrast.
-- Brow placement is parameterized with `Gap`, `Brow Y`, `Angle`, and `Arch`
+- Brow placement is parameterized with `Gap`, `Brow Y`, `Angle`, `Arch`, and
+  `Arch Position`
   controls. `Gap` is the user-facing name for the brow midline spacing control;
   internally RN keeps compatibility by sending the same value through
   `maskSpreadX` and `browGap`. `Brow Y` shifts vertical sampling, `Angle`
   applies a conservative brow-tail tilt correction, and `Arch` warps the brow
-  mountain area without changing the whole brow pose. The current local default
-  starts `maskSpreadX`/`browGap` at `0.28` to reduce the too-narrow midline look
-  observed on the previous installed build.
+  mountain area without changing the whole brow pose. `Arch Position` shifts
+  only the brow mountain forward/back along the inner-to-tail axis. User-facing
+  placement sliders now start at neutral `0`; RN sends these values as literal
+  deltas and no longer applies hidden default `browGap` or `maskOffsetY`
+  baselines for canonical PSD placement.
+- Brow reshape now uses a middle-path correction rather than full original-brow
+  removal. `Cleanup` controls a weak concealer layer over a canonical source
+  brow mask plus the target brow halo, so original hairs can still be reduced
+  when the selected brow asset is shifted above or below the user's original
+  brow. `Reshape` strengthens the target brow edge/shape inside the brow ROI.
+  Defaults are conservative, `Cleanup=0.24` and `Reshape=0.16`, because
+  the current renderer does not run AI face parsing or true inpainting. The
+  current local build candidate uses a `GrabPass`-backed cleanup pass that
+  samples the current AR camera image in the shader and blends nearby skin color
+  back over the weak cleanup halo; it does not save or upload source frames.
+  The cleanup shader must not use a fixed beige "skin" tint. It now samples
+  farther surrounding pixels and downweights dark brow-hair samples before
+  blending, so the restoration color is driven by the live camera frame. Unity
+  binds internal `SmoothRegionMasks/brow-cleanup-source-v1` as
+  `_BrowCleanupSourceTex`; that source mask is sampled from unshifted face UVs,
+  while the user-selected brow asset still uses placement controls such as
+  `Brow Y`, `Gap`, `Angle`, `Arch`, and `Arch Position`. An `AR BG` QA source
+  switch is also prepared for brow cleanup. It keeps
+  `GrabPass` as the default, and only when selected asks Unity to blit
+  `ARCameraBackground.material` into a transient GPU texture for the cleanup
+  shader. A brow-only `Skin Restore On/Off` toggle lets QA compare the asset
+  without skin restoration; when off, RN preserves the stored `Cleanup` slider
+  value but sends effective `browCleanupEnabled=false`,
+  `browCleanupStrength=0`, and `browCleanupSourceMode=none`.
+- Clean mode now separates user product capture from developer reference
+  capture. `Save Photo` captures the current final app view and writes it to
+  the local Photos library. `Record Video`/`Stop Video` uses ReplayKit screen
+  capture and `AVAssetWriter` to save a local movie to Photos. These actions
+  are explicit user-triggered local saves and are separate from validation
+  evidence capture.
 - Unity `recipe_applied` diagnostics emit the applied `browGap`, `maskOffsetY`,
-  `browAngle`, and `browArch` values, and the RN HUD summarizes them as
-  `gap=`, `y=`, `angle=`, and `arch=` so device QA can confirm placement
-  control delivery without collecting raw camera frames.
+  `browAngle`, `browArch`, `browArchPosition`, `browCleanupStrength`, and
+  `browReshapeStrength` values. They also emit `browCleanupSource`,
+  `browCleanupFallback`, `browCleanupStatus`, and `browCleanupSourceMode` so
+  device QA can see whether the active candidate is the GrabPass live-frame
+  path or the prepared ARCameraBackground fallback. They also emit
+  `browCleanupEnabled`, `browCleanupFallbackAvailable`,
+  `browCleanupCameraTextureWidth`, and `browCleanupCameraTextureHeight` so QA can
+  tell whether cleanup is active and whether the AR BG transient texture was
+  actually ready. The RN HUD summarizes these values as `gap=`, `y=`, `angle=`,
+  `arch=`, `archPos=`, `cleanupEnabled=`, `cleanup=`, `reshape=`,
+  `cleanupSource=`, `cleanupFallback=`, `cleanupStatus=`, `cleanupMode=`,
+  `cleanupFallbackAvailable=`, and `cleanupCameraTex=` without collecting raw
+  camera frames.
 - The RN tuning panel is scoped by focused region: lip-focused editing shows
   lip finish/area controls, while brow-focused editing shows brow texture,
-  mask, color, detail, and placement controls.
+  mask, color, detail, coverage, feather, and placement controls. Brow keeps
+  `Coverage` and `Feather` because they control useful brow density/edge
+  softness; brow hides lip/material finish controls such as roughness,
+  specular, glossy, gradient, normal, and overlip.
+- Sliders now expose small `-` and `+` nudge buttons in addition to dragging.
+  Dragging remains coarse and quick, while nudge buttons adjust by `0.01` UI
+  value steps for brow placement and color/detail fine tuning.
 
 No third-party assets, commercial SDKs, research-only datasets, or unclear
 license materials should enter the shipping path. Current brow assets are
@@ -263,28 +400,127 @@ or bridge rewrite.
   rejects hollow FLAT interiors; `Flat sharp` records inner fill `0.822/0.932`
   with detailStd `57.63`. This fix was locally verified in commit `cd2c0fd` and
   is included in the later `72648a9` Gap/Angle/Arch iPhone install.
+- 2026-06-28: User QA feedback after the Gap/Angle/Arch install found
+  `Soft flat` and `Slim tail fine` too faint, flat candidates too long and still
+  visually hollow, PNG hair candidates too paint-like, `natural_brow` and
+  `soft_brow` visually unclear, and asked for brow-only arch-position control
+  plus region-scoped parameters. Local follow-up now defaults to `Natural hair`,
+  distinguishes `Natural` vs `Soft Powder`, adds `Arch Position`, keeps brow
+  `Coverage`/`Feather`, hides lip/gloss controls while editing brow, shortens
+  and fills flat candidates, boosts faint procedural candidates, and softens PNG
+  hair detail in both textures and shader response.
+- 2026-06-28: Follow-up device QA found the FLAT candidates still did not read
+  like the visible PNG hair candidates. Local follow-up now aligns
+  `Daily flat`, `Flat sharp`, and `Flat multiply` to the same detail-driven PNG
+  hair response: FLAT alpha/detail are driven primarily by the extracted hair
+  detail channel, and the verifier rejects FLAT textures whose alpha is too
+  solid or whose detail-to-alpha ratio is too weak. User approved the minimal
+  required-file rebuild; this follow-up has now been rebuilt and installed on
+  `CloudsiPhone` without an automated launch.
+- 2026-06-28: User QA on the installed FLAT hair-response build found the FLAT
+  candidates still rendered with a dark outline and no visible brow hair grain.
+  Local diagnosis showed the FLAT blue detail signal and alpha were still
+  dominated by a continuous lower-edge outline, and the verifier only checked
+  aggregate detail variance. Local fix now rebuilds `Daily flat` from the
+  visible `Daily hair` resource, and `Flat sharp`/`Flat multiply` from the
+  visible `Narrow hair` resource, packed into the shorter FLAT target boxes.
+  It also trims the lower edge band and adds a verifier guard that rejects long
+  bright bottom-edge detail runs. User approved the minimal required-file
+  rebuild; this follow-up has now been rebuilt and installed on `CloudsiPhone`
+  without an automated launch.
+- 2026-06-28: User asked whether new left/right transparent eyebrow photo
+  assets should be created as three pairs, and noted that the same source art
+  looked natural when multiplied over a face in Photoshop while the app still
+  clumped the brow grain. Local decision: separate left/right assets are
+  recommended for future asset intake, but this pass first fixes rendering so
+  PNG brow masks use a photo-detail branch. That branch keeps the broad red
+  shape channel as a very light veil and drives the visible effect mainly from
+  blue-channel hair peaks, closer to a Photoshop-style multiply result. RN also
+  now separates hidden per-mask placement baselines from user-facing placement
+  deltas, so sliders start neutral while Unity receives the mask-specific
+  baseline plus any user adjustment. User approved the minimal required-file
+  rebuild; this follow-up has now been rebuilt and installed on `CloudsiPhone`
+  without an automated launch.
 
 ## Local Verification
 
-- RN Jest: `npm test -- --runInBand` passed with 31 tests, including the
-  daily-flat normal/sharp/multiply comparison path and preset-switch mask
-  preservation.
-- Brow mask verifier passed for compatibility procedural mask
-  `brow-back-arch-soft-mix-v1`. The PNG hair verifier now covers the local
-  `Flat sharp` default.
+- RN Jest: `npm test -- --runInBand __tests__/App.test.tsx` passed with
+  `33/33` tests, including Natural hair defaults, mask-specific brow placement
+  baselines, placement-delta reset on mask changes, `Natural`/`Soft Powder`
+  labels, preset-switch preservation, `Arch Position`, and region-scoped
+  lip/brow parameter panels.
+- Brow mask verifier passed for `brow-back-arch-soft-mix-v1` and
+  `brow-slim-tail-fine-hair-v1` after the visibility/top-edge retune.
 - Unity contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py`.
-  The verifier now guards brow renderer routing plus brow-specific
-  threshold/feather policy and PNG hair `detailAmount`.
+  The verifier now guards brow renderer routing, brow-specific
+  threshold/feather policy, PNG hair `detailAmount`, `browArchPosition`, and
+  PNG brow photo-detail rendering.
 - PNG brow hair texture verifier passed:
   `python3 scripts/e7_reference_atlas/verify_brow_png_hair_textures.py`.
   It checks all seven generated PNG-derived textures for active coverage, two
   brow components, transparent corners, non-flat detail, daily-flat thinness,
-  and stray low-alpha artifact rejection.
+  daily-flat fill, shorter flat candidate width, FLAT detail-to-alpha response,
+  softer detail variance, bottom-edge outline rejection, and stray low-alpha
+  artifact rejection.
 - Region renderer route verifier passed:
   `python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py`.
 - UnityFramework build contract verifier passed:
   `python3 scripts/e7_reference_atlas/verify_unityframework_build_contract.py`.
+- Unity `6000.3.18f1` batchmode import/compile for the 2026-06-28 feedback
+  retune was attempted, but did not reach compile because Unity Licensing IPC
+  timed out waiting for `LicenseClient-hi`. The hung batchmode process was
+  interrupted and the spawned Licensing Client process was terminated. Log:
+  `evidence/logs/eyebrow-feedback-retune-unity6000-batchmode-20260628.log`.
+- The later minimal required-file device build passed. UnityFramework
+  regeneration/sync used `TIMESTAMP=eyebrow-feedback-retune-20260628-ufw-r1`;
+  artifact verification recorded `126M` UnityFramework copies and `30M` `Data`
+  folders in both RN and package-local paths. RN/Xcode Debug build produced a
+  `205M` app bundle and `devicectl` installed
+  `com.celeste.makeupar.validation` on `CloudsiPhone`. Logs:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-feedback-retune-20260628-ufw-r1.log`,
+  `evidence/logs/eyebrow-rn-xcodebuild-device-feedback-retune-20260628-r1.log`,
+  and
+  `evidence/logs/eyebrow-rn-devicectl-install-feedback-retune-20260628-r1.log`.
+- The FLAT hair-response minimal device build passed after the follow-up QA
+  retune. UnityFramework regeneration/sync used
+  `TIMESTAMP=eyebrow-flat-hair-response-20260628-ufw-r1`; artifact
+  verification recorded `126M` UnityFramework copies and `30M` `Data` folders
+  in both RN and package-local paths. RN/Xcode Debug build produced a `205M`
+  app bundle and `devicectl` installed `com.celeste.makeupar.validation` on
+  `CloudsiPhone`. Logs:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-flat-hair-response-20260628-ufw-r1.log`,
+  `evidence/logs/eyebrow-rn-xcodebuild-device-flat-hair-response-20260628-r1.log`,
+  and
+  `evidence/logs/eyebrow-rn-devicectl-install-flat-hair-response-20260628-r1.log`.
+  App launch, screenshots, recordings, and raw camera frame capture were not
+  run in this minimal build loop.
+- The FLAT edge-outline fix minimal device build passed. UnityFramework
+  regeneration/sync used
+  `TIMESTAMP=eyebrow-flat-outline-fix-20260628-ufw-r1`; artifact verification
+  recorded `126M` UnityFramework copies and `30M` `Data` folders in both RN and
+  package-local paths. RN/Xcode Debug build produced a `205M` app bundle and
+  `devicectl` installed `com.celeste.makeupar.validation` on `CloudsiPhone`.
+  Logs:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-flat-outline-fix-20260628-ufw-r1.log`,
+  `evidence/logs/eyebrow-rn-xcodebuild-device-flat-outline-fix-20260628-r1.log`,
+  and
+  `evidence/logs/eyebrow-rn-devicectl-install-flat-outline-fix-20260628-r1.log`.
+  App launch, screenshots, recordings, and raw camera frame capture were not
+  run in this minimal build loop.
+- The PNG photo-detail brow minimal device build passed. UnityFramework
+  regeneration/sync used
+  `TIMESTAMP=eyebrow-photodetail-20260628-ufw-r1`; artifact verification
+  recorded `126M` UnityFramework copies and `30M` `Data` folders in both RN and
+  package-local paths. RN/Xcode Debug build produced a `205M` app bundle and
+  `devicectl` installed `com.celeste.makeupar.validation` on `CloudsiPhone`.
+  Logs:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-photodetail-20260628-ufw-r1.log`,
+  `evidence/logs/eyebrow-rn-xcodebuild-device-photodetail-20260628-r1.log`,
+  and
+  `evidence/logs/eyebrow-rn-devicectl-install-photodetail-20260628-r1.log`.
+  App launch, screenshots, recordings, and raw camera frame capture were not
+  run in this minimal build loop.
 - Unity `6000.3.18f1` batchmode import/compile exited `0` for the PNG hair
   loop. Log `evidence/logs/eyebrow-png-hair-texture-unity6000-batchmode-20260627.log`
   shows `Tundra build success`, `CompileScripts: 4786.690ms`, imports for all
@@ -397,16 +633,35 @@ or bridge rewrite.
   `evidence/logs/eyebrow-rn-devicectl-launch-gap-angle-arch-20260628-r1.log`
   and
   `evidence/logs/eyebrow-rn-devicectl-launch-gap-angle-arch-20260628-r2.log`.
+- Fallback-readiness diagnostics build passed after explicit approval.
+  UnityFramework regeneration/sync used
+  `TIMESTAMP=eyebrow-cleanup-fallback-20260628-ufw-r1`; artifact verification
+  recorded `126M` UnityFramework copies and `30M` `Data` folders in both RN and
+  package-local locations:
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-cleanup-fallback-20260628-ufw-r1.log`.
+- RN/Xcode Debug build attempt r1 failed on `MakeupARLocalMedia.swift` because
+  Swift could not see `RCTBridgeModule`; the local fix added
+  `MakeupARValidation-Bridging-Header.h` and `SWIFT_OBJC_BRIDGING_HEADER`.
+  Attempt r2 passed:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-cleanup-fallback-20260628-r2.log`.
+  The built app bundle is `205M`, including `126M`
+  `UnityFramework.framework` and `30M` `UnityFramework.framework/Data`.
+- `devicectl` installed `com.celeste.makeupar.validation` on `CloudsiPhone`
+  with
+  `evidence/logs/eyebrow-rn-devicectl-install-cleanup-fallback-20260628-r1.log`.
+  Automated launch was attempted but the iPhone was locked:
+  `evidence/logs/eyebrow-rn-devicectl-launch-cleanup-fallback-20260628-r1.log`.
 
 ## QA Status
 
-The latest installed iPhone build is the `72648a9` Gap/Angle/Arch control
-build. It installed on `CloudsiPhone`, but automated launch is not yet verified
-because the phone was locked during both launch attempts. Product quality is
-still not accepted until the user opens the installed app or the launch command
-is rerun after unlock, then visually checks visibility, hair texture fidelity,
-curve shape, color, multiply-vs-normal behavior, preset switching, `soft_brow`,
-brow gap, angle, arch, and tracking recovery.
+The latest installed iPhone build is the 2026-06-28 fallback-readiness brow
+build from `RNDevice-eyebrow-cleanup-fallback-20260628-r2`. It installed on
+`CloudsiPhone`, but automated launch was blocked because the iPhone was locked.
+Product quality is still not accepted until the user opens the installed app or
+launch is explicitly rerun, then visually checks FLAT readability versus
+`Daily hair`/`Natural hair`/`Narrow hair`, hair texture fidelity, curve shape,
+color, multiply-vs-normal behavior, preset switching, `soft_brow`, brow gap,
+angle, arch, arch position, and tracking recovery.
 
 ## Risks
 

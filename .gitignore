@@ -54,6 +54,7 @@ evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/*
 !evidence/e7-reference-atlas/capture_pairs/pair_face_20260622T143334Z_03/projected_mesh_overlay.png
 
 # React Native generated/dependency state
+.venv/
 rn/MakeupARValidation/node_modules/
 rn/MakeupARValidation/ios/Pods/
 rn/MakeupARValidation/ios/build/

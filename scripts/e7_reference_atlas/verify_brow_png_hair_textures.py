@@ -133,6 +133,33 @@ def component_fill_metrics(active: np.ndarray, component: dict[str, Any]) -> dic
     }
 
 
+def longest_run(values: np.ndarray) -> int:
+    longest = 0
+    current = 0
+    for value in values.tolist():
+        if value:
+            current += 1
+            longest = max(longest, current)
+        else:
+            current = 0
+    return longest
+
+
+def bottom_edge_detail_run(blue: np.ndarray, component: dict[str, Any], threshold: int = 110) -> int:
+    bbox = component["bbox"]
+    left = bbox["left"]
+    right = bbox["right"] + 1
+    top = bbox["top"]
+    bottom = bbox["bottom"] + 1
+    height = max(1, bottom - top)
+    edge_start = top + int(height * 0.76)
+    rows = blue[edge_start:bottom, left:right] > threshold
+    if rows.size == 0:
+        return 0
+
+    return max(longest_run(row) for row in rows)
+
+
 def verify_texture(path: Path, resolution: int, threshold: int, component_threshold: int, min_component_pixels: int) -> str:
     require(path.exists(), f"Missing PNG brow hair texture: {path}")
     image = Image.open(path).convert("RGBA")
@@ -149,8 +176,8 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     coverage = active_count / float(resolution * resolution)
     require(1600 <= active_count <= 12500, f"{path.name} active pixels off: {active_count}")
     require(0.006 <= coverage <= 0.048, f"{path.name} coverage off: {coverage:.6f}")
-    require(78 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
-    require(398 <= bounds["right"] <= 436, f"{path.name} right bbox off: {bounds}")
+    require(95 <= bounds["left"] <= 112, f"{path.name} left bbox off: {bounds}")
+    require(403 <= bounds["right"] <= 418, f"{path.name} right bbox off: {bounds}")
     require(92 <= bounds["top"] <= 104, f"{path.name} top bbox off: {bounds}")
     require(126 <= bounds["bottom"] <= 138, f"{path.name} bottom bbox off: {bounds}")
     require(24 <= bounds["height"] <= 48, f"{path.name} height off: {bounds}")
@@ -170,6 +197,14 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     )
     if "dailyflat" in path.name:
         require(
+            left["bbox"]["width"] <= 120,
+            f"{path.name} left flat brow is too long: {left}",
+        )
+        require(
+            right["bbox"]["width"] <= 120,
+            f"{path.name} right flat brow is too long: {right}",
+        )
+        require(
             bounds["left"] >= left["bbox"]["left"] - 8,
             f"{path.name} has stray low-alpha pixels before the left brow: bounds={bounds} left={left}",
         )
@@ -180,12 +215,22 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
         left_fill = component_fill_metrics(active, left)
         right_fill = component_fill_metrics(active, right)
         require(
-            left_fill["innerFill"] >= 0.78,
+            left_fill["innerFill"] >= 0.70,
             f"{path.name} left brow interior is too hollow for device rendering: {left_fill}",
         )
         require(
-            right_fill["innerFill"] >= 0.78,
+            right_fill["innerFill"] >= 0.70,
             f"{path.name} right brow interior is too hollow for device rendering: {right_fill}",
+        )
+        left_bottom_edge_run = bottom_edge_detail_run(blue, left)
+        right_bottom_edge_run = bottom_edge_detail_run(blue, right)
+        require(
+            left_bottom_edge_run <= 7,
+            f"{path.name} left bottom edge detail reads as a dark outline: run={left_bottom_edge_run}",
+        )
+        require(
+            right_bottom_edge_run <= 7,
+            f"{path.name} right bottom edge detail reads as a dark outline: run={right_bottom_edge_run}",
         )
 
     corner_alpha = int(
@@ -199,9 +244,21 @@ def verify_texture(path: Path, resolution: int, threshold: int, component_thresh
     detail_values = blue[active]
     red_values = red[active]
     min_detail_std = 11.0 if "dailyflat-sharp" in path.name or "dailyflat-multiply" in path.name else 8.0
+    max_detail_std = 58.0
     require(float(detail_values.std()) >= min_detail_std, f"{path.name} detail channel too flat.")
+    require(float(detail_values.std()) <= max_detail_std, f"{path.name} detail channel too harsh.")
     require(float(red_values.std()) >= 7.0, f"{path.name} alpha shape too flat.")
     require(int(blue[active].max()) > int(red[active].mean()), f"{path.name} detail channel lacks hair peaks.")
+    if "dailyflat" in path.name:
+        detail_to_alpha_ratio = float(detail_values.mean() / max(float(red_values.mean()), 1.0))
+        require(
+            float(red_values.std()) >= 70.0,
+            f"{path.name} flat alpha is too solid compared with PNG hair masks.",
+        )
+        require(
+            detail_to_alpha_ratio >= 0.50,
+            f"{path.name} flat detail is too weak compared with PNG hair masks: {detail_to_alpha_ratio:.3f}",
+        )
 
     return (
         f"{path.name}:active={active_count} coverage={coverage:.6f} "

@@ -1,7 +1,7 @@
 # Eyebrow Makeup QA Runbook
 
-Status: Source-2 FLAT fill fix verified locally; iPhone rebuild pending
-Date: 2026-06-27
+Status: MediaPipe canonical asset standard linked; MediaPipe brow bridge ready for device QA
+Date: 2026-06-30
 
 ## Scope
 
@@ -14,7 +14,8 @@ Completion evidence is tracked separately in
 Out of scope:
 
 - Android.
-- AI/model inference, recommendation, backend upload, or raw-frame storage.
+- AI/model inference except the approved on-device MediaPipe brow landmark
+  runtime, recommendation, backend upload, or raw-frame storage.
 - Payment, ads, commercial SDKs, App Store claims, or production readiness.
 
 ## Pre-Build Checks
@@ -23,17 +24,61 @@ Run from the repo root before requesting or starting the device build:
 
 ```bash
 python3 scripts/e7_reference_atlas/verify_brow_mask_texture.py
+python3 scripts/e7_reference_atlas/verify_brow_cleanup_source_mask.py
+python3 scripts/e7_reference_atlas/verify_psd_arcore_makeup_textures.py
+python3 scripts/e7_reference_atlas/verify_runtime_texture_override_contract.py
 python3 scripts/e7_reference_atlas/verify_brow_unity_contract.py
 python3 scripts/e7_reference_atlas/verify_region_renderer_routes.py
+python3 scripts/e7_reference_atlas/verify_brow_landmark_privacy_contract.py
 ```
 
 RN focused check:
 
 ```bash
 npm test -- --runTestsByPath __tests__/App.test.tsx --runInBand
+npm run lint
+npx tsc --noEmit
 ```
 
 Run the RN command from `rn/MakeupARValidation`.
+
+For the 2026-06-28 GrabPass cleanup/local media loop, also run:
+
+```bash
+python3 scripts/e7_reference_atlas/verify_ios_local_media_capture_contract.py
+```
+
+For the approved MediaPipe brow landmark runtime, confirm privacy posture before
+any device build:
+
+- `verify_brow_landmark_privacy_contract.py` passes, including
+  `MediaPipeTasksVision` in `Podfile`/`Podfile.lock`, bundled
+  `face_landmarker.task`, and the Swift link/model-path sentinel.
+- Detector raw camera frames are memory-only and are not saved to Photos,
+  evidence folders, logs, or network services.
+- Detector diagnostics are limited to landmark/bbox/confidence/timing/status
+  numbers.
+- User-triggered `Save Photo` and `Record Video` remain the only local media
+  save paths.
+
+The current MediaPipe state includes the first live bridge. When brow is active
+on device, Unity should emit `e7_mediapipe_brow_landmarks` events from the
+transient in-memory detector path. Expected successful diagnostics include:
+
+- `source=mediapipe_face_landmarker_runtime_brow_landmarks`
+- `coordinateMode=image_normalized`
+- nonzero `leftPointCount` and `rightPointCount`
+- finite bbox values
+- `rawCameraFrameStored=false`
+- `offDeviceUpload=false`
+
+This confirms live landmark diagnostics. It does not yet mean the brow texture
+is positioned or warped by those landmarks.
+
+For runtime PNG texture iteration, use the RN HUD `Runtime PNG` selector.
+`Documents PNG` sends `runtimeTextureOverrideMode=documents_png` and defaults
+to `runtime-overrides/{region}.png` under Unity `Application.persistentDataPath`;
+replace that PNG and resend the recipe to reload it without rebuilding.
 
 Unity local import/compile check:
 
@@ -68,6 +113,105 @@ Only after user approval:
 2. From repo root, run `bash scripts/build_m3_unityframework.sh`.
 3. Run the RN/Xcode target with the user-approved iPhone and signing team.
 4. Do not add a default UDID or `DEVELOPMENT_TEAM` to the repo.
+
+## 2026-06-29 Runtime Texture Override Build Evidence
+
+- Device: `CloudsiPhone` (`FD44CD30-B236-5594-BE61-3C5D408A6851`).
+- Bundle ID: `com.celeste.makeupar.validation`.
+- Signing team used for the local build: `X5C5U3T6B4`.
+- Pre-build checks passed:
+  `verify_runtime_texture_override_contract.py`,
+  `verify_brow_unity_contract.py`, RN Jest, RN lint, and TypeScript.
+- UnityFramework regenerated and synced with
+  `TIMESTAMP=runtime-texture-override-20260629-ufw-r1`:
+  `evidence/logs/m3-repro-unity-export-runtime-texture-override-20260629-ufw-r1.log`,
+  `evidence/logs/m3-repro-xcodebuild-unityframework-runtime-texture-override-20260629-ufw-r1.log`,
+  `evidence/logs/m3-repro-artifact-verification-runtime-texture-override-20260629-ufw-r1.log`.
+- RN/Xcode Release build succeeded:
+  `evidence/logs/eyebrow-rn-xcodebuild-device-runtime-texture-override-20260629-r1.log`.
+- Install and launch succeeded:
+  `evidence/logs/eyebrow-rn-devicectl-install-runtime-texture-override-20260629-r1.log`,
+  `evidence/logs/eyebrow-rn-devicectl-launch-runtime-texture-override-20260629-r1.log`.
+- App artifact:
+  `unity-builds/xcode-derived-data/MakeupARValidation-runtime-texture-override-20260629-r1/Build/Products/Release-iphoneos/MakeupARValidation.app`.
+
+## 2026-06-28 GrabPass/ARCameraBackground Cleanup QA Gate
+
+This gate is for the current real-time brow cleanup candidate. It is not
+accepted until a fresh UnityFramework/RN iPhone build is approved, installed,
+and visually checked on device.
+
+Before build approval, local evidence should include:
+
+- RN Jest, RN lint, and TypeScript.
+- `verify_brow_unity_contract.py`.
+- `verify_brow_cleanup_source_mask.py`.
+- `verify_ios_local_media_capture_contract.py`.
+- Unity `6000.3.18f1` batchmode import/compile with `Tundra build success` and
+  `Exiting batchmode successfully now!`.
+
+On the iPhone, switch to HUD or Debug, select `brow`, and confirm the latest
+`recipe_applied` Diagnostics summary includes:
+
+- `cleanupSource=grabpass_live_frame_skin_sample`
+- `cleanupFallback=ar_camera_background_texture`
+- `cleanupStatus=grabpass_candidate`
+- `cleanupMode=grabpass`
+- `cleanupEnabled=true`
+
+These strings prove the GrabPass candidate path is active and the fallback path
+is visible. They do not by themselves prove ARCameraBackground is inside the
+grabbed texture. The visual acceptance check is:
+
+- Original eyebrow hairs that peek outside the selected brow asset are softened
+  with nearby skin color, not black/gray fill, a frozen frame, or a mirrored or
+  offset background sample.
+- The cleanup halo does not show as a fixed beige/orange concealer patch; it
+  should visually track the user's surrounding skin tone.
+- Move `Brow Y` clearly above and below neutral. The original eyebrow area should
+  still soften because cleanup source coverage is independent of target brow
+  placement.
+- The brow asset still keeps visible hair/detail and does not become a flat
+  sticker.
+- Brow should read as separated hair/detail or light powder, not as one filled
+  smooth-region block. If it still looks clumped, compare `Texture Detail`,
+  `Coverage`, and `Feather` before accepting the build.
+- PSD-derived lip, cheek, and brow options should tint with the selected app
+  colors. If they render as fixed white makeup, the tint-mask interpretation is
+  broken.
+- Toggle `Skin Restore Off` and confirm the same brow asset remains visible
+  while cleanup diagnostics switch to `cleanupEnabled=false`, `cleanup=0`, and
+  `cleanupMode=none`. This is the asset-only comparison state; the saved
+  `Cleanup` slider value should return when skin restore is turned back on.
+- The cleanup layer follows the face during small head turns without sliding
+  separately from the brow.
+
+If device QA shows any of these failure signs, switch the brow cleanup source
+from `GrabPass` to `AR BG` in the brow QA panel and retest:
+
+- Cleanup halo samples black, transparent, UI, stale frame, or non-camera
+  content instead of the live AR camera image.
+- Cleanup color moves independently from the face or appears screen-locked.
+- The GrabPass candidate cannot visibly reduce original brow peek-through even
+  when `Cleanup` is raised.
+
+Expected `AR BG` diagnostics are:
+
+- `cleanupMode=ar_camera_background`
+- `cleanupSource=ar_camera_background_texture`
+- `cleanupFallback=grabpass_live_frame_skin_sample`
+- `cleanupStatus=ar_camera_background_ready`
+- `cleanupFallbackAvailable=true`
+- `cleanupCameraTex=<screen-width>x<screen-height>`
+
+If `cleanupStatus=ar_camera_background_unavailable`,
+`cleanupFallbackAvailable=false`, or `cleanupCameraTex=0x0`, the UI switch is
+working but the ARCameraBackground material/RT path is not ready on that frame.
+
+The fallback path renders `ARCameraBackground.material` into a transient GPU
+`RenderTexture` and binds it to the brow cleanup shader. Do not add raw camera
+frame storage, backend upload, AI inference, or evidence screenshots by
+default.
 
 ## 2026-06-27 Build Evidence
 
@@ -454,21 +598,22 @@ recordings unless the user explicitly approves storing them.
 Build context:
 
 - Branch/commit: `feature/brow-0626`
-- Commit: `72648a9`
+- Commit: `b229802`
 - Device: `CloudsiPhone`
 - iOS version: `26.5`
 - Signing team used: `X5C5U3T6B4`
 - UnityFramework regenerated with `scripts/build_m3_unityframework.sh`:
-  `TIMESTAMP=eyebrow-gap-angle-arch-20260628-ufw-r1`
+  `TIMESTAMP=eyebrow-cleanup-fallback-20260628-ufw-r1`
 - Latest relevant Unity batchmode compile before this rebuild: pass,
-  `evidence/logs/eyebrow-gap-angle-arch-unity6000-batchmode-20260628.log`
+  `evidence/logs/eyebrow-fallback-readiness-diagnostics-unity6000-batchmode-20260628.log`
 - UnityFramework rebuild/sync:
-  `evidence/logs/m3-repro-artifact-verification-eyebrow-gap-angle-arch-20260628-ufw-r1.log`
+  `evidence/logs/m3-repro-artifact-verification-eyebrow-cleanup-fallback-20260628-ufw-r1.log`
 - RN/Xcode rebuild:
-  `evidence/logs/eyebrow-rn-xcodebuild-device-gap-angle-arch-20260628-r1.log`
+  `evidence/logs/eyebrow-rn-xcodebuild-device-cleanup-fallback-20260628-r2.log`
 - Install/launch: install passed,
-  `evidence/logs/eyebrow-rn-devicectl-install-gap-angle-arch-20260628-r1.log`;
-  automated launch was blocked because the iPhone was locked.
+  `evidence/logs/eyebrow-rn-devicectl-install-cleanup-fallback-20260628-r1.log`;
+  automated launch was blocked because the iPhone was locked:
+  `evidence/logs/eyebrow-rn-devicectl-launch-cleanup-fallback-20260628-r1.log`.
 
 Minimum observations:
 

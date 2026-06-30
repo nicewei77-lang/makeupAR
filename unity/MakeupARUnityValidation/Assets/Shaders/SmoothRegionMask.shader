@@ -15,6 +15,7 @@ Shader "MakeupAR/SmoothRegionMask"
         _MaskSpreadX ("Mask Spread X", Float) = 0
         _BrowAngle ("Brow Angle", Float) = 0
         _BrowArch ("Brow Arch", Float) = 0
+        _BrowArchPosition ("Brow Arch Position", Float) = 0
         _Roughness ("Roughness", Range(0, 1)) = 0.88
         _Specular ("Specular", Range(0, 1)) = 0.04
         _SpecularPower ("Specular Power", Range(1, 64)) = 8
@@ -25,6 +26,13 @@ Shader "MakeupAR/SmoothRegionMask"
         _GradientAmount ("Gradient Amount", Range(0, 1)) = 0
         _DetailAmount ("Detail Amount", Range(0, 1)) = 0
         _PreserveDetail ("Preserve Detail", Range(0, 1)) = 1
+        [HideInInspector] _BrowPhotoDetailMode ("Brow Photo Detail Mode", Float) = 0
+        [HideInInspector] _BrowPowderFill ("Brow Powder Fill", Range(0, 1)) = 0
+        _BrowCleanupStrength ("Brow Cleanup Strength", Range(0, 1)) = 0
+        _BrowReshapeStrength ("Brow Reshape Strength", Range(0, 1)) = 0
+        [HideInInspector] _BrowCleanupCameraTex ("Brow Cleanup Camera Texture", 2D) = "black" {}
+        [HideInInspector] _BrowCleanupSourceTex ("Brow Cleanup Source Mask", 2D) = "black" {}
+        [HideInInspector] _BrowCleanupFrameSource ("Brow Cleanup Frame Source", Float) = 0
         _LipStyleMode ("Lip Style Mode", Float) = -1
         [HideInInspector] _PigmentMultiply ("Pigment Multiply", Float) = 0
         [HideInInspector] _UseScreenSpaceMask ("Use Screen Space Mask", Float) = 0
@@ -40,6 +48,11 @@ Shader "MakeupAR/SmoothRegionMask"
             "Queue" = "Transparent"
             "RenderType" = "Transparent"
             "IgnoreProjector" = "True"
+        }
+
+        GrabPass
+        {
+            "_BrowCleanupFrameTex"
         }
 
         Pass
@@ -72,6 +85,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _MaskSpreadX;
             float _BrowAngle;
             float _BrowArch;
+            float _BrowArchPosition;
             float _Roughness;
             float _Specular;
             float _SpecularPower;
@@ -79,6 +93,10 @@ Shader "MakeupAR/SmoothRegionMask"
             float _GradientAmount;
             float _DetailAmount;
             float _PreserveDetail;
+            float _BrowPhotoDetailMode;
+            float _BrowPowderFill;
+            float _BrowCleanupStrength;
+            float _BrowReshapeStrength;
             float _LipStyleMode;
             float _PigmentMultiply;
             float _UseScreenSpaceMask;
@@ -182,11 +200,36 @@ Shader "MakeupAR/SmoothRegionMask"
                 return saturate(maskAlpha * max(horizontal * mouthProximity, lowerCenter * 0.68));
             }
 
+            float BrowFiberAlpha(float2 uv, float shapeRaw, float detailAmount, float powderFill)
+            {
+                float rawDetail = saturate(tex2D(_MaskTex, uv).b);
+                float softDetail = saturate(SampleMaskSoft(uv).b);
+                float psdStrokePreserve = saturate(powderFill);
+                float detailNeedle = saturate((
+                    rawDetail
+                    - softDetail * lerp(0.72, 0.52, psdStrokePreserve)
+                    - shapeRaw * lerp(0.025, 0.012, psdStrokePreserve))
+                    * lerp(3.4, 3.8, psdStrokePreserve));
+                float detailCore = saturate((
+                    rawDetail
+                    - shapeRaw * lerp(0.32, 0.18, psdStrokePreserve))
+                    * lerp(2.8, 3.2, psdStrokePreserve));
+                float directStroke = saturate((
+                    rawDetail
+                    - shapeRaw * lerp(0.12, 0.055, psdStrokePreserve))
+                    * lerp(1.2, 1.65, psdStrokePreserve));
+                float detailRidge = saturate(max(max(detailNeedle, detailCore), directStroke * psdStrokePreserve));
+                float fiberCurve = lerp(2.10, 0.88, saturate(detailAmount));
+                float shapeGate = saturate(pow(shapeRaw, lerp(0.72, 0.58, psdStrokePreserve)));
+                return saturate(pow(detailRidge, fiberCurve) * shapeGate);
+            }
+
             float2 ApplyBrowWarp(float2 uv)
             {
                 float angle = clamp(_BrowAngle, -0.16, 0.16);
                 float arch = clamp(_BrowArch, -0.05, 0.05);
-                if (abs(angle) + abs(arch) < 0.0001)
+                float archPosition = clamp(_BrowArchPosition, -0.15, 0.15);
+                if (abs(angle) + abs(arch) + abs(archPosition) < 0.0001)
                 {
                     return uv;
                 }
@@ -195,9 +238,10 @@ Shader "MakeupAR/SmoothRegionMask"
                 float leftTail = saturate((0.43 - uv.x) / 0.34);
                 float rightTail = saturate((uv.x - 0.57) / 0.34);
                 float innerToTail = lerp(leftTail, rightTail, rightSide);
+                float positionedInnerToTail = saturate(innerToTail - archPosition);
                 float archCurve =
-                    smoothstep(0.10, 0.48, innerToTail) *
-                    (1.0 - smoothstep(0.58, 0.98, innerToTail));
+                    smoothstep(0.10, 0.48, positionedInnerToTail) *
+                    (1.0 - smoothstep(0.58, 0.98, positionedInnerToTail));
                 float angleCurve = innerToTail - 0.42;
                 float yShift = angle * angleCurve * 0.42 + arch * archCurve;
 
@@ -228,6 +272,7 @@ Shader "MakeupAR/SmoothRegionMask"
                 float centerDensity = LipCenterDensity(maskUv, fullSoft);
                 float legacyInnerDensity = saturate(max(gradientMask * fullCore, centerDensity * fullCore));
                 float coverage = saturate(max(_Coverage, 0.001));
+                float psdBrowMask = saturate(_BrowPowderFill);
                 float baseStain = fullSoft * coverage * 0.54;
                 float innerLayer = legacyInnerDensity * coverage * 0.32;
                 float edgeLayer = edgeBand * coverage * 0.06;
@@ -295,21 +340,59 @@ Shader "MakeupAR/SmoothRegionMask"
                 }
 
                 float detailAmount = saturate(_DetailAmount) * saturate(_PreserveDetail);
-                if (_LipStyleMode < -0.5 && detailAmount > 0.001)
+                if (_BrowPhotoDetailMode > 0.5 && _LipStyleMode < -0.5 && (detailAmount > 0.001 || _BrowPowderFill > 0.001))
+                {
+                    float powderFill = saturate(_BrowPowderFill);
+                    float shapeRaw = saturate(mask.r);
+                    float fiberAlpha = BrowFiberAlpha(maskUv, shapeRaw, detailAmount, powderFill);
+                    float powderRaw = saturate(max(mask.g, softMask.g * 0.82));
+                    float shapeVeil = saturate(lerp(
+                        pow(shapeRaw, 2.4) * coverage * 0.018,
+                        pow(powderRaw, 1.36) * coverage * 0.075,
+                        powderFill));
+                    float fiberCoverage = detailAmount > 0.001
+                        ? coverage * lerp(0.72, 1.34, detailAmount) * lerp(1.0, 0.72, powderFill)
+                        : 0.0;
+                    float hairDarkness = saturate(fiberAlpha * detailAmount);
+                    maskStrength = saturate(shapeVeil + fiberAlpha * fiberCoverage);
+                    pigmentColor = saturate(lerp(
+                        pigmentColor,
+                        pigmentColor * 0.42,
+                        hairDarkness * 0.82));
+                    alphaColor = pigmentColor;
+                    rawMask = saturate(max(
+                        rawMask * lerp(0.18, 0.0, powderFill),
+                        max(fiberAlpha, powderRaw * powderFill * 0.32)));
+                }
+                else if (_LipStyleMode < -0.5 && detailAmount > 0.001)
                 {
                     float rawHairDetail = saturate(mask.b * fullSoft);
                     float softHairDetail = saturate(softMask.b * fullSoft);
-                    float hairNeedle = saturate(rawHairDetail - softHairDetail * 0.38);
+                    float hairNeedle = saturate(rawHairDetail - softHairDetail * 0.62);
                     float hairContrast = saturate((
-                        rawHairDetail * 1.18
-                        + hairNeedle * 1.55
-                        - fullSoft * 0.055) * 1.62);
-                    maskStrength = saturate(maskStrength + hairContrast * coverage * detailAmount * 0.62);
+                        rawHairDetail * 0.82
+                        + hairNeedle * 0.74
+                        - fullSoft * 0.025) * 1.04);
+                    maskStrength = saturate(maskStrength + hairContrast * coverage * detailAmount * 0.38);
                     pigmentColor = saturate(lerp(
                         pigmentColor,
-                        pigmentColor * 0.52,
-                        hairContrast * detailAmount * 0.82));
+                        pigmentColor * 0.64,
+                        hairContrast * detailAmount * 0.44));
                     alphaColor = pigmentColor;
+                }
+
+                float browCleanup = saturate(_BrowCleanupStrength);
+                float browReshape = saturate(_BrowReshapeStrength);
+                float cleanupHalo = saturate(browCleanup * (softMask.r - fullCore * 0.82));
+                float reshapeBoost = saturate(browReshape * fullSoft * (1.0 - fullCore) * (1.0 - psdBrowMask));
+                if (_LipStyleMode < -0.5 && browCleanup > 0.001)
+                {
+                    rawMask = saturate(max(rawMask, cleanupHalo));
+                }
+                if (_LipStyleMode < -0.5 && browReshape > 0.001)
+                {
+                    maskStrength = saturate(maskStrength + reshapeBoost * coverage * 0.22);
+                    rawMask = saturate(max(rawMask, reshapeBoost));
                 }
 
                 float preserveScale = lerp(1.0, 0.92, saturate(_PreserveDetail));
@@ -347,6 +430,273 @@ Shader "MakeupAR/SmoothRegionMask"
 
         Pass
         {
+            Name "BrowCleanupConcealer"
+            Tags { "LightMode" = "Always" }
+
+            Blend SrcAlpha OneMinusSrcAlpha
+            ZWrite Off
+            ZTest Always
+            Cull Off
+
+            CGPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+
+            #include "UnityCG.cginc"
+
+            sampler2D _MaskTex;
+            sampler2D _BrowCleanupFrameTex;
+            sampler2D _BrowCleanupCameraTex;
+            sampler2D _BrowCleanupSourceTex;
+            float4 _MaskTex_TexelSize;
+            float4 _BrowCleanupFrameTex_TexelSize;
+            float4 _BrowCleanupCameraTex_TexelSize;
+            float4 _BrowCleanupSourceTex_TexelSize;
+            float _Opacity;
+            float _Threshold;
+            float _Feather;
+            float _VisibilityAlpha;
+            float4 _MaskOffset;
+            float _MaskSpreadX;
+            float _BrowAngle;
+            float _BrowArch;
+            float _BrowArchPosition;
+            float _BrowCleanupStrength;
+            float _BrowCleanupFrameSource;
+            float _LipStyleMode;
+            float _UseScreenSpaceMask;
+            float _DebugMaskMode;
+
+            struct appdata
+            {
+                float4 vertex : POSITION;
+                float2 uv : TEXCOORD0;
+            };
+
+            struct v2f
+            {
+                float4 vertex : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float4 clipPos : TEXCOORD1;
+                float4 grabPos : TEXCOORD2;
+            };
+
+            v2f vert(appdata input)
+            {
+                v2f output;
+                output.vertex = UnityObjectToClipPos(input.vertex);
+                output.uv = input.uv;
+                output.clipPos = output.vertex;
+                output.grabPos = ComputeGrabScreenPos(output.vertex);
+                return output;
+            }
+
+            float4 SampleMaskSoft(float2 uv)
+            {
+                float2 texel = _MaskTex_TexelSize.xy;
+                float4 center = tex2D(_MaskTex, uv) * 0.36;
+                center += tex2D(_MaskTex, uv + float2(texel.x, 0.0)) * 0.16;
+                center += tex2D(_MaskTex, uv - float2(texel.x, 0.0)) * 0.16;
+                center += tex2D(_MaskTex, uv + float2(0.0, texel.y)) * 0.16;
+                center += tex2D(_MaskTex, uv - float2(0.0, texel.y)) * 0.16;
+                return saturate(center);
+            }
+
+            float SoftMaskAlpha(float value, float threshold, float feather)
+            {
+                float featherWidth = max(0.002, feather * 0.38);
+                return smoothstep(threshold, threshold + featherWidth, value);
+            }
+
+            float CoreMaskAlpha(float value, float threshold, float feather)
+            {
+                float coreThreshold = threshold + max(0.01, feather * 0.18);
+                return smoothstep(coreThreshold, coreThreshold + max(0.004, feather * 0.10), value);
+            }
+
+            float BrowCleanupWideAlpha(float2 maskUv)
+            {
+                float2 texel = _MaskTex_TexelSize.xy;
+                float radius = lerp(3.5, 9.5, saturate(_Feather));
+                float2 nearTexel = texel * radius;
+                float2 farTexel = nearTexel * 1.7;
+                float expanded = tex2D(_MaskTex, maskUv).r * 0.18;
+                expanded = max(expanded, tex2D(_MaskTex, maskUv + float2(nearTexel.x, 0.0)).r);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv - float2(nearTexel.x, 0.0)).r);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv + float2(0.0, nearTexel.y)).r);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv - float2(0.0, nearTexel.y)).r);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv + float2(farTexel.x, 0.0)).r * 0.74);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv - float2(farTexel.x, 0.0)).r * 0.74);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv + float2(0.0, farTexel.y)).r * 0.74);
+                expanded = max(expanded, tex2D(_MaskTex, maskUv - float2(0.0, farTexel.y)).r * 0.74);
+
+                float softExpanded = SoftMaskAlpha(expanded, _Threshold, _Feather);
+                float core = CoreMaskAlpha(tex2D(_MaskTex, maskUv).r, _Threshold, _Feather);
+                return saturate(softExpanded - core * 0.72);
+            }
+
+            float BrowCleanupSourceAlpha(float2 baseUv)
+            {
+                float2 texel = _BrowCleanupSourceTex_TexelSize.xy;
+                float radius = lerp(1.6, 4.4, saturate(_Feather));
+                float2 offset = texel * radius;
+                float source = tex2D(_BrowCleanupSourceTex, baseUv).r * 0.36;
+                source += tex2D(_BrowCleanupSourceTex, baseUv + float2(offset.x, 0.0)).r * 0.13;
+                source += tex2D(_BrowCleanupSourceTex, baseUv - float2(offset.x, 0.0)).r * 0.13;
+                source += tex2D(_BrowCleanupSourceTex, baseUv + float2(0.0, offset.y)).r * 0.13;
+                source += tex2D(_BrowCleanupSourceTex, baseUv - float2(0.0, offset.y)).r * 0.13;
+                source += tex2D(_BrowCleanupSourceTex, baseUv + offset).r * 0.03;
+                source += tex2D(_BrowCleanupSourceTex, baseUv - offset).r * 0.03;
+                source += tex2D(_BrowCleanupSourceTex, baseUv + float2(offset.x, -offset.y)).r * 0.03;
+                source += tex2D(_BrowCleanupSourceTex, baseUv + float2(-offset.x, offset.y)).r * 0.03;
+                return SoftMaskAlpha(saturate(source), _Threshold, _Feather);
+            }
+
+            float SkinSampleWeight(float3 color)
+            {
+                float luma = dot(color, float3(0.299, 0.587, 0.114));
+                float darkReject = smoothstep(0.055, 0.26, luma);
+                float highlightReject = 1.0 - smoothstep(0.92, 1.08, luma);
+                float warmBias = saturate((color.r * 1.12 + color.g * 0.52 - color.b * 0.68) * 0.75 + 0.18);
+                return max(0.02, darkReject * highlightReject * lerp(0.82, 1.12, warmBias));
+            }
+
+            void AccumulateGrabbedSkinSample(
+                float4 grabPos,
+                float2 offset,
+                float sampleWeight,
+                inout float3 colorSum,
+                inout float weightSum)
+            {
+                float4 samplePos = grabPos;
+                samplePos.xy += offset;
+                float3 color = tex2Dproj(_BrowCleanupFrameTex, UNITY_PROJ_COORD(samplePos)).rgb;
+                float weight = sampleWeight * SkinSampleWeight(color);
+                colorSum += color * weight;
+                weightSum += weight;
+            }
+
+            void AccumulateCameraBackgroundSkinSample(
+                float2 screenUv,
+                float2 offset,
+                float sampleWeight,
+                inout float3 colorSum,
+                inout float weightSum)
+            {
+                float3 color = tex2D(_BrowCleanupCameraTex, saturate(screenUv + offset)).rgb;
+                float weight = sampleWeight * SkinSampleWeight(color);
+                colorSum += color * weight;
+                weightSum += weight;
+            }
+
+            float3 SampleGrabbedFrameSkin(float4 grabPos)
+            {
+                float2 texel = _BrowCleanupFrameTex_TexelSize.xy * max(grabPos.w, 0.00001);
+                float3 skinSum = float3(0.0, 0.0, 0.0);
+                float weightSum = 0.0;
+
+                AccumulateGrabbedSkinSample(grabPos, float2(0.0, texel.y * 22.0), 0.22, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(0.0, -texel.y * 22.0), 0.22, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(texel.x * 18.0, texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(-texel.x * 18.0, texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(texel.x * 18.0, -texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(-texel.x * 18.0, -texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(0.0, texel.y * 36.0), 0.08, skinSum, weightSum);
+                AccumulateGrabbedSkinSample(grabPos, float2(0.0, -texel.y * 36.0), 0.08, skinSum, weightSum);
+
+                return saturate(skinSum / max(weightSum, 0.0001));
+            }
+
+            float3 SampleCameraBackgroundSkin(float4 grabPos)
+            {
+                float2 screenUv = saturate(grabPos.xy / max(grabPos.w, 0.00001));
+                float2 texel = _BrowCleanupCameraTex_TexelSize.xy;
+                float3 skinSum = float3(0.0, 0.0, 0.0);
+                float weightSum = 0.0;
+
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(0.0, texel.y * 22.0), 0.22, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(0.0, -texel.y * 22.0), 0.22, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(texel.x * 18.0, texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(-texel.x * 18.0, texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(texel.x * 18.0, -texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(-texel.x * 18.0, -texel.y * 14.0), 0.14, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(0.0, texel.y * 36.0), 0.08, skinSum, weightSum);
+                AccumulateCameraBackgroundSkinSample(screenUv, float2(0.0, -texel.y * 36.0), 0.08, skinSum, weightSum);
+
+                return saturate(skinSum / max(weightSum, 0.0001));
+            }
+
+            float3 SampleBrowCleanupFrameSkin(float4 grabPos)
+            {
+                if (_BrowCleanupFrameSource > 0.5)
+                {
+                    return SampleCameraBackgroundSkin(grabPos);
+                }
+
+                return SampleGrabbedFrameSkin(grabPos);
+            }
+
+            float2 ApplyBrowWarp(float2 uv)
+            {
+                float angle = clamp(_BrowAngle, -0.16, 0.16);
+                float arch = clamp(_BrowArch, -0.05, 0.05);
+                float archPosition = clamp(_BrowArchPosition, -0.15, 0.15);
+                if (abs(angle) + abs(arch) + abs(archPosition) < 0.0001)
+                {
+                    return uv;
+                }
+
+                float rightSide = step(0.5, uv.x);
+                float leftTail = saturate((0.43 - uv.x) / 0.34);
+                float rightTail = saturate((uv.x - 0.57) / 0.34);
+                float innerToTail = lerp(leftTail, rightTail, rightSide);
+                float positionedInnerToTail = saturate(innerToTail - archPosition);
+                float archCurve =
+                    smoothstep(0.10, 0.48, positionedInnerToTail) *
+                    (1.0 - smoothstep(0.58, 0.98, positionedInnerToTail));
+                float angleCurve = innerToTail - 0.42;
+                float yShift = angle * angleCurve * 0.42 + arch * archCurve;
+
+                uv.y = saturate(uv.y - yShift);
+                return uv;
+            }
+
+            fixed4 frag(v2f input) : SV_Target
+            {
+                float browCleanup = saturate(_BrowCleanupStrength);
+                if (_LipStyleMode >= -0.5 || browCleanup <= 0.001 || _DebugMaskMode > 0.5)
+                {
+                    return fixed4(0.0, 0.0, 0.0, 0.0);
+                }
+
+                float2 maskUv = input.uv;
+                if (_UseScreenSpaceMask > 0.5)
+                {
+                    float2 ndc = input.clipPos.xy / max(input.clipPos.w, 0.00001);
+                    maskUv = saturate(ndc * 0.5 + 0.5);
+                }
+                maskUv.x = saturate(0.5 + (maskUv.x - 0.5) / max(1.0 + _MaskSpreadX, 0.001));
+                maskUv.y = saturate(maskUv.y - _MaskOffset.y);
+                maskUv = ApplyBrowWarp(maskUv);
+
+                float4 mask = tex2D(_MaskTex, maskUv);
+                float4 softMask = SampleMaskSoft(maskUv);
+                float cleanupWide = BrowCleanupWideAlpha(maskUv);
+                float fullCore = CoreMaskAlpha(mask.r, _Threshold, _Feather);
+                float cleanupSourceRaw = BrowCleanupSourceAlpha(input.uv);
+                float cleanupSource = saturate(cleanupSourceRaw * (1.0 - fullCore * 0.72));
+                float cleanupTarget = saturate(cleanupWide + softMask.r - fullCore * 0.82);
+                float cleanupHalo = saturate(browCleanup * max(cleanupSource, cleanupTarget));
+                float alpha = cleanupHalo * saturate(_Opacity * _VisibilityAlpha) * 0.26;
+                float3 restoredSkin = SampleBrowCleanupFrameSkin(input.grabPos);
+
+                return fixed4(restoredSkin, saturate(alpha));
+            }
+            ENDCG
+        }
+
+        Pass
+        {
             Name "GlossAdditiveHighlight"
             Tags { "LightMode" = "Always" }
 
@@ -376,6 +726,7 @@ Shader "MakeupAR/SmoothRegionMask"
             float _MaskSpreadX;
             float _BrowAngle;
             float _BrowArch;
+            float _BrowArchPosition;
             float _Specular;
             float _SpecularPower;
             float _GlossBoost;
@@ -466,7 +817,8 @@ Shader "MakeupAR/SmoothRegionMask"
             {
                 float angle = clamp(_BrowAngle, -0.16, 0.16);
                 float arch = clamp(_BrowArch, -0.05, 0.05);
-                if (abs(angle) + abs(arch) < 0.0001)
+                float archPosition = clamp(_BrowArchPosition, -0.15, 0.15);
+                if (abs(angle) + abs(arch) + abs(archPosition) < 0.0001)
                 {
                     return uv;
                 }
@@ -475,9 +827,10 @@ Shader "MakeupAR/SmoothRegionMask"
                 float leftTail = saturate((0.43 - uv.x) / 0.34);
                 float rightTail = saturate((uv.x - 0.57) / 0.34);
                 float innerToTail = lerp(leftTail, rightTail, rightSide);
+                float positionedInnerToTail = saturate(innerToTail - archPosition);
                 float archCurve =
-                    smoothstep(0.10, 0.48, innerToTail) *
-                    (1.0 - smoothstep(0.58, 0.98, innerToTail));
+                    smoothstep(0.10, 0.48, positionedInnerToTail) *
+                    (1.0 - smoothstep(0.58, 0.98, positionedInnerToTail));
                 float angleCurve = innerToTail - 0.42;
                 float yShift = angle * angleCurve * 0.42 + arch * archCurve;
 

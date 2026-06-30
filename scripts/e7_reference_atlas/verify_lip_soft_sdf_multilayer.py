@@ -347,8 +347,8 @@ def verify_vision_runtime(runtime_text: str) -> None:
         runtime_text,
         [
             "BoundaryTransitionDurationMs = 160",
-            "CaptureIntervalSeconds = 0.20f",
-            "FreshBoundaryMaxAgeMs = 300",
+            "CaptureIntervalSeconds = 0.35f",
+            "FreshBoundaryMaxAgeMs = 900",
             "BoundarySmoothBlend",
             "BoundaryLargeMotionBlend",
             "BuildInterpolatedSnapshot",

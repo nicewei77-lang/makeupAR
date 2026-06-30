@@ -10,6 +10,9 @@ using UnityEngine.XR.ARFoundation;
 public sealed class RNBridge : MonoBehaviour
 {
     private static readonly string[] FeatureSnapshotRegions = MakeupRegionRendererRoutes.Regions;
+    private const string ProductCoordinateSystem = "mediapipe_canonical_face_space";
+    private const string ProductPlacementOwner = "mediapipe_full_face_landmarks";
+    private const string ArKitAssistRole = "arkit_session_camera_optional_depth";
 
     [Serializable]
     private sealed class RecipePayload
@@ -42,6 +45,11 @@ public sealed class RNBridge : MonoBehaviour
         public float browGap;
         public float browAngle;
         public float browArch;
+        public float browArchPosition;
+        public bool browCleanupEnabled = true;
+        public float browCleanupStrength;
+        public float browReshapeStrength;
+        public string browCleanupSourceMode;
         public string finish;
         public float textureAmount;
         public float roughness;
@@ -58,6 +66,8 @@ public sealed class RNBridge : MonoBehaviour
         public string shaderMode;
         public int passCount;
         public string maskTextureId;
+        public string runtimeTextureOverrideMode;
+        public string runtimeTextureOverridePath;
         public bool cameraBackdropAvailable;
         public bool lightEstimateAvailable;
         public RecipeLayerPayload[] layers;
@@ -93,6 +103,11 @@ public sealed class RNBridge : MonoBehaviour
         public float browGap;
         public float browAngle;
         public float browArch;
+        public float browArchPosition;
+        public bool browCleanupEnabled = true;
+        public float browCleanupStrength;
+        public float browReshapeStrength;
+        public string browCleanupSourceMode;
         public string finish;
         public float textureAmount;
         public float roughness;
@@ -109,6 +124,8 @@ public sealed class RNBridge : MonoBehaviour
         public string shaderMode;
         public int passCount;
         public string maskTextureId;
+        public string runtimeTextureOverrideMode;
+        public string runtimeTextureOverridePath;
         public bool cameraBackdropAvailable;
         public bool lightEstimateAvailable;
     }
@@ -184,6 +201,14 @@ public sealed class RNBridge : MonoBehaviour
         public float BrowGap;
         public float BrowAngle;
         public float BrowArch;
+        public float BrowArchPosition;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode;
+        public bool BrowCleanupFallbackAvailable;
+        public int BrowCleanupCameraTextureWidth;
+        public int BrowCleanupCameraTextureHeight;
         public string Finish;
         public float TextureAmount;
         public float Roughness;
@@ -200,6 +225,8 @@ public sealed class RNBridge : MonoBehaviour
         public string ShaderMode;
         public int PassCount;
         public string MaskTextureId;
+        public string RuntimeTextureOverrideMode;
+        public string RuntimeTextureOverridePath;
         public bool CameraBackdropAvailable;
         public bool LightEstimateAvailable;
     }
@@ -233,6 +260,14 @@ public sealed class RNBridge : MonoBehaviour
         public float BrowGap;
         public float BrowAngle;
         public float BrowArch;
+        public float BrowArchPosition;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode = "none";
+        public bool BrowCleanupFallbackAvailable;
+        public int BrowCleanupCameraTextureWidth;
+        public int BrowCleanupCameraTextureHeight;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
         public float Roughness;
@@ -249,6 +284,9 @@ public sealed class RNBridge : MonoBehaviour
         public string ShaderMode = "unlit-alpha-validation";
         public int PassCount;
         public string MaskTextureId = "none";
+        public string RuntimeTextureOverrideMode = "off";
+        public string RuntimeTextureOverridePath = string.Empty;
+        public string RuntimeTextureOverrideStatus = "off";
         public string MaskSoftSampleMode = "legacy_soft_alpha";
         public float MaskFeatherNearRadiusPx;
         public float MaskFeatherFarRadiusPx;
@@ -286,9 +324,12 @@ public sealed class RNBridge : MonoBehaviour
     [SerializeField] private Material overlayMaterial;
     [SerializeField] private E7SynchronizedCaptureExporter referenceCaptureExporter;
     [SerializeField] private FaceTrackingStatusReporter statusReporter;
+    [SerializeField] private E7MediaPipeBrowLandmarkRuntime mediaPipeBrowLandmarkRuntime;
+    [SerializeField] private E7MediaPipeFullFaceRuntime mediaPipeFullFaceRuntime;
+    [SerializeField] private MediaPipeRegionOverlayRenderer mediaPipeRegionOverlayRenderer;
+    [SerializeField] private MediaPipeFullFaceMeshRenderer mediaPipeFullFaceMeshRenderer;
 
     private E3RegionMaskOverlay regionMaskOverlay;
-    private Material faceMeshOverlayMaterial;
     private readonly Dictionary<Renderer, bool> suppressedFaceRendererStates =
         new Dictionary<Renderer, bool>();
     private readonly Dictionary<ARFaceMeshVisualizer, bool> suppressedFaceVisualizerStates =
@@ -309,6 +350,10 @@ public sealed class RNBridge : MonoBehaviour
         RefreshSceneReferences();
         EnsureRegionMaskOverlay();
         EnsureReferenceCaptureExporter();
+        EnsureMediaPipeBrowLandmarkRuntime();
+        EnsureMediaPipeFullFaceRuntime();
+        EnsureMediaPipeRegionOverlayRenderer();
+        EnsureMediaPipeFullFaceMeshRenderer();
         SetFaceRenderersSuppressed(true);
     }
 
@@ -321,16 +366,6 @@ public sealed class RNBridge : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (faceMeshOverlayVisible)
-        {
-            if (ShouldRefreshFaceRendererSuppression())
-            {
-                ApplyFaceMeshOverlay();
-            }
-
-            return;
-        }
-
         if (faceRenderersSuppressed && ShouldRefreshFaceRendererSuppression())
         {
             ApplyFaceRendererSuppression();
@@ -360,6 +395,23 @@ public sealed class RNBridge : MonoBehaviour
             int enabledLayerCount = recipe.enabledLayerCount > 0
                 ? recipe.enabledLayerCount
                 : CountEnabledLayers(layers);
+            EnsureMediaPipeBrowLandmarkRuntime();
+            if (mediaPipeBrowLandmarkRuntime != null)
+            {
+                // MediaPipe brow capture is diagnostic-only today. Keeping it
+                // off avoids full-screen readback/inference stalls during
+                // normal AR makeup rendering.
+                mediaPipeBrowLandmarkRuntime.SetRuntimeRequested(false);
+            }
+
+            EnsureMediaPipeFullFaceRuntime();
+            if (mediaPipeFullFaceRuntime != null)
+            {
+                mediaPipeFullFaceRuntime.SetRuntimeRequested(true);
+            }
+            EnsureMediaPipeRegionOverlayRenderer();
+            EnsureMediaPipeFullFaceMeshRenderer();
+
             ApplyBatchMetadata(
                 layers,
                 recipeBatchId,
@@ -380,7 +432,9 @@ public sealed class RNBridge : MonoBehaviour
                 + " texture=" + NormalizeOptional(recipe.texture)
                 + " sample=" + NormalizeOptional(recipe.sample)
                 + " textureMode=" + NormalizeOptional(recipe.textureMode)
-                + " maskTextureId=" + NormalizeOptional(recipe.maskTextureId));
+                + " maskTextureId=" + NormalizeOptional(recipe.maskTextureId)
+                + " runtimeTextureOverrideMode=" + NormalizeOptional(recipe.runtimeTextureOverrideMode)
+                + " runtimeTextureOverridePath=" + SanitizeLogValue(recipe.runtimeTextureOverridePath));
 
             foreach (ParsedRecipeLayer layer in layers)
             {
@@ -401,6 +455,8 @@ public sealed class RNBridge : MonoBehaviour
                     + " rendererMode=" + layer.RendererMode
                     + " rendererId=" + layer.RegionRendererId
                     + " maskTextureId=" + layer.MaskTextureId
+                    + " runtimeTextureOverrideMode=" + layer.RuntimeTextureOverrideMode
+                    + " runtimeTextureOverridePath=" + SanitizeLogValue(layer.RuntimeTextureOverridePath)
                     + " enabled=" + layer.Enabled.ToString().ToLowerInvariant());
 
                 Debug.Log(
@@ -426,6 +482,11 @@ public sealed class RNBridge : MonoBehaviour
             if (regionMaskOverlay != null)
             {
                 regionMaskOverlay.ClearRecipesAndHideOverlays();
+            }
+
+            if (mediaPipeRegionOverlayRenderer != null)
+            {
+                mediaPipeRegionOverlayRenderer.ClearRecipesAndHideOverlays();
             }
 
             Debug.LogError("[E4] recipe_parse_failed raw=" + json + " error=" + exception.Message);
@@ -476,6 +537,16 @@ public sealed class RNBridge : MonoBehaviour
         SendUnityEvent(json, "[E7]");
     }
 
+    public void SendE7MediaPipeBrowLandmarkEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
+    public void SendE7MediaPipeFullFaceLandmarkEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
     public void SetE7RegionOverlayVisibleJson(string json)
     {
         try
@@ -506,6 +577,7 @@ public sealed class RNBridge : MonoBehaviour
             meshRenderMode = meshRenderMode == "none" ? "wireframe" : meshRenderMode;
 
             EnsureRegionMaskOverlay();
+            EnsureMediaPipeRegionOverlayRenderer();
             if (regionMaskOverlay == null)
             {
                 throw new InvalidOperationException("E3 region mask overlay is unavailable.");
@@ -513,6 +585,10 @@ public sealed class RNBridge : MonoBehaviour
 
             regionMaskOverlay.SetOverlayRenderingSuppressed(!regionOverlayVisible);
             regionMaskOverlay.SetMaskDebugViewMode(maskDebugViewMode);
+            if (mediaPipeRegionOverlayRenderer != null)
+            {
+                mediaPipeRegionOverlayRenderer.SetOverlayRenderingSuppressed(!regionOverlayVisible);
+            }
             SetFaceMeshOverlayVisible(faceMeshVisible);
 
             if (statusReporter != null)
@@ -534,7 +610,7 @@ public sealed class RNBridge : MonoBehaviour
                 + " meshColor=yellow"
                 + " meshRenderMode=" + meshRenderMode
                 + " guideOverlayMode=" + guideOverlayMode
-                + " faceDebugSurfaceSuppressed=" + (!faceMeshVisible).ToString().ToLowerInvariant()
+                + " faceDebugSurfaceSuppressed=true"
                 + " unityDebugVisible=" + unityDebugVisible.ToString().ToLowerInvariant()
                 + " validationViewMode=" + validationViewMode
                 + " reason=" + NormalizeOptional(payload != null ? payload.reason : string.Empty));
@@ -637,17 +713,23 @@ public sealed class RNBridge : MonoBehaviour
     {
         string activeRegionSummary = BuildActiveRegionSummary();
         string appliedTextureSampleSummary = BuildAppliedTextureSampleSummary();
+        int activeRegionCount = CountEnabledRegionFeatureStates();
 
         return "\"activeRegions\":" + BuildActiveRegionsJson()
             + ",\"appliedTextureSamples\":" + BuildAppliedTextureSamplesJson()
             + ",\"activeRegionSummary\":\"" + EscapeJsonString(activeRegionSummary) + "\""
+            + ",\"activeRegionCount\":" + activeRegionCount.ToString(CultureInfo.InvariantCulture)
             + ",\"appliedTextureSampleSummary\":\"" + EscapeJsonString(appliedTextureSampleSummary) + "\""
             + ",\"regions\":" + BuildRegionsJson();
     }
 
     public string BuildFaceFeatureRegionSnapshotLogFields()
     {
-        return " activeRegions=" + NormalizeOptional(BuildActiveRegionSummary())
+        return " productCoordinateSystem=" + ProductCoordinateSystem
+            + " placementOwner=" + ProductPlacementOwner
+            + " arkitAssistRole=" + ArKitAssistRole
+            + " activeRegions=" + NormalizeOptional(BuildActiveRegionSummary())
+            + " activeRegionCount=" + CountEnabledRegionFeatureStates().ToString(CultureInfo.InvariantCulture)
             + " appliedTextureSampleSummary=" + NormalizeOptional(BuildAppliedTextureSampleSummary());
     }
 
@@ -713,6 +795,186 @@ public sealed class RNBridge : MonoBehaviour
             this);
     }
 
+    private void EnsureMediaPipeBrowLandmarkRuntime()
+    {
+        RefreshSceneReferences();
+
+        if (mediaPipeBrowLandmarkRuntime == null)
+        {
+            mediaPipeBrowLandmarkRuntime = FindFirstObjectByType<E7MediaPipeBrowLandmarkRuntime>();
+        }
+
+        if (mediaPipeBrowLandmarkRuntime == null)
+        {
+            mediaPipeBrowLandmarkRuntime = gameObject.AddComponent<E7MediaPipeBrowLandmarkRuntime>();
+        }
+
+        mediaPipeBrowLandmarkRuntime.Configure(this);
+    }
+
+    private void EnsureMediaPipeFullFaceRuntime()
+    {
+        RefreshSceneReferences();
+
+        if (mediaPipeFullFaceRuntime == null)
+        {
+            mediaPipeFullFaceRuntime = FindFirstObjectByType<E7MediaPipeFullFaceRuntime>();
+        }
+
+        if (mediaPipeFullFaceRuntime == null)
+        {
+            mediaPipeFullFaceRuntime = gameObject.AddComponent<E7MediaPipeFullFaceRuntime>();
+        }
+
+        mediaPipeFullFaceRuntime.Configure(this);
+    }
+
+    private void EnsureMediaPipeRegionOverlayRenderer()
+    {
+        EnsureMediaPipeFullFaceRuntime();
+
+        if (mediaPipeRegionOverlayRenderer == null)
+        {
+            mediaPipeRegionOverlayRenderer = FindFirstObjectByType<MediaPipeRegionOverlayRenderer>();
+        }
+
+        if (mediaPipeRegionOverlayRenderer == null)
+        {
+            mediaPipeRegionOverlayRenderer = gameObject.AddComponent<MediaPipeRegionOverlayRenderer>();
+        }
+
+        mediaPipeRegionOverlayRenderer.Configure(mediaPipeFullFaceRuntime, Camera.main);
+    }
+
+    private void EnsureMediaPipeFullFaceMeshRenderer()
+    {
+        EnsureMediaPipeFullFaceRuntime();
+
+        if (mediaPipeFullFaceMeshRenderer == null)
+        {
+            mediaPipeFullFaceMeshRenderer = FindFirstObjectByType<MediaPipeFullFaceMeshRenderer>();
+        }
+
+        bool created = false;
+        if (mediaPipeFullFaceMeshRenderer == null)
+        {
+            GameObject meshRendererObject = new GameObject("MediaPipe Full Face Mesh Renderer");
+            meshRendererObject.transform.SetParent(transform, false);
+            mediaPipeFullFaceMeshRenderer =
+                meshRendererObject.AddComponent<MediaPipeFullFaceMeshRenderer>();
+            created = true;
+        }
+
+        mediaPipeFullFaceMeshRenderer.Configure(mediaPipeFullFaceRuntime, Camera.main);
+        if (created)
+        {
+            mediaPipeFullFaceMeshRenderer.SetRenderVisible(false);
+        }
+    }
+
+    private string BuildMediaPipeFullFaceStatusSummary()
+    {
+        EnsureMediaPipeFullFaceRuntime();
+
+        string runtimeSummary = mediaPipeFullFaceRuntime != null
+            ? mediaPipeFullFaceRuntime.BuildStatusSummary()
+            : "mediapipe=full-face source=direct-frame landmarks=0 packetAgeMs=0 inferenceLatencyMs=0 stale=false smoothed=true stable=false accepted=0 rejected=0 dropped=0 stalePackets=0 cameraFrames=0 captureAttempts=0 captureEvents=0 captureSkippedBusy=0 captureSkippedThrottle=0 captureFrameUnavailable=0 reason=not_created rawFrameStored=false offDeviceUpload=false";
+
+        return runtimeSummary
+            + " coordinates=mediapipe"
+            + " assist=arkit-session,arkit-camera,optional-depth"
+            + " productCoordinateSystem=" + ProductCoordinateSystem
+            + " placementOwner=" + ProductPlacementOwner
+            + " arkitAssistRole=" + ArKitAssistRole
+            + BuildMediaPipeFullFaceMeshStatusSummary();
+    }
+
+    private string BuildMediaPipeFullFaceMeshStatusSummary()
+    {
+        EnsureMediaPipeFullFaceMeshRenderer();
+        if (mediaPipeFullFaceMeshRenderer == null)
+        {
+            return " fullFaceMesh=unavailable fullFaceMeshApplied=false fullFaceLandmarks=0 fullFaceVertices=0 fullFaceIndices=0 fullFaceTriangles=0 fullFaceTracking=None fullFacePacketAgeMs=0";
+        }
+
+        mediaPipeFullFaceMeshRenderer.TryRefreshStatusFromLatestPacket(
+            out MediaPipeFullFaceMeshStatus status);
+
+        return " fullFaceMesh=" + status.TopologyStatus
+            + " fullFaceMeshApplied=" + status.Applied.ToString().ToLowerInvariant()
+            + " fullFaceLandmarks=" + status.LandmarkCount.ToString(CultureInfo.InvariantCulture)
+            + " fullFaceVertices=" + status.VertexCount.ToString(CultureInfo.InvariantCulture)
+            + " fullFaceIndices=" + status.IndexCount.ToString(CultureInfo.InvariantCulture)
+            + " fullFaceTriangles=" + status.TriangleCount.ToString(CultureInfo.InvariantCulture)
+            + " fullFaceTracking=" + status.TrackingState
+            + " fullFacePacketAgeMs=" + status.PacketAgeMs.ToString(CultureInfo.InvariantCulture);
+    }
+
+    private string BuildMediaPipeFullFaceStatusJsonFragment()
+    {
+        EnsureMediaPipeFullFaceRuntime();
+
+        string runtimeFragment = mediaPipeFullFaceRuntime != null
+            ? mediaPipeFullFaceRuntime.BuildStatusJsonFragment()
+            : "\"mediapipe\":\"full-face\""
+                + ",\"mediapipeSource\":\"direct-frame\""
+                + ",\"mediapipeLandmarkCount\":0"
+                + ",\"mediapipePacketAgeMs\":0"
+                + ",\"mediapipeInferenceLatencyMs\":0"
+                + ",\"mediapipeStale\":false"
+                + ",\"mediapipeSmoothingEnabled\":true"
+                + ",\"mediapipeStable\":false"
+                + ",\"mediapipeAcceptedPacketCount\":0"
+                + ",\"mediapipeRejectedPacketCount\":0"
+                + ",\"mediapipeDroppedPacketCount\":0"
+                + ",\"mediapipeStalePacketCount\":0"
+                + ",\"mediapipePacketRejectReason\":\"not_created\""
+                + ",\"mediapipeCameraFrameCount\":0"
+                + ",\"mediapipeCaptureAttemptCount\":0"
+                + ",\"mediapipeCaptureEventCount\":0"
+                + ",\"mediapipeCaptureSkippedBusyCount\":0"
+                + ",\"mediapipeCaptureSkippedThrottleCount\":0"
+                + ",\"mediapipeCaptureFrameUnavailableCount\":0"
+                + ",\"rawFrameStored\":false"
+                + ",\"offDeviceUpload\":false";
+
+        return runtimeFragment
+            + ",\"coordinates\":\"mediapipe\""
+            + ",\"assist\":\"arkit-session,arkit-camera,optional-depth\""
+            + ",\"productCoordinateSystem\":\"" + EscapeJsonString(ProductCoordinateSystem) + "\""
+            + ",\"placementOwner\":\"" + EscapeJsonString(ProductPlacementOwner) + "\""
+            + ",\"arkitAssistRole\":\"" + EscapeJsonString(ArKitAssistRole) + "\""
+            + BuildMediaPipeFullFaceMeshStatusJsonFragment();
+    }
+
+    private string BuildMediaPipeFullFaceMeshStatusJsonFragment()
+    {
+        EnsureMediaPipeFullFaceMeshRenderer();
+        if (mediaPipeFullFaceMeshRenderer == null)
+        {
+            return ",\"fullFaceMesh\":\"unavailable\""
+                + ",\"fullFaceMeshApplied\":false"
+                + ",\"fullFaceLandmarks\":0"
+                + ",\"fullFaceVertices\":0"
+                + ",\"fullFaceIndices\":0"
+                + ",\"fullFaceTriangles\":0"
+                + ",\"fullFaceTracking\":\"None\""
+                + ",\"fullFacePacketAgeMs\":0";
+        }
+
+        mediaPipeFullFaceMeshRenderer.TryRefreshStatusFromLatestPacket(
+            out MediaPipeFullFaceMeshStatus status);
+
+        return ",\"fullFaceMesh\":\"" + EscapeJsonString(status.TopologyStatus) + "\""
+            + ",\"fullFaceMeshApplied\":" + status.Applied.ToString().ToLowerInvariant()
+            + ",\"fullFaceLandmarks\":" + status.LandmarkCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"fullFaceVertices\":" + status.VertexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"fullFaceIndices\":" + status.IndexCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"fullFaceTriangles\":" + status.TriangleCount.ToString(CultureInfo.InvariantCulture)
+            + ",\"fullFaceTracking\":\"" + EscapeJsonString(status.TrackingState) + "\""
+            + ",\"fullFacePacketAgeMs\":" + status.PacketAgeMs.ToString(CultureInfo.InvariantCulture);
+    }
+
     private void SetFaceRenderersSuppressed(bool suppressed)
     {
         RefreshSceneReferences();
@@ -755,14 +1017,6 @@ public sealed class RNBridge : MonoBehaviour
     {
         RefreshSceneReferences();
         faceMeshOverlayVisible = visible;
-
-        if (visible)
-        {
-            lastSuppressedFaceTrackableCount = -1;
-            ApplyFaceMeshOverlay();
-            return;
-        }
-
         SetFaceRenderersSuppressed(true);
     }
 
@@ -838,107 +1092,6 @@ public sealed class RNBridge : MonoBehaviour
         }
     }
 
-    private void ApplyFaceMeshOverlay()
-    {
-        if (faceManager == null)
-        {
-            return;
-        }
-
-        lastSuppressedFaceTrackableCount = CountFaceTrackables();
-        Material meshMaterial = GetOrCreateFaceMeshOverlayMaterial();
-
-        foreach (ARFace face in faceManager.trackables)
-        {
-            if (face == null)
-            {
-                continue;
-            }
-
-            ARFaceMeshVisualizer[] visualizers = face.GetComponentsInChildren<ARFaceMeshVisualizer>(true);
-            foreach (ARFaceMeshVisualizer visualizer in visualizers)
-            {
-                if (visualizer == null)
-                {
-                    continue;
-                }
-
-                if (!suppressedFaceVisualizerStates.ContainsKey(visualizer))
-                {
-                    suppressedFaceVisualizerStates[visualizer] = visualizer.enabled;
-                }
-
-                visualizer.enabled = true;
-            }
-
-            Renderer[] renderers = face.GetComponentsInChildren<Renderer>(true);
-            foreach (Renderer renderer in renderers)
-            {
-                if (renderer == null || IsRegionOverlayRenderer(renderer))
-                {
-                    continue;
-                }
-
-                if (!suppressedFaceRendererStates.ContainsKey(renderer))
-                {
-                    suppressedFaceRendererStates[renderer] = renderer.enabled;
-                }
-
-                renderer.enabled = true;
-                renderer.sharedMaterial = meshMaterial;
-            }
-        }
-    }
-
-    private Material GetOrCreateFaceMeshOverlayMaterial()
-    {
-        if (faceMeshOverlayMaterial != null)
-        {
-            return faceMeshOverlayMaterial;
-        }
-
-        Shader shader = Shader.Find("Universal Render Pipeline/Unlit");
-        if (shader == null)
-        {
-            shader = Shader.Find("Unlit/Color");
-        }
-
-        if (shader == null)
-        {
-            shader = Shader.Find("Sprites/Default");
-        }
-
-        faceMeshOverlayMaterial = new Material(shader)
-        {
-            name = "E7 Yellow Face Mesh Overlay"
-        };
-
-        ApplyFaceMeshOverlayMaterialColor(faceMeshOverlayMaterial, new Color(1.0f, 0.85f, 0.05f, 0.32f));
-        faceMeshOverlayMaterial.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha);
-        faceMeshOverlayMaterial.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha);
-        faceMeshOverlayMaterial.SetInt("_ZWrite", 0);
-        faceMeshOverlayMaterial.DisableKeyword("_ALPHATEST_ON");
-        faceMeshOverlayMaterial.EnableKeyword("_ALPHABLEND_ON");
-        faceMeshOverlayMaterial.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-        faceMeshOverlayMaterial.renderQueue = (int)RenderQueue.Transparent;
-
-        return faceMeshOverlayMaterial;
-    }
-
-    private static void ApplyFaceMeshOverlayMaterialColor(Material material, Color color)
-    {
-        material.color = color;
-        if (material.HasProperty("_BaseColor"))
-        {
-            material.SetColor("_BaseColor", color);
-        }
-
-        if (material.HasProperty("_Color"))
-        {
-            material.SetColor("_Color", color);
-        }
-    }
-
     private void SuppressFacePrefabDebugSurface()
     {
         if (faceManager == null || faceManager.facePrefab == null)
@@ -994,6 +1147,11 @@ public sealed class RNBridge : MonoBehaviour
                 return true;
             }
 
+            if (current.name.StartsWith("MediaPipe Region ", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
             current = current.parent;
         }
 
@@ -1002,8 +1160,53 @@ public sealed class RNBridge : MonoBehaviour
 
     private E3RegionMaskOverlay.RegionApplyResult ApplyRegionLayer(ParsedRecipeLayer layer)
     {
-        EnsureRegionMaskOverlay();
+        if (layer.RendererMode == MakeupRegionRendererRoutes.MediaPipeRegionOverlayMode)
+        {
+            EnsureMediaPipeRegionOverlayRenderer();
+            if (mediaPipeRegionOverlayRenderer == null)
+            {
+                throw new InvalidOperationException("MediaPipe region overlay renderer is unavailable.");
+            }
 
+            return mediaPipeRegionOverlayRenderer.ApplyRegionRecipe(
+                layer.Region,
+                layer.ColorHex,
+                layer.Color,
+                layer.Opacity,
+                layer.Enabled,
+                layer.TextureSample,
+                layer.TextureMode,
+                layer.Intensity,
+                layer.Feather,
+                layer.BlendMode,
+                layer.RendererMode,
+                layer.MaskTextureId,
+                layer.RuntimeTextureOverrideMode,
+                layer.RuntimeTextureOverridePath,
+                layer.SecondaryColorHex,
+                layer.SecondaryColor,
+                layer.Coverage,
+                layer.MaskSpreadX,
+                layer.MaskOffsetY,
+                layer.BrowGap,
+                layer.BrowAngle,
+                layer.BrowArch,
+                layer.BrowArchPosition,
+                layer.BrowCleanupEnabled,
+                layer.BrowCleanupStrength,
+                layer.BrowReshapeStrength,
+                layer.BrowCleanupSourceMode,
+                layer.Finish,
+                layer.Roughness,
+                layer.Specular,
+                layer.SpecularPower,
+                layer.GlossBoost,
+                layer.GradientAmount,
+                layer.DetailAmount,
+                layer.PreserveDetail);
+        }
+
+        EnsureRegionMaskOverlay();
         return regionMaskOverlay.ApplyRegionRecipe(
             layer.Region,
             layer.ColorHex,
@@ -1017,6 +1220,8 @@ public sealed class RNBridge : MonoBehaviour
             layer.BlendMode,
             layer.RendererMode,
             layer.MaskTextureId,
+            layer.RuntimeTextureOverrideMode,
+            layer.RuntimeTextureOverridePath,
             layer.SecondaryColorHex,
             layer.SecondaryColor,
             layer.Coverage,
@@ -1025,6 +1230,11 @@ public sealed class RNBridge : MonoBehaviour
             layer.BrowGap,
             layer.BrowAngle,
             layer.BrowArch,
+            layer.BrowArchPosition,
+            layer.BrowCleanupEnabled,
+            layer.BrowCleanupStrength,
+            layer.BrowReshapeStrength,
+            layer.BrowCleanupSourceMode,
             layer.Finish,
             layer.Roughness,
             layer.Specular,
@@ -1068,6 +1278,14 @@ public sealed class RNBridge : MonoBehaviour
             BrowGap = result.BrowGap,
             BrowAngle = result.BrowAngle,
             BrowArch = result.BrowArch,
+            BrowArchPosition = result.BrowArchPosition,
+            BrowCleanupEnabled = result.BrowCleanupEnabled,
+            BrowCleanupStrength = result.BrowCleanupStrength,
+            BrowReshapeStrength = result.BrowReshapeStrength,
+            BrowCleanupSourceMode = result.BrowCleanupSourceMode,
+            BrowCleanupFallbackAvailable = result.BrowCleanupFallbackAvailable,
+            BrowCleanupCameraTextureWidth = result.BrowCleanupCameraTextureWidth,
+            BrowCleanupCameraTextureHeight = result.BrowCleanupCameraTextureHeight,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
             Roughness = layer.Roughness,
@@ -1084,6 +1302,9 @@ public sealed class RNBridge : MonoBehaviour
             ShaderMode = layer.ShaderMode,
             PassCount = layer.PassCount,
             MaskTextureId = layer.MaskTextureId,
+            RuntimeTextureOverrideMode = result.RuntimeTextureOverrideMode,
+            RuntimeTextureOverridePath = result.RuntimeTextureOverridePath,
+            RuntimeTextureOverrideStatus = result.RuntimeTextureOverrideStatus,
             MaskSoftSampleMode = result.MaskSoftSampleMode,
             MaskFeatherNearRadiusPx = result.MaskFeatherNearRadiusPx,
             MaskFeatherFarRadiusPx = result.MaskFeatherFarRadiusPx,
@@ -1120,16 +1341,11 @@ public sealed class RNBridge : MonoBehaviour
 
     private void RefreshLatestOverlayRegionResults()
     {
-        if (regionMaskOverlay == null)
-        {
-            return;
-        }
-
         foreach (string region in FeatureSnapshotRegions)
         {
             if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 || !state.Enabled
-                || !regionMaskOverlay.TryGetLatestRegionApplyResult(region, out E3RegionMaskOverlay.RegionApplyResult result))
+                || !TryGetLatestRegionApplyResult(state, out E3RegionMaskOverlay.RegionApplyResult result))
             {
                 continue;
             }
@@ -1144,6 +1360,17 @@ public sealed class RNBridge : MonoBehaviour
             state.Feather = result.Feather;
             state.RendererMode = result.RendererMode;
             state.RegionRendererId = result.RegionRendererId;
+            state.BrowGap = result.BrowGap;
+            state.BrowAngle = result.BrowAngle;
+            state.BrowArch = result.BrowArch;
+            state.BrowArchPosition = result.BrowArchPosition;
+            state.BrowCleanupEnabled = result.BrowCleanupEnabled;
+            state.BrowCleanupStrength = result.BrowCleanupStrength;
+            state.BrowReshapeStrength = result.BrowReshapeStrength;
+            state.BrowCleanupSourceMode = result.BrowCleanupSourceMode;
+            state.BrowCleanupFallbackAvailable = result.BrowCleanupFallbackAvailable;
+            state.BrowCleanupCameraTextureWidth = result.BrowCleanupCameraTextureWidth;
+            state.BrowCleanupCameraTextureHeight = result.BrowCleanupCameraTextureHeight;
             state.MaskSource = result.MaskSource;
             state.BoundaryRenderer = result.BoundaryRenderer;
             state.VisionBoundaryStatus = result.VisionBoundaryStatus;
@@ -1170,6 +1397,31 @@ public sealed class RNBridge : MonoBehaviour
             state.TopologyAuditStatus = result.TopologyAuditStatus;
             state.TopologyAuditSummary = result.TopologyAuditSummary;
         }
+    }
+
+    private bool TryGetLatestRegionApplyResult(
+        RegionFeatureState state,
+        out E3RegionMaskOverlay.RegionApplyResult result)
+    {
+        result = default;
+        if (state.RendererMode == MakeupRegionRendererRoutes.MediaPipeRegionOverlayMode)
+        {
+            if (mediaPipeRegionOverlayRenderer == null)
+            {
+                mediaPipeRegionOverlayRenderer = FindFirstObjectByType<MediaPipeRegionOverlayRenderer>();
+            }
+
+            return mediaPipeRegionOverlayRenderer != null
+                && mediaPipeRegionOverlayRenderer.TryGetLatestRegionApplyResult(state.Region, out result);
+        }
+
+        if (regionMaskOverlay == null)
+        {
+            regionMaskOverlay = FindFirstObjectByType<E3RegionMaskOverlay>();
+        }
+
+        return regionMaskOverlay != null
+            && regionMaskOverlay.TryGetLatestRegionApplyResult(state.Region, out result);
     }
 
     private string BuildActiveRegionSummary()
@@ -1255,6 +1507,9 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"rendererMode\":\"" + EscapeJsonString(state.RendererMode) + "\""
                 + ",\"rendererId\":\"" + EscapeJsonString(state.RegionRendererId) + "\""
                 + ",\"maskTextureId\":\"" + EscapeJsonString(state.MaskTextureId) + "\""
+                + ",\"runtimeTextureOverrideMode\":\"" + EscapeJsonString(state.RuntimeTextureOverrideMode) + "\""
+                + ",\"runtimeTextureOverridePath\":\"" + EscapeJsonString(state.RuntimeTextureOverridePath) + "\""
+                + ",\"runtimeTextureOverrideStatus\":\"" + EscapeJsonString(state.RuntimeTextureOverrideStatus) + "\""
                 + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(state.MaskSoftSampleMode) + "\""
                 + ",\"maskFeatherNearRadiusPx\":" + state.MaskFeatherNearRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"maskFeatherFarRadiusPx\":" + state.MaskFeatherFarRadiusPx.ToString("0.###", CultureInfo.InvariantCulture)
@@ -1325,6 +1580,15 @@ public sealed class RNBridge : MonoBehaviour
             string boundaryRenderer = state != null && !string.IsNullOrWhiteSpace(state.BoundaryRenderer)
                 ? state.BoundaryRenderer
                 : "smooth_alpha_mask";
+            string runtimeTextureOverrideMode = state != null && !string.IsNullOrWhiteSpace(state.RuntimeTextureOverrideMode)
+                ? state.RuntimeTextureOverrideMode
+                : "off";
+            string runtimeTextureOverridePath = state != null && !string.IsNullOrWhiteSpace(state.RuntimeTextureOverridePath)
+                ? state.RuntimeTextureOverridePath
+                : string.Empty;
+            string runtimeTextureOverrideStatus = state != null && !string.IsNullOrWhiteSpace(state.RuntimeTextureOverrideStatus)
+                ? state.RuntimeTextureOverrideStatus
+                : "off";
             string visionBoundaryStatus = state != null && !string.IsNullOrWhiteSpace(state.VisionBoundaryStatus)
                 ? state.VisionBoundaryStatus
                 : "not_requested";
@@ -1334,15 +1598,37 @@ public sealed class RNBridge : MonoBehaviour
             string visionBoundaryCoordinateMode = state != null && !string.IsNullOrWhiteSpace(state.VisionBoundaryCoordinateMode)
                 ? state.VisionBoundaryCoordinateMode
                 : "none";
-            string qaStatus = "smooth_mask_runtime";
+            bool mediaPipeProductRoute = string.Equals(
+                rendererMode,
+                MakeupRegionRendererRoutes.MediaPipeRegionOverlayMode,
+                StringComparison.Ordinal);
+            string qaStatus = mediaPipeProductRoute
+                ? "mediapipe_region_overlay_product"
+                : "smooth_mask_runtime";
+            string validationScope = mediaPipeProductRoute ? "product" : "debug";
+            string coordinateSystem = mediaPipeProductRoute
+                ? ProductCoordinateSystem
+                : "legacy_arface_uv_compat";
+            string placementOwner = mediaPipeProductRoute
+                ? ProductPlacementOwner
+                : "legacy_smooth_region_mask";
+            string arkitAssistRole = mediaPipeProductRoute
+                ? ArKitAssistRole
+                : "legacy_product_route";
 
             regions.Add("\"" + EscapeJsonString(region) + "\":{"
                 + "\"available\":true"
                 + ",\"active\":" + active.ToString().ToLowerInvariant()
                 + ",\"lastApplied\":" + (state != null && state.Applied).ToString().ToLowerInvariant()
                 + ",\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
+                + ",\"productCoordinateSystem\":\"" + EscapeJsonString(coordinateSystem) + "\""
+                + ",\"placementOwner\":\"" + EscapeJsonString(placementOwner) + "\""
+                + ",\"arkitAssistRole\":\"" + EscapeJsonString(arkitAssistRole) + "\""
                 + ",\"maskSource\":\"" + EscapeJsonString(maskSource) + "\""
                 + ",\"boundaryRenderer\":\"" + EscapeJsonString(boundaryRenderer) + "\""
+                + ",\"runtimeTextureOverrideMode\":\"" + EscapeJsonString(runtimeTextureOverrideMode) + "\""
+                + ",\"runtimeTextureOverridePath\":\"" + EscapeJsonString(runtimeTextureOverridePath) + "\""
+                + ",\"runtimeTextureOverrideStatus\":\"" + EscapeJsonString(runtimeTextureOverrideStatus) + "\""
                 + ",\"visionBoundaryStatus\":\"" + EscapeJsonString(visionBoundaryStatus) + "\""
                 + ",\"visionBoundarySource\":\"" + EscapeJsonString(visionBoundarySource) + "\""
                 + ",\"visionBoundaryCoordinateMode\":\"" + EscapeJsonString(visionBoundaryCoordinateMode) + "\""
@@ -1356,7 +1642,7 @@ public sealed class RNBridge : MonoBehaviour
                 + ",\"visionBoundaryFaceScaleDelta\":" + (state != null ? state.VisionBoundaryFaceScaleDelta : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
                 + ",\"visionBoundaryFaceMotionRisk\":\"" + EscapeJsonString(state != null ? state.VisionBoundaryFaceMotionRisk : "none") + "\""
                 + ",\"qaStatus\":\"" + EscapeJsonString(qaStatus) + "\""
-                + ",\"validationScope\":\"debug\""
+                + ",\"validationScope\":\"" + EscapeJsonString(validationScope) + "\""
                 + ",\"texture\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"sample\":\"" + EscapeJsonString(textureSample) + "\""
                 + ",\"textureMode\":\"" + EscapeJsonString(textureMode) + "\""
@@ -1406,8 +1692,10 @@ public sealed class RNBridge : MonoBehaviour
 
         return " rendererMode=" + rendererMode
             + " lookId=" + lookId
+            + " " + BuildMediaPipeFullFaceStatusSummary()
             + " region=" + region
             + " activeRegions=" + activeRegions
+            + " activeRegionCount=" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
             + " recipeBatchId=" + recipeBatchId
             + " layerCount=" + layerCount.ToString(CultureInfo.InvariantCulture)
             + " enabledLayerCount=" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
@@ -1420,6 +1708,9 @@ public sealed class RNBridge : MonoBehaviour
             + " shaderMode=" + (state != null ? state.ShaderMode : "unlit-alpha-validation")
             + " passCount=" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
             + " maskTextureId=" + (state != null ? state.MaskTextureId : "none")
+            + " runtimeTextureOverrideMode=" + (state != null ? state.RuntimeTextureOverrideMode : "off")
+            + " runtimeTextureOverridePath=" + SanitizeLogValue(state != null ? state.RuntimeTextureOverridePath : string.Empty)
+            + " runtimeTextureOverrideStatus=" + (state != null ? state.RuntimeTextureOverrideStatus : "off")
             + " maskSoftSampleMode=" + (state != null ? state.MaskSoftSampleMode : "legacy_soft_alpha")
             + " maskFeatherNearRadiusPx=" + (state != null ? state.MaskFeatherNearRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " maskFeatherFarRadiusPx=" + (state != null ? state.MaskFeatherFarRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
@@ -1432,6 +1723,10 @@ public sealed class RNBridge : MonoBehaviour
             + " browGap=" + (state != null ? state.BrowGap : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " browAngle=" + (state != null ? state.BrowAngle : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + " browArch=" + (state != null ? state.BrowArch : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArchPosition=" + (state != null ? state.BrowArchPosition : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + " browCleanupEnabled=" + (state != null && state.BrowCleanupEnabled).ToString().ToLowerInvariant()
+            + " browCleanupStrength=" + (state != null ? state.BrowCleanupStrength : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + " browReshapeStrength=" + (state != null ? state.BrowReshapeStrength : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + " finish=" + (state != null ? state.Finish : "none")
             + " roughness=" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + " specular=" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
@@ -1489,8 +1784,10 @@ public sealed class RNBridge : MonoBehaviour
 
         return "\"rendererMode\":\"" + EscapeJsonString(rendererMode) + "\""
             + ",\"lookId\":\"" + EscapeJsonString(lookId) + "\""
+            + "," + BuildMediaPipeFullFaceStatusJsonFragment()
             + ",\"region\":\"" + EscapeJsonString(region) + "\""
             + ",\"activeRegions\":\"" + EscapeJsonString(activeRegions) + "\""
+            + ",\"activeRegionCount\":" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
             + ",\"recipeBatchId\":\"" + EscapeJsonString(recipeBatchId) + "\""
             + ",\"layerCount\":" + layerCount.ToString(CultureInfo.InvariantCulture)
             + ",\"enabledLayerCount\":" + enabledLayerCount.ToString(CultureInfo.InvariantCulture)
@@ -1503,6 +1800,9 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"shaderMode\":\"" + EscapeJsonString(state != null ? state.ShaderMode : "unlit-alpha-validation") + "\""
             + ",\"passCount\":" + (state != null ? state.PassCount : 0).ToString(CultureInfo.InvariantCulture)
             + ",\"maskTextureId\":\"" + EscapeJsonString(state != null ? state.MaskTextureId : "none") + "\""
+            + ",\"runtimeTextureOverrideMode\":\"" + EscapeJsonString(state != null ? state.RuntimeTextureOverrideMode : "off") + "\""
+            + ",\"runtimeTextureOverridePath\":\"" + EscapeJsonString(state != null ? state.RuntimeTextureOverridePath : string.Empty) + "\""
+            + ",\"runtimeTextureOverrideStatus\":\"" + EscapeJsonString(state != null ? state.RuntimeTextureOverrideStatus : "off") + "\""
             + ",\"maskSoftSampleMode\":\"" + EscapeJsonString(state != null ? state.MaskSoftSampleMode : "legacy_soft_alpha") + "\""
             + ",\"maskFeatherNearRadiusPx\":" + (state != null ? state.MaskFeatherNearRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"maskFeatherFarRadiusPx\":" + (state != null ? state.MaskFeatherFarRadiusPx : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
@@ -1515,6 +1815,10 @@ public sealed class RNBridge : MonoBehaviour
             + ",\"browGap\":" + (state != null ? state.BrowGap : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"browAngle\":" + (state != null ? state.BrowAngle : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"browArch\":" + (state != null ? state.BrowArch : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArchPosition\":" + (state != null ? state.BrowArchPosition : 0.0f).ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browCleanupEnabled\":" + (state != null && state.BrowCleanupEnabled).ToString().ToLowerInvariant()
+            + ",\"browCleanupStrength\":" + (state != null ? state.BrowCleanupStrength : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browReshapeStrength\":" + (state != null ? state.BrowReshapeStrength : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"finish\":\"" + EscapeJsonString(state != null ? state.Finish : "none") + "\""
             + ",\"roughness\":" + (state != null ? state.Roughness : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"specular\":" + (state != null ? state.Specular : 0.0f).ToString("0.##", CultureInfo.InvariantCulture)
@@ -1640,12 +1944,26 @@ public sealed class RNBridge : MonoBehaviour
             + " shaderMode=" + layer.ShaderMode
             + " passCount=" + layer.PassCount.ToString(CultureInfo.InvariantCulture)
             + " maskTextureId=" + layer.MaskTextureId
+            + " runtimeTextureOverrideMode=" + result.RuntimeTextureOverrideMode
+            + " runtimeTextureOverridePath=" + SanitizeLogValue(result.RuntimeTextureOverridePath)
+            + " runtimeTextureOverrideStatus=" + result.RuntimeTextureOverrideStatus
             + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + " maskSpreadX=" + result.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
             + " maskOffsetY=" + result.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
             + " browGap=" + result.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
             + " browAngle=" + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
             + " browArch=" + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArchPosition=" + result.BrowArchPosition.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browCleanupEnabled=" + result.BrowCleanupEnabled.ToString().ToLowerInvariant()
+            + " browCleanupStrength=" + result.BrowCleanupStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browReshapeStrength=" + result.BrowReshapeStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browCleanupSource=" + result.BrowCleanupSource
+            + " browCleanupFallback=" + result.BrowCleanupFallback
+            + " browCleanupStatus=" + result.BrowCleanupStatus
+            + " browCleanupSourceMode=" + result.BrowCleanupSourceMode
+            + " browCleanupFallbackAvailable=" + result.BrowCleanupFallbackAvailable.ToString().ToLowerInvariant()
+            + " browCleanupCameraTextureSize=" + result.BrowCleanupCameraTextureWidth.ToString(CultureInfo.InvariantCulture)
+            + "x" + result.BrowCleanupCameraTextureHeight.ToString(CultureInfo.InvariantCulture)
             + " finish=" + layer.Finish
             + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
             + " roughness=" + layer.Roughness.ToString("0.##", CultureInfo.InvariantCulture)
@@ -1884,6 +2202,12 @@ public sealed class RNBridge : MonoBehaviour
             + layer.PassCount.ToString(CultureInfo.InvariantCulture)
             + ",\"maskTextureId\":\""
             + EscapeJsonString(layer.MaskTextureId)
+            + "\",\"runtimeTextureOverrideMode\":\""
+            + EscapeJsonString(result.RuntimeTextureOverrideMode)
+            + "\",\"runtimeTextureOverridePath\":\""
+            + EscapeJsonString(result.RuntimeTextureOverridePath)
+            + "\",\"runtimeTextureOverrideStatus\":\""
+            + EscapeJsonString(result.RuntimeTextureOverrideStatus)
             + "\",\"coverage\":"
             + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"maskSpreadX\":"
@@ -1896,6 +2220,28 @@ public sealed class RNBridge : MonoBehaviour
             + result.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"browArch\":"
             + result.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArchPosition\":"
+            + result.BrowArchPosition.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browCleanupEnabled\":"
+            + result.BrowCleanupEnabled.ToString().ToLowerInvariant()
+            + ",\"browCleanupStrength\":"
+            + result.BrowCleanupStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browReshapeStrength\":"
+            + result.BrowReshapeStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browCleanupSource\":\""
+            + EscapeJsonString(result.BrowCleanupSource)
+            + "\",\"browCleanupFallback\":\""
+            + EscapeJsonString(result.BrowCleanupFallback)
+            + "\",\"browCleanupStatus\":\""
+            + EscapeJsonString(result.BrowCleanupStatus)
+            + "\",\"browCleanupSourceMode\":\""
+            + EscapeJsonString(result.BrowCleanupSourceMode)
+            + "\",\"browCleanupFallbackAvailable\":"
+            + result.BrowCleanupFallbackAvailable.ToString().ToLowerInvariant()
+            + ",\"browCleanupCameraTextureWidth\":"
+            + result.BrowCleanupCameraTextureWidth.ToString(CultureInfo.InvariantCulture)
+            + ",\"browCleanupCameraTextureHeight\":"
+            + result.BrowCleanupCameraTextureHeight.ToString(CultureInfo.InvariantCulture)
             + ",\"finish\":\""
             + EscapeJsonString(layer.Finish)
             + "\",\"textureAmount\":"
@@ -2013,6 +2359,10 @@ public sealed class RNBridge : MonoBehaviour
             throw new ArgumentException("Recipe secondary color is not a valid HTML color: " + secondaryColorHex);
         }
 
+        string rendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode, region);
+        MakeupRegionRendererRoute rendererRoute =
+            MakeupRegionRendererRoutes.Resolve(region, rendererMode);
+
         return new ParsedRecipeLayer
         {
             Id = string.IsNullOrWhiteSpace(layer.id) ? region + "-e3" : layer.id,
@@ -2035,11 +2385,11 @@ public sealed class RNBridge : MonoBehaviour
             PayloadBytes = payloadBytes,
             TextureSample = textureSample,
             TextureMode = NormalizeTextureMode(layer.textureMode),
-            RegionRendererId = MakeupRegionRendererRoutes.Resolve(region).RendererId,
+            RegionRendererId = rendererRoute.RendererId,
             Intensity = NormalizeIntensity(layer.intensity),
             Feather = NormalizeFeather(layer.feather),
             BlendMode = NormalizeBlendMode(layer.blendMode, textureSample),
-            RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode, region),
+            RendererMode = rendererMode,
             Enabled = layer.enabled,
             Coverage = Mathf.Max(0.0f, layer.coverage),
             MaskSpreadX = region == "brow" ? browGap : maskSpread,
@@ -2050,6 +2400,23 @@ public sealed class RNBridge : MonoBehaviour
                 region),
             BrowArch = NormalizeBrowArch(
                 Mathf.Abs(layer.browArch) > 0.0001f ? layer.browArch : recipe.browArch,
+                region),
+            BrowArchPosition = NormalizeBrowArchPosition(
+                Mathf.Abs(layer.browArchPosition) > 0.0001f ? layer.browArchPosition : recipe.browArchPosition,
+                region),
+            BrowCleanupEnabled = NormalizeBrowCleanupEnabled(
+                layer.browCleanupEnabled,
+                recipe.browCleanupEnabled,
+                region),
+            BrowCleanupStrength = NormalizeBrowCleanupStrength(
+                layer.browCleanupStrength > 0.0f ? layer.browCleanupStrength : recipe.browCleanupStrength,
+                region),
+            BrowReshapeStrength = NormalizeBrowReshapeStrength(
+                layer.browReshapeStrength > 0.0f ? layer.browReshapeStrength : recipe.browReshapeStrength,
+                region),
+            BrowCleanupSourceMode = NormalizeBrowCleanupSourceMode(
+                layer.browCleanupSourceMode,
+                recipe.browCleanupSourceMode,
                 region),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
             TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
@@ -2069,6 +2436,12 @@ public sealed class RNBridge : MonoBehaviour
             ShaderMode = NormalizeOptional(layer.shaderMode, recipe.shaderMode, "unlit-alpha-validation"),
             PassCount = layer.passCount > 0 ? layer.passCount : (recipe.passCount > 0 ? recipe.passCount : 1),
             MaskTextureId = NormalizeMaskTextureId(layer.maskTextureId, recipe.maskTextureId, region),
+            RuntimeTextureOverrideMode = NormalizeRuntimeTextureOverrideMode(
+                layer.runtimeTextureOverrideMode,
+                recipe.runtimeTextureOverrideMode),
+            RuntimeTextureOverridePath = NormalizeRuntimeTextureOverridePath(
+                layer.runtimeTextureOverridePath,
+                recipe.runtimeTextureOverridePath),
             CameraBackdropAvailable = layer.cameraBackdropAvailable || recipe.cameraBackdropAvailable,
             LightEstimateAvailable = layer.lightEstimateAvailable || recipe.lightEstimateAvailable
         };
@@ -2303,6 +2676,51 @@ public sealed class RNBridge : MonoBehaviour
         return region == "brow" ? Mathf.Clamp(browArch, -0.05f, 0.05f) : 0.0f;
     }
 
+    private static float NormalizeBrowArchPosition(float browArchPosition, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(browArchPosition, -0.15f, 0.15f) : 0.0f;
+    }
+
+    private static float NormalizeBrowCleanupStrength(float browCleanupStrength, string region)
+    {
+        return region == "brow" ? Mathf.Clamp01(browCleanupStrength) : 0.0f;
+    }
+
+    private static bool NormalizeBrowCleanupEnabled(bool preferred, bool secondary, string region)
+    {
+        return region == "brow" && (preferred || secondary);
+    }
+
+    private static float NormalizeBrowReshapeStrength(float browReshapeStrength, string region)
+    {
+        return region == "brow" ? Mathf.Clamp01(browReshapeStrength) : 0.0f;
+    }
+
+    private static string NormalizeBrowCleanupSourceMode(
+        string preferred,
+        string secondary,
+        string region)
+    {
+        if (region != "brow")
+        {
+            return "none";
+        }
+
+        string value = !string.IsNullOrWhiteSpace(preferred)
+            ? preferred
+            : secondary;
+        value = string.IsNullOrWhiteSpace(value)
+            ? "grabpass"
+            : value.Trim().ToLowerInvariant();
+
+        if (value == "ar_camera_background")
+        {
+            return value;
+        }
+
+        return "grabpass";
+    }
+
     private static string NormalizeBlendMode(string blendMode, string textureSample)
     {
         if (string.IsNullOrWhiteSpace(blendMode))
@@ -2327,16 +2745,14 @@ public sealed class RNBridge : MonoBehaviour
 
     private static string GetPhaseForRenderer(string region, string rendererMode)
     {
-        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region);
-        MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, route.Region);
+        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region, rendererMode);
         return route.Phase;
     }
 
     private static string GetRunIdForRenderer(string region, string rendererMode)
     {
         string date = DateTimeOffset.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region);
-        MakeupRegionRendererRoutes.NormalizeRendererMode(rendererMode, rendererMode, route.Region);
+        MakeupRegionRendererRoute route = MakeupRegionRendererRoutes.Resolve(region, rendererMode);
         return route.RunIdPrefix + "-" + date;
     }
 
@@ -2353,10 +2769,19 @@ public sealed class RNBridge : MonoBehaviour
             || (region == "lip" && (value == "lip-vision-boundary-v1"
                 || value == "lip-drawn-style-atlas-v1"
                 || value == "lip-drawn-gradient-density-atlas-v1"
+                || value == "psd-arcore-lip-style-v1"
+                || value == "psd-arcore-lip-mask-v1"
                 || value == "lip-style-atlas-v1"
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
-            || (region == "cheek" && value == "cheek-smooth-mask-v1")
+            || (region == "cheek" && (value == "cheek-smooth-mask-v1"
+                || value == "psd-arcore-cheek-undereye-v1"
+                || value == "psd-arcore-cheek-asia-z-v1"
+                || value == "psd-arcore-cheek-sunkissed-v1"
+                || value == "psd-arcore-cheek-daily-oval-v1"
+                || value == "psd-arcore-cheek-undereye2-v1"
+                || value == "psd-arcore-cheek-lovely-round-v1"
+                || value == "psd-arcore-cheek-lifted-diagonal-v1"))
             || (region == "eye" && value == "eye-smooth-mask-v1")
             || (region == "brow" && (value == "brow-soft-arch-fine-hair-v1"
                 || value == "brow-back-arch-soft-mix-v1"
@@ -2368,6 +2793,7 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "brow-png-natural-hair-v1"
                 || value == "brow-png-narrow-hair-v1"
                 || value == "brow-png-lightbrown-hair-v1"
+                || value == "psd-arcore-brow-semi-arch-v1"
                 || value == "brow-drawn-mask-v1")))
         {
             return value;
@@ -2386,7 +2812,7 @@ public sealed class RNBridge : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "brow":
-                return "brow-png-dailyflat-sharp-v1";
+                return "psd-arcore-brow-semi-arch-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }
@@ -2402,9 +2828,51 @@ public sealed class RNBridge : MonoBehaviour
         return Math.Max(0.0, endMs - startMs);
     }
 
+    private static bool IsActiveRegionIncluded(string activeRegions, string region)
+    {
+        if (string.IsNullOrWhiteSpace(activeRegions) || string.IsNullOrWhiteSpace(region))
+        {
+            return false;
+        }
+
+        string[] tokens = activeRegions.Split(',');
+        for (int index = 0; index < tokens.Length; index++)
+        {
+            if (string.Equals(tokens[index].Trim(), region, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static string NormalizeOptional(string value)
     {
         return string.IsNullOrWhiteSpace(value) ? "none" : value.Trim();
+    }
+
+    private static string NormalizeRuntimeTextureOverrideMode(string preferred, string secondary)
+    {
+        string value = !string.IsNullOrWhiteSpace(preferred)
+            ? preferred.Trim().ToLowerInvariant()
+            : !string.IsNullOrWhiteSpace(secondary)
+            ? secondary.Trim().ToLowerInvariant()
+            : "off";
+
+        return value == "documents_png" || value == "absolute_png"
+            ? value
+            : "off";
+    }
+
+    private static string NormalizeRuntimeTextureOverridePath(string preferred, string secondary)
+    {
+        if (!string.IsNullOrWhiteSpace(preferred))
+        {
+            return preferred.Trim();
+        }
+
+        return string.IsNullOrWhiteSpace(secondary) ? string.Empty : secondary.Trim();
     }
 
     private static string NormalizeMaskDebugViewMode(string value)

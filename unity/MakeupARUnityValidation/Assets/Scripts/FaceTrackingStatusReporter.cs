@@ -532,26 +532,22 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
                 continue;
             }
 
-            MeshFilter meshFilter = face.GetComponent<MeshFilter>();
-            Mesh mesh = meshFilter != null ? meshFilter.sharedMesh : null;
-            if (mesh == null || mesh.vertexCount <= 0)
+            var faceVertices = face.vertices;
+            var faceIndices = face.indices;
+            if (!faceVertices.IsCreated
+                || !faceIndices.IsCreated
+                || faceVertices.Length <= 0
+                || faceIndices.Length < 3)
             {
                 continue;
             }
 
-            Vector3[] vertices = mesh.vertices;
-            int[] triangles = mesh.triangles;
-            if (vertices == null || vertices.Length <= 0 || triangles == null || triangles.Length < 3)
-            {
-                continue;
-            }
-
-            Vector2[] screenVertices = new Vector2[vertices.Length];
-            float[] cameraDepths = new float[vertices.Length];
+            Vector2[] screenVertices = new Vector2[faceVertices.Length];
+            float[] cameraDepths = new float[faceVertices.Length];
             Transform faceTransform = face.transform;
-            for (int index = 0; index < vertices.Length; index++)
+            for (int index = 0; index < faceVertices.Length; index++)
             {
-                Vector3 worldPoint = faceTransform.TransformPoint(vertices[index]);
+                Vector3 worldPoint = faceTransform.TransformPoint(faceVertices[index]);
                 Vector3 screenPoint = camera.WorldToScreenPoint(worldPoint);
                 if (screenPoint.z <= 0.0f)
                 {
@@ -573,7 +569,11 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
 
             selectedScreenVertices = screenVertices;
             selectedCameraDepths = cameraDepths;
-            selectedTriangles = triangles;
+            selectedTriangles = new int[faceIndices.Length];
+            for (int index = 0; index < faceIndices.Length; index++)
+            {
+                selectedTriangles[index] = faceIndices[index];
+            }
             break;
         }
 
@@ -1447,6 +1447,9 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + " meshVertices=" + lifecycle.MeshVertexCount.ToString(CultureInfo.InvariantCulture)
             + " meshIndices=" + lifecycle.MeshIndexCount.ToString(CultureInfo.InvariantCulture)
             + " meshUvs=" + lifecycle.MeshUvCount.ToString(CultureInfo.InvariantCulture)
+            + " productCoordinateSystem=mediapipe_canonical_face_space"
+            + " placementOwner=mediapipe_full_face_landmarks"
+            + " arkitAssistRole=arkit_session_camera_optional_depth"
             + " rawCameraFrameStored=false"
             + " offDeviceUpload=false"
             + regionFingerprint
@@ -1540,6 +1543,9 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + ",\"timestampMs\":" + timestampMs.ToString(CultureInfo.InvariantCulture)
             + ",\"timestamp\":\"" + EscapeJsonString(GetUtcTimestamp()) + "\""
             + ",\"source\":\"arkit_arface\""
+            + ",\"productCoordinateSystem\":\"mediapipe_canonical_face_space\""
+            + ",\"placementOwner\":\"mediapipe_full_face_landmarks\""
+            + ",\"arkitAssistRole\":\"arkit_session_camera_optional_depth\""
             + ",\"deviceModel\":\"" + EscapeJsonString(SystemInfo.deviceModel) + "\""
             + ",\"arSessionState\":\"" + EscapeJsonString(ARSession.state.ToString()) + "\""
             + ",\"cameraFacing\":\"" + EscapeJsonString(GetCurrentCameraFacing()) + "\""
@@ -1592,6 +1598,7 @@ public sealed class FaceTrackingStatusReporter : MonoBehaviour
             + "\"lip\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
             + ",\"cheek\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
             + ",\"eye\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
+            + ",\"brow\":{\"available\":false,\"maskSource\":\"smooth_region_mask\",\"qaStatus\":\"unavailable\"}"
             + "}";
     }
 

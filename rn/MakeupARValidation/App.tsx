@@ -9,6 +9,7 @@ import {
   GestureResponderEvent,
   LayoutChangeEvent,
   LogBox,
+  NativeModules,
   PanResponder,
   Pressable,
   ScrollView,
@@ -26,6 +27,23 @@ import {
 } from 'react-native-safe-area-context';
 
 LogBox.ignoreAllLogs(true);
+
+type LocalMediaSaveResult = {
+  status?: string;
+  mediaType?: 'photo' | 'video';
+};
+
+type MakeupARLocalMediaModule = {
+  capturePhoto: () => Promise<LocalMediaSaveResult>;
+  startVideoRecording: () => Promise<LocalMediaSaveResult>;
+  stopVideoRecording: () => Promise<LocalMediaSaveResult>;
+};
+
+function getLocalMediaModule() {
+  return NativeModules.MakeupARLocalMedia as
+    | MakeupARLocalMediaModule
+    | undefined;
+}
 
 export const RECIPE_COLOR_OPTIONS = [
   { name: 'rose', color: '#D94B74' },
@@ -77,16 +95,29 @@ export type RecipeTextureSample = {
 };
 export type LipFinishType = 'normal' | 'matte' | 'glossy';
 export type LipAreaStyle = 'full' | 'gradient' | 'overline';
+export type BrowCleanupSourceMode = 'grabpass' | 'ar_camera_background' | 'none';
 const DEFAULT_COLOR_WARMTH = 0.5;
 const DEFAULT_COLOR_DEPTH = 0.5;
-const DEFAULT_BROW_MASK_SPREAD_X = 0.28;
-const DEFAULT_BROW_DETAIL_AMOUNT = 0.68;
+const DEFAULT_BROW_MASK_SPREAD_X = 0;
+const DEFAULT_BROW_DETAIL_AMOUNT = 0.52;
 const DEFAULT_BROW_ANGLE = 0;
 const DEFAULT_BROW_ARCH = 0;
+const DEFAULT_BROW_ARCH_POSITION = 0;
+const DEFAULT_BROW_CLEANUP_STRENGTH = 0.24;
+const DEFAULT_BROW_RESHAPE_STRENGTH = 0.16;
+const DEFAULT_BROW_CLEANUP_SOURCE_MODE: BrowCleanupSourceMode = 'grabpass';
+const DEFAULT_BROW_BASELINE_GAP = 0;
+const DEFAULT_BROW_PNG_BASELINE_OFFSET_Y = 0;
+const PSD_ARCORE_BROW_MASK_TEXTURE_ID = 'psd-arcore-brow-semi-arch-v1';
+const PSD_BROW_BASELINE_OFFSET_Y = 0;
+const PSD_BROW_DEFAULT_DETAIL_AMOUNT = 0.64;
+const PSD_BROW_DEFAULT_CLEANUP_STRENGTH = 0.52;
 const BROW_MASK_SPREAD_RANGE = 0.34;
 const BROW_MASK_OFFSET_RANGE_UV = 0.04;
 const BROW_ANGLE_RANGE = 0.16;
 const BROW_ARCH_RANGE_UV = 0.05;
+const BROW_ARCH_POSITION_RANGE = 0.15;
+const SLIDER_FINE_NUDGE_STEP = 0.01;
 
 export const LIP_FINISH_TYPE_OPTIONS: {
   id: LipFinishType;
@@ -104,6 +135,13 @@ export const LIP_AREA_STYLE_OPTIONS: {
   { id: 'full', label: 'Full', textureSampleName: 'full_lip' },
   { id: 'gradient', label: 'Gradient', textureSampleName: 'gradient_lip' },
   { id: 'overline', label: 'Overlip', textureSampleName: 'overline_lip' },
+];
+export const BROW_CLEANUP_SOURCE_MODE_OPTIONS: {
+  id: BrowCleanupSourceMode;
+  label: string;
+}[] = [
+  { id: 'grabpass', label: 'GrabPass' },
+  { id: 'ar_camera_background', label: 'AR BG' },
 ];
 
 export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
@@ -240,9 +278,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#4A342B',
-    intensity: 0.75,
-    feather: 0.48,
-    coverage: 0.62,
+    intensity: 0.76,
+    feather: 0.42,
+    coverage: 0.66,
     finish: 'powder-brow',
     roughness: 1,
     specular: 0,
@@ -258,9 +296,9 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS: RecipeTextureSample[] = [
     textureMode: 'sample',
     blendMode: 'multiply',
     secondaryColor: '#5A4034',
-    intensity: 0.75,
+    intensity: 0.62,
     feather: 0.48,
-    coverage: 0.62,
+    coverage: 0.54,
     finish: 'soft-powder-brow',
     roughness: 1,
     specular: 0,
@@ -409,13 +447,22 @@ export const BROW_TEXTURE_STYLE_OPTIONS: RecipeTextureSample[] =
   RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
     textureSample => textureSample.region === 'brow',
   );
-export type RendererMode = 'smooth-region-mask';
+export type RendererMode = 'smooth-region-mask' | 'mediapipe-region-overlay';
 type MaskTextureId =
   | 'lip-vision-boundary-v1'
   | 'lip-drawn-style-atlas-v1'
   | 'lip-drawn-gradient-density-atlas-v1'
   | 'lip-drawn-mask-v1'
+  | 'psd-arcore-lip-style-v1'
+  | 'psd-arcore-lip-mask-v1'
   | 'cheek-drawn-mask-v1'
+  | 'psd-arcore-cheek-undereye-v1'
+  | 'psd-arcore-cheek-asia-z-v1'
+  | 'psd-arcore-cheek-sunkissed-v1'
+  | 'psd-arcore-cheek-daily-oval-v1'
+  | 'psd-arcore-cheek-undereye2-v1'
+  | 'psd-arcore-cheek-lovely-round-v1'
+  | 'psd-arcore-cheek-lifted-diagonal-v1'
   | 'eye-drawn-mask-v1'
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
@@ -431,10 +478,15 @@ type MaskTextureId =
   | 'brow-png-natural-hair-v1'
   | 'brow-png-narrow-hair-v1'
   | 'brow-png-lightbrown-hair-v1'
+  | 'psd-arcore-brow-semi-arch-v1'
   | 'brow-drawn-mask-v1';
 type ValidationViewMode = (typeof VALIDATION_VIEW_MODE_OPTIONS)[number]['name'];
 export type MaskDebugViewMode =
   (typeof MASK_DEBUG_VIEW_MODE_OPTIONS)[number]['id'];
+export type RuntimeTextureOverrideMode =
+  | 'off'
+  | 'documents_png'
+  | 'absolute_png';
 export type RegionRecipe = {
   color: RecipeColor;
   opacity: number;
@@ -452,6 +504,11 @@ export type RegionTuningParameters = {
   browGap?: number;
   browAngle?: number;
   browArch?: number;
+  browArchPosition?: number;
+  browCleanupEnabled?: boolean;
+  browCleanupStrength?: number;
+  browReshapeStrength?: number;
+  browCleanupSourceMode?: BrowCleanupSourceMode;
   roughness: number;
   specular: number;
   specularPower: number;
@@ -460,6 +517,8 @@ export type RegionTuningParameters = {
   detailAmount: number;
   preserveDetail: boolean;
   maskTextureId: MaskTextureId;
+  runtimeTextureOverrideMode: RuntimeTextureOverrideMode;
+  runtimeTextureOverridePath: string;
 };
 export type DebugDisplayOptions = {
   maskOverlayVisible: boolean;
@@ -488,13 +547,21 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   brow: getRecipeTextureSampleByName('natural_brow'),
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
-  lip: 'lip-drawn-style-atlas-v1',
-  cheek: 'cheek-drawn-mask-v1',
+  lip: 'psd-arcore-lip-style-v1',
+  cheek: 'psd-arcore-cheek-undereye-v1',
   eye: 'eye-drawn-mask-v1',
-  brow: 'brow-png-dailyflat-sharp-v1',
+  brow: PSD_ARCORE_BROW_MASK_TEXTURE_ID,
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
+const DEFAULT_RUNTIME_TEXTURE_OVERRIDE_MODE: RuntimeTextureOverrideMode = 'off';
+const RUNTIME_TEXTURE_OVERRIDE_MODE_OPTIONS: {
+  id: RuntimeTextureOverrideMode;
+  label: string;
+}[] = [
+  { id: 'off', label: 'Built-in' },
+  { id: 'documents_png', label: 'Documents PNG' },
+];
 export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
     color: DEFAULT_RECIPE_COLOR,
@@ -562,17 +629,26 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
   { id: MaskTextureId; label: string }[]
 > = {
   lip: [
-    { id: 'lip-drawn-style-atlas-v1', label: 'Atlas' },
-    { id: 'lip-vision-boundary-v1', label: 'Vision' },
-    { id: 'lip-drawn-mask-v1', label: 'Flat' },
+    { id: 'psd-arcore-lip-style-v1', label: 'MediaPipe lip' },
+    { id: 'psd-arcore-lip-mask-v1', label: 'MediaPipe flat' },
+    { id: 'lip-drawn-style-atlas-v1', label: 'Legacy atlas diagnostic' },
+    { id: 'lip-vision-boundary-v1', label: 'Vision diagnostic' },
+    { id: 'lip-drawn-mask-v1', label: 'Legacy mask' },
   ],
   cheek: [
-    { id: 'cheek-drawn-mask-v1', label: 'Drawn' },
-    { id: 'cheek-smooth-mask-v1', label: 'Smooth' },
+    { id: 'cheek-drawn-mask-v1', label: 'Legacy drawn diagnostic' },
+    { id: 'psd-arcore-cheek-undereye-v1', label: 'Under-eye' },
+    { id: 'psd-arcore-cheek-asia-z-v1', label: 'Asia Z' },
+    { id: 'psd-arcore-cheek-sunkissed-v1', label: 'Sunkissed' },
+    { id: 'psd-arcore-cheek-daily-oval-v1', label: 'Daily oval' },
+    { id: 'psd-arcore-cheek-undereye2-v1', label: 'Under-eye 2' },
+    { id: 'psd-arcore-cheek-lovely-round-v1', label: 'Lovely round' },
+    { id: 'psd-arcore-cheek-lifted-diagonal-v1', label: 'Lifted diagonal' },
+    { id: 'cheek-smooth-mask-v1', label: 'Legacy mask' },
   ],
   eye: [
-    { id: 'eye-drawn-mask-v1', label: 'Drawn' },
-    { id: 'eye-smooth-mask-v1', label: 'Smooth' },
+    { id: 'eye-drawn-mask-v1', label: 'Legacy placeholder' },
+    { id: 'eye-smooth-mask-v1', label: 'Legacy mask' },
   ],
   brow: [
     { id: 'brow-back-arch-soft-mix-v1', label: 'Soft flat' },
@@ -584,18 +660,23 @@ const MASK_TEXTURE_OPTIONS_BY_REGION: Record<
     { id: 'brow-png-natural-hair-v1', label: 'Natural hair' },
     { id: 'brow-png-narrow-hair-v1', label: 'Narrow hair' },
     { id: 'brow-png-lightbrown-hair-v1', label: 'Light brown' },
+    { id: 'psd-arcore-brow-semi-arch-v1', label: 'Semi arch' },
   ],
 };
 
 function resolveMaskTextureIdForRecipe(
   region: RecipeRegion,
-  textureSample: RecipeTextureSample,
+  _textureSample: RecipeTextureSample,
 ): MaskTextureId {
-  if (region === 'lip' && textureSample.name === 'gradient_lip') {
-    return GRADIENT_LIP_MASK_TEXTURE_ID;
+  return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+}
+
+function resolveDefaultBrowDetailAmount(textureSample: RecipeTextureSample) {
+  if (textureSample.name === 'soft_brow') {
+    return 0.3;
   }
 
-  return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+  return DEFAULT_BROW_DETAIL_AMOUNT;
 }
 
 export function getSelectedMaskTextureOptionId(
@@ -635,18 +716,26 @@ function formatMaskTextureSummary(
 ) {
   if (region === 'lip') {
     if (maskTextureId === 'lip-vision-boundary-v1') {
-      return 'Vision';
+      return 'Vision diagnostic';
     }
 
     if (maskTextureId === 'lip-drawn-mask-v1') {
-      return 'Flat';
+      return 'Legacy mask';
+    }
+
+    if (maskTextureId === 'psd-arcore-lip-style-v1') {
+      return 'MediaPipe lip';
+    }
+
+    if (maskTextureId === 'psd-arcore-lip-mask-v1') {
+      return 'MediaPipe flat';
     }
 
     if (maskTextureId === GRADIENT_LIP_MASK_TEXTURE_ID) {
-      return 'Atlas gradient';
+      return 'Legacy atlas diagnostic gradient';
     }
 
-    return 'Atlas';
+    return 'Legacy atlas diagnostic';
   }
 
   if (region === 'brow') {
@@ -685,9 +774,156 @@ function formatMaskTextureSummary(
     if (maskTextureId === 'brow-png-lightbrown-hair-v1') {
       return 'Light brown';
     }
+
+    if (isPsdArcoreBrowMask(maskTextureId)) {
+      return 'Semi arch';
+    }
+  }
+
+  if (region === 'cheek') {
+    if (maskTextureId === 'psd-arcore-cheek-undereye-v1') {
+      return 'Under-eye';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-asia-z-v1') {
+      return 'Asia Z';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-sunkissed-v1') {
+      return 'Sunkissed';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-daily-oval-v1') {
+      return 'Daily oval';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-undereye2-v1') {
+      return 'Under-eye 2';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-lovely-round-v1') {
+      return 'Lovely round';
+    }
+
+    if (maskTextureId === 'psd-arcore-cheek-lifted-diagonal-v1') {
+      return 'Lifted diagonal';
+    }
   }
 
   return maskTextureId.replace(/-v1$/, '').split('-').join(' ');
+}
+
+type BrowPlacementBaseline = {
+  browGap: number;
+  maskOffsetY: number;
+  browAngle: number;
+  browArch: number;
+  browArchPosition: number;
+};
+const DEFAULT_BROW_PLACEMENT_BASELINE: BrowPlacementBaseline = {
+  browGap: DEFAULT_BROW_BASELINE_GAP,
+  maskOffsetY: 0,
+  browAngle: 0,
+  browArch: 0,
+  browArchPosition: 0,
+};
+const PNG_BROW_PLACEMENT_BASELINE: BrowPlacementBaseline = {
+  ...DEFAULT_BROW_PLACEMENT_BASELINE,
+  maskOffsetY: DEFAULT_BROW_PNG_BASELINE_OFFSET_Y,
+};
+const PSD_BROW_PLACEMENT_BASELINE: BrowPlacementBaseline = {
+  ...DEFAULT_BROW_PLACEMENT_BASELINE,
+  maskOffsetY: PSD_BROW_BASELINE_OFFSET_Y,
+};
+const BROW_MASK_PLACEMENT_BASELINES: Partial<
+  Record<MaskTextureId, BrowPlacementBaseline>
+> = {
+  'brow-back-arch-soft-mix-v1': DEFAULT_BROW_PLACEMENT_BASELINE,
+  'brow-slim-tail-fine-hair-v1': DEFAULT_BROW_PLACEMENT_BASELINE,
+  'brow-png-dailyflat-hair-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-dailyflat-sharp-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-dailyflat-multiply-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-daily-hair-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-natural-hair-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-narrow-hair-v1': PNG_BROW_PLACEMENT_BASELINE,
+  'brow-png-lightbrown-hair-v1': PNG_BROW_PLACEMENT_BASELINE,
+  [PSD_ARCORE_BROW_MASK_TEXTURE_ID]: PSD_BROW_PLACEMENT_BASELINE,
+  'brow-soft-arch-fine-hair-v1': DEFAULT_BROW_PLACEMENT_BASELINE,
+  'brow-drawn-mask-v1': DEFAULT_BROW_PLACEMENT_BASELINE,
+};
+
+function resolveBrowPlacementBaseline(
+  maskTextureId: MaskTextureId,
+): BrowPlacementBaseline {
+  return (
+    BROW_MASK_PLACEMENT_BASELINES[maskTextureId] ??
+    DEFAULT_BROW_PLACEMENT_BASELINE
+  );
+}
+
+function resetBrowPlacementDeltas(
+  tuning: RegionTuningParameters,
+): RegionTuningParameters {
+  return {
+    ...tuning,
+    maskSpreadX: 0,
+    maskOffsetY: 0,
+    browGap: 0,
+    browAngle: 0,
+    browArch: 0,
+    browArchPosition: 0,
+  };
+}
+
+function isPsdArcoreBrowMask(maskTextureId: MaskTextureId) {
+  return maskTextureId === PSD_ARCORE_BROW_MASK_TEXTURE_ID;
+}
+
+function applyBrowMaskSpecificDefaults(
+  tuning: RegionTuningParameters,
+): RegionTuningParameters {
+  if (!isPsdArcoreBrowMask(tuning.maskTextureId)) {
+    return tuning;
+  }
+
+  return {
+    ...tuning,
+    detailAmount: Math.max(
+      tuning.detailAmount ?? 0,
+      PSD_BROW_DEFAULT_DETAIL_AMOUNT,
+    ),
+    browCleanupStrength: Math.max(
+      resolveStoredBrowCleanupStrength(tuning),
+      PSD_BROW_DEFAULT_CLEANUP_STRENGTH,
+    ),
+  };
+}
+
+function buildDefaultRuntimeTextureOverridePath(region: RecipeRegion) {
+  return `runtime-overrides/${region}.png`;
+}
+
+function normalizeRuntimeTextureOverrideMode(
+  mode: RuntimeTextureOverrideMode | undefined,
+): RuntimeTextureOverrideMode {
+  return mode === 'documents_png' || mode === 'absolute_png'
+    ? mode
+    : DEFAULT_RUNTIME_TEXTURE_OVERRIDE_MODE;
+}
+
+function resolveRuntimeTextureOverridePath(
+  region: RecipeRegion,
+  mode: RuntimeTextureOverrideMode,
+  path: string | undefined,
+) {
+  if (mode === 'off') {
+    return '';
+  }
+
+  const trimmedPath = path?.trim();
+  return trimmedPath && trimmedPath.length > 0
+    ? trimmedPath
+    : buildDefaultRuntimeTextureOverridePath(region);
 }
 
 function buildDefaultRegionTuningForSample(
@@ -702,14 +938,25 @@ function buildDefaultRegionTuningForSample(
     browGap: region === 'brow' ? DEFAULT_BROW_MASK_SPREAD_X : 0,
     browAngle: region === 'brow' ? DEFAULT_BROW_ANGLE : 0,
     browArch: region === 'brow' ? DEFAULT_BROW_ARCH : 0,
+    browArchPosition: region === 'brow' ? DEFAULT_BROW_ARCH_POSITION : 0,
+    browCleanupEnabled: region === 'brow',
+    browCleanupStrength: region === 'brow' ? DEFAULT_BROW_CLEANUP_STRENGTH : 0,
+    browReshapeStrength: region === 'brow' ? DEFAULT_BROW_RESHAPE_STRENGTH : 0,
+    browCleanupSourceMode: region === 'brow'
+      ? DEFAULT_BROW_CLEANUP_SOURCE_MODE
+      : 'none',
     roughness: textureSample.roughness,
     specular: textureSample.specular,
     specularPower: textureSample.specularPower,
     glossBoost: textureSample.glossBoost,
     gradientAmount: textureSample.gradientAmount,
-    detailAmount: region === 'brow' ? DEFAULT_BROW_DETAIL_AMOUNT : 0,
+    detailAmount: region === 'brow'
+      ? resolveDefaultBrowDetailAmount(textureSample)
+      : 0,
     preserveDetail: textureSample.preserveDetail,
     maskTextureId: resolveMaskTextureIdForRecipe(region, textureSample),
+    runtimeTextureOverrideMode: DEFAULT_RUNTIME_TEXTURE_OVERRIDE_MODE,
+    runtimeTextureOverridePath: '',
   };
 }
 
@@ -730,6 +977,10 @@ function clampChannel(value: number) {
 
 function clampUnitInterval(value: number | undefined) {
   return Math.max(0, Math.min(1, value ?? DEFAULT_COLOR_WARMTH));
+}
+
+function clampUnitValue(value: number | undefined, fallback: number) {
+  return Math.max(0, Math.min(1, value ?? fallback));
 }
 
 function clampSignedRange(value: number | undefined, range: number) {
@@ -780,8 +1031,61 @@ function sliderValueToBrowArch(value: number) {
   return sliderValueToSignedValue(value, BROW_ARCH_RANGE_UV);
 }
 
+function browArchPositionToSliderValue(position: number | undefined) {
+  return signedValueToSliderValue(position, BROW_ARCH_POSITION_RANGE);
+}
+
+function sliderValueToBrowArchPosition(value: number) {
+  return sliderValueToSignedValue(value, BROW_ARCH_POSITION_RANGE);
+}
+
 function resolveBrowGap(tuning: RegionTuningParameters) {
-  return tuning.browGap ?? tuning.maskSpreadX;
+  return clampSignedRange(tuning.browGap ?? tuning.maskSpreadX, BROW_MASK_SPREAD_RANGE);
+}
+
+function resolveEffectiveBrowGap(tuning: RegionTuningParameters) {
+  const baseline = resolveBrowPlacementBaseline(tuning.maskTextureId);
+
+  return clampSignedRange(
+    baseline.browGap + resolveBrowGap(tuning),
+    BROW_MASK_SPREAD_RANGE,
+  );
+}
+
+function resolveEffectiveBrowMaskOffsetY(tuning: RegionTuningParameters) {
+  const baseline = resolveBrowPlacementBaseline(tuning.maskTextureId);
+
+  return clampSignedRange(
+    baseline.maskOffsetY + tuning.maskOffsetY,
+    BROW_MASK_OFFSET_RANGE_UV,
+  );
+}
+
+function resolveEffectiveBrowAngle(tuning: RegionTuningParameters) {
+  const baseline = resolveBrowPlacementBaseline(tuning.maskTextureId);
+
+  return clampSignedRange(
+    baseline.browAngle + resolveBrowAngle(tuning),
+    BROW_ANGLE_RANGE,
+  );
+}
+
+function resolveEffectiveBrowArch(tuning: RegionTuningParameters) {
+  const baseline = resolveBrowPlacementBaseline(tuning.maskTextureId);
+
+  return clampSignedRange(
+    baseline.browArch + resolveBrowArch(tuning),
+    BROW_ARCH_RANGE_UV,
+  );
+}
+
+function resolveEffectiveBrowArchPosition(tuning: RegionTuningParameters) {
+  const baseline = resolveBrowPlacementBaseline(tuning.maskTextureId);
+
+  return clampSignedRange(
+    baseline.browArchPosition + resolveBrowArchPosition(tuning),
+    BROW_ARCH_POSITION_RANGE,
+  );
 }
 
 function resolveBrowAngle(tuning: RegionTuningParameters) {
@@ -790,6 +1094,67 @@ function resolveBrowAngle(tuning: RegionTuningParameters) {
 
 function resolveBrowArch(tuning: RegionTuningParameters) {
   return clampSignedRange(tuning.browArch, BROW_ARCH_RANGE_UV);
+}
+
+function resolveBrowArchPosition(tuning: RegionTuningParameters) {
+  return clampSignedRange(tuning.browArchPosition, BROW_ARCH_POSITION_RANGE);
+}
+
+function resolveBrowCleanupEnabled(
+  region: RecipeRegion,
+  tuning: RegionTuningParameters,
+) {
+  return region === 'brow' && tuning.browCleanupEnabled !== false;
+}
+
+function resolveStoredBrowCleanupStrength(tuning: RegionTuningParameters) {
+  return clampUnitValue(
+    tuning.browCleanupStrength,
+    DEFAULT_BROW_CLEANUP_STRENGTH,
+  );
+}
+
+function resolveBrowCleanupStrength(tuning: RegionTuningParameters) {
+  if (tuning.browCleanupEnabled === false) {
+    return 0;
+  }
+
+  return resolveStoredBrowCleanupStrength(tuning);
+}
+
+function resolveBrowCleanupStrengthForRegion(
+  region: RecipeRegion,
+  tuning: RegionTuningParameters,
+) {
+  if (!resolveBrowCleanupEnabled(region, tuning)) {
+    return 0;
+  }
+
+  return resolveStoredBrowCleanupStrength(tuning);
+}
+
+function resolveBrowReshapeStrength(tuning: RegionTuningParameters) {
+  return clampUnitValue(
+    tuning.browReshapeStrength,
+    DEFAULT_BROW_RESHAPE_STRENGTH,
+  );
+}
+
+function resolveBrowCleanupSourceMode(
+  region: RecipeRegion,
+  tuning: RegionTuningParameters,
+): BrowCleanupSourceMode {
+  if (region !== 'brow') {
+    return 'none';
+  }
+
+  if (!resolveBrowCleanupEnabled(region, tuning)) {
+    return 'none';
+  }
+
+  return tuning.browCleanupSourceMode === 'ar_camera_background'
+    ? 'ar_camera_background'
+    : DEFAULT_BROW_CLEANUP_SOURCE_MODE;
 }
 
 function parseHexColor(hexColor: string) {
@@ -850,7 +1215,8 @@ function isPngBrowHairMask(maskTextureId: MaskTextureId) {
     maskTextureId === 'brow-png-daily-hair-v1' ||
     maskTextureId === 'brow-png-natural-hair-v1' ||
     maskTextureId === 'brow-png-narrow-hair-v1' ||
-    maskTextureId === 'brow-png-lightbrown-hair-v1'
+    maskTextureId === 'brow-png-lightbrown-hair-v1' ||
+    isPsdArcoreBrowMask(maskTextureId)
   );
 }
 
@@ -886,7 +1252,7 @@ export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
 };
 const INTENSITY_STEP = 0.05;
 const UNITY_EVENT_HISTORY_LIMIT = 5;
-export const DEFAULT_RENDERER_MODE: RendererMode = 'smooth-region-mask';
+export const DEFAULT_RENDERER_MODE: RendererMode = 'mediapipe-region-overlay';
 const UNITY_EVENT_TYPES = [
   'unity_initialized',
   'face_detected',
@@ -895,6 +1261,8 @@ const UNITY_EVENT_TYPES = [
   'e7_metric_sample',
   'e7_reference_capture',
   'e7_vision_lip_boundary',
+  'e7_mediapipe_brow_landmarks',
+  'e7_mediapipe_full_face_landmarks',
   'recipe_applied',
 ] as const;
 
@@ -915,12 +1283,34 @@ export function buildValidationRecipeBatchPayload(
     const recipe = recipes[region];
     const sample = recipe.textureSample;
     const tuning = resolveRegionTuning(region, sample, regionTuning);
-    const browGap = region === 'brow' ? resolveBrowGap(tuning) : 0;
-    const browAngle = region === 'brow' ? resolveBrowAngle(tuning) : 0;
-    const browArch = region === 'brow' ? resolveBrowArch(tuning) : 0;
+    const browGap = region === 'brow' ? resolveEffectiveBrowGap(tuning) : 0;
+    const browMaskOffsetY = region === 'brow'
+      ? resolveEffectiveBrowMaskOffsetY(tuning)
+      : tuning.maskOffsetY;
+    const browAngle = region === 'brow' ? resolveEffectiveBrowAngle(tuning) : 0;
+    const browArch = region === 'brow' ? resolveEffectiveBrowArch(tuning) : 0;
+    const browArchPosition = region === 'brow'
+      ? resolveEffectiveBrowArchPosition(tuning)
+      : 0;
+    const browCleanupEnabled = resolveBrowCleanupEnabled(region, tuning);
+    const browCleanupStrength = region === 'brow'
+      ? resolveBrowCleanupStrengthForRegion(region, tuning)
+      : 0;
+    const browReshapeStrength = region === 'brow'
+      ? resolveBrowReshapeStrength(tuning)
+      : 0;
+    const browCleanupSourceMode = resolveBrowCleanupSourceMode(region, tuning);
     const layerIntensity = recipe.intensity;
     const layerColor = resolveRecipeColorHex(recipe);
     const maskTextureId = tuning.maskTextureId;
+    const runtimeTextureOverrideMode = normalizeRuntimeTextureOverrideMode(
+      tuning.runtimeTextureOverrideMode,
+    );
+    const runtimeTextureOverridePath = resolveRuntimeTextureOverridePath(
+      region,
+      runtimeTextureOverrideMode,
+      tuning.runtimeTextureOverridePath,
+    );
     const layerBlendMode = resolveLayerBlendMode(
       region,
       recipe,
@@ -955,10 +1345,15 @@ export function buildValidationRecipeBatchPayload(
       enabled: enabledRegions[region],
       coverage: tuning.coverage,
       maskSpreadX: region === 'brow' ? browGap : tuning.maskSpreadX,
-      maskOffsetY: tuning.maskOffsetY,
+      maskOffsetY: browMaskOffsetY,
       browGap,
       browAngle,
       browArch,
+      browArchPosition,
+      browCleanupEnabled,
+      browCleanupStrength,
+      browReshapeStrength,
+      browCleanupSourceMode,
       finish: sample.finish,
       textureAmount: layerIntensity,
       roughness: tuning.roughness,
@@ -979,6 +1374,8 @@ export function buildValidationRecipeBatchPayload(
           : 'unlit-alpha-validation',
       passCount: getRecipePassCount(sample),
       maskTextureId,
+      runtimeTextureOverrideMode,
+      runtimeTextureOverridePath,
       cameraBackdropAvailable: false,
       lightEstimateAvailable: false,
     };
@@ -992,13 +1389,43 @@ export function buildValidationRecipeBatchPayload(
   const focusMaskTextureId = focusTuning.maskTextureId;
   const focusIntensity = recipes[focusRegion].intensity;
   const focusColor = resolveRecipeColorHex(recipes[focusRegion]);
-  const focusBrowGap = focusRegion === 'brow' ? resolveBrowGap(focusTuning) : 0;
+  const focusBrowGap = focusRegion === 'brow'
+    ? resolveEffectiveBrowGap(focusTuning)
+    : 0;
+  const focusBrowMaskOffsetY = focusRegion === 'brow'
+    ? resolveEffectiveBrowMaskOffsetY(focusTuning)
+    : focusTuning.maskOffsetY;
   const focusBrowAngle = focusRegion === 'brow'
-    ? resolveBrowAngle(focusTuning)
+    ? resolveEffectiveBrowAngle(focusTuning)
     : 0;
   const focusBrowArch = focusRegion === 'brow'
-    ? resolveBrowArch(focusTuning)
+    ? resolveEffectiveBrowArch(focusTuning)
     : 0;
+  const focusBrowArchPosition = focusRegion === 'brow'
+    ? resolveEffectiveBrowArchPosition(focusTuning)
+    : 0;
+  const focusBrowCleanupEnabled = resolveBrowCleanupEnabled(
+    focusRegion,
+    focusTuning,
+  );
+  const focusBrowCleanupStrength = focusRegion === 'brow'
+    ? resolveBrowCleanupStrengthForRegion(focusRegion, focusTuning)
+    : 0;
+  const focusBrowReshapeStrength = focusRegion === 'brow'
+    ? resolveBrowReshapeStrength(focusTuning)
+    : 0;
+  const focusBrowCleanupSourceMode = resolveBrowCleanupSourceMode(
+    focusRegion,
+    focusTuning,
+  );
+  const focusRuntimeTextureOverrideMode = normalizeRuntimeTextureOverrideMode(
+    focusTuning.runtimeTextureOverrideMode,
+  );
+  const focusRuntimeTextureOverridePath = resolveRuntimeTextureOverridePath(
+    focusRegion,
+    focusRuntimeTextureOverrideMode,
+    focusTuning.runtimeTextureOverridePath,
+  );
 
   return {
     version: 1,
@@ -1021,10 +1448,15 @@ export function buildValidationRecipeBatchPayload(
     maskSpreadX: focusRegion === 'brow'
       ? focusBrowGap
       : focusTuning.maskSpreadX,
-    maskOffsetY: focusTuning.maskOffsetY,
+    maskOffsetY: focusBrowMaskOffsetY,
     browGap: focusBrowGap,
     browAngle: focusBrowAngle,
     browArch: focusBrowArch,
+    browArchPosition: focusBrowArchPosition,
+    browCleanupEnabled: focusBrowCleanupEnabled,
+    browCleanupStrength: focusBrowCleanupStrength,
+    browReshapeStrength: focusBrowReshapeStrength,
+    browCleanupSourceMode: focusBrowCleanupSourceMode,
     finish: focusSample.finish,
     textureAmount: focusIntensity,
     roughness: focusTuning.roughness,
@@ -1047,6 +1479,8 @@ export function buildValidationRecipeBatchPayload(
         : 'unlit-alpha-validation',
     passCount: getRecipePassCount(focusSample),
     maskTextureId: focusMaskTextureId,
+    runtimeTextureOverrideMode: focusRuntimeTextureOverrideMode,
+    runtimeTextureOverridePath: focusRuntimeTextureOverridePath,
     cameraBackdropAvailable: false,
     lightEstimateAvailable: false,
     layers,
@@ -1119,6 +1553,7 @@ type UnityEventPayload = {
   activeRegionSummary?: string;
   appliedTextureSampleSummary?: string;
   activeRegions?: unknown;
+  activeRegionCount?: number;
   appliedTextureSamples?: unknown;
   activeFace?: unknown;
   mesh?: unknown;
@@ -1169,6 +1604,22 @@ type UnityEventPayload = {
   appliedFrame?: number;
   receivedAtMs?: number;
   coverage?: number;
+  maskSpreadX?: number;
+  maskOffsetY?: number;
+  browGap?: number;
+  browAngle?: number;
+  browArch?: number;
+  browArchPosition?: number;
+  browCleanupEnabled?: boolean;
+  browCleanupStrength?: number;
+  browReshapeStrength?: number;
+  browCleanupSource?: string;
+  browCleanupFallback?: string;
+  browCleanupStatus?: string;
+  browCleanupSourceMode?: string;
+  browCleanupFallbackAvailable?: boolean;
+  browCleanupCameraTextureWidth?: number;
+  browCleanupCameraTextureHeight?: number;
   finish?: string;
   textureAmount?: number;
   roughness?: number;
@@ -1185,6 +1636,9 @@ type UnityEventPayload = {
   shaderMode?: string;
   passCount?: number;
   maskTextureId?: string;
+  runtimeTextureOverrideMode?: RuntimeTextureOverrideMode;
+  runtimeTextureOverridePath?: string;
+  runtimeTextureOverrideStatus?: string;
   maskSoftSampleMode?: string;
   maskFeatherNearRadiusPx?: number;
   maskFeatherFarRadiusPx?: number;
@@ -1235,6 +1689,36 @@ type UnityEventPayload = {
   visionBoundaryFaceMotionRisk?: string;
   outerPointCount?: number;
   innerPointCount?: number;
+  landmarkCount?: number;
+  leftPointCount?: number;
+  rightPointCount?: number;
+  confidence?: number;
+  latencyMs?: number;
+  mediapipe?: string;
+  mediapipeSource?: string;
+  mediapipeLandmarkCount?: number;
+  mediapipePacketAgeMs?: number;
+  mediapipeInferenceLatencyMs?: number;
+  mediapipeStale?: boolean;
+  mediapipeSmoothingEnabled?: boolean;
+  mediapipeStable?: boolean;
+  mediapipeAcceptedPacketCount?: number;
+  mediapipeRejectedPacketCount?: number;
+  mediapipeDroppedPacketCount?: number;
+  mediapipeStalePacketCount?: number;
+  mediapipePacketRejectReason?: string;
+  mediapipeCameraFrameCount?: number;
+  mediapipeCaptureAttemptCount?: number;
+  mediapipeCaptureEventCount?: number;
+  mediapipeCaptureSkippedBusyCount?: number;
+  mediapipeCaptureSkippedThrottleCount?: number;
+  mediapipeCaptureFrameUnavailableCount?: number;
+  bboxLeft?: number;
+  bboxTop?: number;
+  bboxRight?: number;
+  bboxBottom?: number;
+  bboxWidth?: number;
+  bboxHeight?: number;
   available?: boolean;
   stabilizationMode?: string;
   transitionProgress?: number;
@@ -1266,8 +1750,8 @@ type UnityEventStatusMap = Partial<Record<UnityEventType, UnityEventRecord>>;
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
-  const [isUnityOpen, setIsUnityOpen] = useState(false);
-  const [unityEntryCount, setUnityEntryCount] = useState(0);
+  const [isUnityOpen, setIsUnityOpen] = useState(true);
+  const [unityEntryCount, setUnityEntryCount] = useState(1);
   const [unityExitCount, setUnityExitCount] = useState(0);
 
   const handleStartUnity = useCallback(() => {
@@ -1440,6 +1924,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [pendingCapturePairId, setPendingCapturePairId] = useState<
     string | null
   >(null);
+  const [productMediaStatus, setProductMediaStatus] =
+    useState('local media ready');
+  const [isProductMediaBusy, setIsProductMediaBusy] = useState(false);
+  const [isProductVideoRecording, setIsProductVideoRecording] = useState(false);
   useEffect(() => {
     console.log(
       '[E7] unity_screen_mounted',
@@ -1612,7 +2100,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'meshColor=yellow',
         `meshRenderMode=${DEBUG_MESH_RENDER_MODE}`,
         `guideOverlayMode=${DEBUG_GUIDE_OVERLAY_MODE}`,
-        `faceDebugSurfaceSuppressed=${String(!meshOverlayVisible)}`,
+        'faceDebugSurfaceSuppressed=true',
         `validationViewMode=${validationViewMode}`,
         `reason=${reason}`,
       );
@@ -1670,6 +2158,97 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     pendingCapturePairId,
     postRegionOverlayVisibility,
   ]);
+
+  const saveProductPhoto = useCallback(async () => {
+    const mediaModule = getLocalMediaModule();
+
+    if (!mediaModule?.capturePhoto) {
+      setProductMediaStatus('photo save unavailable');
+      console.error('[ProductCapture] local_photo_unavailable');
+      return;
+    }
+
+    setProductMediaStatus('saving photo');
+    setIsProductMediaBusy(true);
+    setValidationViewMode('clean');
+
+    try {
+      const result = await mediaModule.capturePhoto();
+      const status = result.status ?? 'saved';
+
+      setProductMediaStatus('photo saved locally');
+      console.log('[ProductCapture] local_photo_saved', `status=${status}`);
+    } catch (error) {
+      setProductMediaStatus('photo save failed');
+      console.error(
+        '[ProductCapture] local_photo_failed',
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setIsProductMediaBusy(false);
+    }
+  }, []);
+
+  const startProductVideoRecording = useCallback(async () => {
+    const mediaModule = getLocalMediaModule();
+
+    if (!mediaModule?.startVideoRecording) {
+      setProductMediaStatus('video recording unavailable');
+      console.error('[ProductCapture] local_video_unavailable');
+      return;
+    }
+
+    setProductMediaStatus('starting video');
+    setIsProductMediaBusy(true);
+    setValidationViewMode('clean');
+
+    try {
+      const result = await mediaModule.startVideoRecording();
+      const status = result.status ?? 'recording';
+
+      setIsProductVideoRecording(true);
+      setProductMediaStatus('recording video');
+      console.log('[ProductCapture] local_video_recording', `status=${status}`);
+    } catch (error) {
+      setProductMediaStatus('video start failed');
+      console.error(
+        '[ProductCapture] local_video_start_failed',
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setIsProductMediaBusy(false);
+    }
+  }, []);
+
+  const stopProductVideoRecording = useCallback(async () => {
+    const mediaModule = getLocalMediaModule();
+
+    if (!mediaModule?.stopVideoRecording) {
+      setProductMediaStatus('video save unavailable');
+      console.error('[ProductCapture] local_video_stop_unavailable');
+      return;
+    }
+
+    setProductMediaStatus('saving video');
+    setIsProductMediaBusy(true);
+
+    try {
+      const result = await mediaModule.stopVideoRecording();
+      const status = result.status ?? 'saved';
+
+      setIsProductVideoRecording(false);
+      setProductMediaStatus('video saved locally');
+      console.log('[ProductCapture] local_video_saved', `status=${status}`);
+    } catch (error) {
+      setProductMediaStatus('video save failed');
+      console.error(
+        '[ProductCapture] local_video_stop_failed',
+        error instanceof Error ? error.message : String(error),
+      );
+    } finally {
+      setIsProductMediaBusy(false);
+    }
+  }, []);
 
   const handleUnityMessage = useCallback(
     (event: UnityMessageEvent) => {
@@ -1732,6 +2311,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? '[E7] rn_reference_capture_received'
             : parsed.type === 'e7_vision_lip_boundary'
             ? '[E7] rn_vision_lip_boundary_received'
+            : parsed.type === 'e7_mediapipe_brow_landmarks'
+            ? '[E7] rn_mediapipe_brow_landmarks_received'
+            : parsed.type === 'e7_mediapipe_full_face_landmarks'
+            ? '[E7] rn_mediapipe_full_face_landmarks_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -1799,6 +2382,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const focusedRecipe = regionRecipes[focusedRegion];
   const focusedTuning = regionTuning[focusedRegion];
+  const focusedRuntimeTextureOverrideMode =
+    normalizeRuntimeTextureOverrideMode(
+      focusedTuning.runtimeTextureOverrideMode,
+    );
+  const focusedRuntimeTextureOverridePath =
+    resolveRuntimeTextureOverridePath(
+      focusedRegion,
+      focusedRuntimeTextureOverrideMode,
+      focusedTuning.runtimeTextureOverridePath,
+    );
   const selectedColor = focusedRecipe.color;
   const selectedDisplayColor = resolveRecipeColorHex(focusedRecipe);
   const selectedTextureSample = focusedRecipe.textureSample;
@@ -1869,16 +2462,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const toggleRegion = useCallback(
     (region: RecipeRegion) => {
+      const shouldDeactivate = activeRegions[region] && focusedRegion === region;
       const nextActiveRegions = {
         ...activeRegions,
-        [region]: !activeRegions[region],
+        [region]: !shouldDeactivate,
       };
 
       setFocusedRegion(region);
       setActiveRegions(nextActiveRegions);
       postRecipeBatch(regionRecipes, nextActiveRegions, region);
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
   const selectColor = useCallback(
@@ -1955,19 +2549,39 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         textureSample,
       );
       const currentTuning = regionTuning[focusedRegion];
+      const runtimeOverrideFields = {
+        runtimeTextureOverrideMode:
+          currentTuning.runtimeTextureOverrideMode,
+        runtimeTextureOverridePath:
+          currentTuning.runtimeTextureOverridePath,
+      };
       const nextFocusedTuning = focusedRegion === 'brow'
-        ? {
+        ? applyBrowMaskSpecificDefaults({
             ...defaultTuning,
+            ...runtimeOverrideFields,
             maskTextureId: currentTuning.maskTextureId,
             maskSpreadX: currentTuning.maskSpreadX,
             maskOffsetY: currentTuning.maskOffsetY,
             browGap: resolveBrowGap(currentTuning),
             browAngle: resolveBrowAngle(currentTuning),
             browArch: resolveBrowArch(currentTuning),
-            detailAmount: currentTuning.detailAmount,
+            browArchPosition: resolveBrowArchPosition(currentTuning),
+            browCleanupEnabled: resolveBrowCleanupEnabled(
+              'brow',
+              currentTuning,
+            ),
+            browCleanupStrength: resolveBrowCleanupStrength(currentTuning),
+            browReshapeStrength: resolveBrowReshapeStrength(currentTuning),
+            browCleanupSourceMode: resolveBrowCleanupSourceMode(
+              'brow',
+              currentTuning,
+            ),
             preserveDetail: currentTuning.preserveDetail,
-          }
-        : defaultTuning;
+          })
+        : {
+            ...defaultTuning,
+            ...runtimeOverrideFields,
+          };
       const nextTuning = {
         ...regionTuning,
         [focusedRegion]: nextFocusedTuning,
@@ -2060,7 +2674,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         | 'specularPower'
         | 'glossBoost'
         | 'gradientAmount'
-        | 'detailAmount',
+        | 'detailAmount'
+        | 'browCleanupStrength'
+        | 'browReshapeStrength',
       nextValue: number,
     ) => {
       const nextTuning = {
@@ -2092,7 +2708,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const updateFocusedBrowPlacement = useCallback(
     (
-      key: 'gap' | 'y' | 'angle' | 'arch',
+      key: 'gap' | 'y' | 'angle' | 'arch' | 'archPosition',
       sliderValue: number,
     ) => {
       const placementUpdate =
@@ -2109,8 +2725,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           ? {
               browAngle: sliderValueToBrowAngle(sliderValue),
             }
-          : {
+          : key === 'arch'
+          ? {
               browArch: sliderValueToBrowArch(sliderValue),
+            }
+          : {
+              browArchPosition: sliderValueToBrowArchPosition(sliderValue),
             };
       const nextTuning = {
         ...regionTuning,
@@ -2146,12 +2766,19 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         maskTextureId,
         lipAreaStyle,
       );
+      const nextFocusedTuning = {
+        ...regionTuning[focusedRegion],
+        maskTextureId: resolvedMaskTextureId,
+      };
+      const nextFocusedTuningWithDefaults = focusedRegion === 'brow'
+        ? applyBrowMaskSpecificDefaults(nextFocusedTuning)
+        : nextFocusedTuning;
       const nextTuning = {
         ...regionTuning,
-        [focusedRegion]: {
-          ...regionTuning[focusedRegion],
-          maskTextureId: resolvedMaskTextureId,
-        },
+        [focusedRegion]:
+          focusedRegion === 'brow'
+            ? resetBrowPlacementDeltas(nextFocusedTuningWithDefaults)
+            : nextFocusedTuningWithDefaults,
       };
 
       setRegionTuning(nextTuning);
@@ -2188,6 +2815,108 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       regionRecipes,
       activeRegions,
       focusedRegion,
+      selectedRendererMode,
+      nextTuning,
+    );
+  }, [
+    activeRegions,
+    focusedRegion,
+    postRecipeBatch,
+    regionRecipes,
+    regionTuning,
+    selectedRendererMode,
+  ]);
+
+  const selectFocusedRuntimeTextureOverrideMode = useCallback(
+    (runtimeTextureOverrideMode: RuntimeTextureOverrideMode) => {
+      const currentTuning = regionTuning[focusedRegion];
+      const nextRuntimeTextureOverridePath =
+        runtimeTextureOverrideMode === 'off'
+          ? currentTuning.runtimeTextureOverridePath
+          : currentTuning.runtimeTextureOverridePath ||
+            buildDefaultRuntimeTextureOverridePath(focusedRegion);
+      const nextTuning = {
+        ...regionTuning,
+        [focusedRegion]: {
+          ...currentTuning,
+          runtimeTextureOverrideMode,
+          runtimeTextureOverridePath: nextRuntimeTextureOverridePath,
+        },
+      };
+
+      setRegionTuning(nextTuning);
+      postRecipeBatch(
+        regionRecipes,
+        activeRegions,
+        focusedRegion,
+        selectedRendererMode,
+        nextTuning,
+      );
+    },
+    [
+      activeRegions,
+      focusedRegion,
+      postRecipeBatch,
+      regionRecipes,
+      regionTuning,
+      selectedRendererMode,
+    ],
+  );
+
+  const selectBrowCleanupSourceMode = useCallback(
+    (browCleanupSourceMode: BrowCleanupSourceMode) => {
+      if (focusedRegion !== 'brow') {
+        return;
+      }
+
+      const nextTuning = {
+        ...regionTuning,
+        brow: {
+          ...regionTuning.brow,
+          browCleanupSourceMode,
+        },
+      };
+
+      setRegionTuning(nextTuning);
+      postRecipeBatch(
+        regionRecipes,
+        activeRegions,
+        'brow',
+        selectedRendererMode,
+        nextTuning,
+      );
+    },
+    [
+      activeRegions,
+      focusedRegion,
+      postRecipeBatch,
+      regionRecipes,
+      regionTuning,
+      selectedRendererMode,
+    ],
+  );
+
+  const toggleFocusedBrowCleanupEnabled = useCallback(() => {
+    if (focusedRegion !== 'brow') {
+      return;
+    }
+
+    const nextTuning = {
+      ...regionTuning,
+      brow: {
+        ...regionTuning.brow,
+        browCleanupEnabled: !resolveBrowCleanupEnabled(
+          'brow',
+          regionTuning.brow,
+        ),
+      },
+    };
+
+    setRegionTuning(nextTuning);
+    postRecipeBatch(
+      regionRecipes,
+      activeRegions,
+      'brow',
       selectedRendererMode,
       nextTuning,
     );
@@ -2342,9 +3071,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         case 'shimmer_eye':
           return 'Shimmer';
         case 'natural_brow':
-          return 'natural_brow';
+          return 'Natural';
         case 'soft_brow':
-          return 'soft_brow';
+          return 'Soft Powder';
         default:
           return 'Normal';
       }
@@ -2356,7 +3085,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       ? `type ${formatLipFinishTypeLabel(
           lipFinishType,
         )} / area ${formatLipAreaStyleLabel(lipAreaStyle)}`
-      : `sample ${formatTextureLabel(selectedTextureSample)}`;
+      : `style ${formatTextureLabel(selectedTextureSample)}`;
 
   return (
     <View style={styles.unityScreen}>
@@ -2423,6 +3152,48 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
         {validationViewMode === 'clean' && (
           <View style={styles.captureDock}>
+            <View style={styles.productCaptureRow}>
+              <Pressable
+                accessibilityRole="button"
+                testID="local-photo-save-button"
+                disabled={isProductMediaBusy || isProductVideoRecording}
+                style={({ pressed }) => [
+                  styles.captureButton,
+                  styles.productCaptureButton,
+                  (isProductMediaBusy || isProductVideoRecording) &&
+                    styles.captureButtonPending,
+                  pressed && styles.closeButtonPressed,
+                ]}
+                onPress={saveProductPhoto}
+              >
+                <Text style={styles.captureButtonText}>Save Photo</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                testID="local-video-record-button"
+                disabled={isProductMediaBusy}
+                style={({ pressed }) => [
+                  styles.captureButton,
+                  styles.productCaptureButton,
+                  isProductVideoRecording && styles.videoCaptureButtonActive,
+                  isProductMediaBusy && styles.captureButtonPending,
+                  pressed && styles.closeButtonPressed,
+                ]}
+                onPress={
+                  isProductVideoRecording
+                    ? stopProductVideoRecording
+                    : startProductVideoRecording
+                }
+              >
+                <Text style={styles.captureButtonText}>
+                  {isProductVideoRecording ? 'Stop Video' : 'Record Video'}
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={styles.productCaptureStatusText}>
+              {productMediaStatus}
+            </Text>
             <Pressable
               accessibilityRole="button"
               disabled={Boolean(pendingCapturePairId)}
@@ -2733,7 +3504,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   <View style={styles.tuningSectionHeader}>
                     <Text style={styles.tuningSectionTitle}>Brow QA</Text>
                     <Text style={styles.tuningSectionHint}>
-                      auto anchor ready / sliders are fine-tune
+                      {activeRegions.brow
+                        ? 'auto anchor ready / sliders are fine-tune'
+                        : 'brow inactive'}
                     </Text>
                   </View>
                 )}
@@ -2899,6 +3672,46 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                     },
                   )}
                 </View>
+                <Text style={styles.tuningSectionHint}>Runtime PNG</Text>
+                <View style={styles.textureButtonRow}>
+                  {RUNTIME_TEXTURE_OVERRIDE_MODE_OPTIONS.map(modeOption => {
+                    const isSelected =
+                      modeOption.id === focusedRuntimeTextureOverrideMode;
+
+                    return (
+                      <Pressable
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: isSelected }}
+                        key={modeOption.id}
+                        testID={`${focusedRegion}-runtime-texture-${modeOption.id}`}
+                        style={({ pressed }) => [
+                          styles.textureButton,
+                          isSelected && styles.textureButtonSelected,
+                          pressed && styles.colorButtonPressed,
+                        ]}
+                        onPress={() =>
+                          selectFocusedRuntimeTextureOverrideMode(
+                            modeOption.id,
+                          )
+                        }
+                      >
+                        <Text
+                          style={[
+                            styles.textureButtonText,
+                            isSelected && styles.textureButtonTextSelected,
+                          ]}
+                        >
+                          {modeOption.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+                {focusedRuntimeTextureOverrideMode !== 'off' && (
+                  <Text style={styles.tuningSectionHint}>
+                    {focusedRuntimeTextureOverridePath}
+                  </Text>
+                )}
 
                 <Text style={styles.tuningSectionTitle}>Render</Text>
                 <ValueSlider
@@ -2931,6 +3744,106 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                       onLayoutWidth={setSliderWidth}
                       onChange={value =>
                         updateFocusedTuningValue('detailAmount', value)
+                      }
+                    />
+
+                    <Text style={styles.tuningSectionTitle}>Shape</Text>
+                    <Pressable
+                      accessibilityRole="switch"
+                      accessibilityState={{
+                        checked: resolveBrowCleanupEnabled(
+                          'brow',
+                          focusedTuning,
+                        ),
+                      }}
+                      testID="brow-cleanup-enabled-toggle"
+                      style={({ pressed }) => [
+                        styles.displayToggleButton,
+                        resolveBrowCleanupEnabled('brow', focusedTuning) &&
+                          styles.displayToggleButtonSelected,
+                        pressed && styles.colorButtonPressed,
+                      ]}
+                      onPress={toggleFocusedBrowCleanupEnabled}
+                    >
+                      <Text
+                        style={[
+                          styles.displayToggleButtonText,
+                          resolveBrowCleanupEnabled('brow', focusedTuning) &&
+                            styles.displayToggleButtonTextSelected,
+                        ]}
+                      >
+                        {resolveBrowCleanupEnabled('brow', focusedTuning)
+                          ? 'Skin Restore On'
+                          : 'Skin Restore Off'}
+                      </Text>
+                    </Pressable>
+                    <Text style={styles.tuningSectionHint}>
+                      Cleanup Source
+                    </Text>
+                    <View style={styles.textureButtonRow}>
+                      {BROW_CLEANUP_SOURCE_MODE_OPTIONS.map(sourceOption => {
+                        const sourceMode = resolveBrowCleanupSourceMode(
+                          'brow',
+                          focusedTuning,
+                        );
+                        const isSelected = sourceOption.id === sourceMode;
+
+                        return (
+                          <Pressable
+                            accessibilityRole="radio"
+                            accessibilityState={{ selected: isSelected }}
+                            key={sourceOption.id}
+                            testID={`brow-cleanup-source-${sourceOption.id}`}
+                            style={({ pressed }) => [
+                              styles.textureButton,
+                              isSelected && styles.textureButtonSelected,
+                              pressed && styles.colorButtonPressed,
+                            ]}
+                            onPress={() =>
+                              selectBrowCleanupSourceMode(sourceOption.id)
+                            }
+                          >
+                            <Text
+                              style={[
+                                styles.textureButtonText,
+                                isSelected &&
+                                  styles.textureButtonTextSelected,
+                              ]}
+                            >
+                              {sourceOption.label}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+
+                    <ValueSlider
+                      label="Cleanup"
+                      testID="brow-cleanup-slider"
+                      value={resolveStoredBrowCleanupStrength(focusedTuning)}
+                      width={sliderWidth}
+                      fillColor="#FED7AA"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue(
+                          'browCleanupStrength',
+                          value,
+                        )
+                      }
+                    />
+
+                    <ValueSlider
+                      label="Reshape"
+                      testID="brow-reshape-slider"
+                      value={resolveBrowReshapeStrength(focusedTuning)}
+                      width={sliderWidth}
+                      fillColor="#FECACA"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue(
+                          'browReshapeStrength',
+                          value,
+                        )
                       }
                     />
 
@@ -3006,6 +3919,20 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                         updateFocusedBrowPlacement('arch', value)
                       }
                     />
+
+                    <ValueSlider
+                      label="Arch Position"
+                      testID="brow-arch-position-slider"
+                      value={browArchPositionToSliderValue(
+                        focusedTuning.browArchPosition,
+                      )}
+                      width={sliderWidth}
+                      fillColor="#DDD6FE"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedBrowPlacement('archPosition', value)
+                      }
+                    />
                   </>
                 )}
 
@@ -3029,49 +3956,53 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   onChange={value => updateFocusedTuningValue('feather', value)}
                 />
 
-                <ValueSlider
-                  label="Roughness"
-                  value={focusedTuning.roughness}
-                  width={sliderWidth}
-                  fillColor="#D1FAE5"
-                  onLayoutWidth={setSliderWidth}
-                  onChange={value =>
-                    updateFocusedTuningValue('roughness', value)
-                  }
-                />
+                {focusedRegion !== 'brow' && (
+                  <>
+                    <ValueSlider
+                      label="Roughness"
+                      value={focusedTuning.roughness}
+                      width={sliderWidth}
+                      fillColor="#D1FAE5"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue('roughness', value)
+                      }
+                    />
 
-                <ValueSlider
-                  label="Specular"
-                  value={focusedTuning.specular}
-                  width={sliderWidth}
-                  fillColor="#FBCFE8"
-                  onLayoutWidth={setSliderWidth}
-                  onChange={value =>
-                    updateFocusedTuningValue('specular', value)
-                  }
-                />
+                    <ValueSlider
+                      label="Specular"
+                      value={focusedTuning.specular}
+                      width={sliderWidth}
+                      fillColor="#FBCFE8"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue('specular', value)
+                      }
+                    />
 
-                <ValueSlider
-                  label="Glossy"
-                  value={focusedTuning.glossBoost}
-                  width={sliderWidth}
-                  fillColor="#F9A8D4"
-                  onLayoutWidth={setSliderWidth}
-                  onChange={value =>
-                    updateFocusedTuningValue('glossBoost', value)
-                  }
-                />
+                    <ValueSlider
+                      label="Glossy"
+                      value={focusedTuning.glossBoost}
+                      width={sliderWidth}
+                      fillColor="#F9A8D4"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue('glossBoost', value)
+                      }
+                    />
 
-                <ValueSlider
-                  label="Gradient"
-                  value={focusedTuning.gradientAmount}
-                  width={sliderWidth}
-                  fillColor="#C4B5FD"
-                  onLayoutWidth={setSliderWidth}
-                  onChange={value =>
-                    updateFocusedTuningValue('gradientAmount', value)
-                  }
-                />
+                    <ValueSlider
+                      label="Gradient"
+                      value={focusedTuning.gradientAmount}
+                      width={sliderWidth}
+                      fillColor="#C4B5FD"
+                      onLayoutWidth={setSliderWidth}
+                      onChange={value =>
+                        updateFocusedTuningValue('gradientAmount', value)
+                      }
+                    />
+                  </>
+                )}
 
                 <View style={styles.tuningActionRow}>
                   <Pressable
@@ -3129,7 +4060,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                   {selectedDisplayColor} / opacity {opacityPercent}% / intensity{' '}
                   {intensityPercent}%
                   {focusedRegion === 'brow'
-                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / detail ${Math.round(focusedTuning.detailAmount * 100)}% / gap ${resolveBrowGap(focusedTuning).toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)} / angle ${resolveBrowAngle(focusedTuning).toFixed(3)} / arch ${resolveBrowArch(focusedTuning).toFixed(3)}`
+                    ? ` / temperature ${colorWarmthPercent}% / depth ${colorDepthPercent}% / detail ${Math.round(focusedTuning.detailAmount * 100)}% / skin restore ${resolveBrowCleanupEnabled('brow', focusedTuning) ? 'on' : 'off'} / cleanup ${Math.round(resolveBrowCleanupStrength(focusedTuning) * 100)}% / reshape ${Math.round(resolveBrowReshapeStrength(focusedTuning) * 100)}% / gap ${resolveBrowGap(focusedTuning).toFixed(3)} / y ${focusedTuning.maskOffsetY.toFixed(3)} / angle ${resolveBrowAngle(focusedTuning).toFixed(3)} / arch ${resolveBrowArch(focusedTuning).toFixed(3)} / archPos ${resolveBrowArchPosition(focusedTuning).toFixed(3)}`
                     : ''}{' '}
                   / mask{' '}
                   {formatMaskTextureSummary(
@@ -3312,7 +4243,7 @@ function E7StatusPanel({
               metric.activeRegionSummary ??
                 metric.activeRegions ??
                 currentRegions,
-            )}`
+            )} activeCount=${String(metric.activeRegionCount ?? 'n/a')}`
           : `look=${E7_LIP_LOOK_ID} active=${currentRegions}`}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
@@ -3325,6 +4256,40 @@ function E7StatusPanel({
               metric.worstFrameTimeMs,
             )}ms sub20=${String(metric.sustainedSub20FpsObserved ?? false)}`
           : 'fps/frame-time waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `mp=${String(metric.mediapipe ?? 'full-face')} age=${formatMetricNumber(
+              metric.mediapipePacketAgeMs,
+              0,
+            )}ms inf=${formatMetricNumber(
+              metric.mediapipeInferenceLatencyMs,
+              0,
+            )}ms drop=${String(
+              metric.mediapipeDroppedPacketCount ?? 'n/a',
+            )} stale=${String(
+              metric.mediapipeStalePacketCount ?? 'n/a',
+            )} smooth=${String(
+              metric.mediapipeSmoothingEnabled ?? 'n/a',
+            )} stable=${String(metric.mediapipeStable ?? 'n/a')}`
+          : 'mediapipe packet metrics waiting'}
+      </Text>
+      <Text style={styles.e7Text} numberOfLines={1}>
+        {metric
+          ? `capture frames=${String(
+              metric.mediapipeCameraFrameCount ?? 'n/a',
+            )} attempts=${String(
+              metric.mediapipeCaptureAttemptCount ?? 'n/a',
+            )} events=${String(
+              metric.mediapipeCaptureEventCount ?? 'n/a',
+            )} skip=${String(
+              metric.mediapipeCaptureSkippedBusyCount ?? 'n/a',
+            )}/${String(
+              metric.mediapipeCaptureSkippedThrottleCount ?? 'n/a',
+            )} unavailable=${String(
+              metric.mediapipeCaptureFrameUnavailableCount ?? 'n/a',
+            )}`
+          : 'mediapipe capture metrics waiting'}
       </Text>
       <Text style={styles.e7Text} numberOfLines={1}>
         {metric
@@ -3408,7 +4373,7 @@ function CompactEvidenceHud({
   const stateAction = String(
     latestRecipe?.stateAction ?? latestMetric?.stateAction ?? 'waiting',
   );
-  const rendererId = String(latestRecipe?.rendererId ?? 'waiting');
+  const rendererLabel = formatRendererDisplayLabel(latestRecipe ?? latestMetric);
   const maskTextureId = String(
     latestRecipe?.maskTextureId ?? latestMetric?.maskSource ?? 'waiting',
   );
@@ -3440,7 +4405,7 @@ function CompactEvidenceHud({
         )}ms`}
       </Text>
       <Text style={styles.compactHudText} numberOfLines={1}>
-        {`Renderer ${rendererId}`}
+        {`Renderer ${rendererLabel}`}
       </Text>
       <Text style={styles.compactHudText} numberOfLines={1}>
         {`mask=${maskTextureId} gap=${formatMetricNumber(
@@ -3452,10 +4417,41 @@ function CompactEvidenceHud({
         )} angle=${formatMetricNumber(
           latestRecipe?.browAngle,
           3,
-        )} arch=${formatMetricNumber(latestRecipe?.browArch, 3)}`}
+        )} arch=${formatMetricNumber(
+          latestRecipe?.browArch,
+          3,
+        )} archPos=${formatMetricNumber(latestRecipe?.browArchPosition, 3)}`}
       </Text>
     </View>
   );
+}
+
+function formatRendererDisplayLabel(event?: UnityEventPayload) {
+  const rendererMode = String(event?.rendererMode ?? '');
+  const rendererId = String(event?.rendererId ?? '');
+  const combined = `${rendererMode} ${rendererId}`.toLowerCase();
+
+  if (combined.includes('mediapipe')) {
+    return 'MediaPipe';
+  }
+
+  if (combined.includes('vision')) {
+    return 'Vision diagnostic';
+  }
+
+  if (combined.includes('arkit') || combined.includes('arface')) {
+    return 'ARKit diagnostic';
+  }
+
+  if (
+    combined.includes('smooth-region-mask') ||
+    combined.includes('smooth_region_mask') ||
+    combined.includes('legacy')
+  ) {
+    return 'Legacy mask';
+  }
+
+  return 'waiting';
 }
 
 type EvidenceMetadataInput = {
@@ -3565,6 +4561,14 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `e7_vision_lip_boundary ${formatE7VisionLipBoundarySummary(
         event,
       )}`;
+    case 'e7_mediapipe_brow_landmarks':
+      return `e7_mediapipe_brow_landmarks ${formatE7MediaPipeBrowLandmarkSummary(
+        event,
+      )}`;
+    case 'e7_mediapipe_full_face_landmarks':
+      return `e7_mediapipe_full_face_landmarks ${formatE7MediaPipeFullFaceLandmarkSummary(
+        event,
+      )}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -3621,9 +4625,66 @@ function formatUnityEventTypeStatus(
       return `e7_vision_lip_boundary: ${formatE7VisionLipBoundarySummary(
         parsed,
       )} ${event.receivedAt}`;
+    case 'e7_mediapipe_brow_landmarks':
+      return `e7_mediapipe_brow_landmarks: ${formatE7MediaPipeBrowLandmarkSummary(
+        parsed,
+      )} ${event.receivedAt}`;
+    case 'e7_mediapipe_full_face_landmarks':
+      return `e7_mediapipe_full_face_landmarks: ${formatE7MediaPipeFullFaceLandmarkSummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7MediaPipeFullFaceLandmarkSummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} source=${String(
+    event.source ?? 'mediapipe_face_landmarker_full_face_v1',
+  )} input=${String(
+    event.inputFormat ?? 'bgra-cvpixelbuffer',
+  )} landmarks=${String(event.landmarkCount ?? 'n/a')} faces=${String(
+    event.faceCount ?? 'n/a',
+  )} image=${String(event.imageWidth ?? 'n/a')}x${String(
+    event.imageHeight ?? 'n/a',
+  )} conf=${formatMetricNumber(
+    event.faceConfidence ?? event.confidence,
+    3,
+  )} latencyMs=${formatMetricNumber(event.latencyMs)} ts=${String(
+    event.timestampMs ?? 'n/a',
+  )} orient=${String(
+    event.selectedOrientationDegrees ?? 'n/a',
+  )}/${String(event.requestedOrientationDegrees ?? 'n/a')} fallback=${String(
+    event.orientationFallbackTried ?? false,
+  )} privacy raw=${String(
+    event.rawFrameStored ?? false,
+  )} offDevice=${String(event.offDeviceUpload ?? false)}`;
+}
+
+function formatE7MediaPipeBrowLandmarkSummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} available=${String(
+    event.available ?? false,
+  )} source=${String(
+    event.source ?? 'mediapipe_face_landmarker_runtime_brow_landmarks',
+  )} coord=${String(
+    event.coordinateMode ?? 'normalized-image',
+  )} points=${String(event.leftPointCount ?? 'n/a')}/${String(
+    event.rightPointCount ?? 'n/a',
+  )} landmarks=${String(event.landmarkCount ?? 'n/a')} image=${String(
+    event.imageWidth ?? 'n/a',
+  )}x${String(event.imageHeight ?? 'n/a')} conf=${formatMetricNumber(
+    event.confidence,
+    3,
+  )} latencyMs=${formatMetricNumber(event.latencyMs)} bbox=${formatMetricNumber(
+    event.bboxLeft,
+    3,
+  )},${formatMetricNumber(event.bboxTop, 3)},${formatMetricNumber(
+    event.bboxRight,
+    3,
+  )},${formatMetricNumber(
+    event.bboxBottom,
+    3,
+  )} privacy raw=false offDevice=false`;
 }
 
 function formatE7VisionLipBoundarySummary(event: UnityEventPayload) {
@@ -3675,6 +4736,16 @@ function formatE7MetricSummary(event: UnityEventPayload) {
     event.lookId ?? E7_LIP_LOOK_ID,
   )} active=${String(
     event.activeRegionSummary ?? event.activeRegions ?? 'n/a',
+  )} activeCount=${String(
+    event.activeRegionCount ?? event.enabledLayerCount ?? 'n/a',
+  )} mpAge=${formatMetricNumber(
+    event.mediapipePacketAgeMs,
+    0,
+  )}ms mpInf=${formatMetricNumber(
+    event.mediapipeInferenceLatencyMs,
+    0,
+  )}ms mpDrop=${String(
+    event.mediapipeDroppedPacketCount ?? 'n/a',
   )} enabled=${String(event.enabledLayerCount ?? 'n/a')} topology=${String(
     event.topologyAuditStatus ?? 'not_run',
   )} uv=${String(event.regionUvAvailable ?? event.uvAvailable ?? false)}`;
@@ -3910,6 +4981,31 @@ function formatRecipeAppliedSummary(event?: UnityEventPayload) {
   )} arch=${formatMetricNumber(
     event.browArch,
     3,
+  )} archPos=${formatMetricNumber(
+    event.browArchPosition,
+    3,
+  )} cleanupEnabled=${String(
+    event.browCleanupEnabled ?? 'n/a',
+  )} cleanup=${formatMetricNumber(
+    event.browCleanupStrength,
+    2,
+  )} reshape=${formatMetricNumber(
+    event.browReshapeStrength,
+    2,
+  )} cleanupSource=${String(
+    event.browCleanupSource ?? 'n/a',
+  )} cleanupFallback=${String(
+    event.browCleanupFallback ?? 'n/a',
+  )} cleanupStatus=${String(
+    event.browCleanupStatus ?? 'n/a',
+  )} cleanupMode=${String(
+    event.browCleanupSourceMode ?? 'n/a',
+  )} cleanupFallbackAvailable=${String(
+    event.browCleanupFallbackAvailable ?? 'n/a',
+  )} cleanupCameraTex=${String(
+    event.browCleanupCameraTextureWidth ?? 'n/a',
+  )}x${String(
+    event.browCleanupCameraTextureHeight ?? 'n/a',
   )} specular=${String(
     event.specular ?? 'n/a',
   )} gloss=${String(event.glossBoost ?? 'n/a')} gradient=${String(
@@ -4099,11 +5195,37 @@ function ValueSlider({
     [onChange, value],
   );
 
+  const nudgeValue = useCallback(
+    (direction: -1 | 1) => {
+      const nextValue = Number(
+        Math.max(
+          0,
+          Math.min(1, value + direction * SLIDER_FINE_NUDGE_STEP),
+        ).toFixed(2),
+      );
+
+      onChange(nextValue);
+    },
+    [onChange, value],
+  );
+
   return (
     <View style={styles.opacityControl}>
       <Text style={styles.opacityLabel} numberOfLines={1}>
         {label}
       </Text>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label} decrease`}
+        testID={testID ? `${testID}-decrement` : undefined}
+        style={({ pressed }) => [
+          styles.sliderNudgeButton,
+          pressed && styles.sliderNudgeButtonPressed,
+        ]}
+        onPress={() => nudgeValue(-1)}
+      >
+        <Text style={styles.sliderNudgeButtonText}>-</Text>
+      </Pressable>
       <View
         testID={testID}
         accessibilityRole="adjustable"
@@ -4125,6 +5247,18 @@ function ValueSlider({
         />
         <View style={[styles.sliderThumb, { left: fillWidth }]} />
       </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${label} increase`}
+        testID={testID ? `${testID}-increment` : undefined}
+        style={({ pressed }) => [
+          styles.sliderNudgeButton,
+          pressed && styles.sliderNudgeButtonPressed,
+        ]}
+        onPress={() => nudgeValue(1)}
+      >
+        <Text style={styles.sliderNudgeButtonText}>+</Text>
+      </Pressable>
       <Text style={styles.opacityValue} numberOfLines={1}>
         {value.toFixed(2)}
       </Text>
@@ -4228,6 +5362,26 @@ const styles = StyleSheet.create({
   captureDock: {
     alignSelf: 'stretch',
     marginBottom: 16,
+  },
+  productCaptureRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 8,
+  },
+  productCaptureButton: {
+    flex: 1,
+  },
+  videoCaptureButtonActive: {
+    backgroundColor: 'rgba(14, 165, 233, 0.88)',
+  },
+  productCaptureStatusText: {
+    color: '#F8FAFC',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0,
+    textAlign: 'center',
+    marginBottom: 8,
+    textTransform: 'uppercase',
   },
   captureButton: {
     alignSelf: 'stretch',
@@ -4858,6 +6012,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#111827',
+  },
+  sliderNudgeButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    backgroundColor: 'rgba(255, 255, 255, 0.10)',
+  },
+  sliderNudgeButtonPressed: {
+    backgroundColor: 'rgba(255, 255, 255, 0.24)',
+  },
+  sliderNudgeButtonText: {
+    color: '#F9FAFB',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 0,
+    lineHeight: 16,
   },
   tuningActionRow: {
     flexDirection: 'row',
