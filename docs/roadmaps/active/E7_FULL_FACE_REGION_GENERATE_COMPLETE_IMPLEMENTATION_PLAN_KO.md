@@ -6184,3 +6184,68 @@ Next iPhone review:
 6. After AR review, return to Adjust and confirm captured work is preserved.
 7. Pull generated package and generated apply ack, then compare the package values to the visible flow.
 ```
+## 2026-06-30 실기기 확인 후 다음 작업 범위 보정: full-face 제품 흐름 완성
+
+### 배경
+
+2026-06-30 iPhone build/install/launch 후 사용자 실기기 스크린샷에서 확인한 현재 상태는 `pre-Xcode-ready` 계약 완료와 제품 흐름 완료가 다르다는 점을 명확히 보여준다.
+
+- 현재 완료된 것은 `lip/blush/brow/eyeliner` region id, package schema, Unity dispatch, resource 연결, UnityFramework 재생성, RN iOS build/install/launch다.
+- 실제 앱 UI는 아직 `lip` 중심으로 보이며, `brow`, `blush`, `eyeliner`의 세부 조정 UI와 AR 마스크 생성/적용 UX는 제품 흐름으로 완성되지 않았다.
+- `eyeliner`는 팀원 최종 에셋이 아직 없으므로 현재처럼 MediaPipe upper eyelid boundary 기반 provisional route를 임시방편으로 유지한다.
+- 따라서 다음 작업은 단순 연결 보강이 아니라 네 부위 전체를 `generate -> adjust -> save package -> AR handoff -> AR visual controls`까지 실제로 끝내는 범위로 잡는다.
+
+### 다음 목표
+
+다음 세션 목표는 `lip`, `blush`, `brow`, `eyeliner` 네 region 모두에 대해 사용자가 앱 안에서 실제로 생성, 선택, 세부 조정, 저장, AR 적용, 실기기 확인을 할 수 있게 만드는 것이다.
+
+### 다음 작업 범위
+
+1. `brow`, `blush`, `eyeliner`를 Generate wizard의 first-class region으로 노출한다.
+2. 각 region별 후보 생성 상태와 provider/source label은 lab 검증 UI에서만 표시한다. 302 제품 포팅 시 `provider/source`, `MediaPipe`, `Generate`, `provisional` 같은 개발/검증 언어는 `진하게 보기`, `경계 보기`, `Debug`, `hot` 검증색과 같은 kill-list로 분류해 사용자 경로에서 제거한다.
+3. 각 region별 세부 조정 컨트롤을 추가하되, `lip`의 고정 5필드를 재사용하지 않고 선택된 region의 parameter schema를 읽어 그리는 data-driven 패널로 구현한다.
+4. `brow` 조정은 PSD-derived asset + MediaPipe anchor 기준으로 위치, 간격, 각도, 아치, 농도, feather, cleanup 관련 축을 제공한다.
+5. `blush` 조정은 cheek UV mask 기준으로 위치, spread, coverage, opacity/intensity, feather, color 관련 축을 제공한다.
+6. `eyeliner` 조정은 provisional upper eyelid boundary 기준으로 두께, 길이, 위/아래 offset, corner reach, opacity/intensity, feather, color 관련 축을 제공한다.
+7. 저장 package에는 네 region의 candidate id, maskTextureId, schemaVersion, parameters, source/provisional status가 모두 들어가야 한다.
+8. AR region별 ON/OFF를 구현하기 전에 현재 package schema와 Unity dispatch가 per-region `enabled`/visibility/mask state를 받는지 선검증한다. 현재 route가 all-or-nothing 적용만 지원하면 region별 ON/OFF는 단순 UI 보강이 아니라 schema + Unity runtime 신규 작업으로 분리한다.
+9. AR handoff 후 AR 화면에서 네 region 각각의 mask ON/OFF, 색/농도, 세부 조정이 가능해야 한다.
+10. `lip`만 표시되는 현재 UX를 제거하고, full-face package가 네 region을 함께 적용했다는 상태를 사용자에게 명확히 보여준다.
+11. `진하게 보기`, `경계 보기`, `Debug`, `hot` 검증색은 사용자 제품 경로에서 제거하고 dev/debug flag 뒤에만 유지한다.
+12. 302 제품 포팅 기준으로는 ③ 꾸미기 진입 시 네 region 모두 추천 candidate/자동룩이 이미 적용된 상태여야 한다. 사용자는 아무것도 조정하지 않아도 바로 `입혀보기`로 진행할 수 있어야 한다.
+13. iPhone 실기기에서 `brow`, `blush`, `eyeliner`가 생성 -> 조정 -> 저장 -> AR 적용 -> AR 위 인라인 재조정까지 동작하는지 스크린샷/사용자 확인으로 검증한다.
+14. 구현 순서는 실제 에셋이 있는 `brow` + `blush`를 먼저 제품 UI로 단단히 만들고, `eyeliner`는 lab에서는 provisional 라벨을 붙여 흐름 동작 증명용으로 붙인다. 제품 포팅 시 eyeliner의 사용자-facing 임시 표기 여부는 별도 UX 결정으로 남긴다. 단, 알리기로 결정해도 `provisional` 같은 개발어가 아니라 제품 언어로 표기한다.
+
+### 이번 라운드 완료 기준: phone-connected flow gate
+
+- `lip`, `blush`, `brow`, `eyeliner` 네 region 모두 Generate wizard에서 선택/조정 가능하다.
+- lab 검증 UI의 provider/source label은 302 제품 경로로 새지 않는다.
+- 네 region 모두 저장 package에 포함된다.
+- 네 region 모두 Unity AR 화면으로 handoff된다.
+- region별 ON/OFF는 기존 schema/Unity route 지원 여부를 먼저 확인하고, 미지원이면 schema + Unity runtime 작업으로 명시적으로 처리한다.
+- AR 화면에서 네 region이 각각 ON/OFF, 색/농도, 세부 조정 가능하다.
+- AR 화면을 떠나지 않고 하단 시트 또는 동등한 인라인 UI로 ③ 꾸미기 컨트롤을 다시 조정할 수 있다.
+- 302 제품 포팅 기준에서는 ③ 꾸미기 진입 시 네 region 추천 candidate/자동룩이 이미 적용되어 있어야 한다.
+- iPhone 실기기에서 네 region이 `생성 -> AR 적용 -> ③/AR 왕복 조정`까지 동작한다.
+- `eyeliner`는 팀원 최종 에셋 전까지 `provisional`로 표기하되, 임시 마스크가 실제 AR 화면에 보이고 조정 가능해야 한다.
+- buildless/RN/Unity/prebuild뿐 아니라 iPhone build/install/launch와 사용자 flow acceptance까지 완료해야 한다.
+
+### 후속 별도 gate: visual quality acceptance
+
+- region별 시각 품질 합격은 이번 라운드 완료 기준과 분리한다.
+- `brow`는 PSD-derived asset이 얼굴/눈썹 위치에 자연스럽게 붙는지 별도 품질 gate에서 본다.
+- `blush`는 cheek UV mask가 광대/볼 위치에 자연스럽게 맞는지 별도 품질 gate에서 본다.
+- `eyeliner`는 provisional route이므로 최종 에셋 전까지 출시 가능 품질로 판정하지 않는다.
+- 시각 품질 gate에는 neutral/smile/open-close/yaw/blink, face attachment, boundary stability, 색감/농도, FPS/frame-time, latency, memory/thermal evidence를 포함한다.
+
+### 명시적 비완료 조건
+
+- `lip`만 세부 조정되고 나머지 region은 package/schema에만 존재하는 상태.
+- Unity smoke에서 dispatch만 통과하고 앱 UI에서 조정할 수 없는 상태.
+- AR 화면에서 "적용됨" 문구만 나오고 `brow`, `blush`, `eyeliner` 마스크가 보이지 않거나 조정이 반영되지 않는 상태.
+- `진하게 보기`, `경계 보기`, `Debug`, `hot` 검증색을 제품 사용자 경로의 핵심 컨트롤로 남기는 상태.
+- lab 검증용 `provider/source`, `MediaPipe`, `Generate`, `provisional` 개발 언어가 302 제품 사용자 경로에 그대로 노출되는 상태.
+- region별 ON/OFF가 schema/Unity에서 미지원인데 UI만 토글되는 상태.
+- 302 제품 포팅에서 ③ 꾸미기 진입 시 자동 candidate/자동룩이 적용되지 않아 사용자가 region별 생성을 수동으로 눌러야 하는 상태.
+- `eyeliner` 최종 에셋 부재를 이유로 eyeliner UI/AR 적용 전체를 생략하는 상태.
+- flow gate와 visual quality gate를 섞어 provisional eyeliner를 출시 가능 품질로 기록하는 상태.

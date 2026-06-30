@@ -57,6 +57,11 @@ RN_FRAMEWORK="$RN_FRAMEWORK_DIR/UnityFramework.framework"
 PACKAGE_FRAMEWORK="$ROOT_DIR/rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework"
 PRODUCT_FRAMEWORK="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
 XCODEBUILD_EXTRA_SETTINGS=()
+UNITY_LICENSING_IPC_ARGS=()
+
+if [[ -n "${UNITY_LICENSING_IPC:-}" ]]; then
+  UNITY_LICENSING_IPC_ARGS=(-licensingIpc "$UNITY_LICENSING_IPC")
+fi
 
 require_file() {
   if [[ ! -f "$1" ]]; then
@@ -140,6 +145,7 @@ echo "== Unity iOS export =="
   -batchmode \
   -quit \
   -projectPath "$UNITY_PROJECT" \
+  "${UNITY_LICENSING_IPC_ARGS[@]}" \
   -executeMethod MakeupARValidationSetup.ExportIosProject \
   -logFile "$UNITY_EXPORT_LOG"
 
