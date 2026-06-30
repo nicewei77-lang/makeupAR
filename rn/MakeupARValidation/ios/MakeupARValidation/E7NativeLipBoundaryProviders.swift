@@ -283,28 +283,18 @@ final class E7NativeLipBoundaryProviders: NSObject {
         size: CGSize(width: width, height: height),
         format: rendererFormat
       )
-      var previewRenderer = "lipBoundary2D_fallback"
+      var previewRenderer = "lipBoundary2D_outline_only"
       let renderedImage = renderer.image { context in
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
         UIImage(cgImage: cgImage).draw(in: rect)
 
-        let renderedRawUvMask = renderRawUvMaskProjection(
+        let hasRawUvMaskProjection = renderRawUvMaskProjection(
           context: context.cgContext,
           runtimeApplyPayload: runtimeApplyPayload,
           arFaceExport: arFaceExport
         )
-        if renderedRawUvMask {
-          previewRenderer = "raw_uv_mask_projection"
-        } else {
-          let maskPath = UIBezierPath()
-          appendSmoothClosedCurve(points: outerPoints, to: maskPath)
-          if innerPoints.count >= 3 {
-            appendSmoothClosedCurve(points: innerPoints.reversed(), to: maskPath)
-          }
-          maskPath.usesEvenOddFillRule = true
-          UIColor(red: 217.0 / 255.0, green: 75.0 / 255.0, blue: 116.0 / 255.0, alpha: 0.58)
-            .setFill()
-          maskPath.fill(with: .normal, alpha: 0.58)
+        if hasRawUvMaskProjection {
+          previewRenderer = "raw_uv_mask_projection_outline_only"
         }
 
         let outerStroke = UIBezierPath()
@@ -425,7 +415,7 @@ final class E7NativeLipBoundaryProviders: NSObject {
   }
 
   private func renderRawUvMaskProjection(
-    context: CGContext,
+    context _: CGContext,
     runtimeApplyPayload: [String: Any]?,
     arFaceExport: [String: Any]?
   ) -> Bool {
@@ -445,9 +435,7 @@ final class E7NativeLipBoundaryProviders: NSObject {
       return false
     }
 
-    var drawnTriangleCount = 0
-    context.saveGState()
-    context.setBlendMode(.normal)
+    var coveredTriangleCount = 0
     for index in stride(from: 0, to: indices.count - 2, by: 3) {
       let i0 = indices[index]
       let i1 = indices[index + 1]
@@ -485,24 +473,9 @@ final class E7NativeLipBoundaryProviders: NSObject {
       if alpha <= 0.03 {
         continue
       }
-      context.beginPath()
-      context.move(to: CGPoint(x: screenVertices[i0][0], y: screenVertices[i0][1]))
-      context.addLine(to: CGPoint(x: screenVertices[i1][0], y: screenVertices[i1][1]))
-      context.addLine(to: CGPoint(x: screenVertices[i2][0], y: screenVertices[i2][1]))
-      context.closePath()
-      context.setFillColor(
-        UIColor(
-          red: 217.0 / 255.0,
-          green: 75.0 / 255.0,
-          blue: 116.0 / 255.0,
-          alpha: min(0.68, max(0.12, alpha * 0.72))
-        ).cgColor
-      )
-      context.fillPath()
-      drawnTriangleCount += 1
+      coveredTriangleCount += 1
     }
-    context.restoreGState()
-    return drawnTriangleCount > 0
+    return coveredTriangleCount > 0
   }
 
   private func sampleRawMaskAlpha(
