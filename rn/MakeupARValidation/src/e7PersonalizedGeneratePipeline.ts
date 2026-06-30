@@ -104,6 +104,11 @@ const ADJUSTMENT_INNER_FILL_X_SCALE = 0.5;
 const ADJUSTMENT_UPPER_INNER_SEAM_SCALE = 0.12;
 const AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS = 0.34;
 const AUTO_UPPER_INNER_FILL_BIAS = 0.34;
+const AUTO_UPPER_INNER_FILL_USER_DECAY_AT = 0.45;
+const AUTO_UPPER_INNER_FILL_MAX_EFFECTIVE = 0.58;
+const MEDIAPIPE_INNER_LIP_POINT_COUNT = 20;
+const MEDIAPIPE_INNER_LOWER_END_INDEX = 10;
+const MEDIAPIPE_INNER_UPPER_START_INDEX = 11;
 const UV_ALPHA_CHECKSUM_MOD = 2147483647;
 const GENERATED_UV_MASK_RESOLUTION = 512;
 const GENERATED_UV_SUPERSAMPLE_GRID = 2;
@@ -308,18 +313,180 @@ function adjustNativeLipBoundary(
       referenceBounds,
       frameSize,
     ),
-    innerPoints: applyLipAdjustmentToPoints(
-      boundary.innerPoints,
-      adjustment,
-      referenceBounds,
-      frameSize,
-      { inner: true },
-      bounds(boundary.innerPoints) ?? referenceBounds,
-    ),
+    innerPoints: isMediaPipeInnerLipBoundary(boundary)
+      ? applyMediaPipeInnerLipAdjustmentToPoints(
+          boundary.innerPoints,
+          adjustment,
+          referenceBounds,
+          frameSize,
+          bounds(boundary.innerPoints) ?? referenceBounds,
+        )
+      : applyLipAdjustmentToPoints(
+          boundary.innerPoints,
+          adjustment,
+          referenceBounds,
+          frameSize,
+          { inner: true },
+          bounds(boundary.innerPoints) ?? referenceBounds,
+        ),
   };
 }
 
+function isMediaPipeInnerLipBoundary(
+  boundary: NonNullable<E7NativeBoundaryResult['boundary']>,
+) {
+  return (
+    boundary.source === 'mediapipe' &&
+    boundary.innerPoints.length === MEDIAPIPE_INNER_LIP_POINT_COUNT
+  );
+}
+
+function applyMediaPipeInnerLipAdjustmentToPoints(
+  points: E7Point2D[],
+  adjustment: LipAdjustment,
+  referenceBounds: [number, number, number, number],
+  frameSize: { width: number; height: number },
+  innerReferenceBounds: [number, number, number, number],
+): E7Point2D[] {
+  const basePoints = applyLipAdjustmentToPoints(
+    points,
+    {
+      ...adjustment,
+      innerFill: 0,
+      upperInnerFill: 0,
+    },
+    referenceBounds,
+    frameSize,
+    { inner: true },
+    innerReferenceBounds,
+  );
+  const [innerMinX, innerMinY, innerMaxX, innerMaxY] = innerReferenceBounds;
+  const innerWidth = Math.max(innerMaxX - innerMinX, 1);
+  const innerHeight = Math.max(innerMaxY - innerMinY, 1);
+  const innerCenterX = innerMinX + innerWidth * 0.5;
+  const innerCenterY = innerMinY + innerHeight * 0.5;
+  const overallFill = clamp(
+    adjustment.innerFill * ADJUSTMENT_INNER_FILL_SCALE,
+    -0.45,
+    0.65,
+  );
+  const upperFill = clamp(
+    adjustment.upperInnerFill * ADJUSTMENT_UPPER_INNER_FILL_SCALE,
+    -0.45,
+    0.72,
+  );
+  const overallAdjustedPoints =
+    Math.abs(overallFill) > 0.0001
+      ? basePoints.map(point => {
+          const innerDx = point.x - innerCenterX;
+          const innerDy = point.y - innerCenterY;
+          return {
+            x: clamp(
+              innerCenterX +
+                innerDx * (1 - overallFill * ADJUSTMENT_INNER_FILL_X_SCALE),
+              0,
+              Math.max(0, frameSize.width - 1),
+            ),
+            y: clamp(
+              innerCenterY + innerDy * (1 - overallFill),
+              0,
+              Math.max(0, frameSize.height - 1),
+            ),
+          };
+        })
+      : basePoints;
+
+  if (Math.abs(upperFill) <= 0.0001) {
+    return overallAdjustedPoints;
+  }
+
+  const lowerCurve = overallAdjustedPoints.slice(
+    0,
+    MEDIAPIPE_INNER_LOWER_END_INDEX + 1,
+  );
+  const minMouthGapPx = clamp(innerHeight * 0.06, 0.55, 1.25);
+
+  return overallAdjustedPoints.map((point, index) => {
+    if (index < MEDIAPIPE_INNER_UPPER_START_INDEX) {
+      return point;
+    }
+
+    const upperSemanticWeight = semanticUpperInnerWeight(index);
+    if (upperFill > 0) {
+      const lowerY = interpolateCurveYAtX(lowerCurve, point.x);
+      if (lowerY === null) {
+        return point;
+      }
+      const targetY = lowerY - minMouthGapPx;
+      if (targetY <= point.y) {
+        return point;
+      }
+      return {
+        x: point.x,
+        y: clamp(
+          point.y + (targetY - point.y) * upperFill * upperSemanticWeight,
+          0,
+          Math.max(0, frameSize.height - 1),
+        ),
+      };
+    }
+
+    return {
+      x: point.x,
+      y: clamp(
+        point.y -
+          innerHeight * Math.abs(upperFill) * 0.18 * upperSemanticWeight,
+        0,
+        Math.max(0, frameSize.height - 1),
+      ),
+    };
+  });
+}
+
+function semanticUpperInnerWeight(index: number) {
+  const upperCenterIndex = 15;
+  return clamp(1 - Math.abs(index - upperCenterIndex) / 5.5, 0.18, 1);
+}
+
+function interpolateCurveYAtX(points: E7Point2D[], x: number) {
+  if (!points.length) {
+    return null;
+  }
+
+  let fallbackY = points[0].y;
+  let fallbackDistance = Math.abs(points[0].x - x);
+
+  for (let index = 0; index < points.length; index++) {
+    const point = points[index];
+    const distance = Math.abs(point.x - x);
+    if (distance < fallbackDistance) {
+      fallbackDistance = distance;
+      fallbackY = point.y;
+    }
+  }
+
+  for (let index = 0; index + 1 < points.length; index++) {
+    const start = points[index];
+    const end = points[index + 1];
+    const minX = Math.min(start.x, end.x);
+    const maxX = Math.max(start.x, end.x);
+    if (x < minX || x > maxX) {
+      continue;
+    }
+    const dx = end.x - start.x;
+    const t = Math.abs(dx) < 1e-6 ? 0.5 : (x - start.x) / dx;
+    return start.y + (end.y - start.y) * clamp(t, 0, 1);
+  }
+
+  return fallbackY;
+}
+
 function applyAutoLipCoverageGuard(adjustment: LipAdjustment): LipAdjustment {
+  const userUpperInnerFill = Math.max(0, adjustment.upperInnerFill);
+  const upperInnerAutoBias =
+    AUTO_UPPER_INNER_FILL_BIAS *
+    clamp(1 - userUpperInnerFill / AUTO_UPPER_INNER_FILL_USER_DECAY_AT, 0, 1);
+
   return {
     ...adjustment,
     lowerLipTightness: clamp(
@@ -328,9 +495,9 @@ function applyAutoLipCoverageGuard(adjustment: LipAdjustment): LipAdjustment {
       1,
     ),
     upperInnerFill: clamp(
-      adjustment.upperInnerFill + AUTO_UPPER_INNER_FILL_BIAS,
+      adjustment.upperInnerFill + upperInnerAutoBias,
       -1,
-      1,
+      AUTO_UPPER_INNER_FILL_MAX_EFFECTIVE,
     ),
   };
 }
@@ -344,11 +511,17 @@ export function smoothLipBoundaryCurveDensified(
     frameSize,
     CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
   );
-  const innerPoints = densifyClosedCurve(
-    boundary.innerPoints,
-    frameSize,
-    CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
-  );
+  const innerPoints = isMediaPipeInnerLipBoundary(boundary)
+    ? densifyClosedPolyline(
+        boundary.innerPoints,
+        frameSize,
+        CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
+      )
+    : densifyClosedCurve(
+        boundary.innerPoints,
+        frameSize,
+        CURVE_DENSIFIED_SAMPLES_PER_SEGMENT,
+      );
   const originalPointCount =
     boundary.outerPoints.length + boundary.innerPoints.length;
   const smoothedPointCount = outerPoints.length + innerPoints.length;
@@ -397,6 +570,43 @@ function densifyClosedCurve(
       densified.push({
         x: clamp(point.x, 0, Math.max(0, frameSize.width - 1)),
         y: clamp(point.y, 0, Math.max(0, frameSize.height - 1)),
+      });
+    }
+  }
+
+  return densified;
+}
+
+function densifyClosedPolyline(
+  points: E7Point2D[],
+  frameSize: { width: number; height: number },
+  samplesPerSegment: number,
+): E7Point2D[] {
+  if (points.length < 3) {
+    return points.map(point => ({
+      x: clamp(point.x, 0, Math.max(0, frameSize.width - 1)),
+      y: clamp(point.y, 0, Math.max(0, frameSize.height - 1)),
+    }));
+  }
+
+  const densified: E7Point2D[] = [];
+  const count = points.length;
+  for (let index = 0; index < count; index++) {
+    const current = points[index];
+    const next = points[(index + 1) % count];
+    for (let sample = 0; sample < samplesPerSegment; sample++) {
+      const t = sample / samplesPerSegment;
+      densified.push({
+        x: clamp(
+          current.x + (next.x - current.x) * t,
+          0,
+          Math.max(0, frameSize.width - 1),
+        ),
+        y: clamp(
+          current.y + (next.y - current.y) * t,
+          0,
+          Math.max(0, frameSize.height - 1),
+        ),
       });
     }
   }
@@ -1245,14 +1455,10 @@ export function buildCaptureSetBlendUvMask(input: {
   const effectiveAdjustment = applyAutoLipCoverageGuard(input.adjustment);
   const adjustedNeutralBoundary =
     input.precomputedNeutral?.smoothedAdjustedBoundary ??
-    adjustNativeLipBoundary(
-      input.neutralResult.boundary,
-      effectiveAdjustment,
-      {
-        width: input.neutralResult.frameWidth,
-        height: input.neutralResult.frameHeight,
-      },
-    );
+    adjustNativeLipBoundary(input.neutralResult.boundary, effectiveAdjustment, {
+      width: input.neutralResult.frameWidth,
+      height: input.neutralResult.frameHeight,
+    });
   const smoothedNeutralBoundary =
     input.precomputedNeutral?.smoothedAdjustedBoundary ??
     smoothLipBoundaryCurveDensified(adjustedNeutralBoundary, {
