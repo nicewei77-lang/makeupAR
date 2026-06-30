@@ -810,13 +810,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             case "lip":
                 return "lip-smooth-mask-v1";
-            case "cheek":
             case "blush":
-                return "cheek-smooth-mask-v1";
-            case "eye":
+                return "e7-blush-balanced-uv-v0";
             case "brow":
+                return "e7-brow-balanced-uv-v0";
             case "eyeliner":
-                return "eye-smooth-mask-v1";
+                return "e7-eyeliner-minimal-safe-uv-v0";
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -1192,11 +1191,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         region = string.IsNullOrWhiteSpace(region) ? string.Empty : region.Trim().ToLowerInvariant();
         if (region == "lip"
             || region == "cheek"
-            || region == "eye"
             || region == "blush"
             || region == "brow"
             || region == "eyeliner")
         {
+            if (region == "cheek")
+            {
+                return "blush";
+            }
+
             return region;
         }
 
@@ -1210,8 +1213,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : textureSample.Trim().ToLowerInvariant();
 
         if ((region == "lip" && textureSample == "matte_lip")
-            || ((region == "cheek" || region == "blush") && textureSample == "soft_blush")
-            || ((region == "eye" || region == "brow" || region == "eyeliner") && textureSample == "shimmer_eye"))
+            || (region == "blush" && textureSample == "soft_blush")
+            || ((region == "brow" || region == "eyeliner") && textureSample == "shimmer_eye"))
         {
             return textureSample;
         }
@@ -1622,7 +1625,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " topologyAuditStatus=" + result.TopologyAuditStatus
             + " regionDecision=smooth_mask_runtime"
             + " smoothing=smooth_alpha_mask"
-            + " regionsInScope=lip,cheek,eye,blush,brow,eyeliner");
+            + " regionsInScope=lip,blush,brow,eyeliner");
     }
 
     private static string NormalizeLogToken(string value)

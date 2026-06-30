@@ -397,10 +397,24 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 
 | Region | Package id | Mask texture id | Unity resource | Renderer/material route | Source |
 | --- | --- | --- | --- | --- | --- |
-| `lip` | TBD | TBD | TBD | TBD | current branch |
-| `blush` | TBD | TBD | TBD | TBD | `blush-mask` |
-| `brow` | TBD | TBD | TBD | TBD | `feature/brow-0626` or latest teammate asset |
-| `eyeliner` | TBD | TBD | TBD | TBD | current branch + future expert asset |
+| `lip` | `lip-balanced-gold-v0` | `e7-lip-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-lip-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-lip-material-v0` | `current branch` |
+| `blush` | `blush-balanced-soft-oval-v0` | `e7-blush-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-blush-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-blush-material-v0` | `blush-mask`(legacy cheek v1) `source candidate` |
+| `brow` | `brow-balanced-stroke-envelope-v0` | `e7-brow-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-brow-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-brow-material-v0` | `current branch` (requires source-of-truth reconfirm) |
+| `eyeliner` | `eyeliner-minimal-safe-lashline-v0` | `e7-eyeliner-minimal-safe-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-eyeliner-minimal-safe-uv-v0.png` | `smooth-region-mask` + `e7-full-face-eyeliner-material-v0` | `current branch` / provisional boundary-only route |
+
+### 6.1 병합 run 체크 (2026-06-30)
+
+- M0 기준 고정: 완료. dirty 파일 분류(`lip` 보호 대상 + `runbook` 변경 예정 + `앱/Unity` 변경), merge 이전 점검 완료.
+- M1 정리: 완료. cache/generated 정리 후보는 별도 runbook 반영 후 다음 게이트에서 문서 증빙 반영 예정.
+- M2 계약 인벤토리: 완료. 위 테이블로 채움.
+- M3 source branch inventory: 부분 완료. `origin/blush-mask`는 cheek v1 기반 에셋만 존재하고, `feature/brow-0626`는 `e7-brow-*` 공식 식별자 자산이 없어 **최신 brow asset 경로가 불명확**.
+- M4~M12: `feature/brow-0626` 최신 자산 모호성 때문에 중단 상태(아래 M12 Stop rules 기준).
+
+### 6.2 고정된 stop rule 기록
+
+- `feature/brow-0626` 최신 `e7` brow 공식 식별자 자산 미확정.
+- 최신 brow asset를 `feature/brow-0626`에서 확정하지 못하면 `M5` 이식을 강행하지 않음.
+- `M10`~`M12`는 본 이식 가드 조건 충족 전까지 대기 상태로 둠.
 
 Inventory 작성 시 확인할 항목:
 

@@ -47,7 +47,7 @@ const RECIPE_COLOR_OPTIONS = [
   { name: 'nude', color: '#B9826B' },
 ] as const;
 
-const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
+const RECIPE_REGION_OPTIONS = ['lip', 'blush', 'brow', 'eyeliner'] as const;
 const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   {
     name: 'matte_lip',
@@ -61,7 +61,7 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   {
     name: 'soft_blush',
     label: 'soft blush',
-    region: 'cheek',
+    region: 'blush',
     textureMode: 'sample',
     blendMode: 'normal',
     intensity: 0.56,
@@ -70,7 +70,7 @@ const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   {
     name: 'shimmer_eye',
     label: 'shimmer eye',
-    region: 'eye',
+    region: 'brow',
     textureMode: 'sample',
     blendMode: 'screen',
     intensity: 0.58,
@@ -263,6 +263,9 @@ const LIP_GENERATE_PROVIDER_OPTIONS: Array<{
   { name: 'vision', label: 'Vision' },
   { name: 'mediapipe', label: 'MediaPipe' },
 ];
+const DEFAULT_LIP_GENERATE_PROVIDER: GeneratedLipMaskProvider = 'mediapipe';
+const DEFAULT_LIP_GENERATE_CANDIDATE_KEY =
+  `${DEFAULT_LIP_GENERATE_PROVIDER}/uvOnly`;
 const LIP_GENERATE_EXPRESSION_OPTIONS: Array<{
   name: GeneratedExpressionAssistMode;
   label: string;
@@ -406,7 +409,11 @@ type MaskTextureId =
   | 'e7-lip-validation-cv-hybrid-safe-v1'
   | 'e7-lip-validation-cv-hybrid-balanced-v1'
   | 'cheek-smooth-mask-v1'
-  | 'eye-smooth-mask-v1';
+  | 'eye-smooth-mask-v1'
+  | 'e7-lip-balanced-uv-v0'
+  | 'e7-blush-balanced-uv-v0'
+  | 'e7-brow-balanced-uv-v0'
+  | 'e7-eyeliner-minimal-safe-uv-v0';
 type ValidationViewMode = 'clean' | 'compact' | 'full';
 type E7WizardStep = (typeof E7_WIZARD_STEPS)[number];
 type E7ShotStatus = 'pending' | 'capturing' | 'captured' | 'blocked';
@@ -539,8 +546,9 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeTextureSample
 > = {
   lip: RECIPE_TEXTURE_SAMPLE_OPTIONS[0],
-  cheek: RECIPE_TEXTURE_SAMPLE_OPTIONS[1],
-  eye: RECIPE_TEXTURE_SAMPLE_OPTIONS[2],
+  blush: RECIPE_TEXTURE_SAMPLE_OPTIONS[1],
+  brow: RECIPE_TEXTURE_SAMPLE_OPTIONS[2],
+  eyeliner: RECIPE_TEXTURE_SAMPLE_OPTIONS[2],
 };
 const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
   lip: {
@@ -548,26 +556,33 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     opacity: 0.52,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip,
   },
-  cheek: {
+  blush: {
     color: RECIPE_COLOR_OPTIONS[1],
     opacity: 0.44,
-    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.cheek,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.blush,
   },
-  eye: {
-    color: DEFAULT_RECIPE_COLOR,
+  brow: {
+    color: RECIPE_COLOR_OPTIONS[2],
     opacity: 0.48,
-    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
+  },
+  eyeliner: {
+    color: '#2F2730',
+    opacity: 0.48,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eyeliner,
   },
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-smooth-mask-v1',
-  cheek: 'cheek-smooth-mask-v1',
-  eye: 'eye-smooth-mask-v1',
+  blush: 'e7-blush-balanced-uv-v0',
+  brow: 'e7-brow-balanced-uv-v0',
+  eyeliner: 'e7-eyeliner-minimal-safe-uv-v0',
 };
 const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: false,
-  cheek: false,
-  eye: false,
+  blush: false,
+  brow: false,
+  eyeliner: false,
 };
 const E7_NATIVE_BOUNDARY_MODULE = NativeModules.E7NativeLipBoundaryProviders as
   | E7NativeBoundaryModule
@@ -1086,7 +1101,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     DEFAULT_LIP_USER_ADJUSTMENT,
   );
   const [lipGenerateProvider, setLipGenerateProvider] =
-    useState<GeneratedLipMaskProvider>('vision');
+    useState<GeneratedLipMaskProvider>(DEFAULT_LIP_GENERATE_PROVIDER);
   const [lipGenerateExpressionMode, setLipGenerateExpressionMode] =
     useState<GeneratedExpressionAssistMode>('uvOnly');
   const [lastGeneratedLipMaskSummary, setLastGeneratedLipMaskSummary] =
@@ -1126,7 +1141,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     E7GeneratedCandidateWithPreview[]
   >([]);
   const [selectedGeneratedCandidateKey, setSelectedGeneratedCandidateKey] =
-    useState('vision/uvOnly');
+    useState(DEFAULT_LIP_GENERATE_CANDIDATE_KEY);
   const [generatedCandidatesStale, setGeneratedCandidatesStale] =
     useState(false);
   const [adjustmentPreviewState, setAdjustmentPreviewState] =
@@ -1697,7 +1712,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     );
 
     setFocusedRegion('lip');
-    setActiveRegions({ lip: true, cheek: true, eye: true });
+    setActiveRegions({
+      ...DEFAULT_ACTIVE_REGIONS,
+      lip: true,
+      blush: true,
+      brow: true,
+      eyeliner: true,
+    });
     setLastGeneratedLipMaskSummary(
       `full-face package payload=${recipeJson.length}B pre-Xcode`,
     );
@@ -2030,10 +2051,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           candidatesWithPreviews.find(
             candidate => candidate.package && candidate.previewUri,
           )?.candidateKey ??
-          candidatesWithPreviews.find(candidate => candidate.package)
+        candidatesWithPreviews.find(candidate => candidate.package)
             ?.candidateKey ??
           candidatesWithPreviews[0]?.candidateKey ??
-          'vision/uvOnly';
+          DEFAULT_LIP_GENERATE_CANDIDATE_KEY;
         const keepSelectedCandidate =
           candidatesWithPreviews.some(
             candidate =>
@@ -2064,7 +2085,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               : `${formatProviderLabel(
                   lipGenerateProvider,
                 )} 마스크 생성 완료. 바로 조정하세요.`
-            : '후보 생성이 막혔습니다. 다시 생성하거나 다른 방식을 선택하세요.',
+            : '후보 생성이 막혔습니다. 다시 생성해 주세요.',
         );
       } catch (error) {
         if (!isCurrentGenerationRequest()) {
@@ -3469,7 +3490,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             canGenerateCandidates={canGenerateCandidates}
             canSaveGeneratedPackage={canSaveGeneratedPackage}
             savedGeneratedPackage={savedGeneratedPackage}
-            selectedProvider={lipGenerateProvider}
             selectedCandidate={selectedGeneratedCandidate}
             selectedCandidateKey={selectedGeneratedCandidateKey}
             capturedFramePreviewUri={capturedFramePreviewUri}
@@ -3493,19 +3513,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               }
             }}
             onCaptureShot={postWizardCaptureShot}
-            onSelectProvider={provider => {
-              setLipGenerateProvider(provider);
-              setNativeProviderResults({});
-              setNativeProviderShotResults({});
-              setGeneratedCandidates([]);
-              setSavedGeneratedPackage(null);
-              resetGeneratedApplyFlow(`select_provider_${provider}`);
-              setGeneratedCandidatesStale(false);
-              setSelectedGeneratedCandidateKey(`${provider}/uvOnly`);
-              setWizardNotice(
-                `${formatProviderLabel(provider)} 추출 방식이 선택되었습니다.`,
-              );
-            }}
             onGenerateCandidates={() =>
               generateWizardCandidates({
                 stayOnStep: wizardStep === 'adjust',
@@ -3522,7 +3529,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               setGeneratedCandidates([]);
               setSavedGeneratedPackage(null);
               setGeneratedCandidatesStale(false);
-              setSelectedGeneratedCandidateKey(`${lipGenerateProvider}/uvOnly`);
+              setSelectedGeneratedCandidateKey(DEFAULT_LIP_GENERATE_CANDIDATE_KEY);
               resetGeneratedApplyFlow('retake_capture');
               setWizardStep('capture');
               setWizardNotice(
@@ -3624,39 +3631,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             />
 
             <View style={styles.generateControlBlock}>
-              <View style={styles.modeButtonRow}>
-                {LIP_GENERATE_PROVIDER_OPTIONS.map(providerOption => {
-                  const isSelected =
-                    providerOption.name === lipGenerateProvider;
-
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      key={providerOption.name}
-                      testID={`lip-generate-provider-${providerOption.name}`}
-                      style={({ pressed }) => [
-                        styles.modeButton,
-                        isSelected && styles.modeButtonSelected,
-                        pressed && styles.colorButtonPressed,
-                      ]}
-                      onPress={() =>
-                        setLipGenerateProvider(providerOption.name)
-                      }
-                    >
-                      <Text
-                        style={[
-                          styles.modeButtonText,
-                          isSelected && styles.modeButtonTextSelected,
-                        ]}
-                      >
-                        {providerOption.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-
               <View style={styles.modeButtonRow}>
                 {LIP_GENERATE_EXPRESSION_OPTIONS.map(expressionOption => {
                   const isSelected =
@@ -4030,7 +4004,6 @@ type E7GenerateWizardProps = {
   canGenerateCandidates: boolean;
   canSaveGeneratedPackage: boolean;
   savedGeneratedPackage: E7SavedPackageRecord | null;
-  selectedProvider: GeneratedLipMaskProvider;
   selectedCandidate?: E7GeneratedCandidateWithPreview;
   selectedCandidateKey: string;
   capturedFramePreviewUri?: string;
@@ -4043,7 +4016,6 @@ type E7GenerateWizardProps = {
   onBack: () => void;
   onCaptureShot: (shotKind: E7CaptureShotKind) => void;
   onRetakeCapture: () => void;
-  onSelectProvider: (provider: GeneratedLipMaskProvider) => void;
   onGenerateCandidates: () => void;
   onSelectAdjustmentField: (field: LipAdjustmentField) => void;
   onAdjustLip: (
@@ -4071,7 +4043,6 @@ function E7GenerateWizard({
   canGenerateCandidates,
   canSaveGeneratedPackage,
   savedGeneratedPackage,
-  selectedProvider,
   selectedCandidate,
   selectedCandidateKey,
   capturedFramePreviewUri,
@@ -4084,7 +4055,6 @@ function E7GenerateWizard({
   onBack,
   onCaptureShot,
   onRetakeCapture,
-  onSelectProvider,
   onGenerateCandidates,
   onSelectAdjustmentField,
   onAdjustLip,
@@ -4101,9 +4071,6 @@ function E7GenerateWizard({
   const isNextCaptureInProgress = nextCaptureShot
     ? captureShots[nextCaptureShot.kind].status === 'capturing'
     : false;
-  const visionStatus = nativeProviderResults.vision?.status ?? 'pending';
-  const mediapipeStatus = nativeProviderResults.mediapipe?.status ?? 'pending';
-
   return (
     <View style={styles.generateWizardSheet} pointerEvents="box-none">
       <View
@@ -4320,22 +4287,8 @@ function E7GenerateWizard({
                 </Text>
               </View>
             )}
-            <View style={styles.generateWizardProviderRow}>
-              <ProviderStatusPill
-                label="Vision"
-                status={visionStatus}
-                selected={selectedProvider === 'vision'}
-                onPress={() => onSelectProvider('vision')}
-              />
-              <ProviderStatusPill
-                label="MediaPipe"
-                status={mediapipeStatus}
-                selected={selectedProvider === 'mediapipe'}
-                onPress={() => onSelectProvider('mediapipe')}
-              />
-            </View>
             <Text style={styles.generateWizardBodyText}>
-              둘 중 하나를 선택하면 방금 촬영한 얼굴에서 입술 경계를 만듭니다.
+              촬영한 얼굴에서 MediaPipe 경로로 네 지역 후보를 만듭니다.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -4351,7 +4304,9 @@ function E7GenerateWizard({
               <Text style={styles.generateWizardPrimaryText}>
                 {isGeneratingCandidates
                   ? '생성 중'
-                  : `${formatProviderLabel(selectedProvider)} 후보 생성`}
+                  : `${formatProviderLabel(
+                      DEFAULT_LIP_GENERATE_PROVIDER,
+                    )} 후보 생성`}
               </Text>
             </Pressable>
           </View>
@@ -4548,59 +4503,6 @@ function E7GenerateWizard({
           </View>
         )}
       </View>
-    </View>
-  );
-}
-
-function ProviderStatusPill({
-  label,
-  status,
-  selected = false,
-  onPress,
-}: {
-  label: string;
-  status: string;
-  selected?: boolean;
-  onPress?: () => void;
-}) {
-  const content = (
-    <>
-      <Text style={styles.generateWizardProviderLabel}>{label}</Text>
-      <Text style={styles.generateWizardProviderStatus}>
-        {selected
-          ? `선택됨 / ${formatProviderStatusLabel(status)}`
-          : formatProviderStatusLabel(status)}
-      </Text>
-    </>
-  );
-
-  if (onPress) {
-    return (
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ selected }}
-        style={({ pressed }) => [
-          styles.generateWizardProviderPill,
-          selected && styles.generateWizardProviderPillSelected,
-          status === 'blocked' && styles.generateWizardProviderPillBlocked,
-          pressed && styles.colorButtonPressed,
-        ]}
-        onPress={onPress}
-      >
-        {content}
-      </Pressable>
-    );
-  }
-
-  return (
-    <View
-      style={[
-        styles.generateWizardProviderPill,
-        selected && styles.generateWizardProviderPillSelected,
-        status === 'blocked' && styles.generateWizardProviderPillBlocked,
-      ]}
-    >
-      {content}
     </View>
   );
 }
@@ -5064,23 +4966,6 @@ function formatCandidatePreviewStatus(
     return '미리보기를 만들 수 없습니다. 다시 생성해 주세요.';
   }
   return '마스크 미리보기 생성 중';
-}
-
-function formatProviderStatusLabel(status: string) {
-  switch (status) {
-    case 'ready':
-      return '준비됨';
-    case 'partial':
-      return '부분 준비';
-    case 'blocked':
-      return '확인 필요';
-    case 'pending':
-      return '대기';
-    case 'generated':
-      return '생성됨';
-    default:
-      return status ? '확인 중' : '대기';
-  }
 }
 
 function formatWizardStepLabel(step: E7WizardStep) {

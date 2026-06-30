@@ -11,7 +11,7 @@ using UnityEngine.XR.ARFoundation;
 public sealed class RNBridge : MonoBehaviour
 {
     private static readonly string[] FeatureSnapshotRegions =
-        { "lip", "cheek", "eye", "blush", "brow", "eyeliner" };
+        { "lip", "blush", "brow", "eyeliner" };
 
     [Serializable]
     private sealed class RecipePayload
@@ -694,7 +694,7 @@ public sealed class RNBridge : MonoBehaviour
                 "{\"type\":\"e7_reference_capture\""
                 + ",\"status\":\"failed\""
                 + ",\"capturePairId\":\"pair_face_0001\""
-                + ",\"regions\":[\"lip\",\"eye\",\"cheek\"]"
+                + ",\"regions\":[\"lip\",\"blush\",\"brow\",\"eyeliner\"]"
                 + ",\"relativeDirectory\":\"\""
                 + ",\"detail\":\""
                 + EscapeJsonString(exception.Message)
@@ -2439,9 +2439,12 @@ public sealed class RNBridge : MonoBehaviour
             ? string.Empty
             : value.Trim().ToLowerInvariant();
 
+        if (value == "cheek")
+        {
+            return "blush";
+        }
+
         if (value == "lip"
-            || value == "cheek"
-            || value == "eye"
             || value == "blush"
             || value == "brow"
             || value == "eyeliner")
@@ -2565,8 +2568,8 @@ public sealed class RNBridge : MonoBehaviour
         }
 
         if ((region == "lip" && value == "matte_lip")
-            || ((region == "cheek" || region == "blush") && value == "soft_blush")
-            || ((region == "eye" || region == "brow" || region == "eyeliner") && value == "shimmer_eye"))
+            || (region == "blush" && value == "soft_blush")
+            || ((region == "brow" || region == "eyeliner") && value == "shimmer_eye"))
         {
             return value;
         }
@@ -2749,11 +2752,11 @@ public sealed class RNBridge : MonoBehaviour
         {
             case "cheek":
             case "blush":
-                return "cheek-smooth-mask-v1";
-            case "eye":
+                return "e7-blush-balanced-uv-v0";
             case "brow":
+                return "e7-brow-balanced-uv-v0";
             case "eyeliner":
-                return "eye-smooth-mask-v1";
+                return "e7-eyeliner-minimal-safe-uv-v0";
             default:
                 return "lip-smooth-mask-v1";
         }
