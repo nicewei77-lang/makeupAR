@@ -92,6 +92,25 @@ function makeNativeBoundaryResult(): E7NativeBoundaryResult {
   };
 }
 
+function makeThinInnerMouthNativeBoundaryResult(): E7NativeBoundaryResult {
+  const result = makeNativeBoundaryResult();
+  return {
+    ...result,
+    boundary: {
+      ...result.boundary!,
+      innerPoints: [
+        { x: 92, y: 127 },
+        { x: 108, y: 126.4 },
+        { x: 132, y: 126.4 },
+        { x: 148, y: 127 },
+        { x: 132, y: 128 },
+        { x: 108, y: 128 },
+      ],
+      generationMethod: 'vision_current_frame_thin_inner_mouth_test',
+    },
+  };
+}
+
 function makeCaptureSetShot(
   shotKind: E7NativeBoundaryResult['captureShotKind'],
   delta: { x?: number; y?: number; scaleX?: number; scaleY?: number } = {},
@@ -320,7 +339,7 @@ test('zero-adjustment generated mask starts with an automatic lower spill guard'
     'lower_lip_spill_guard_tightness_0.34',
   );
   expect(guardedPackage.qualityWarnings).toContain(
-    'upper_inner_fill_auto_bias_0.24',
+    'upper_inner_fill_auto_bias_0.34',
   );
 });
 
@@ -415,6 +434,59 @@ test('upper inner fill plus shrinks the upper mouth hole without moving outer bo
   );
   expect(upperInnerFillPackage.generatedMaskId).not.toBe(
     basePackage.generatedMaskId,
+  );
+});
+
+test('default upper inner fill adds a visible seam guard for a nearly closed mouth', () => {
+  const nativeResult = makeThinInnerMouthNativeBoundaryResult();
+  const seamReleasedPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: {
+      ...ZERO_ADJUSTMENT,
+      upperInnerFill: -0.34,
+    },
+    generatedAtMs: 1000,
+  }).package!;
+  const seamGuardedPackage = buildGeneratedLipPackage({
+    nativeResult,
+    expressionMode: 'uvOnly',
+    adjustment: ZERO_ADJUSTMENT,
+    generatedAtMs: 1000,
+  }).package!;
+
+  const seamReleasedBoundary =
+    seamReleasedPackage.lipBoundary2D as NonNullable<
+      E7NativeBoundaryResult['boundary']
+    >;
+  const seamGuardedBoundary =
+    seamGuardedPackage.lipBoundary2D as NonNullable<
+      E7NativeBoundaryResult['boundary']
+    >;
+  const seamReleasedUv = seamReleasedPackage.uvCoverageMetadata as Record<
+    string,
+    number
+  >;
+  const seamGuardedUv = seamGuardedPackage.uvCoverageMetadata as Record<
+    string,
+    number
+  >;
+
+  expect(
+    outerBoundaryDelta(
+      seamReleasedBoundary.outerPoints,
+      seamGuardedBoundary.outerPoints,
+    ),
+  ).toBeLessThan(0.01);
+  expect(minY(seamGuardedBoundary.innerPoints)).toBeGreaterThan(
+    minY(seamReleasedBoundary.innerPoints) + 1,
+  );
+  expect(seamGuardedUv.alphaSum).toBeGreaterThan(seamReleasedUv.alphaSum);
+  expect(seamGuardedUv.positiveTexels).toBeGreaterThan(
+    seamReleasedUv.positiveTexels,
+  );
+  expect(seamGuardedPackage.qualityWarnings).toContain(
+    'upper_inner_fill_auto_bias_0.34',
   );
 });
 

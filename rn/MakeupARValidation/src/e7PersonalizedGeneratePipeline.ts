@@ -99,10 +99,11 @@ const ADJUSTMENT_CORNER_REACH_SCALE = 0.46;
 const ADJUSTMENT_VERTICAL_OFFSET_SCALE = 0.72;
 const ADJUSTMENT_LIP_TIGHTNESS_SCALE = 0.48;
 const ADJUSTMENT_INNER_FILL_SCALE = 0.62;
-const ADJUSTMENT_UPPER_INNER_FILL_SCALE = 1.05;
+const ADJUSTMENT_UPPER_INNER_FILL_SCALE = 1.18;
 const ADJUSTMENT_INNER_FILL_X_SCALE = 0.5;
+const ADJUSTMENT_UPPER_INNER_SEAM_SCALE = 0.12;
 const AUTO_LOWER_LIP_SPILL_GUARD_TIGHTNESS = 0.34;
-const AUTO_UPPER_INNER_FILL_BIAS = 0.24;
+const AUTO_UPPER_INNER_FILL_BIAS = 0.34;
 const UV_ALPHA_CHECKSUM_MOD = 2147483647;
 const GENERATED_UV_MASK_RESOLUTION = 512;
 const GENERATED_UV_SUPERSAMPLE_GRID = 2;
@@ -505,6 +506,16 @@ function applyLipAdjustmentToPoints(
       if (Math.abs(fill) > 0.0001) {
         x = innerCenterX + innerDx * (1 - fill * ADJUSTMENT_INNER_FILL_X_SCALE);
         y = innerCenterY + innerDy * (1 - fill);
+      }
+      if (adjustment.upperInnerFill > 0 && upperWeight > 0) {
+        const seamOffset = Math.min(
+          height * 0.075,
+          height *
+            ADJUSTMENT_UPPER_INNER_SEAM_SCALE *
+            adjustment.upperInnerFill *
+            upperWeight,
+        );
+        y += seamOffset;
       }
     }
 
