@@ -651,3 +651,10 @@ python3 scripts/notify_slack_user_required.py --message "<짧은 한국어 요�
 - blocking pre-Xcode fail은 남아 있지 않다.
 - 남은 warning/fail은 phone-only deferred 또는 non-blocking warning으로 분류되어 있다.
 - 실기기 검증이 필요한 항목은 product-quality ready로 과장하지 않고 deferred로 기록한다.
+
+### 16.1 2026-06-30 실행 갱신
+
+- M10 prebuild gate를 `rn/MakeupARValidation`에서 재실행했으며 `pass=38 fail=0 warn=0`으로 통과함을 재확인했다.
+- `E7FullFaceRegionPackageSmoke.RunFromCommandLine`은 라이선싱 클라이언트 초기화 타임아웃으로 중단되어 `R8` 환경 blocker로 기록됨.
+- `brow` `e7-brow-*` source-of-truth는 `feature/brow-0626`에서 확정되지 않아 `M5` 중단(R4) 상태 유지.
+- `M11` 문서 반영은 진행 중, `M12 phone-connected`는 사용자 승인/`brow` 경로 확정 후 진행.
