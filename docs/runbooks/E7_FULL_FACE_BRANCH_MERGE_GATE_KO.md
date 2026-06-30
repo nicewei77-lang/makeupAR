@@ -414,8 +414,8 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - M4 blush transplant: 완료. `lip/blush/brow/eyeliner` 런타임 계약에서 `blush` 값 정렬, `e7-blush-balanced-uv-v0` 경로 확인, legacy `cheek` alias 보존 정책 반영.
 - M5 brow transplant: 완료. `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd` SHA-256 `d7d3b87caa4929f561fc45a4b2313990542fedefeeadd6b5e8801d18bef1b8a7`, layer marker `eyebrow`, extraction method `pil_psd_composite_rgb_threshold_upper_brow_roi_to_512_rgba_alpha`, generated resource id `psd-arcore-brow-semi-arch-v1`로 PSD-only contract 전환.
 - M6~M9: 완료(소스/정적 기준). RN/Unity parser/runtime route가 `lip/blush/brow/eyeliner`를 유지하고, brow는 PSD-derived id만 허용한다.
-- M10: 부분 완료. RN TypeScript/Jest/ESLint, Python compile, `git diff --check`, `npm run e7:prebuild:full -- --no-report`, `npm run e7:build-plan -- --no-report` 통과/판정 완료. Unity `E7FullFaceRegionPackageSmoke.RunFromCommandLine`은 Unity Safe Mode C# compile error를 사용자 실행에서 확인했고 `RNBridge.cs` struct initializer 제거 후 Unity Roslyn C# direct compile이 통과했다. Unity GUI Safe Mode exit/import 및 Editor smoke 재검증은 대기.
-- M11~M12: 진행 중. 결과 문서 반영과 phone-connected deferred gate 문서화 필요.
+- M10: 완료. RN TypeScript/Jest/ESLint, Python compile, `git diff --check`, `npm run e7:prebuild:full -- --no-report`, `npm run e7:build-plan -- --no-report` 통과/판정 완료. Unity `E7FullFaceRegionPackageSmoke.RunFromCommandLine`은 Unity Hub licensing IPC(`LicenseClient-NDRgwKsG032pVTkFsvWMO`)를 명시한 batchmode 재시도에서 exit 0으로 종료했고, 로그에 `[E7] full_face_region_package_editor_smoke status=pre_xcode_ready verified=recipe_parse_and_region_dispatch`를 남겼다.
+- M11~M12: 문서 반영 완료. `M12 phone-connected`는 user-approved UnityFramework/RN Xcode flow와 iPhone visual/runtime evidence로 deferred.
 
 ### 6.2 고정된 stop rule 기록
 
@@ -663,6 +663,6 @@ python3 scripts/notify_slack_user_required.py --message "<짧은 한국어 요�
 - RN gate: `./node_modules/.bin/tsc --noEmit`, `npm test -- --runInBand --watchman=false`(`37 passed`), `npm run lint` 통과.
 - Buildless/static gate: `python3 -m py_compile scripts/e7_region_generate/install_full_face_region_runtime_assets.py`, `git diff --check` 통과.
 - Build-plan gate: `npm run e7:build-plan -- --no-report`는 `decision=run-unityframework-build`, `unityFrameworkSync=true`, reason=`Unity runtime source/assets changed`로 판정. 이번 goal에서는 Xcode/iPhone action을 실행하지 않으므로 UnityFramework regeneration은 next phone-connected gate로 남긴다.
-- Unity batchmode smoke: sandbox/host 재시도는 Unity Licensing Client timeout으로 코드 실행 전 중단되었고, 이후 사용자 GUI 실행에서 `RNBridge.cs` C# compile error(`struct field initializers`)가 확인됨. `ParsedRecipeLayer.BrowCleanupSourceMode` initializer 제거 후 Unity Roslyn C# direct compile command가 exit 0으로 통과했다. Unity GUI Safe Mode exit/import와 `E7FullFaceRegionPackageSmoke.RunFromCommandLine` 재검증은 아직 필요하다.
+- Unity batchmode smoke: 초기 sandbox/host 재시도는 Unity Licensing Client timeout으로 코드 실행 전 중단되었고, 이후 사용자 GUI 실행에서 `RNBridge.cs` C# compile error(`struct field initializers`)가 확인됨. `ParsedRecipeLayer.BrowCleanupSourceMode` initializer 제거 후 Unity Roslyn C# direct compile command가 exit 0으로 통과했다. 최종 batchmode 재시도는 `-licensingIpc LicenseClient-NDRgwKsG032pVTkFsvWMO`를 명시해 exit 0으로 종료했고, `[E7] full_face_region_package_editor_smoke status=pre_xcode_ready verified=recipe_parse_and_region_dispatch`를 기록했다.
 - `brow` source-of-truth는 `feature/brow-0626`가 아니라 `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd`로 전환됨. PSD 원본은 commit하지 않고 `psd-arcore-brow-semi-arch-v1.png` / `brow-cleanup-source-v1.png` 파생 texture와 registry metadata만 commit한다.
-- `M11` 문서 반영은 진행 중, `M12 phone-connected`는 Unity import/smoke 재시도 및 user-approved UnityFramework/RN Xcode flow로 deferred.
+- `M11` 문서 반영은 완료, `M12 phone-connected`는 user-approved UnityFramework/RN Xcode flow와 iPhone visual/runtime evidence로 deferred.
