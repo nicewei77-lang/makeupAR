@@ -90,7 +90,8 @@ const productFallbackMaskIds = new Set([
 const fullFaceRegionMaskIds = new Set([
   'e7-lip-balanced-uv-v0',
   'e7-blush-balanced-uv-v0',
-  'e7-brow-balanced-uv-v0',
+  'psd-arcore-brow-semi-arch-v1',
+  'brow-cleanup-source-v1',
   'e7-eyeliner-minimal-safe-uv-v0',
   'e7-full-face-region-runtime-assets',
 ]);

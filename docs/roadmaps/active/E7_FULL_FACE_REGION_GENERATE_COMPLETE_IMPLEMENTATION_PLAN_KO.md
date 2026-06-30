@@ -730,15 +730,23 @@ natural blush visibility 확인
 Primary hypothesis:
 
 ```txt
-external eyebrow parsing prior
-+ MediaPipe/Vision brow landmarks
-+ color/hair-skin contrast
-+ symmetry model
--> brow mask / brow stroke envelope
+PSD-derived ARCore canonical eyebrow asset
++ MediaPipe brow landmarks as anchor only
++ user adjustment
+-> brow asset placement / stroke envelope
 -> ARFace UV projection
 ```
 
 눈썹은 사람마다 형태가 다르므로 자동 생성 후 직접 조정이 중요하다.
+
+2026-06-30 PSD-only correction:
+
+```txt
+feature/brow-0626은 병합/이식하지 않는다.
+brow source-of-truth는 /Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd 단일 파일이다.
+PSD 원본은 commit하지 않고, `eyebrow` layer marker와 flattened composite ROI에서 파생한 runtime PNG/texture만 Unity resource로 연결한다.
+MediaPipe는 위치/회전/스케일 anchor만 담당하고, 눈썹 모양/두께/색감 source는 PSD-derived asset이 담당한다.
+```
 
 사용자 조정축:
 
@@ -767,8 +775,8 @@ softness
 완료 조건:
 
 ```txt
-brow prior/draft 생성
-hair/skin color confidence 기록
+brow PSD derivative 생성
+PSD hash/source path/layer/transform/Unity resource id 기록
 좌우 symmetry score 기록
 사용자 조정 UI와 payload 연결
 AR runtime에서 눈썹 region을 적용할 package/apply path 준비

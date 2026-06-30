@@ -36,12 +36,23 @@ public sealed class RNBridge : MonoBehaviour
         public string blendMode;
         public string rendererMode;
         public float coverage;
+        public float maskSpreadX;
+        public float maskOffsetY;
+        public float browGap;
+        public float browAngle;
+        public float browArch;
+        public float browArchPosition;
         public string finish;
         public float textureAmount;
         public float roughness;
         public float specular;
         public float specularPower;
         public float glossBoost;
+        public float detailAmount;
+        public bool browCleanupEnabled;
+        public float browCleanupStrength;
+        public float browReshapeStrength;
+        public string browCleanupSourceMode;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -86,12 +97,23 @@ public sealed class RNBridge : MonoBehaviour
         public string rendererMode;
         public bool enabled;
         public float coverage;
+        public float maskSpreadX;
+        public float maskOffsetY;
+        public float browGap;
+        public float browAngle;
+        public float browArch;
+        public float browArchPosition;
         public string finish;
         public float textureAmount;
         public float roughness;
         public float specular;
         public float specularPower;
         public float glossBoost;
+        public float detailAmount;
+        public bool browCleanupEnabled;
+        public float browCleanupStrength;
+        public float browReshapeStrength;
+        public string browCleanupSourceMode;
         public float shimmer;
         public string shimmerColor;
         public bool skinAdaptive;
@@ -231,12 +253,23 @@ public sealed class RNBridge : MonoBehaviour
         public string RendererMode;
         public bool Enabled;
         public float Coverage;
+        public float MaskSpreadX;
+        public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
+        public float BrowArchPosition;
         public string Finish;
         public float TextureAmount;
         public float Roughness;
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public float DetailAmount;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode;
         public float Shimmer;
         public string ShimmerColor;
         public bool SkinAdaptive;
@@ -284,12 +317,23 @@ public sealed class RNBridge : MonoBehaviour
         public int PayloadBytes;
         public string RendererMode = "smooth-region-mask";
         public float Coverage;
+        public float MaskSpreadX;
+        public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
+        public float BrowArchPosition;
         public string Finish = "validation-placeholder";
         public float TextureAmount;
         public float Roughness;
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public float DetailAmount;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode = "none";
         public float Shimmer;
         public string ShimmerColor = "#FFFFFF";
         public bool SkinAdaptive;
@@ -1487,12 +1531,23 @@ public sealed class RNBridge : MonoBehaviour
             layer.LowerLipTightness,
             layer.VerticalOffset,
             layer.Coverage,
+            layer.MaskSpreadX,
+            layer.MaskOffsetY,
+            layer.BrowGap,
+            layer.BrowAngle,
+            layer.BrowArch,
+            layer.BrowArchPosition,
             layer.Finish,
             layer.TextureAmount,
             layer.Roughness,
             layer.Specular,
             layer.SpecularPower,
-            layer.GlossBoost);
+            layer.GlossBoost,
+            layer.DetailAmount,
+            layer.BrowCleanupEnabled,
+            layer.BrowCleanupStrength,
+            layer.BrowReshapeStrength,
+            layer.BrowCleanupSourceMode);
     }
 
     private void RememberRegionFeatureState(
@@ -1519,12 +1574,23 @@ public sealed class RNBridge : MonoBehaviour
             PayloadBytes = layer.PayloadBytes,
             RendererMode = result.RendererMode,
             Coverage = layer.Coverage,
+            MaskSpreadX = layer.MaskSpreadX,
+            MaskOffsetY = layer.MaskOffsetY,
+            BrowGap = layer.BrowGap,
+            BrowAngle = layer.BrowAngle,
+            BrowArch = layer.BrowArch,
+            BrowArchPosition = layer.BrowArchPosition,
             Finish = layer.Finish,
             TextureAmount = layer.TextureAmount,
             Roughness = layer.Roughness,
             Specular = layer.Specular,
             SpecularPower = layer.SpecularPower,
             GlossBoost = layer.GlossBoost,
+            DetailAmount = layer.DetailAmount,
+            BrowCleanupEnabled = layer.BrowCleanupEnabled,
+            BrowCleanupStrength = layer.BrowCleanupStrength,
+            BrowReshapeStrength = layer.BrowReshapeStrength,
+            BrowCleanupSourceMode = layer.BrowCleanupSourceMode,
             Shimmer = layer.Shimmer,
             ShimmerColor = layer.ShimmerColor,
             SkinAdaptive = layer.SkinAdaptive,
@@ -1611,6 +1677,17 @@ public sealed class RNBridge : MonoBehaviour
             state.TopologyAuditSummary = result.TopologyAuditSummary;
             state.MaskThreshold = result.MaskThreshold;
             state.MaskFeatherUvNormalized = result.MaskFeatherUvNormalized;
+            state.MaskSpreadX = result.MaskSpreadX;
+            state.MaskOffsetY = result.MaskOffsetY;
+            state.BrowGap = result.BrowGap;
+            state.BrowAngle = result.BrowAngle;
+            state.BrowArch = result.BrowArch;
+            state.BrowArchPosition = result.BrowArchPosition;
+            state.DetailAmount = result.DetailAmount;
+            state.BrowCleanupEnabled = result.BrowCleanupEnabled;
+            state.BrowCleanupStrength = result.BrowCleanupStrength;
+            state.BrowReshapeStrength = result.BrowReshapeStrength;
+            state.BrowCleanupSourceMode = result.BrowCleanupSourceMode;
             state.OverlaySyncPhase = result.OverlaySyncPhase;
             state.OverlaySyncFrame = result.OverlaySyncFrame;
             state.TrackablesChangedSequence = result.TrackablesChangedSequence;
@@ -2054,6 +2131,17 @@ public sealed class RNBridge : MonoBehaviour
             + " upperLipTightness=" + layer.UpperLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
             + " lowerLipTightness=" + layer.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
             + " verticalOffset=" + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskSpreadX=" + layer.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
+            + " maskOffsetY=" + layer.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browGap=" + layer.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browAngle=" + layer.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArch=" + layer.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
+            + " browArchPosition=" + layer.BrowArchPosition.ToString("0.###", CultureInfo.InvariantCulture)
+            + " detailAmount=" + layer.DetailAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browCleanupEnabled=" + layer.BrowCleanupEnabled.ToString().ToLowerInvariant()
+            + " browCleanupStrength=" + layer.BrowCleanupStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browReshapeStrength=" + layer.BrowReshapeStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + " browCleanupSourceMode=" + layer.BrowCleanupSourceMode
             + " coverage=" + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + " finish=" + layer.Finish
             + " textureAmount=" + layer.TextureAmount.ToString("0.##", CultureInfo.InvariantCulture)
@@ -2273,6 +2361,29 @@ public sealed class RNBridge : MonoBehaviour
             + layer.LowerLipTightness.ToString("0.###", CultureInfo.InvariantCulture)
             + ",\"verticalOffset\":"
             + layer.VerticalOffset.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskSpreadX\":"
+            + layer.MaskSpreadX.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"maskOffsetY\":"
+            + layer.MaskOffsetY.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browGap\":"
+            + layer.BrowGap.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browAngle\":"
+            + layer.BrowAngle.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArch\":"
+            + layer.BrowArch.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"browArchPosition\":"
+            + layer.BrowArchPosition.ToString("0.###", CultureInfo.InvariantCulture)
+            + ",\"detailAmount\":"
+            + layer.DetailAmount.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browCleanupEnabled\":"
+            + layer.BrowCleanupEnabled.ToString().ToLowerInvariant()
+            + ",\"browCleanupStrength\":"
+            + layer.BrowCleanupStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browReshapeStrength\":"
+            + layer.BrowReshapeStrength.ToString("0.##", CultureInfo.InvariantCulture)
+            + ",\"browCleanupSourceMode\":\""
+            + EscapeJsonString(layer.BrowCleanupSourceMode)
+            + "\""
             + ",\"coverage\":"
             + layer.Coverage.ToString("0.##", CultureInfo.InvariantCulture)
             + ",\"finish\":\""
@@ -2368,6 +2479,8 @@ public sealed class RNBridge : MonoBehaviour
         string colorHex = NormalizeColor(layer.color);
         float opacity = Mathf.Clamp01(layer.opacity);
         string textureSample = NormalizeTextureSample(region, layer.texture, layer.sample);
+        float maskSpreadX = NormalizeBrowMaskSpread(layer.maskSpreadX, region);
+        float browGap = NormalizeBrowGap(layer.browGap, maskSpreadX, region);
 
         if (!ColorUtility.TryParseHtmlString(colorHex, out Color parsedColor))
         {
@@ -2400,12 +2513,26 @@ public sealed class RNBridge : MonoBehaviour
             RendererMode = NormalizeRendererMode(layer.rendererMode, recipe.rendererMode),
             Enabled = layer.enabled,
             Coverage = NormalizeNonNegativeFloat(layer.coverage, recipe.coverage),
+            MaskSpreadX = region == "brow" ? browGap : 0.0f,
+            MaskOffsetY = NormalizeBrowMaskOffset(layer.maskOffsetY, region),
+            BrowGap = browGap,
+            BrowAngle = NormalizeBrowAngle(layer.browAngle, region),
+            BrowArch = NormalizeBrowArch(layer.browArch, region),
+            BrowArchPosition = NormalizeBrowArchPosition(layer.browArchPosition, region),
             Finish = NormalizeOptional(layer.finish, recipe.finish, "validation-placeholder"),
             TextureAmount = NormalizeTextureAmount(layer.textureAmount, recipe.textureAmount, NormalizeIntensity(layer.intensity)),
             Roughness = NormalizeNonNegativeFloat(layer.roughness, recipe.roughness),
             Specular = NormalizeNonNegativeFloat(layer.specular, recipe.specular),
             SpecularPower = NormalizeNonNegativeFloat(layer.specularPower, recipe.specularPower),
             GlossBoost = NormalizeNonNegativeFloat(layer.glossBoost, recipe.glossBoost),
+            DetailAmount = NormalizeBrowDetailAmount(layer.detailAmount, recipe.detailAmount, region),
+            BrowCleanupEnabled = NormalizeBrowCleanupEnabled(
+                layer.browCleanupEnabled,
+                layer.browCleanupStrength,
+                region),
+            BrowCleanupStrength = NormalizeBrowCleanupStrength(layer.browCleanupStrength, region),
+            BrowReshapeStrength = NormalizeBrowReshapeStrength(layer.browReshapeStrength, region),
+            BrowCleanupSourceMode = NormalizeBrowCleanupSourceMode(layer.browCleanupSourceMode, region),
             Shimmer = NormalizeNonNegativeFloat(layer.shimmer, recipe.shimmer),
             ShimmerColor = NormalizeOptional(layer.shimmerColor, recipe.shimmerColor, "#FFFFFF"),
             SkinAdaptive = layer.skinAdaptive || recipe.skinAdaptive,
@@ -2686,6 +2813,12 @@ public sealed class RNBridge : MonoBehaviour
             return value;
         }
 
+        if (region == "brow"
+            && value == "psd-arcore-brow-semi-arch-v1")
+        {
+            return value;
+        }
+
         if (IsFullFaceRegionMaskTextureId(region, value))
         {
             return value;
@@ -2746,6 +2879,84 @@ public sealed class RNBridge : MonoBehaviour
         return Mathf.Clamp(value, -1.0f, 1.0f);
     }
 
+    private static float NormalizeBrowMaskSpread(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(value, -0.34f, 0.34f) : 0.0f;
+    }
+
+    private static float NormalizeBrowMaskOffset(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(value, -0.08f, 0.08f) : 0.0f;
+    }
+
+    private static float NormalizeBrowGap(float browGap, float fallbackMaskSpread, string region)
+    {
+        if (region != "brow")
+        {
+            return 0.0f;
+        }
+
+        float value = Math.Abs(browGap) > 0.0001f ? browGap : fallbackMaskSpread;
+        return NormalizeBrowMaskSpread(value, region);
+    }
+
+    private static float NormalizeBrowAngle(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(value, -0.16f, 0.16f) : 0.0f;
+    }
+
+    private static float NormalizeBrowArch(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(value, -0.05f, 0.05f) : 0.0f;
+    }
+
+    private static float NormalizeBrowArchPosition(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp(value, -0.15f, 0.15f) : 0.0f;
+    }
+
+    private static float NormalizeBrowDetailAmount(float preferred, float secondary, string region)
+    {
+        if (region != "brow")
+        {
+            return 0.0f;
+        }
+
+        float value = preferred > 0.0f ? preferred : secondary;
+        return Mathf.Clamp01(value);
+    }
+
+    private static bool NormalizeBrowCleanupEnabled(bool enabled, float strength, string region)
+    {
+        return region == "brow" && enabled && strength > 0.0f;
+    }
+
+    private static float NormalizeBrowCleanupStrength(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp01(value) : 0.0f;
+    }
+
+    private static float NormalizeBrowReshapeStrength(float value, string region)
+    {
+        return region == "brow" ? Mathf.Clamp01(value) : 0.0f;
+    }
+
+    private static string NormalizeBrowCleanupSourceMode(string value, string region)
+    {
+        if (region != "brow")
+        {
+            return "none";
+        }
+
+        value = string.IsNullOrWhiteSpace(value) ? "none" : value.Trim().ToLowerInvariant();
+        if (value == "grabpass" || value == "ar_camera_background" || value == "none")
+        {
+            return value;
+        }
+
+        throw new ArgumentException("Unsupported brow cleanup source mode: " + value);
+    }
+
     private static string GetDefaultMaskTextureId(string region)
     {
         switch (region)
@@ -2754,7 +2965,7 @@ public sealed class RNBridge : MonoBehaviour
             case "blush":
                 return "e7-blush-balanced-uv-v0";
             case "brow":
-                return "e7-brow-balanced-uv-v0";
+                return "psd-arcore-brow-semi-arch-v1";
             case "eyeliner":
                 return "e7-eyeliner-minimal-safe-uv-v0";
             default:
@@ -2772,7 +2983,7 @@ public sealed class RNBridge : MonoBehaviour
         string value = maskTextureId.Trim();
         return (region == "lip" && value.StartsWith("e7-lip-", StringComparison.Ordinal))
             || (region == "blush" && value.StartsWith("e7-blush-", StringComparison.Ordinal))
-            || (region == "brow" && value.StartsWith("e7-brow-", StringComparison.Ordinal))
+            || (region == "brow" && value == "psd-arcore-brow-semi-arch-v1")
             || (region == "eyeliner" && value.StartsWith("e7-eyeliner-", StringComparison.Ordinal));
     }
 

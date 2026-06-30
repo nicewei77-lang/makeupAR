@@ -35,12 +35,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public float MaskThreshold;
         public float MaskFeatherUvNormalized;
         public float Coverage;
+        public float MaskSpreadX;
+        public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
+        public float BrowArchPosition;
         public string Finish;
         public float TextureAmount;
         public float Roughness;
         public float Specular;
         public float SpecularPower;
         public float GlossBoost;
+        public float DetailAmount;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode;
         public string CandidateId;
         public float CornerReach;
         public float UpperLipTightness;
@@ -69,12 +80,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string BlendMode = "normal";
         public string MaskTextureId = "lip-smooth-mask-v1";
         public float Coverage = 0.0f;
+        public float MaskSpreadX;
+        public float MaskOffsetY;
+        public float BrowGap;
+        public float BrowAngle;
+        public float BrowArch;
+        public float BrowArchPosition;
         public string Finish = "validation-placeholder";
         public float TextureAmount = 0.0f;
         public float Roughness = 0.0f;
         public float Specular = 0.0f;
         public float SpecularPower = 0.0f;
         public float GlossBoost = 0.0f;
+        public float DetailAmount;
+        public bool BrowCleanupEnabled;
+        public float BrowCleanupStrength;
+        public float BrowReshapeStrength;
+        public string BrowCleanupSourceMode = "none";
         public string CandidateId = "lip-smooth-mask-v1";
         public float MaskThreshold = -1.0f;
         public float MaskFeatherUvNormalized = -1.0f;
@@ -288,12 +310,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float lowerLipTightness,
         float verticalOffset,
         float coverage,
+        float maskSpreadX,
+        float maskOffsetY,
+        float browGap,
+        float browAngle,
+        float browArch,
+        float browArchPosition,
         string finish,
         float textureAmount,
         float roughness,
         float specular,
         float specularPower,
-        float glossBoost)
+        float glossBoost,
+        float detailAmount,
+        bool browCleanupEnabled,
+        float browCleanupStrength,
+        float browReshapeStrength,
+        string browCleanupSourceMode)
     {
         region = NormalizeRegion(region);
         opacity = Mathf.Clamp01(opacity);
@@ -318,12 +351,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             LowerLipTightness = NormalizeLipAdjustment(region, lowerLipTightness),
             VerticalOffset = NormalizeLipAdjustment(region, verticalOffset),
             Coverage = Mathf.Clamp01(coverage),
+            MaskSpreadX = NormalizeBrowMaskSpread(region, maskSpreadX),
+            MaskOffsetY = NormalizeBrowMaskOffset(region, maskOffsetY),
+            BrowGap = NormalizeBrowMaskSpread(region, browGap),
+            BrowAngle = NormalizeBrowAngle(region, browAngle),
+            BrowArch = NormalizeBrowArch(region, browArch),
+            BrowArchPosition = NormalizeBrowArchPosition(region, browArchPosition),
             Finish = NormalizeFinish(finish),
             TextureAmount = Mathf.Clamp01(textureAmount),
             Roughness = Mathf.Clamp01(roughness),
             Specular = Mathf.Clamp01(specular),
             SpecularPower = Mathf.Clamp(specularPower, 0.0f, 128.0f),
-            GlossBoost = Mathf.Clamp01(glossBoost)
+            GlossBoost = Mathf.Clamp01(glossBoost),
+            DetailAmount = NormalizeBrowDetailAmount(region, detailAmount),
+            BrowCleanupEnabled = NormalizeRegion(region) == "brow" && browCleanupEnabled,
+            BrowCleanupStrength = NormalizeBrowCleanupStrength(region, browCleanupStrength),
+            BrowReshapeStrength = NormalizeBrowReshapeStrength(region, browReshapeStrength),
+            BrowCleanupSourceMode = NormalizeBrowCleanupSourceMode(region, browCleanupSourceMode)
         };
 
         return ApplyRegionToTrackedFaces(region, true);
@@ -528,6 +572,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         result.UpperLipTightness = recipe.UpperLipTightness;
         result.LowerLipTightness = recipe.LowerLipTightness;
         result.VerticalOffset = recipe.VerticalOffset;
+        result.MaskSpreadX = recipe.MaskSpreadX;
+        result.MaskOffsetY = recipe.MaskOffsetY;
+        result.BrowGap = recipe.BrowGap;
+        result.BrowAngle = recipe.BrowAngle;
+        result.BrowArch = recipe.BrowArch;
+        result.BrowArchPosition = recipe.BrowArchPosition;
+        result.DetailAmount = recipe.DetailAmount;
+        result.BrowCleanupEnabled = recipe.BrowCleanupEnabled;
+        result.BrowCleanupStrength = recipe.BrowCleanupStrength;
+        result.BrowReshapeStrength = recipe.BrowReshapeStrength;
+        result.BrowCleanupSourceMode = recipe.BrowCleanupSourceMode;
     }
 
     private void RefreshSceneReferences()
@@ -813,7 +868,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "blush":
                 return "e7-blush-balanced-uv-v0";
             case "brow":
-                return "e7-brow-balanced-uv-v0";
+                return "psd-arcore-brow-semi-arch-v1";
             case "eyeliner":
                 return "e7-eyeliner-minimal-safe-uv-v0";
             default:
@@ -915,9 +970,79 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             material.SetFloat("_Coverage", recipe.Coverage);
         }
 
+        if (material.HasProperty("_MaskSpreadX"))
+        {
+            material.SetFloat("_MaskSpreadX", recipe.MaskSpreadX);
+        }
+
+        if (material.HasProperty("_MaskOffset"))
+        {
+            material.SetVector("_MaskOffset", new Vector4(0.0f, recipe.MaskOffsetY, 0.0f, 0.0f));
+        }
+
+        if (material.HasProperty("_BrowAngle"))
+        {
+            material.SetFloat("_BrowAngle", recipe.BrowAngle);
+        }
+
+        if (material.HasProperty("_BrowArch"))
+        {
+            material.SetFloat("_BrowArch", recipe.BrowArch);
+        }
+
+        if (material.HasProperty("_BrowArchPosition"))
+        {
+            material.SetFloat("_BrowArchPosition", recipe.BrowArchPosition);
+        }
+
         if (material.HasProperty("_TextureAmount"))
         {
             material.SetFloat("_TextureAmount", recipe.TextureAmount);
+        }
+
+        if (material.HasProperty("_DetailAmount"))
+        {
+            material.SetFloat("_DetailAmount", recipe.DetailAmount);
+        }
+
+        if (material.HasProperty("_BrowPhotoDetailMode"))
+        {
+            material.SetFloat("_BrowPhotoDetailMode", IsBrowAssetMask(recipe.MaskTextureId) ? 1.0f : 0.0f);
+        }
+
+        if (material.HasProperty("_BrowPowderFill"))
+        {
+            material.SetFloat("_BrowPowderFill", IsPsdArcoreBrowMask(recipe.MaskTextureId) ? 1.0f : 0.0f);
+        }
+
+        if (material.HasProperty("_BrowCleanupStrength"))
+        {
+            material.SetFloat(
+                "_BrowCleanupStrength",
+                recipe.BrowCleanupEnabled ? recipe.BrowCleanupStrength : 0.0f);
+        }
+
+        if (material.HasProperty("_BrowReshapeStrength"))
+        {
+            material.SetFloat("_BrowReshapeStrength", recipe.BrowReshapeStrength);
+        }
+
+        if (material.HasProperty("_BrowCleanupFrameSource"))
+        {
+            material.SetFloat(
+                "_BrowCleanupFrameSource",
+                recipe.BrowCleanupSourceMode == "grabpass" ? 1.0f : 0.0f);
+        }
+
+        if (material.HasProperty("_BrowCleanupSourceTex"))
+        {
+            Texture2D cleanupSource = Resources.Load<Texture2D>("SmoothRegionMasks/brow-cleanup-source-v1");
+            if (cleanupSource != null)
+            {
+                cleanupSource.wrapMode = TextureWrapMode.Clamp;
+                cleanupSource.filterMode = FilterMode.Bilinear;
+                material.SetTexture("_BrowCleanupSourceTex", cleanupSource);
+            }
         }
 
         if (material.HasProperty("_FinishMode"))
@@ -1345,6 +1470,62 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return NormalizeRegion(region) == "lip" ? Mathf.Clamp(value, -1.0f, 1.0f) : 0.0f;
     }
 
+    private static float NormalizeBrowMaskSpread(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp(value, -0.34f, 0.34f) : 0.0f;
+    }
+
+    private static float NormalizeBrowMaskOffset(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp(value, -0.08f, 0.08f) : 0.0f;
+    }
+
+    private static float NormalizeBrowAngle(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp(value, -0.16f, 0.16f) : 0.0f;
+    }
+
+    private static float NormalizeBrowArch(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp(value, -0.05f, 0.05f) : 0.0f;
+    }
+
+    private static float NormalizeBrowArchPosition(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp(value, -0.15f, 0.15f) : 0.0f;
+    }
+
+    private static float NormalizeBrowDetailAmount(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp01(value) : 0.0f;
+    }
+
+    private static float NormalizeBrowCleanupStrength(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp01(value) : 0.0f;
+    }
+
+    private static float NormalizeBrowReshapeStrength(string region, float value)
+    {
+        return NormalizeRegion(region) == "brow" ? Mathf.Clamp01(value) : 0.0f;
+    }
+
+    private static string NormalizeBrowCleanupSourceMode(string region, string value)
+    {
+        if (NormalizeRegion(region) != "brow")
+        {
+            return "none";
+        }
+
+        value = string.IsNullOrWhiteSpace(value) ? "none" : value.Trim().ToLowerInvariant();
+        if (value == "grabpass" || value == "ar_camera_background" || value == "none")
+        {
+            return value;
+        }
+
+        throw new ArgumentException("Unsupported brow cleanup source mode: " + value);
+    }
+
     private static bool IsGeneratedLipMaskTextureId(string maskTextureId)
     {
         return !string.IsNullOrWhiteSpace(maskTextureId)
@@ -1361,8 +1542,25 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         string value = maskTextureId.Trim();
         return (region == "lip" && value.StartsWith("e7-lip-", StringComparison.Ordinal))
             || (region == "blush" && value.StartsWith("e7-blush-", StringComparison.Ordinal))
-            || (region == "brow" && value.StartsWith("e7-brow-", StringComparison.Ordinal))
+            || (region == "brow" && IsBrowAssetMask(value))
             || (region == "eyeliner" && value.StartsWith("e7-eyeliner-", StringComparison.Ordinal));
+    }
+
+    private static bool IsBrowAssetMask(string maskTextureId)
+    {
+        if (string.IsNullOrWhiteSpace(maskTextureId))
+        {
+            return false;
+        }
+
+        string value = maskTextureId.Trim();
+        return value == "psd-arcore-brow-semi-arch-v1";
+    }
+
+    private static bool IsPsdArcoreBrowMask(string maskTextureId)
+    {
+        return !string.IsNullOrWhiteSpace(maskTextureId)
+            && maskTextureId.Trim() == "psd-arcore-brow-semi-arch-v1";
     }
 
     private static bool IsFullFaceRegionCandidateId(string region, string candidateId)

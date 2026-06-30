@@ -319,17 +319,28 @@ const E7_FULL_FACE_REGION_RUNTIME_LAYERS = [
   {
     region: 'brow',
     layer: 'brow',
-    candidateId: 'brow-balanced-stroke-envelope-v0',
-    maskTextureId: 'e7-brow-balanced-uv-v0',
-    maskThreshold: 0.14,
-    maskFeatherUvNormalized: 0.07,
-    color: '#5F4A42',
-    opacity: 0.48,
+    candidateId: 'brow-psd-semi-arch-v1',
+    maskTextureId: 'psd-arcore-brow-semi-arch-v1',
+    maskThreshold: 0.035,
+    maskFeatherUvNormalized: 0.42,
+    color: '#4A342B',
+    opacity: 0.75,
     texture: 'shimmer_eye',
     blendMode: 'multiply',
-    intensity: 0.72,
-    coverage: 0.72,
+    intensity: 0.76,
+    coverage: 0.66,
     skinAdaptive: false,
+    detailAmount: 0.64,
+    maskSpreadX: 0,
+    maskOffsetY: 0,
+    browGap: 0,
+    browAngle: 0,
+    browArch: 0,
+    browArchPosition: 0,
+    browCleanupEnabled: false,
+    browCleanupStrength: 0,
+    browReshapeStrength: 0.16,
+    browCleanupSourceMode: 'none',
   },
   {
     region: 'eyeliner',
@@ -412,7 +423,7 @@ type MaskTextureId =
   | 'eye-smooth-mask-v1'
   | 'e7-lip-balanced-uv-v0'
   | 'e7-blush-balanced-uv-v0'
-  | 'e7-brow-balanced-uv-v0'
+  | 'psd-arcore-brow-semi-arch-v1'
   | 'e7-eyeliner-minimal-safe-uv-v0';
 type ValidationViewMode = 'clean' | 'compact' | 'full';
 type E7WizardStep = (typeof E7_WIZARD_STEPS)[number];
@@ -567,7 +578,7 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.brow,
   },
   eyeliner: {
-    color: '#2F2730',
+    color: RECIPE_COLOR_OPTIONS[2],
     opacity: 0.48,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eyeliner,
   },
@@ -575,7 +586,7 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-smooth-mask-v1',
   blush: 'e7-blush-balanced-uv-v0',
-  brow: 'e7-brow-balanced-uv-v0',
+  brow: 'psd-arcore-brow-semi-arch-v1',
   eyeliner: 'e7-eyeliner-minimal-safe-uv-v0',
 };
 const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
@@ -1100,8 +1111,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [lipUserAdjustment, setLipUserAdjustment] = useState<LipUserAdjustment>(
     DEFAULT_LIP_USER_ADJUSTMENT,
   );
-  const [lipGenerateProvider, setLipGenerateProvider] =
-    useState<GeneratedLipMaskProvider>(DEFAULT_LIP_GENERATE_PROVIDER);
+  const [lipGenerateProvider] = useState<GeneratedLipMaskProvider>(
+    DEFAULT_LIP_GENERATE_PROVIDER,
+  );
   const [lipGenerateExpressionMode, setLipGenerateExpressionMode] =
     useState<GeneratedExpressionAssistMode>('uvOnly');
   const [lastGeneratedLipMaskSummary, setLastGeneratedLipMaskSummary] =
@@ -1639,11 +1651,27 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       enabled: true,
       coverage: layer.coverage,
       finish: 'validation-placeholder',
-      textureAmount: 0,
+      textureAmount: layer.region === 'brow' ? layer.detailAmount : 0,
       roughness: 0,
       specular: 0,
       specularPower: 0,
       glossBoost: 0,
+      detailAmount: layer.region === 'brow' ? layer.detailAmount : 0,
+      maskSpreadX: layer.region === 'brow' ? layer.maskSpreadX : 0,
+      maskOffsetY: layer.region === 'brow' ? layer.maskOffsetY : 0,
+      browGap: layer.region === 'brow' ? layer.browGap : 0,
+      browAngle: layer.region === 'brow' ? layer.browAngle : 0,
+      browArch: layer.region === 'brow' ? layer.browArch : 0,
+      browArchPosition:
+        layer.region === 'brow' ? layer.browArchPosition : 0,
+      browCleanupEnabled:
+        layer.region === 'brow' ? layer.browCleanupEnabled : false,
+      browCleanupStrength:
+        layer.region === 'brow' ? layer.browCleanupStrength : 0,
+      browReshapeStrength:
+        layer.region === 'brow' ? layer.browReshapeStrength : 0,
+      browCleanupSourceMode:
+        layer.region === 'brow' ? layer.browCleanupSourceMode : 'none',
       shimmer: 0,
       shimmerColor: '#FFFFFF',
       skinAdaptive: layer.skinAdaptive,
@@ -2062,10 +2090,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
               candidate.package,
           ) && options?.stayOnStep;
 
-        setNativeProviderResults(resultMap);
+        setNativeProviderResults(currentResults => ({
+          ...currentResults,
+          ...resultMap,
+          [lipGenerateProvider]: neutralResult,
+          [neutralResult.provider]: neutralResult,
+        }));
         setNativeProviderShotResults(currentResults => ({
           ...currentResults,
           [lipGenerateProvider]: results.length ? results : [neutralResult],
+          [neutralResult.provider]: results.length ? results : [neutralResult],
         }));
         setGeneratedCandidates(candidatesWithPreviews);
         setSelectedGeneratedCandidateKey(
@@ -2127,7 +2161,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       const requestGuard: E7AdjustmentPreviewRequestGuard = {
         requestId: (adjustmentPreviewRequestSequenceRef.current += 1),
         captureSetId,
-        provider: lipGenerateProvider,
+        provider: input.providerResult.provider,
         adjustmentSignature,
         selectedCandidateKey: input.selectedCandidateKey,
       };
@@ -2247,7 +2281,6 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     [
       captureSetId,
       clearAdjustmentPreviewDebounce,
-      lipGenerateProvider,
       renderGeneratedCandidatePreviews,
     ],
   );
@@ -3331,9 +3364,15 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         ...currentAdjustment,
         [field]: roundedValue,
       };
-      const providerResult = nativeProviderResults[lipGenerateProvider];
+      const adjustmentProvider =
+        selectedGeneratedCandidate?.provider ?? lipGenerateProvider;
+      const providerResult =
+        nativeProviderResults[adjustmentProvider] ??
+        nativeProviderShotResults[adjustmentProvider]?.[0] ??
+        nativeProviderResults[lipGenerateProvider] ??
+        nativeProviderShotResults[lipGenerateProvider]?.[0];
       const providerShotResults =
-        nativeProviderShotResults[lipGenerateProvider] ??
+        nativeProviderShotResults[adjustmentProvider] ??
         (providerResult ? [providerResult] : []);
 
       lipUserAdjustmentRef.current = nextAdjustment;
@@ -3366,6 +3405,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       resetGeneratedApplyFlow,
       scheduleAdjustmentPreviewRebuild,
       selectedGeneratedCandidateKey,
+      selectedGeneratedCandidate?.provider,
     ],
   );
 
@@ -4037,7 +4077,7 @@ function E7GenerateWizard({
   generatedApplyState,
   isGeneratingCandidates,
   isSavingGeneratedPackage,
-  nativeProviderResults,
+  nativeProviderResults: _nativeProviderResults,
   notice,
   canProceedFromAlign,
   canGenerateCandidates,

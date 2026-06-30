@@ -39,7 +39,9 @@ public static class E7FullFaceRegionPackageSmoke
             RequireLog(logs, "region=eyeliner");
             RequireLog(logs, "maskTextureId=e7-lip-balanced-uv-v0");
             RequireLog(logs, "maskTextureId=e7-blush-balanced-uv-v0");
-            RequireLog(logs, "maskTextureId=e7-brow-balanced-uv-v0");
+            RequireLog(logs, "maskTextureId=psd-arcore-brow-semi-arch-v1");
+            RequireLog(logs, "detailAmount=0.64");
+            RequireLog(logs, "browArchPosition=0");
             RequireLog(logs, "maskTextureId=e7-eyeliner-minimal-safe-uv-v0");
             ForbidLog(logs, "recipe_parse_failed");
             ForbidLog(logs, "Unsupported");
@@ -87,10 +89,64 @@ public static class E7FullFaceRegionPackageSmoke
             + ","
             + Layer("blush", "blush-balanced-soft-oval-v0", "e7-blush-balanced-uv-v0", "soft_blush", "#E67B5F", 0.45f, 0.68f, 0.18f, "normal")
             + ","
-            + Layer("brow", "brow-balanced-stroke-envelope-v0", "e7-brow-balanced-uv-v0", "shimmer_eye", "#5F4A42", 0.48f, 0.72f, 0.14f, "multiply")
+            + BrowLayer()
             + ","
             + Layer("eyeliner", "eyeliner-minimal-safe-lashline-v0", "e7-eyeliner-minimal-safe-uv-v0", "shimmer_eye", "#2F2730", 0.66f, 0.72f, 0.12f, "multiply")
             + "]"
+            + "}";
+    }
+
+    private static string BrowLayer()
+    {
+        return "{"
+            + "\"id\":\"brow-brow-psd-semi-arch-v1\","
+            + "\"region\":\"brow\","
+            + "\"layer\":\"brow\","
+            + "\"enabled\":true,"
+            + "\"color\":\"#4A342B\","
+            + "\"opacity\":0.75,"
+            + "\"texture\":\"shimmer_eye\","
+            + "\"sample\":\"shimmer_eye\","
+            + "\"textureMode\":\"sample\","
+            + "\"intensity\":0.76,"
+            + "\"feather\":0.42,"
+            + "\"blendMode\":\"multiply\","
+            + "\"rendererMode\":\"smooth-region-mask\","
+            + "\"coverage\":0.66,"
+            + "\"maskSpreadX\":0,"
+            + "\"maskOffsetY\":0,"
+            + "\"browGap\":0,"
+            + "\"browAngle\":0,"
+            + "\"browArch\":0,"
+            + "\"browArchPosition\":0,"
+            + "\"finish\":\"validation-placeholder\","
+            + "\"textureAmount\":0.64,"
+            + "\"detailAmount\":0.64,"
+            + "\"roughness\":0,"
+            + "\"specular\":0,"
+            + "\"specularPower\":0,"
+            + "\"glossBoost\":0,"
+            + "\"browCleanupEnabled\":false,"
+            + "\"browCleanupStrength\":0,"
+            + "\"browReshapeStrength\":0.16,"
+            + "\"browCleanupSourceMode\":\"none\","
+            + "\"shimmer\":0,"
+            + "\"shimmerColor\":\"#FFFFFF\","
+            + "\"skinAdaptive\":false,"
+            + "\"preserveDetail\":true,"
+            + "\"materialId\":\"e7-full-face-brow-material-v0\","
+            + "\"shaderMode\":\"smooth-lip-finish-v0\","
+            + "\"passCount\":1,"
+            + "\"candidateId\":\"brow-psd-semi-arch-v1\","
+            + "\"maskTextureId\":\"psd-arcore-brow-semi-arch-v1\","
+            + "\"maskThreshold\":0.035,"
+            + "\"maskFeatherUvNormalized\":0.42,"
+            + "\"cornerReach\":0,"
+            + "\"upperLipTightness\":0,"
+            + "\"lowerLipTightness\":0,"
+            + "\"verticalOffset\":0,"
+            + "\"cameraBackdropAvailable\":false,"
+            + "\"lightEstimateAvailable\":false"
             + "}";
     }
 

@@ -89,6 +89,22 @@ const unityBridgePath = path.join(
   'Scripts',
   'RNBridge.cs',
 );
+const unityOverlayPath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Scripts',
+  'E3RegionMaskOverlay.cs',
+);
+const unityFullFaceSmokePath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Editor',
+  'E7FullFaceRegionPackageSmoke.cs',
+);
 const unityCaptureExporterPath = path.join(
   repoRoot,
   'unity',
@@ -97,6 +113,25 @@ const unityCaptureExporterPath = path.join(
   'Scripts',
   'E7SynchronizedCaptureExporter.cs',
 );
+const fullFaceRuntimeAssetsPath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Resources',
+  'SmoothRegionMasks',
+  'e7-full-face-region-runtime-assets.json',
+);
+const browPsdAssetPath = path.join(
+  repoRoot,
+  'unity',
+  'MakeupARUnityValidation',
+  'Assets',
+  'Resources',
+  'SmoothRegionMasks',
+  'psd-arcore-brow-semi-arch-v1.png',
+);
+const browPsdMetaPath = `${browPsdAssetPath}.meta`;
 const unityFrameworkPath = path.join(
   repoRoot,
   'rn',
@@ -463,6 +498,9 @@ function runMain() {
   const nativeProviderSource = safeReadText(nativeProviderPath);
   const nativeBridgeSource = safeReadText(nativeBridgePath);
   const unityBridgeSource = safeReadText(unityBridgePath);
+  const unityOverlaySource = safeReadText(unityOverlayPath);
+  const unityFullFaceSmokeSource = safeReadText(unityFullFaceSmokePath);
+  const fullFaceRuntimeAssetsSource = safeReadText(fullFaceRuntimeAssetsPath);
   const unityCaptureExporterSource = safeReadText(unityCaptureExporterPath);
 
   if (generatedPackage && arFaceExport && savedRecord) {
@@ -714,6 +752,48 @@ function runMain() {
     'rn.package_script_registered',
     Boolean(rnPackage.scripts?.['e7:prebuild']),
     'rn/MakeupARValidation/package.json should expose npm run e7:prebuild.',
+  );
+
+  const fullFaceBrowAssetContractReady =
+    exists(browPsdAssetPath) &&
+    exists(browPsdMetaPath) &&
+    matchesAll(rnAppSource, [
+      /maskTextureId:\s*['"]psd-arcore-brow-semi-arch-v1['"]/,
+      /detailAmount:\s*0\.64/,
+      /browArchPosition/,
+      /browCleanupSourceMode:\s*['"]none['"]/,
+    ]) &&
+    matchesAll(unityBridgeSource, [
+      /psd-arcore-brow-semi-arch-v1/,
+      /NormalizeBrowDetailAmount/,
+      /maskSpreadX/,
+      /browArchPosition/,
+      /detailAmount/,
+    ]) &&
+    matchesAll(unityOverlaySource, [
+      /IsBrowAssetMask/,
+      /_DetailAmount/,
+      /_BrowPhotoDetailMode/,
+      /_MaskSpreadX/,
+      /_BrowArchPosition/,
+    ]) &&
+    matchesAll(unityFullFaceSmokeSource, [
+      /maskTextureId=psd-arcore-brow-semi-arch-v1/,
+      /detailAmount=0\.64/,
+      /browArchPosition=0/,
+    ]) &&
+    matchesAll(fullFaceRuntimeAssetsSource, [
+      /"maskTextureId":\s*"psd-arcore-brow-semi-arch-v1"/,
+      /"candidateId":\s*"brow-psd-semi-arch-v1"/,
+      /"detailAmount":\s*0\.64/,
+      /"browReshapeStrength":\s*0\.16/,
+    ]);
+  addCheck(
+    'full_face.brow_psd_asset_contract',
+    fullFaceBrowAssetContractReady,
+    `Brow must use the PSD-only ARCore canonical eyebrow derivative and preserve look params through RN, Unity parser, overlay material binding, smoke, and runtime manifest. asset=${
+      exists(browPsdAssetPath) ? 'yes' : 'no'
+    } meta=${exists(browPsdMetaPath) ? 'yes' : 'no'}`,
   );
 
   const smoothingContractRequirements = [

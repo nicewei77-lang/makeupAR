@@ -4,7 +4,7 @@
 
 ## 1. 목적
 
-이 문서는 `병합용브랜치`를 기준으로 `blush-mask`, `feature/brow-0626` 브랜치의 에셋, 파라미터, 스키마, 렌더링 계약을 선별 이식하기 위한 통합 병합 계획이다.
+이 문서는 `병합용브랜치`를 기준으로 `blush-mask`의 블러셔 계약과 PSD-only 눈썹 source를 선별 이식하기 위한 통합 병합 계획이다.
 
 최종 목표는 기존 사용자 맞춤형 `generate -> adjust -> save package -> AR handoff` 흐름을 유지하면서 `lip`, `blush`, `brow`, `eyeliner` 네 부위가 모두 pre-Xcode 단계에서 작동 확인 가능한 상태가 되는 것이다.
 
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | `lip` | 입술 사용자 맞춤형 마스크 | MediaPipe |
 | `blush` | 블러셔가 올라갈 cheek 영역 | 팀원 cheek UV mask + 사용자 조정 |
-| `brow` | 눈썹 asset 부착 영역 | MediaPipe brow anchor + 팀원 brow asset |
+| `brow` | 눈썹 asset 부착 영역 | MediaPipe brow anchor + PSD-derived ARCore eyebrow asset |
 | `eyeliner` | 아이라인 asset fit 기준선 | MediaPipe upper eyelid boundary |
 
 `cheek`, `eye`, `eyeline`, `eyebrow`는 신규 package의 canonical 이름으로 쓰지 않는다. 기존 코드 호환이 필요한 경우에만 legacy alias로 유지한다.
@@ -31,7 +31,7 @@
 | --- | --- |
 | `lip` | MediaPipe 고정. Apple Vision은 UI에 노출하지 않는다. |
 | `blush` | 팀원 cheek UV mask를 기본으로 쓰고, ARFace/UV 기반 스케일과 사용자 조정으로 맞춘다. |
-| `brow` | MediaPipe는 위치/회전/스케일 anchor만 담당하고, 실제 모양/색/질감은 팀원 brow asset이 담당한다. |
+| `brow` | MediaPipe는 위치/회전/스케일 anchor만 담당하고, 실제 모양/색/질감 source는 `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd`에서 파생한 eyebrow asset이 담당한다. |
 | `eyeliner` | 이번 병합에서는 MediaPipe upper eyelid boundary만 저장한다. 최종 eyeliner asset은 전문가 팀원 산출물을 추후 fit한다. |
 
 Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지로 노출하지 않고, 내부 fallback/debug 비교용으로만 유지한다.
@@ -39,7 +39,7 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 ## 3. 병합 원칙
 
 1. `병합용브랜치`의 사용자 맞춤형 package flow를 중심축으로 둔다.
-2. `blush-mask`, `feature/brow-0626`는 전체 merge하지 않고 선별 이식한다.
+2. `blush-mask`는 전체 merge하지 않고 선별 이식한다. `feature/brow-0626`는 사용/병합/이식하지 않는다.
 3. 가져올 대상은 에셋, texture id, palette, shader/material parameter, schema/validator, renderer contract다.
 4. 가져오지 않을 대상은 오래된 RN validation flow, 현재 App flow를 덮는 구조, branch-specific roadmap churn, 현재 package contract와 충돌하는 임시 UI다.
 5. `lip`의 기존 generate/adjust/save/apply 흐름은 regression 보호 대상으로 둔다.
@@ -57,9 +57,9 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 | M0 | P0 | 현재 브랜치 baseline 고정 | clean/dirty 분류, 보호 대상 목록 | `chore: prepare full-face merge baseline` |
 | M1 | P0 | 중간 정리 | cache/generated 정리, 문서 링크 정리 | M0 commit에 포함 |
 | M2 | P0 | contract inventory 작성 | region/id/schema/resource mapping 표 | runbook 업데이트 |
-| M3 | P0 | source branch inventory | blush/brow에서 가져올 것/버릴 것 확정 | inventory notes |
+| M3 | P0 | source inventory | blush에서 가져올 것/버릴 것, brow PSD intake 확정 | inventory notes |
 | M4 | P1 | blush asset/contract 이식 | mask assets, gains, transforms, manifest | `feat: import blush assets and runtime contract` |
-| M5 | P1 | brow asset/contract 이식 | 최신 brow asset, palette, blend params | `feat: import brow assets and mediapipe anchor contract` |
+| M5 | P1 | PSD-only brow asset/contract 이식 | PSD hash/source path/layer/transform, generated Unity resource id | `feat: import psd-only brow asset and mediapipe anchor contract` |
 | M6 | P1 | MediaPipe full-face anchor 확장 | lip/brow/eyeliner anchor provider contract | M5 또는 M7 commit에 포함 |
 | M7 | P1 | package schema/save/load 통합 | 네 region 저장/로드, fallback/warning | `feat: wire full-face personalized package flow` |
 | M8 | P1 | Unity runtime 연결 | region parser, resource route, material params | M7 commit에 포함 또는 별도 commit |
@@ -133,25 +133,26 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - Unity resource id 충돌이 발견된다.
 - RN/package/Unity 중 하나가 canonical region 이름을 받을 수 없는 구조다.
 
-### M3. Source branch inventory
+### M3. Source inventory
 
-목표: `blush-mask`, `feature/brow-0626`에서 가져올 것과 버릴 것을 파일/역할 단위로 고정한다.
+목표: `blush-mask`에서 가져올 것과 버릴 것을 파일/역할 단위로 고정하고, `brow`는 외부 PSD source intake로 고정한다.
 
 작업:
 
 - `blush-mask`에서 mask assets, density/center gain, uv transforms, validator, shader/material parameter를 찾는다.
-- `feature/brow-0626`에서 최신 brow asset, palette, blend mode, detail/spread/offset parameter를 찾는다.
+- `feature/brow-0626`는 사용하지 않는다. 이 branch의 asset, UI flow, branch-specific renderer 변경은 제외 대상으로 기록한다.
+- `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd`의 hash, source path, `eyebrow` layer 식별 근거, extraction ROI/transform을 기록한다.
 - 두 branch의 오래된 RN flow와 현재 App 구조를 덮는 변경은 제외 대상으로 표시한다.
-- brow 최신 asset이 branch에 없으면 사용자에게 경로를 요청한다.
+- PSD에서 brow layer를 특정할 수 없으면 사용자에게 PSD layer/export 정보를 요청한다.
 
 완료 조건:
 
-- 각 source branch별 "copy/import 대상"과 "제외 대상"이 명확하다.
-- brow asset의 최신 source of truth가 확정된다.
+- `blush-mask`의 "copy/import 대상"과 "제외 대상"이 명확하다.
+- `brow` source of truth가 PSD path/hash/layer/extraction 방식으로 확정된다.
 
 중단 조건:
 
-- brow 최신 asset 위치가 불명확하다.
+- PSD brow layer를 특정할 수 없다.
 - source branch의 renderer contract가 현재 Unity runtime과 직접 충돌한다.
 
 ### M4. Blush asset/contract 이식
@@ -177,27 +178,29 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - PNG만 복사되고 gain/transform/material parameter가 누락된다.
 - `cheek`이 다시 canonical처럼 퍼진다.
 
-### M5. Brow asset/contract 이식
+### M5. PSD-only Brow asset/contract 이식
 
-목표: 팀원 brow asset의 모양/색/질감을 현재 사용자 맞춤 anchor flow에 연결한다.
+목표: PSD-derived brow asset의 모양/색/질감을 현재 사용자 맞춤 anchor flow에 연결한다.
 
 작업:
 
-- 최신 brow PNG/hair texture와 mask resource를 추가한다.
-- palette, blend mode, `detailAmount`, `maskSpreadX`, `maskOffsetY`를 look parameter로 보존한다.
+- `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd` 원본은 커밋하지 않는다.
+- PSD hash, source path, `eyebrow` layer 식별 근거, extraction ROI/transform, generated Unity resource id를 문서화한다.
+- PSD에서 파생한 brow PNG/texture resource만 Unity runtime에 추가한다.
+- palette, blend mode, `detailAmount`, `maskSpreadX`, `maskOffsetY`를 PSD-derived look parameter로 보존한다.
 - MediaPipe brow landmarks는 anchor, scale, rotation, 좌우 비대칭, confidence만 담당하게 분리한다.
-- 실제 brow shape/thickness/color/hair detail은 teammate asset을 source of truth로 둔다.
+- 실제 brow shape/thickness/color/detail source는 PSD-derived asset을 source of truth로 둔다.
 
 완료 조건:
 
 - brow package entry에 `tracking`과 `look`이 분리되어 저장된다.
 - asset id와 renderer parameter가 누락 없이 Unity route까지 전달된다.
-- asset이 없으면 brow는 skip + warning으로 처리된다.
+- asset 추출이 불가하면 brow는 blocked + warning으로 처리된다.
 
 중단 조건:
 
 - MediaPipe polygon이 최종 brow mask처럼 쓰이기 시작한다.
-- 팀원 asset 색감/파라미터가 package save/load에서 사라진다.
+- PSD source path/hash/layer/extraction transform이 문서화되지 않는다.
 
 ### M6. MediaPipe full-face anchor 확장
 
@@ -302,7 +305,7 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - RN TypeScript, focused Jest, native generate checker를 실행한다.
 - Unity resource/import smoke와 `E7FullFaceRegionPackageSmoke` batchmode를 실행한다.
 - `npm run e7:prebuild:full -- --no-report` 또는 동등한 full-face prebuild gate를 실행한다.
-- fallback/negative path를 확인한다: legacy cheek fallback warning, brow asset missing skip warning, eyeliner asset missing warning, MediaPipe blockedReason, unknown Unity resource fail.
+- fallback/negative path를 확인한다: legacy cheek fallback warning, brow PSD asset missing blocked warning, eyeliner asset missing warning, MediaPipe blockedReason, unknown Unity resource fail.
 
 완료 조건:
 
@@ -399,7 +402,7 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 | --- | --- | --- | --- | --- | --- |
 | `lip` | `lip-balanced-gold-v0` | `e7-lip-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-lip-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-lip-material-v0` | `current branch` |
 | `blush` | `blush-balanced-soft-oval-v0` | `e7-blush-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-blush-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-blush-material-v0` | `blush-mask`(legacy cheek v1) `source candidate` |
-| `brow` | `brow-balanced-stroke-envelope-v0` | `e7-brow-balanced-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-brow-balanced-uv-v0.png` | `smooth-region-mask` + `e7-full-face-brow-material-v0` | `current branch` (requires source-of-truth reconfirm) |
+| `brow` | `brow-psd-semi-arch-v1` | `psd-arcore-brow-semi-arch-v1` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/psd-arcore-brow-semi-arch-v1.png` | `smooth-region-mask` + `e7-full-face-brow-material-v0` | PSD-only: `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd` `eyebrow` layer derivative |
 | `eyeliner` | `eyeliner-minimal-safe-lashline-v0` | `e7-eyeliner-minimal-safe-uv-v0` | `unity/MakeupARUnityValidation/Assets/Resources/SmoothRegionMasks/e7-eyeliner-minimal-safe-uv-v0.png` | `smooth-region-mask` + `e7-full-face-eyeliner-material-v0` | `current branch` / provisional boundary-only route |
 
 ### 6.1 병합 run 체크 (2026-06-30)
@@ -407,17 +410,18 @@ Apple Vision은 삭제하지 않는다. 다만 제품 UI에 provider 선택지�
 - M0 기준 고정: 완료. dirty 파일 분류(`lip` 보호 대상 + `runbook` 변경 예정 + `앱/Unity` 변경), merge 이전 점검 완료.
 - M1 정리: 완료. cache/generated 정리 후보는 별도 runbook 반영 후 다음 게이트에서 문서 증빙 반영 예정.
 - M2 계약 인벤토리: 완료. 위 테이블로 채움.
-- M3 source branch inventory: 완료. `origin/blush-mask`는 cheek v1 기반 에셋만 존재하고, `feature/brow-0626`는 `e7-brow-*` 공식 식별자 자산이 없어 **최신 brow asset 경로가 불명확**.
+- M3 source inventory: 완료. `origin/blush-mask`는 cheek v1 기반 에셋만 선별 대상으로 유지하고, `feature/brow-0626`는 사용자 결정에 따라 제외. `brow`는 PSD path/hash/layer/extraction 기준으로 전환.
 - M4 blush transplant: 완료. `lip/blush/brow/eyeliner` 런타임 계약에서 `blush` 값 정렬, `e7-blush-balanced-uv-v0` 경로 확인, legacy `cheek` alias 보존 정책 반영.
-- M5 brow transplant: 중단. `feature/brow-0626`의 최신 `e7-brow-*` 자산/파라미터/스키마/렌더링 source-of-truth 미확정.
-- M6~M9: M5 중단으로 대기.
-- M10~M12: M5 중단으로 대기(`M12 Stop rules` 및 Risk Register R4/M12 기준, 사용자 확인 전환 대기).
+- M5 brow transplant: 완료. `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd` SHA-256 `d7d3b87caa4929f561fc45a4b2313990542fedefeeadd6b5e8801d18bef1b8a7`, layer marker `eyebrow`, extraction method `pil_psd_composite_rgb_threshold_upper_brow_roi_to_512_rgba_alpha`, generated resource id `psd-arcore-brow-semi-arch-v1`로 PSD-only contract 전환.
+- M6~M9: 완료(소스/정적 기준). RN/Unity parser/runtime route가 `lip/blush/brow/eyeliner`를 유지하고, brow는 PSD-derived id만 허용한다.
+- M10: 부분 완료. RN TypeScript/Jest/ESLint, Python compile, `git diff --check`, `npm run e7:prebuild:full -- --no-report`, `npm run e7:build-plan -- --no-report` 통과/판정 완료. Unity `E7FullFaceRegionPackageSmoke.RunFromCommandLine`은 Unity Safe Mode C# compile error를 사용자 실행에서 확인했고 `RNBridge.cs` struct initializer 제거 후 Unity Roslyn C# direct compile이 통과했다. Unity GUI Safe Mode exit/import 및 Editor smoke 재검증은 대기.
+- M11~M12: 진행 중. 결과 문서 반영과 phone-connected deferred gate 문서화 필요.
 
 ### 6.2 고정된 stop rule 기록
 
-- `feature/brow-0626`에서 확인 가능한 brow 후보는 `brow-*`/`psd-arcore-*` 계열(v1) 중심이며, `e7-brow-*` 경로-매핑-검증이 한 번에 동일한 증빙으로 확정되지 않음.
-- `feature/brow-0626`에서 `e7-brow-*` 소스가 확정되지 않으면 `M5` 강행 금지(이식 중단)하고 `brow`는 경고/skip 정책으로 문서 추적을 유지한다.
-- `M10`~`M12`는 본 이식 가드 조건 충족 전까지 대기 상태로 둠.
+- `feature/brow-0626`는 더 이상 source-of-truth가 아니다.
+- PSD 원본은 commit하지 않고, PSD-derived PNG/texture resource와 registry metadata만 commit한다.
+- PSD에서 `eyebrow` layer marker 또는 brow extraction ROI가 불명확하면 `M5` 강행 금지하고 사용자에게 PSD layer/export 정보를 요청한다.
 
 Inventory 작성 시 확인할 항목:
 
@@ -458,25 +462,26 @@ Inventory 작성 시 확인할 항목:
 - 사용자 조정값은 `offsetX`, `offsetY`, `scale`, `rotation`, `softness`, `density` 중심으로 둔다.
 - asset 누락 시 legacy cheek mask fallback을 허용하되 warning을 남긴다.
 
-## 8. Brow contract reference
+## 8. PSD-only Brow contract reference
 
 이 섹션은 M5 실행 시 확인할 contract reference다. 실행 순서는 4장의 M5를 따른다.
 
 ### 8.1 가져올 것
 
-- 최신 팀원 brow asset
-- brow PNG/hair textures
-- brow mask ids
-- palette
-- blend mode
+- `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd` source path/hash
+- PSD `eyebrow` layer 식별 근거
+- PSD-derived brow PNG/texture
+- PSD-derived brow mask id
+- palette/blend mode
 - `detailAmount`
 - `maskSpreadX`
 - `maskOffsetY`
 - renderer parameter
-- brow asset 검증 스크립트 또는 문서
+- brow asset extraction/registry 검증 스크립트 또는 문서
 
 ### 8.2 가져오지 않을 것
 
+- `feature/brow-0626`의 asset, UI flow, branch-specific renderer 변경
 - 현재 package flow를 덮는 오래된 RN App 구조
 - MediaPipe anchor와 충돌하는 자체 tracking 임시 로직
 - 현재 runtime layer를 대체하는 branch-specific route
@@ -484,9 +489,9 @@ Inventory 작성 시 확인할 항목:
 ### 8.3 최종 연결 방식
 
 - MediaPipe brow landmarks는 위치, 회전, 스케일, 좌우 비대칭, confidence만 담당한다.
-- 실제 눈썹 모양, 두께, 컬러, 털 질감, blend 느낌은 팀원 brow asset이 담당한다.
-- 최신 brow asset이 `feature/brow-0626`에 없으면 병합을 멈추고 사용자에게 asset 위치를 요청한다.
-- asset 누락 시 brow region은 skip + warning으로 처리한다.
+- 실제 눈썹 모양, 두께, 컬러, 질감, blend 느낌은 PSD-derived brow asset이 담당한다.
+- PSD brow layer 식별이나 extraction이 불가능하면 병합을 멈추고 사용자에게 PSD layer/export 정보를 요청한다.
+- asset 누락 시 brow region은 blocked + warning으로 처리한다.
 
 ## 9. Eyeliner contract reference
 
@@ -522,7 +527,7 @@ Inventory 작성 시 확인할 항목:
 | --- | --- |
 | `lip` | generated mask + adjustment + runtime payload |
 | `blush` | UV mask id + adjustment + look parameter |
-| `brow` | MediaPipe anchor + teammate asset id + look parameter + adjustment |
+| `brow` | MediaPipe anchor + PSD-derived asset id + look parameter + adjustment |
 | `eyeliner` | MediaPipe upper eyelid boundary + future asset slot |
 
 UI는 provider 선택지를 노출하지 않는다. 사용자에게는 `자동`과 `직접 조정` 중심 흐름만 제공한다.
@@ -533,7 +538,7 @@ Fallback 정책:
 | --- | --- |
 | `lip` | 실패 시 blocked |
 | `blush` | legacy cheek mask fallback + warning |
-| `brow` | skip + warning |
+| `brow` | PSD asset extraction blocked + warning |
 | `eyeliner` | boundary 저장 성공, asset missing warning |
 
 ## 11. Risk Register
@@ -542,10 +547,10 @@ Fallback 정책:
 
 | ID | 위험 | 발생 가능 지점 | 예방책 | Stop rule |
 | --- | --- | --- | --- | --- |
-| R1 | 팀원 에셋의 색감/느낌이 달라짐 | PNG만 복사하고 Unity `.meta`, material, blend, gain, transform을 놓칠 때 | PNG, `.meta`, resource id, shader/material parameter, gain/transform을 한 세트로 이식 | 같은 asset이 branch와 명백히 다른 색감/밀도로 보이면 중단 |
+| R1 | 외부/팀원 에셋의 색감/느낌이 달라짐 | PNG만 복사하고 Unity `.meta`, material, blend, gain, transform을 놓칠 때 | PNG, `.meta`, resource id, shader/material parameter, gain/transform을 한 세트로 이식 | 같은 asset이 source와 명백히 다른 색감/밀도로 보이면 중단 |
 | R2 | package save/load에서 look parameter 유실 | brow/blush의 custom field를 serializer가 버릴 때 | save/load round trip에서 `detailAmount`, `maskSpreadX`, `maskOffsetY`, palette, blend, density/center gain 보존 확인 | 저장 후 재로드에서 look/tracking/adjustment 값이 사라지면 중단 |
 | R3 | legacy 이름이 새 region 의미와 섞임 | `cheek`, `eye`, `eyeline`, `eyebrow`가 canonical처럼 쓰일 때 | 신규 package는 `lip/blush/brow/eyeliner`만 사용하고 `cheek -> blush`만 legacy alias 허용 | 같은 id가 두 의미로 쓰이면 중단 |
-| R4 | 최신 brow asset source of truth 불명확 | `feature/brow-0626`에 최신 asset이 없거나 여러 후보가 있을 때 | M3에서 최신 asset 위치를 확정하고, 불명확하면 사용자에게 경로 요청 | 최신 brow asset을 확정하지 못하면 brow 이식 중단 |
+| R4 | PSD brow source of truth 불명확 | PSD layer marker, extraction ROI, generated texture id가 불명확할 때 | M3/M5에서 PSD path/hash/layer/extraction transform/generated Unity resource id를 기록 | PSD brow layer/derivative를 확정하지 못하면 brow 이식 중단 |
 | R5 | fallback/skip이 성공처럼 보임 | blush fallback, brow skip, eyeliner asset missing이 warning 없이 지나갈 때 | package/debug/prebuild gate에 warning 또는 blockedReason을 남김 | warning 표면화 없이 fallback이 통과하면 중단 |
 | R6 | MediaPipe 확장이 lip 회귀를 만듦 | native provider/schema를 확장하면서 기존 lip boundary shape를 바꿀 때 | lip provider contract는 보존하고 brow/eyeliner는 별도 field로 추가 | lip generate/save/apply baseline이 깨지면 중단 |
 | R7 | eyeliner provisional schema가 stable처럼 굳어짐 | 전문가 asset 전 boundary schema를 v1처럼 취급할 때 | `e7-eyeliner-upper-boundary-provisional-v0`로 저장하고 future migration을 명시 | stable v1로 고정하려는 변경이 생기면 중단 |
@@ -558,7 +563,7 @@ Fallback 정책:
 | Gate | 확인 내용 | 완료 기준 |
 | --- | --- | --- |
 | Contract gate | region 이름, package schema, legacy alias, id mapping | 누락/충돌 없음 |
-| Asset gate | blush/brow texture, manifest, resource 참조 | Unity resource 참조 가능 |
+| Asset gate | blush texture, PSD-derived brow texture, manifest, resource 참조 | Unity resource 참조 가능 |
 | Generate gate | 네 region entry 생성 | lip 회귀 없음, 나머지 region entry 생성 |
 | Save/load gate | 저장 package 재로드 | adjustment/look/tracking 값 보존 |
 | RN gate | TS/Jest/native generate checker | 통과 또는 명확한 blockedReason |
@@ -582,7 +587,7 @@ Fallback 정책:
 Fallback/negative path:
 
 1. blush asset 누락 시 legacy cheek fallback warning이 표면화된다.
-2. brow asset 누락 시 brow skip + warning이 표면화된다.
+2. brow PSD asset 누락 또는 layer 식별 실패 시 brow blocked + warning이 표면화된다.
 3. eyeliner asset 누락 시 boundary saved + asset missing warning이 표면화된다.
 4. MediaPipe 실패 시 provider blockedReason이 package와 UI/debug surface에 남는다.
 5. Unity unknown resource는 조용히 무시되지 않고 fail 또는 명확한 warning으로 기록된다.
@@ -624,7 +629,7 @@ Fallback/negative path:
 
 다음 상황에서는 병합을 계속 진행하지 않고 사용자에게 보고한다.
 
-- 최신 brow asset 위치가 불명확함
+- PSD brow layer 또는 PSD-derived asset 위치가 불명확함
 - `lip` generate/save/apply baseline이 깨짐
 - Unity resource id가 같은 이름으로 다른 의미를 가짐
 - 팀원 branch의 shader/material contract가 현재 runtime과 충돌함
@@ -645,7 +650,7 @@ python3 scripts/notify_slack_user_required.py --message "<짧은 한국어 요�
 - `lip`, `blush`, `brow`, `eyeliner` package contract가 존재한다.
 - `lip` 기존 기능이 회귀하지 않는다.
 - `blush`는 팀원 cheek UV mask와 사용자 조정값을 package/runtime에 연결한다.
-- `brow`는 MediaPipe anchor와 팀원 brow asset contract를 연결한다.
+- `brow`는 MediaPipe anchor와 PSD-derived brow asset contract를 연결한다.
 - `eyeliner`는 MediaPipe upper eyelid boundary를 저장한다.
 - buildless/schema/RN/Unity/pre-Xcode gate 결과가 문서화된다.
 - blocking pre-Xcode fail은 남아 있지 않다.
@@ -654,7 +659,10 @@ python3 scripts/notify_slack_user_required.py --message "<짧은 한국어 요�
 
 ### 16.1 2026-06-30 실행 갱신
 
-- M10 prebuild gate를 `rn/MakeupARValidation`에서 재실행했으며 `pass=38 fail=0 warn=0`으로 통과함을 재확인했다.
-- `E7FullFaceRegionPackageSmoke.RunFromCommandLine`은 라이선싱 클라이언트 초기화 타임아웃으로 중단되어 `R8` 환경 blocker로 기록됨.
-- `brow` `e7-brow-*` source-of-truth는 `feature/brow-0626`에서 확정되지 않아 `M5` 중단(R4) 상태 유지.
-- `M11` 문서 반영은 진행 중, `M12 phone-connected`는 사용자 승인/`brow` 경로 확정 후 진행.
+- M10 prebuild gate를 `rn/MakeupARValidation`에서 재실행했으며 `pass=39 fail=0 warn=0`으로 통과함을 재확인했다.
+- RN gate: `./node_modules/.bin/tsc --noEmit`, `npm test -- --runInBand --watchman=false`(`37 passed`), `npm run lint` 통과.
+- Buildless/static gate: `python3 -m py_compile scripts/e7_region_generate/install_full_face_region_runtime_assets.py`, `git diff --check` 통과.
+- Build-plan gate: `npm run e7:build-plan -- --no-report`는 `decision=run-unityframework-build`, `unityFrameworkSync=true`, reason=`Unity runtime source/assets changed`로 판정. 이번 goal에서는 Xcode/iPhone action을 실행하지 않으므로 UnityFramework regeneration은 next phone-connected gate로 남긴다.
+- Unity batchmode smoke: sandbox/host 재시도는 Unity Licensing Client timeout으로 코드 실행 전 중단되었고, 이후 사용자 GUI 실행에서 `RNBridge.cs` C# compile error(`struct field initializers`)가 확인됨. `ParsedRecipeLayer.BrowCleanupSourceMode` initializer 제거 후 Unity Roslyn C# direct compile command가 exit 0으로 통과했다. Unity GUI Safe Mode exit/import와 `E7FullFaceRegionPackageSmoke.RunFromCommandLine` 재검증은 아직 필요하다.
+- `brow` source-of-truth는 `feature/brow-0626`가 아니라 `/Users/wiseungcheol/Documents/ARCore_canonical_face_texture_1.psd`로 전환됨. PSD 원본은 commit하지 않고 `psd-arcore-brow-semi-arch-v1.png` / `brow-cleanup-source-v1.png` 파생 texture와 registry metadata만 commit한다.
+- `M11` 문서 반영은 진행 중, `M12 phone-connected`는 Unity import/smoke 재시도 및 user-approved UnityFramework/RN Xcode flow로 deferred.
