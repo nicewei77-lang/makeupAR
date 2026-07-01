@@ -9,6 +9,7 @@ import App, {
   CHEEK_BLUSH_REGION_OPTIONS,
   DEFAULT_REGION_RECIPES,
   DEFAULT_RENDERER_MODE,
+  EYEBROW_COLOR_OPTIONS,
   LIP_TEXTURE_STYLE_OPTIONS,
   RECIPE_COLOR_OPTIONS,
   RECIPE_TEXTURE_SAMPLE_OPTIONS,
@@ -879,6 +880,118 @@ test('allows lip and eye toggles for placement validation while preserving 3-lay
   );
 });
 
+test('adds eyebrow as optional fourth layer without changing legacy payloads', () => {
+  const eyebrowSample = RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
+    textureOption => textureOption.name === 'eyebrow_candidate_5',
+  )!;
+  const eyebrowColor = EYEBROW_COLOR_OPTIONS.find(
+    colorOption => colorOption.name === 'dark_brown',
+  )!;
+  const legacyPayload = buildValidationRecipeBatchPayload(
+    DEFAULT_REGION_RECIPES,
+    {
+      lip: true,
+      cheek: true,
+      eye: true,
+    },
+    'lip',
+    DEFAULT_RENDERER_MODE,
+    12345,
+  );
+  const eyebrowPayload = buildValidationRecipeBatchPayload(
+    {
+      ...DEFAULT_REGION_RECIPES,
+      eyebrow: {
+        ...DEFAULT_REGION_RECIPES.eyebrow,
+        color: eyebrowColor,
+        textureSample: eyebrowSample,
+      },
+    },
+    {
+      lip: false,
+      cheek: false,
+      eye: false,
+      eyebrow: true,
+    },
+    'eyebrow',
+    DEFAULT_RENDERER_MODE,
+    12345,
+  );
+  const eyebrowLayer = eyebrowPayload.layers.find(
+    layer => layer.region === 'eyebrow',
+  )!;
+
+  expect(legacyPayload.layers).toHaveLength(3);
+  expect(legacyPayload.layers.some(layer => layer.region === 'eyebrow')).toBe(
+    false,
+  );
+  expect(eyebrowPayload.layers).toHaveLength(4);
+  expect(eyebrowPayload.activeRegions).toBe('eyebrow');
+  expect(eyebrowPayload.enabledLayerCount).toBe(1);
+  expect(eyebrowPayload.texture).toBe('eyebrow_candidate_5');
+  expect(eyebrowPayload.maskTextureId).toBe('eyebrow-hair-atlas-5-v1');
+  expect(eyebrowPayload.shaderMode).toBe(
+    'eyebrow-boundary-tone-lift-validation',
+  );
+  expect(eyebrowPayload.passCount).toBe(4);
+  expect(eyebrowLayer.enabled).toBe(true);
+  expect(eyebrowLayer.color).toBe('#3B2A22');
+  expect(eyebrowLayer.maskTextureId).toBe('eyebrow-hair-atlas-5-v1');
+  expect(eyebrowLayer.blendMode).toBe('multiply');
+  expect(eyebrowLayer.finish).toBe('brow');
+  expect(eyebrowLayer.skinAdaptive).toBe(false);
+});
+
+test('maps all five eyebrow buttons to Unity mask resources', () => {
+  const eyebrowSamples = RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureOption => textureOption.region === 'eyebrow',
+  );
+
+  expect(eyebrowSamples.map(sample => sample.name)).toEqual([
+    'eyebrow_candidate_1',
+    'eyebrow_candidate_2',
+    'eyebrow_candidate_3',
+    'eyebrow_candidate_4',
+    'eyebrow_candidate_5',
+  ]);
+
+  eyebrowSamples.forEach((sample, index) => {
+    const payload = buildValidationRecipeBatchPayload(
+      {
+        ...DEFAULT_REGION_RECIPES,
+        eyebrow: {
+          ...DEFAULT_REGION_RECIPES.eyebrow,
+          textureSample: sample,
+        },
+      },
+      {
+        lip: false,
+        cheek: false,
+        eye: false,
+        eyebrow: true,
+      },
+      'eyebrow',
+      DEFAULT_RENDERER_MODE,
+      12345,
+    );
+
+    expect(payload.maskTextureId).toBe(`eyebrow-hair-atlas-${index + 1}-v1`);
+  });
+});
+
+test('exposes eyebrow wine color option', () => {
+  expect(EYEBROW_COLOR_OPTIONS.map(color => color.name)).toEqual([
+    'black',
+    'dark_brown',
+    'brown',
+    'light_brown',
+    'wine',
+  ]);
+  expect(
+    EYEBROW_COLOR_OPTIONS.find(color => color.name === 'wine')?.color,
+  ).toBe('#6A243B');
+});
+
 test('toggles lip region alongside default cheek blush', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -907,4 +1020,86 @@ test('toggles lip region alongside default cheek blush', async () => {
 
   expect(getToggle().props.accessibilityState.checked).toBe(false);
   expect(collectText(renderer!)).toContain('active=none');
+});
+
+test('keeps existing regions active when focusing eyebrow controls', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
+
+  const getLipToggle = () =>
+    renderer!.root.findByProps({ testID: 'region-toggle-lip' });
+  const getCheekToggle = () =>
+    renderer!.root.findByProps({ testID: 'region-toggle-cheek' });
+  const getEyebrowToggle = () =>
+    renderer!.root.findByProps({ testID: 'region-toggle-eyebrow' });
+
+  ReactTestRenderer.act(() => {
+    getLipToggle().props.onPress();
+  });
+  ReactTestRenderer.act(() => {
+    getCheekToggle().props.onPress();
+  });
+  ReactTestRenderer.act(() => {
+    getLipToggle().props.onPress();
+  });
+  ReactTestRenderer.act(() => {
+    getEyebrowToggle().props.onPress();
+  });
+
+  expect(getLipToggle().props.accessibilityState.checked).toBe(true);
+  expect(getCheekToggle().props.accessibilityState.checked).toBe(true);
+  expect(getEyebrowToggle().props.accessibilityState.checked).toBe(true);
+  expect(collectText(renderer!)).toContain('active=lip,cheek,eyebrow');
+
+  const latestRecipePostCall = [...consoleLogSpy.mock.calls]
+    .reverse()
+    .find(call => call.includes('[E7] rn_texture_recipe_batch_post'));
+
+  expect(latestRecipePostCall).toBeTruthy();
+  expect(latestRecipePostCall).toContain('activeRegions=lip,cheek,eyebrow');
+  expect(latestRecipePostCall).toContain('enabledLayerCount=3');
+  expect(latestRecipePostCall).toContain('focusRegion=eyebrow');
+  expect(latestRecipePostCall).toContain(
+    'eyebrowMaskTextureId=eyebrow-hair-atlas-5-v1',
+  );
+});
+
+test('does not show stale eye recipe status while eyebrow is focused', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+  expandRecipePanel(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'recipe_applied',
+    region: 'eye',
+    layer: 'eye',
+    texture: 'shimmer_eye',
+    sample: 'shimmer_eye',
+    textureMode: 'sample',
+    blendMode: 'screen',
+    finish: 'shimmer',
+    maskTextureId: 'eye-drawn-mask-v1',
+    applied: false,
+  });
+
+  ReactTestRenderer.act(() => {
+    renderer!.root
+      .findByProps({ testID: 'region-toggle-eyebrow' })
+      .props.onPress();
+  });
+
+  const text = collectText(renderer!);
+
+  expect(text).toContain('active=eyebrow');
+  expect(text).toContain('recipe_applied waiting');
+  expect(text).not.toContain('recipe_applied region=eye texture=shimmer_eye');
 });

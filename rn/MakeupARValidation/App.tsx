@@ -33,8 +33,16 @@ export const RECIPE_COLOR_OPTIONS = [
   { name: 'red', label: 'red', color: '#C21F3A' },
   { name: 'pale_pink', label: 'pale pink', color: '#ECC4CB' },
 ] as const;
+export const EYEBROW_COLOR_OPTIONS = [
+  { name: 'black', label: 'black', color: '#171412' },
+  { name: 'dark_brown', label: 'dark brown', color: '#3B2A22' },
+  { name: 'brown', label: 'brown', color: '#6B4A34' },
+  { name: 'light_brown', label: 'light brown', color: '#8B6447' },
+  { name: 'wine', label: 'wine', color: '#6A243B' },
+] as const;
 
-const RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
+const CORE_RECIPE_REGION_OPTIONS = ['lip', 'cheek', 'eye'] as const;
+const RECIPE_REGION_OPTIONS = [...CORE_RECIPE_REGION_OPTIONS, 'eyebrow'] as const;
 export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   {
     name: 'matte_lip',
@@ -252,6 +260,96 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
     gradientAmount: 0,
     preserveDetail: true,
   },
+  {
+    name: 'eyebrow_candidate_1',
+    label: 'brow 1',
+    region: 'eyebrow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#6C5043',
+    intensity: 0.82,
+    feather: 0.34,
+    coverage: 0.9,
+    finish: 'brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'eyebrow_candidate_2',
+    label: 'brow 2',
+    region: 'eyebrow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#6C5043',
+    intensity: 0.82,
+    feather: 0.34,
+    coverage: 0.9,
+    finish: 'brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'eyebrow_candidate_3',
+    label: 'brow 3',
+    region: 'eyebrow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#6C5043',
+    intensity: 0.82,
+    feather: 0.34,
+    coverage: 0.9,
+    finish: 'brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'eyebrow_candidate_4',
+    label: 'brow 4',
+    region: 'eyebrow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#6C5043',
+    intensity: 0.82,
+    feather: 0.34,
+    coverage: 0.9,
+    finish: 'brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
+  {
+    name: 'eyebrow_candidate_5',
+    label: 'brow 5',
+    region: 'eyebrow',
+    textureMode: 'sample',
+    blendMode: 'multiply',
+    secondaryColor: '#6C5043',
+    intensity: 0.82,
+    feather: 0.34,
+    coverage: 0.9,
+    finish: 'brow',
+    roughness: 1,
+    specular: 0,
+    specularPower: 6,
+    glossBoost: 0,
+    gradientAmount: 0,
+    preserveDetail: true,
+  },
 ] as const;
 const VALIDATION_VIEW_MODE_OPTIONS = [
   { name: 'clean', label: 'Clean' },
@@ -263,7 +361,10 @@ const E7_EVIDENCE_MODE = 'cheek-blush-validation-v1';
 const E7_LOOK_ID = 'cheek_blush_validation_v1';
 const E7_RECIPE_PREFIX = 'cheek-blush-v1';
 
-export type RecipeColor = (typeof RECIPE_COLOR_OPTIONS)[number];
+export type RecipeColor =
+  | (typeof RECIPE_COLOR_OPTIONS)[number]
+  | (typeof EYEBROW_COLOR_OPTIONS)[number];
+export type CoreRecipeRegion = (typeof CORE_RECIPE_REGION_OPTIONS)[number];
 export type RecipeRegion = (typeof RECIPE_REGION_OPTIONS)[number];
 export type RecipeTextureSample =
   (typeof RECIPE_TEXTURE_SAMPLE_OPTIONS)[number];
@@ -294,6 +395,9 @@ const TEXTURE_STYLE_OPTIONS_BY_REGION: Record<
   eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
     textureSample => textureSample.region === 'eye',
   ),
+  eyebrow: RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
+    textureSample => textureSample.region === 'eyebrow',
+  ),
 };
 export type RendererMode = 'smooth-region-mask';
 type MaskTextureId =
@@ -307,6 +411,12 @@ type MaskTextureId =
   | 'cheek-session-mask-4-v1'
   | 'cheek-session-mask-5-v1'
   | 'eye-drawn-mask-v1'
+  | 'eyebrow-hair-atlas-v1'
+  | 'eyebrow-hair-atlas-1-v1'
+  | 'eyebrow-hair-atlas-2-v1'
+  | 'eyebrow-hair-atlas-3-v1'
+  | 'eyebrow-hair-atlas-4-v1'
+  | 'eyebrow-hair-atlas-5-v1'
   | 'lip-style-atlas-v1'
   | 'lip-smooth-mask-v1'
   | 'eye-smooth-mask-v1';
@@ -317,10 +427,14 @@ export type RegionRecipe = {
   intensity: number;
   textureSample: RecipeTextureSample;
 };
-export type ActiveRegionMap = Record<RecipeRegion, boolean>;
+export type ActiveRegionMap = Record<CoreRecipeRegion, boolean> &
+  Partial<Record<Exclude<RecipeRegion, CoreRecipeRegion>, boolean>>;
 
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'cheek';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
+const DEFAULT_EYEBROW_COLOR = EYEBROW_COLOR_OPTIONS.find(
+  colorOption => colorOption.name === 'dark_brown',
+) as RecipeColor;
 const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   RecipeRegion,
   RecipeTextureSample
@@ -333,6 +447,9 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
   ) as RecipeTextureSample,
   eye: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
     textureSample => textureSample.name === 'shimmer_eye',
+  ) as RecipeTextureSample,
+  eyebrow: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
+    textureSample => textureSample.name === 'eyebrow_candidate_5',
   ) as RecipeTextureSample,
 };
 export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
@@ -354,11 +471,18 @@ export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye.intensity,
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eye,
   },
+  eyebrow: {
+    color: DEFAULT_EYEBROW_COLOR,
+    opacity: 0.75,
+    intensity: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eyebrow.intensity,
+    textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eyebrow,
+  },
 };
 const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-session-mask-1-v1',
   eye: 'eye-drawn-mask-v1',
+  eyebrow: 'eyebrow-hair-atlas-5-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -386,12 +510,30 @@ function resolveMaskTextureIdForRecipe(
     }
   }
 
+  if (region === 'eyebrow') {
+    switch (textureSample.name) {
+      case 'eyebrow_candidate_1':
+        return 'eyebrow-hair-atlas-1-v1';
+      case 'eyebrow_candidate_2':
+        return 'eyebrow-hair-atlas-2-v1';
+      case 'eyebrow_candidate_3':
+        return 'eyebrow-hair-atlas-3-v1';
+      case 'eyebrow_candidate_4':
+        return 'eyebrow-hair-atlas-4-v1';
+      case 'eyebrow_candidate_5':
+        return 'eyebrow-hair-atlas-5-v1';
+    }
+
+    return 'eyebrow-hair-atlas-5-v1';
+  }
+
   return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
 }
 export const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: false,
   cheek: false,
   eye: false,
+  eyebrow: false,
 };
 const INTENSITY_STEP = 0.01;
 const OPACITY_STEP = 0.01;
@@ -419,7 +561,13 @@ export function buildValidationRecipeBatchPayload(
   const recipeBatchId = `${E7_RECIPE_PREFIX}-batch-${Math.round(sentAtMs)}`;
   const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
   const enabledLayerCount = countActiveRegions(enabledRegions);
-  const layers = RECIPE_REGION_OPTIONS.map(region => {
+  const payloadRegions = shouldIncludeEyebrowLayer(
+    enabledRegions,
+    focusRegion,
+  )
+    ? RECIPE_REGION_OPTIONS
+    : CORE_RECIPE_REGION_OPTIONS;
+  const layers = payloadRegions.map(region => {
     const recipe = recipes[region];
     const sample = recipe.textureSample;
     const layerIntensity = recipe.intensity;
@@ -436,7 +584,7 @@ export function buildValidationRecipeBatchPayload(
       sentAtMs,
       rendererMode,
       activeRegions: activeRegionSummary,
-      layerCount: RECIPE_REGION_OPTIONS.length,
+      layerCount: payloadRegions.length,
       enabledLayerCount,
       region,
       layer: region,
@@ -467,10 +615,16 @@ export function buildValidationRecipeBatchPayload(
       shaderMode:
         region === 'lip'
           ? 'lip-style-atlas-validation'
-          : region === 'cheek'
-            ? 'cheek-blush-multiband-skin-aware-validation'
-            : 'unlit-alpha-validation',
-      passCount: sample.name === 'gloss_lip' ? 2 : 1,
+            : region === 'cheek'
+              ? 'cheek-blush-multiband-skin-aware-validation'
+              : region === 'eyebrow'
+                ? 'eyebrow-boundary-tone-lift-validation'
+                : 'unlit-alpha-validation',
+      passCount: region === 'eyebrow'
+        ? 4
+        : sample.name === 'gloss_lip'
+          ? 2
+          : 1,
       maskTextureId,
       cameraBackdropAvailable: false,
       lightEstimateAvailable: false,
@@ -520,8 +674,14 @@ export function buildValidationRecipeBatchPayload(
         ? 'lip-style-atlas-validation'
         : focusRegion === 'cheek'
           ? 'cheek-blush-multiband-skin-aware-validation'
-          : 'unlit-alpha-validation',
-    passCount: focusSample.name === 'gloss_lip' ? 2 : 1,
+          : focusRegion === 'eyebrow'
+            ? 'eyebrow-boundary-tone-lift-validation'
+            : 'unlit-alpha-validation',
+    passCount: focusRegion === 'eyebrow'
+      ? 4
+      : focusSample.name === 'gloss_lip'
+        ? 2
+        : 1,
     maskTextureId: focusMaskTextureId,
     cameraBackdropAvailable: false,
     lightEstimateAvailable: false,
@@ -965,6 +1125,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         'cheek',
         recipes.cheek.textureSample,
       );
+      const eyebrowMaskTextureId = resolveMaskTextureIdForRecipe(
+        'eyebrow',
+        recipes.eyebrow.textureSample,
+      );
       console.log(
         '[E7] rn_texture_recipe_batch_post',
         `rendererMode=${rendererMode}`,
@@ -975,6 +1139,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `focusMaskTextureId=${focusMaskTextureId}`,
         `lipMaskTextureId=${lipMaskTextureId}`,
         `cheekMaskTextureId=${cheekMaskTextureId}`,
+        `eyebrowMaskTextureId=${eyebrowMaskTextureId}`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );
@@ -1229,13 +1394,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const selectedColor = focusedRecipe.color;
   const selectedTextureSample = focusedRecipe.textureSample;
   const focusedTextureOptions = TEXTURE_STYLE_OPTIONS_BY_REGION[focusedRegion];
+  const focusedColorOptions =
+    focusedRegion === 'eyebrow' ? EYEBROW_COLOR_OPTIONS : RECIPE_COLOR_OPTIONS;
   const activeRegionSummary = formatActiveRegionSummary(activeRegions);
   const focusedIntensity = focusedRecipe.intensity;
   const focusedOpacity = focusedRecipe.opacity;
   const latestMetric = unityEventStatus.e7_metric_sample?.parsed;
   const latestLifecycle = unityEventStatus.face_lifecycle?.parsed;
+  const focusedRecipeRecord = recipeEventStatusByRegion[focusedRegion];
   const latestRecipeRecord =
-    recipeEventStatusByRegion[focusedRegion] ?? unityEventStatus.recipe_applied;
+    focusedRecipeRecord ??
+    (focusedRegion === 'eyebrow' ? undefined : unityEventStatus.recipe_applied);
   const latestRecipe = latestRecipeRecord?.parsed;
   const latestSnapshot = unityEventStatus.face_feature_snapshot?.parsed;
   const unityInitializedAt =
@@ -1287,16 +1456,18 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const toggleRegion = useCallback(
     (region: RecipeRegion) => {
+      const isActive = activeRegions[region] === true;
+      const shouldDisable = isActive && focusedRegion === region;
       const nextActiveRegions = {
         ...activeRegions,
-        [region]: !activeRegions[region],
+        [region]: !shouldDisable,
       };
 
       setFocusedRegion(region);
       setActiveRegions(nextActiveRegions);
       postRecipeBatch(regionRecipes, nextActiveRegions, region);
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [activeRegions, focusedRegion, postRecipeBatch, regionRecipes],
   );
 
   const selectColor = useCallback(
@@ -1383,7 +1554,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       ? 'Blush Region'
       : focusedRegion === 'lip'
         ? 'Lip Finish'
-        : 'Eye Style';
+        : focusedRegion === 'eyebrow'
+          ? 'Eyebrow Style'
+          : 'Eye Style';
   const formatTextureLabel = useCallback(
     (textureSample: RecipeTextureSample) => {
       switch (textureSample.name) {
@@ -1403,6 +1576,16 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           return 'Sun 2';
         case 'shimmer_eye':
           return 'Shimmer';
+        case 'eyebrow_candidate_1':
+          return 'Brow 1';
+        case 'eyebrow_candidate_2':
+          return 'Brow 2';
+        case 'eyebrow_candidate_3':
+          return 'Brow 3';
+        case 'eyebrow_candidate_4':
+          return 'Brow 4';
+        case 'eyebrow_candidate_5':
+          return 'Brow 5';
         default:
           return 'Matte';
       }
@@ -1639,7 +1822,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 </View>
 
                 <View style={styles.colorButtonRow}>
-                  {RECIPE_COLOR_OPTIONS.map(colorOption => {
+                  {focusedColorOptions.map(colorOption => {
                     const isSelected = colorOption.name === selectedColor.name;
 
                     return (
@@ -2164,6 +2347,13 @@ function getRecipeRegionFromEvent(
     : undefined;
 }
 
+function shouldIncludeEyebrowLayer(
+  activeRegions: ActiveRegionMap,
+  focusRegion: RecipeRegion,
+) {
+  return focusRegion === 'eyebrow' || activeRegions.eyebrow === true;
+}
+
 function formatUnityEventTypeStatus(
   type: UnityEventType,
   event?: UnityEventRecord,
@@ -2563,13 +2753,15 @@ function formatLifecycleValue(value: unknown) {
 }
 
 function formatActiveRegionSummary(activeRegions: ActiveRegionMap) {
-  const regions = RECIPE_REGION_OPTIONS.filter(region => activeRegions[region]);
+  const regions = RECIPE_REGION_OPTIONS.filter(
+    region => activeRegions[region] === true,
+  );
   return regions.length === 0 ? 'none' : regions.join(',');
 }
 
 function countActiveRegions(activeRegions: ActiveRegionMap) {
   return RECIPE_REGION_OPTIONS.reduce(
-    (count, region) => count + (activeRegions[region] ? 1 : 0),
+    (count, region) => count + (activeRegions[region] === true ? 1 : 0),
     0,
   );
 }

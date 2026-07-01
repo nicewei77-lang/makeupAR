@@ -3,7 +3,8 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 UNITY_PROJECT="$ROOT_DIR/unity/MakeupARUnityValidation"
-UNITY_BIN="${UNITY_BIN:-/Applications/Unity/Hub/Editor/6000.3.18f1/Unity.app/Contents/MacOS/Unity}"
+UNITY_VERSION="${UNITY_VERSION:-$(awk -F': ' '/^m_EditorVersion: / { print $2; exit }' "$UNITY_PROJECT/ProjectSettings/ProjectVersion.txt")}"
+UNITY_BIN="${UNITY_BIN:-}"
 EXPORT_PATH="$ROOT_DIR/unity-builds/ios-export"
 LOG_DIR="$ROOT_DIR/evidence/logs"
 TIMESTAMP="${TIMESTAMP:-$(date '+%Y-%m-%d-%H%M%S')}"
@@ -11,6 +12,7 @@ BUILD_LOG_MODE="${BUILD_LOG_MODE:-summary}"
 KEEP_DERIVED_DATA="${KEEP_DERIVED_DATA:-0}"
 CLEAN_DERIVED_DATA="${CLEAN_DERIVED_DATA:-0}"
 SKIP_UNITY_EXPORT="${SKIP_UNITY_EXPORT:-0}"
+XCODE_BUILD_MODE="${XCODE_BUILD_MODE:-auto}"
 XCODE_DEBUG_INFORMATION_FORMAT="${XCODE_DEBUG_INFORMATION_FORMAT:-dwarf}"
 XCODE_GENERATE_DEBUG_SYMBOLS="${XCODE_GENERATE_DEBUG_SYMBOLS:-NO}"
 BUILD_TMP_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/makeupar-unityframework-$TIMESTAMP.XXXXXX")"
@@ -40,6 +42,29 @@ trap cleanup_build_tmp_root EXIT
 PROJECT_FILE="$EXPORT_PATH/Unity-iPhone.xcodeproj/project.pbxproj"
 NATIVE_PROXY_HEADER="$UNITY_PROJECT/Assets/Plugins/iOS/NativeCallProxy.h"
 
+resolve_unity_bin() {
+  if [[ -n "$UNITY_BIN" ]]; then
+    return
+  fi
+
+  local candidates=(
+    "/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+    "$HOME/Applications/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+    "$HOME/Library/Application Support/UnityHub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+    "/Users/Shared/Unity/Hub/Editor/$UNITY_VERSION/Unity.app/Contents/MacOS/Unity"
+  )
+
+  local candidate
+  for candidate in "${candidates[@]}"; do
+    if [[ -f "$candidate" ]]; then
+      UNITY_BIN="$candidate"
+      return
+    fi
+  done
+
+  UNITY_BIN="${candidates[0]}"
+}
+
 if [[ "$BUILD_LOG_MODE" == "full" ]]; then
   BUILD_LOG_DIR="$LOG_DIR"
 elif [[ "$BUILD_LOG_MODE" == "summary" ]]; then
@@ -56,7 +81,9 @@ VERIFY_LOG="$LOG_DIR/m3-repro-artifact-verification-$TIMESTAMP.log"
 RN_FRAMEWORK_DIR="$ROOT_DIR/rn/MakeupARValidation/unity/builds/ios"
 RN_FRAMEWORK="$RN_FRAMEWORK_DIR/UnityFramework.framework"
 PACKAGE_FRAMEWORK="$ROOT_DIR/rn/MakeupARValidation/node_modules/@azesmway/react-native-unity/ios/UnityFramework.framework"
-PRODUCT_FRAMEWORK="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
+PRODUCT_FRAMEWORK_SCHEME="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
+PRODUCT_FRAMEWORK_TARGET="$EXPORT_PATH/unity-builds/xcode-target-products/Release-iphoneos/UnityFramework.framework"
+PRODUCT_FRAMEWORK="$PRODUCT_FRAMEWORK_SCHEME"
 
 require_file() {
   if [[ ! -f "$1" ]]; then
@@ -65,13 +92,17 @@ require_file() {
   fi
 }
 
+resolve_unity_bin
+
 echo "== M3 UnityFramework reproducible build =="
 echo "Root: $ROOT_DIR"
 echo "Unity project: $UNITY_PROJECT"
+echo "Unity version: $UNITY_VERSION"
 echo "Unity binary: $UNITY_BIN"
 echo "Export path: $EXPORT_PATH"
 echo "Derived data: $DERIVED_DATA"
 echo "Build log mode: $BUILD_LOG_MODE"
+echo "Xcode build mode: $XCODE_BUILD_MODE"
 echo "Clean derived data: $CLEAN_DERIVED_DATA"
 echo "Skip Unity export: $SKIP_UNITY_EXPORT"
 echo "Xcode debug information format: $XCODE_DEBUG_INFORMATION_FORMAT"
@@ -138,7 +169,7 @@ done
 
 echo
 echo "== Build UnityFramework target =="
-run_xcodebuild() {
+run_xcodebuild_scheme() {
   xcodebuild \
     -project "$EXPORT_PATH/Unity-iPhone.xcodeproj" \
     -scheme UnityFramework \
@@ -150,6 +181,43 @@ run_xcodebuild() {
     DEBUG_INFORMATION_FORMAT="$XCODE_DEBUG_INFORMATION_FORMAT" \
     GCC_GENERATE_DEBUGGING_SYMBOLS="$XCODE_GENERATE_DEBUG_SYMBOLS" \
     build
+}
+
+run_xcodebuild_target() {
+  xcodebuild \
+    -project "$EXPORT_PATH/Unity-iPhone.xcodeproj" \
+    -target UnityFramework \
+    -configuration Release \
+    -sdk iphoneos \
+    CODE_SIGNING_ALLOWED=NO \
+    DEBUG_INFORMATION_FORMAT="$XCODE_DEBUG_INFORMATION_FORMAT" \
+    GCC_GENERATE_DEBUGGING_SYMBOLS="$XCODE_GENERATE_DEBUG_SYMBOLS" \
+    SYMROOT="$EXPORT_PATH/unity-builds/xcode-target-products" \
+    OBJROOT="$EXPORT_PATH/unity-builds/xcode-target-objects" \
+    build
+}
+
+run_xcodebuild() {
+  case "$XCODE_BUILD_MODE" in
+    scheme-generic)
+      run_xcodebuild_scheme
+      ;;
+    target-symroot)
+      run_xcodebuild_target
+      ;;
+    auto)
+      if run_xcodebuild_scheme; then
+        return 0
+      fi
+      echo
+      echo "Scheme generic iOS build failed; retrying UnityFramework target build with explicit iphoneos SDK."
+      run_xcodebuild_target
+      ;;
+    *)
+      echo "Unsupported XCODE_BUILD_MODE: $XCODE_BUILD_MODE (expected auto, scheme-generic, or target-symroot)" >&2
+      return 2
+      ;;
+  esac
 }
 
 if [[ "$BUILD_LOG_MODE" == "full" ]]; then
@@ -164,6 +232,17 @@ else
     exit 1
   fi
   grep "BUILD SUCCEEDED" "$XCODE_BUILD_LOG" || true
+fi
+
+if [[ -f "$PRODUCT_FRAMEWORK_SCHEME/UnityFramework" ]]; then
+  PRODUCT_FRAMEWORK="$PRODUCT_FRAMEWORK_SCHEME"
+elif [[ -f "$PRODUCT_FRAMEWORK_TARGET/UnityFramework" ]]; then
+  PRODUCT_FRAMEWORK="$PRODUCT_FRAMEWORK_TARGET"
+else
+  echo "UnityFramework product was not found in expected output paths:" >&2
+  echo "  $PRODUCT_FRAMEWORK_SCHEME" >&2
+  echo "  $PRODUCT_FRAMEWORK_TARGET" >&2
+  exit 1
 fi
 
 require_file "$PRODUCT_FRAMEWORK/UnityFramework"

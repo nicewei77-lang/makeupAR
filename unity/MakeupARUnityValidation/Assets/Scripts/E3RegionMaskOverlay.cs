@@ -206,6 +206,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string CheekSessionMask5Id = "cheek-session-mask-5-v1";
     private const string CheekBlushMaskSource = "user_session_2d_png_face_local_luminance_multiband";
     private const string CheekBlushBoundaryRenderer = "face_local_skin_aware_cheek_blush_multiband_filter";
+    private const string EyebrowHairAtlasMaskId = "eyebrow-hair-atlas-v1";
+    private const string EyebrowHairAtlas1MaskId = "eyebrow-hair-atlas-1-v1";
+    private const string EyebrowHairAtlas2MaskId = "eyebrow-hair-atlas-2-v1";
+    private const string EyebrowHairAtlas3MaskId = "eyebrow-hair-atlas-3-v1";
+    private const string EyebrowHairAtlas4MaskId = "eyebrow-hair-atlas-4-v1";
+    private const string EyebrowHairAtlas5MaskId = "eyebrow-hair-atlas-5-v1";
+    private const string EyebrowBoundaryMaskId = "eyebrow-boundary-mask-v1";
+    private const string EyebrowMaskSource = "face_local_actual_brow_boundary_with_user_texture_density";
+    private const string EyebrowBoundaryRenderer = "eyebrow_boundary_clipped_cleanup_tone_lift_fill_and_strand_multiply";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
@@ -563,6 +572,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool lipStyleAtlas = IsLipStyleAtlasMask(recipe.MaskTextureId);
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
         bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        bool eyebrowHairMask = recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId);
         bool lipLogicalMultilayer = lipStyleAtlas || visionLipBoundary;
         result.LipRenderLayerMode = lipLogicalMultilayer
             ? "soft_sdf_logical_multilayer"
@@ -576,6 +586,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             ? "lip_style_atlas_v1_uv_back_projection"
             : cheekBlushMask
             ? CheekBlushMaskSource
+            : eyebrowHairMask
+            ? EyebrowMaskSource
             : MaskSource;
         result.BoundaryRenderer = visionLipBoundary
             ? VisionLipBoundaryRenderer
@@ -585,10 +597,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 : "rgba_style_atlas_soft_alpha_sdf_feather")
             : cheekBlushMask
             ? CheekBlushBoundaryRenderer
+            : eyebrowHairMask
+            ? EyebrowBoundaryRenderer
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
-        result.MaskSoftSampleMode = lipLogicalMultilayer || cheekBlushMask
+        result.MaskSoftSampleMode = lipLogicalMultilayer || cheekBlushMask || eyebrowHairMask
             ? WideFeatherSoftSampleMode
             : LegacySoftSampleMode;
         result.MaskFeatherNearRadiusPx = ResolveShaderFeatherNearRadiusPx(result.MaskFeatherUvNormalized);
@@ -708,13 +722,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool shouldCullToVisionBoundary = ShouldCullMeshToVisionBoundary(recipe);
         Camera arCamera = Camera.main;
         MaskTextureSampleData sampleData = null;
+        MaskDefinition cullMask = shouldCullToMask
+            ? ResolveMeshCullMask(recipe, mask)
+            : mask;
         if (shouldCullToMask)
         {
-            sampleData = GetMaskTextureSampleData(mask);
-            meshCullingMode = "lip_atlas_threshold_sample";
+            sampleData = GetMaskTextureSampleData(cullMask);
+            meshCullingMode = recipe.Region == "eyebrow"
+                ? "eyebrow_boundary_threshold_sample"
+                : "lip_atlas_threshold_sample";
             if (sampleData == null || sampleData.Status != "ok")
             {
-                meshCullingMode = "lip_atlas_threshold_sample_unavailable";
+                meshCullingMode = recipe.Region == "eyebrow"
+                    ? "eyebrow_boundary_threshold_sample_unavailable"
+                    : "lip_atlas_threshold_sample_unavailable";
                 view.Mesh.Clear();
                 return false;
             }
@@ -782,8 +803,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        bool eyebrowHairMask = recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId);
+        bool useFaceLocalCoordinates = cheekBlushMask || eyebrowHairMask;
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
-        List<Vector2> textureCoordinates = cheekBlushMask
+        List<Vector2> textureCoordinates = useFaceLocalCoordinates
             ? BuildCheekFaceLocalUvCoordinates(face)
             : new List<Vector2>(face.uvs.Length);
         List<int> triangles = new List<int>(face.indices.Length);
@@ -793,7 +816,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             vertices.Add(face.vertices[index]);
         }
 
-        if (!cheekBlushMask)
+        if (!useFaceLocalCoordinates)
         {
             for (int index = 0; index < face.uvs.Length; index++)
             {
@@ -829,12 +852,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 continue;
             }
 
+            Vector2 maskUvA = useFaceLocalCoordinates ? textureCoordinates[sourceA] : face.uvs[sourceA];
+            Vector2 maskUvB = useFaceLocalCoordinates ? textureCoordinates[sourceB] : face.uvs[sourceB];
+            Vector2 maskUvC = useFaceLocalCoordinates ? textureCoordinates[sourceC] : face.uvs[sourceC];
             if (shouldCullToMask
-                && !TriangleIntersectsMask(
-                    face.uvs[sourceA],
-                    face.uvs[sourceB],
-                    face.uvs[sourceC],
-                    sampleData))
+                && !TriangleIntersectsMask(maskUvA, maskUvB, maskUvC, sampleData))
             {
                 culledTriangleCount++;
                 continue;
@@ -2074,18 +2096,25 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bool lipStyleAtlas = region == "lip" && IsLipStyleAtlasMask(maskTextureId);
         bool visionLipBoundary = region == "lip" && IsVisionLipBoundaryMask(maskTextureId);
         bool cheekBlushMask = region == "cheek" && IsCheekBlushMask(maskTextureId);
+        bool eyebrowHairMask = region == "eyebrow" && IsEyebrowHairMask(maskTextureId);
         return new MaskDefinition
         {
             Region = region,
             MaskTextureId = maskTextureId,
             ResourcePath = "SmoothRegionMasks/" + maskTextureId,
-            Threshold = lipStyleAtlas || visionLipBoundary || cheekBlushMask ? 0.025f : 0.04f,
+            Threshold = lipStyleAtlas || visionLipBoundary || cheekBlushMask
+                ? 0.025f
+                : eyebrowHairMask
+                ? 0.035f
+                : 0.04f,
             FeatherUvNormalized = lipStyleAtlas
                 ? 0.32f
                 : visionLipBoundary
                 ? 0.34f
                 : cheekBlushMask
                 ? 0.78f
+                : eyebrowHairMask
+                ? 0.46f
                 : 0.56f
         };
     }
@@ -2121,6 +2150,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return Mathf.Clamp01(Mathf.Min(
                 mask.FeatherUvNormalized,
                 Mathf.Max(0.68f, recipe.Feather)));
+        }
+
+        if (recipe != null
+            && recipe.Region == "eyebrow"
+            && IsEyebrowHairMask(recipe.MaskTextureId))
+        {
+            return Mathf.Clamp01(Mathf.Min(
+                mask.FeatherUvNormalized,
+                Mathf.Max(0.36f, recipe.Feather)));
         }
 
         return mask.FeatherUvNormalized;
@@ -2195,6 +2233,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 return CheekSessionMask1Id;
             case "eye":
                 return "eye-drawn-mask-v1";
+            case "eyebrow":
+                return EyebrowHairAtlas5MaskId;
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -2253,6 +2293,30 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return texture;
     }
 
+    private static Texture2D GetEyebrowBoundaryTexture()
+    {
+        const string resourcePath = "SmoothRegionMasks/" + EyebrowBoundaryMaskId;
+        if (MaskTextures.TryGetValue(resourcePath, out Texture2D cached))
+        {
+            return cached;
+        }
+
+        Texture2D texture = Resources.Load<Texture2D>(resourcePath);
+        if (texture == null)
+        {
+            Debug.LogWarning(
+                "[E7] eyebrow_boundary_texture_missing"
+                + " maskTextureId=" + EyebrowBoundaryMaskId
+                + " resourcePath=" + resourcePath);
+            return null;
+        }
+
+        texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
+        MaskTextures[resourcePath] = texture;
+        return texture;
+    }
+
     private static void ApplyMaskTextureDiagnostics(MaskDefinition mask, ref RegionApplyResult result)
     {
         MaskTextureDiagnostics diagnostics = GetMaskTextureDiagnostics(mask);
@@ -2272,9 +2336,32 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
     private static bool ShouldCullMeshToMask(RegionRecipeState recipe)
     {
-        return recipe != null
-            && recipe.Region == "lip"
-            && IsLipStyleAtlasMask(recipe.MaskTextureId);
+        if (recipe == null)
+        {
+            return false;
+        }
+
+        return (recipe.Region == "lip" && IsLipStyleAtlasMask(recipe.MaskTextureId))
+            || (recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId));
+    }
+
+    private static MaskDefinition ResolveMeshCullMask(RegionRecipeState recipe, MaskDefinition renderMask)
+    {
+        if (recipe != null
+            && recipe.Region == "eyebrow"
+            && IsEyebrowHairMask(recipe.MaskTextureId))
+        {
+            return new MaskDefinition
+            {
+                Region = "eyebrow",
+                MaskTextureId = EyebrowBoundaryMaskId,
+                ResourcePath = "SmoothRegionMasks/" + EyebrowBoundaryMaskId,
+                Threshold = 0.035f,
+                FeatherUvNormalized = renderMask != null ? renderMask.FeatherUvNormalized : 0.46f
+            };
+        }
+
+        return renderMask;
     }
 
     private static bool ShouldCullMeshToVisionBoundary(RegionRecipeState recipe)
@@ -2521,6 +2608,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         material.SetTexture("_MaskTex", maskTexture);
         ApplyMaterialBlendMode(material, recipe.BlendMode, recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId));
         bool visionLipBoundary = IsVisionLipBoundaryMask(recipe.MaskTextureId);
+        bool eyebrowHairMask = recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId);
 
         if (material.HasProperty("_UseScreenSpaceMask"))
         {
@@ -2564,6 +2652,45 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (material.HasProperty("_Coverage"))
         {
             material.SetFloat("_Coverage", recipe.Coverage);
+        }
+
+        if (eyebrowHairMask)
+        {
+            Texture2D boundaryTexture = GetEyebrowBoundaryTexture();
+            if (boundaryTexture != null && material.HasProperty("_BoundaryTex"))
+            {
+                material.SetTexture("_BoundaryTex", boundaryTexture);
+            }
+
+            if (material.HasProperty("_NeutralizerColor"))
+            {
+                Color neutralizer = new Color(
+                    Mathf.Lerp(recipe.SecondaryColor.r, 0.78f, 0.55f),
+                    Mathf.Lerp(recipe.SecondaryColor.g, 0.62f, 0.55f),
+                    Mathf.Lerp(recipe.SecondaryColor.b, 0.52f, 0.55f),
+                    1.0f);
+                material.SetColor("_NeutralizerColor", neutralizer);
+            }
+
+            if (material.HasProperty("_NeutralizerStrength"))
+            {
+                material.SetFloat("_NeutralizerStrength", Mathf.Lerp(0.20f, 0.42f, recipe.Intensity));
+            }
+
+            if (material.HasProperty("_ToneLiftStrength"))
+            {
+                material.SetFloat("_ToneLiftStrength", ResolveEyebrowToneLiftStrength(recipe));
+            }
+
+            if (material.HasProperty("_TintStrength"))
+            {
+                material.SetFloat("_TintStrength", Mathf.Lerp(0.55f, 1.00f, recipe.Intensity));
+            }
+
+            if (material.HasProperty("_StrandStrength"))
+            {
+                material.SetFloat("_StrandStrength", Mathf.Lerp(0.82f, 1.42f, recipe.Intensity));
+            }
         }
 
         if (material.HasProperty("_BlushIntensity"))
@@ -2714,12 +2841,45 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return view.MaskMaterial;
         }
 
+        string normalizedRegion = NormalizeRegion(region);
+        if (normalizedRegion == "eyebrow")
+        {
+            Material eyebrowTemplate = Resources.Load<Material>("EyebrowRegionMaskMaterial");
+            if (eyebrowTemplate != null)
+            {
+                view.MaskMaterial = new Material(eyebrowTemplate)
+                {
+                    name = "Eyebrow UV Mask " + normalizedRegion
+                };
+                ConfigureTransparentMaterial(view.MaskMaterial);
+                return view.MaskMaterial;
+            }
+
+            Shader eyebrowShader = Shader.Find("MakeupAR/EyebrowRegionMask");
+            if (eyebrowShader == null)
+            {
+                Debug.LogWarning(
+                    "[E7] eyebrow_mask_shader_missing"
+                    + " region=" + normalizedRegion
+                    + " resource=EyebrowRegionMaskMaterial"
+                    + " action=hide_overlay");
+                return null;
+            }
+
+            view.MaskMaterial = new Material(eyebrowShader)
+            {
+                name = "Eyebrow UV Mask " + normalizedRegion
+            };
+            ConfigureTransparentMaterial(view.MaskMaterial);
+            return view.MaskMaterial;
+        }
+
         Material template = Resources.Load<Material>("SmoothRegionMaskMaterial");
         if (template != null)
         {
             view.MaskMaterial = new Material(template)
             {
-                name = "Smooth UV Mask " + NormalizeRegion(region)
+                name = "Smooth UV Mask " + normalizedRegion
             };
             ConfigureTransparentMaterial(view.MaskMaterial);
             return view.MaskMaterial;
@@ -2730,14 +2890,14 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         {
             Debug.LogWarning(
                 "[E7] smooth_mask_shader_missing"
-                + " region=" + NormalizeRegion(region)
+                + " region=" + normalizedRegion
                 + " action=hide_overlay");
             return null;
         }
 
         view.MaskMaterial = new Material(shader)
         {
-            name = "Smooth UV Mask " + NormalizeRegion(region)
+            name = "Smooth UV Mask " + normalizedRegion
         };
         ConfigureTransparentMaterial(view.MaskMaterial);
         return view.MaskMaterial;
@@ -2783,6 +2943,15 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 sampleAlphaScale = Mathf.Lerp(0.3f, 0.5f, recipe.Intensity);
                 brightnessScale = Mathf.Lerp(1.0f, 1.1f, recipe.Intensity);
                 break;
+            case "natural_eyebrow":
+            case "eyebrow_candidate_1":
+            case "eyebrow_candidate_2":
+            case "eyebrow_candidate_3":
+            case "eyebrow_candidate_4":
+            case "eyebrow_candidate_5":
+                sampleAlphaScale = Mathf.Lerp(0.82f, 1.0f, recipe.Intensity);
+                brightnessScale = 0.82f;
+                break;
             default:
                 sampleAlphaScale = Mathf.Lerp(0.52f, 0.76f, recipe.Intensity);
                 brightnessScale = 0.9f;
@@ -2794,6 +2963,30 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Mathf.Clamp01(recipe.Color.g * brightnessScale),
             Mathf.Clamp01(recipe.Color.b * brightnessScale),
             Mathf.Clamp01(recipe.Opacity * sampleAlphaScale));
+    }
+
+    private static float ResolveEyebrowToneLiftStrength(RegionRecipeState recipe)
+    {
+        string colorHex = string.IsNullOrWhiteSpace(recipe.ColorHex)
+            ? string.Empty
+            : recipe.ColorHex.Trim().ToLowerInvariant();
+
+        switch (colorHex)
+        {
+            case "#171412":
+                return Mathf.Lerp(0.02f, 0.06f, recipe.Intensity);
+            case "#3b2a22":
+                return Mathf.Lerp(0.07f, 0.14f, recipe.Intensity);
+            case "#6b4a34":
+                return Mathf.Lerp(0.14f, 0.25f, recipe.Intensity);
+            case "#8b6447":
+                return Mathf.Lerp(0.24f, 0.38f, recipe.Intensity);
+            case "#6a243b":
+                return Mathf.Lerp(0.18f, 0.30f, recipe.Intensity);
+            default:
+                float luma = recipe.Color.r * 0.299f + recipe.Color.g * 0.587f + recipe.Color.b * 0.114f;
+                return Mathf.Lerp(0.08f, 0.32f, Mathf.Clamp01(luma));
+        }
     }
 
     private static float ResolveLipStyleMode(string textureSample)
@@ -2986,7 +3179,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private static string NormalizeRegion(string region)
     {
         region = string.IsNullOrWhiteSpace(region) ? string.Empty : region.Trim().ToLowerInvariant();
-        if (region == "lip" || region == "cheek" || region == "eye")
+        if (region == "lip" || region == "cheek" || region == "eye" || region == "eyebrow")
         {
             return region;
         }
@@ -3013,7 +3206,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                     || textureSample == "blush_session_3"
                     || textureSample == "blush_session_4"
                     || textureSample == "blush_session_5"))
-            || (region == "eye" && textureSample == "shimmer_eye"))
+            || (region == "eye" && textureSample == "shimmer_eye")
+            || (region == "eyebrow" && IsEyebrowTextureSample(textureSample)))
         {
             return textureSample;
         }
@@ -3064,7 +3258,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 || maskTextureId == "lip-smooth-mask-v1"
                 || maskTextureId == "lip-drawn-mask-v1"))
             || (region == "cheek" && IsCheekBlushMask(maskTextureId))
-            || (region == "eye" && maskTextureId == "eye-smooth-mask-v1"))
+            || (region == "eye" && maskTextureId == "eye-smooth-mask-v1")
+            || (region == "eyebrow" && IsEyebrowHairMask(maskTextureId)))
         {
             return maskTextureId;
         }
@@ -3104,6 +3299,34 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             || maskTextureId == CheekSessionMask3Id
             || maskTextureId == CheekSessionMask4Id
             || maskTextureId == CheekSessionMask5Id;
+    }
+
+    private static bool IsEyebrowHairMask(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+
+        return maskTextureId == EyebrowHairAtlasMaskId
+            || maskTextureId == EyebrowHairAtlas1MaskId
+            || maskTextureId == EyebrowHairAtlas2MaskId
+            || maskTextureId == EyebrowHairAtlas3MaskId
+            || maskTextureId == EyebrowHairAtlas4MaskId
+            || maskTextureId == EyebrowHairAtlas5MaskId;
+    }
+
+    private static bool IsEyebrowTextureSample(string textureSample)
+    {
+        textureSample = string.IsNullOrWhiteSpace(textureSample)
+            ? string.Empty
+            : textureSample.Trim();
+
+        return textureSample == "natural_eyebrow"
+            || textureSample == "eyebrow_candidate_1"
+            || textureSample == "eyebrow_candidate_2"
+            || textureSample == "eyebrow_candidate_3"
+            || textureSample == "eyebrow_candidate_4"
+            || textureSample == "eyebrow_candidate_5";
     }
 
     private static Vector4 ResolveCheekBlushUvTransform(string maskTextureId)

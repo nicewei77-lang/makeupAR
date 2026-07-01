@@ -10,6 +10,7 @@ using UnityEngine.XR.ARFoundation;
 public sealed class RNBridge : MonoBehaviour
 {
     private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye" };
+    private static readonly string[] RecipeLayerRegions = { "lip", "cheek", "eye", "eyebrow" };
 
     [Serializable]
     private sealed class RecipePayload
@@ -1701,12 +1702,16 @@ public sealed class RNBridge : MonoBehaviour
     {
         List<ParsedRecipeLayer> layers = new List<ParsedRecipeLayer>();
 
-        if (recipe.layers == null || recipe.layers.Length != FeatureSnapshotRegions.Length)
+        if (recipe.layers == null
+            || (recipe.layers.Length != FeatureSnapshotRegions.Length
+                && recipe.layers.Length != RecipeLayerRegions.Length))
         {
             int actualLayerCount = recipe.layers != null ? recipe.layers.Length : 0;
             throw new ArgumentException(
                 "Recipe batch must include exactly "
                 + FeatureSnapshotRegions.Length.ToString(CultureInfo.InvariantCulture)
+                + " or "
+                + RecipeLayerRegions.Length.ToString(CultureInfo.InvariantCulture)
                 + " layers; received "
                 + actualLayerCount.ToString(CultureInfo.InvariantCulture)
                 + ".");
@@ -1835,7 +1840,7 @@ public sealed class RNBridge : MonoBehaviour
             ? string.Empty
             : value.Trim().ToLowerInvariant();
 
-        if (value == "lip" || value == "cheek" || value == "eye")
+        if (value == "lip" || value == "cheek" || value == "eye" || value == "eyebrow")
         {
             return value;
         }
@@ -1977,7 +1982,8 @@ public sealed class RNBridge : MonoBehaviour
                     || value == "gradient_lip"
                     || value == "overline_lip"))
             || (region == "cheek" && IsCheekBlushTextureSample(value))
-            || (region == "eye" && value == "shimmer_eye"))
+            || (region == "eye" && value == "shimmer_eye")
+            || (region == "eyebrow" && IsEyebrowTextureSample(value)))
         {
             return value;
         }
@@ -2091,7 +2097,8 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-smooth-mask-v1"
                 || value == "lip-drawn-mask-v1"))
             || (region == "cheek" && IsCheekBlushMaskTextureId(value))
-            || (region == "eye" && value == "eye-smooth-mask-v1"))
+            || (region == "eye" && value == "eye-smooth-mask-v1")
+            || (region == "eyebrow" && IsEyebrowHairMaskTextureId(value)))
         {
             return value;
         }
@@ -2108,9 +2115,21 @@ public sealed class RNBridge : MonoBehaviour
                 return "cheek-session-mask-1-v1";
             case "eye":
                 return "eye-drawn-mask-v1";
+            case "eyebrow":
+                return "eyebrow-hair-atlas-5-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }
+    }
+
+    private static bool IsEyebrowTextureSample(string value)
+    {
+        return value == "natural_eyebrow"
+            || value == "eyebrow_candidate_1"
+            || value == "eyebrow_candidate_2"
+            || value == "eyebrow_candidate_3"
+            || value == "eyebrow_candidate_4"
+            || value == "eyebrow_candidate_5";
     }
 
     private static bool IsCheekBlushTextureSample(string value)
@@ -2130,6 +2149,16 @@ public sealed class RNBridge : MonoBehaviour
             || value == "cheek-session-mask-3-v1"
             || value == "cheek-session-mask-4-v1"
             || value == "cheek-session-mask-5-v1";
+    }
+
+    private static bool IsEyebrowHairMaskTextureId(string value)
+    {
+        return value == "eyebrow-hair-atlas-v1"
+            || value == "eyebrow-hair-atlas-1-v1"
+            || value == "eyebrow-hair-atlas-2-v1"
+            || value == "eyebrow-hair-atlas-3-v1"
+            || value == "eyebrow-hair-atlas-4-v1"
+            || value == "eyebrow-hair-atlas-5-v1";
     }
 
     private static double CalculateLatencyMs(double startMs, double endMs)
