@@ -137,6 +137,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public int VisionUvMaskWidth;
         public int VisionUvMaskHeight;
         public MaskTextureDiagnostics VisionUvMaskDiagnostics;
+        public string EyebrowUvMaskCalibrationKey;
     }
 
     private sealed class MaskDefinition
@@ -189,8 +190,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         public string FaceMotionRisk;
     }
 
+    private struct EyebrowPoseGateInfo
+    {
+        public bool CanBake;
+        public string Status;
+        public float YawDeg;
+        public float PitchDeg;
+        public float RollDeg;
+    }
+
     [SerializeField] private ARFaceManager faceManager;
     [SerializeField] private E7VisionLipBoundaryRuntime visionLipBoundaryRuntime;
+    [SerializeField] private E7MediaPipeEyebrowBoundaryRuntime mediaPipeEyebrowBoundaryRuntime;
     [SerializeField] private bool useMeshMasks = true;
 
     private const string RendererMode = "smooth-region-mask";
@@ -213,11 +224,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const string EyebrowHairAtlas4MaskId = "eyebrow-hair-atlas-4-v1";
     private const string EyebrowHairAtlas5MaskId = "eyebrow-hair-atlas-5-v1";
     private const string EyebrowBoundaryMaskId = "eyebrow-boundary-mask-v1";
-    private const string EyebrowMaskSource = "face_local_actual_brow_boundary_with_user_texture_density";
-    private const string EyebrowBoundaryRenderer = "eyebrow_boundary_clipped_cleanup_tone_lift_fill_and_strand_multiply";
+    private const string EyebrowMaskSource = "mediapipe_face_landmarker_eyebrow_boundary_with_texture_density";
+    private const string EyebrowMediaPipeBoundarySource = "mediapipe_face_landmarker_runtime_eyebrow_boundary";
+    private const string EyebrowMediaPipeBoundaryRenderer = "mediapipe_face_landmarker_eyebrow_arface_uv_baked_eye_exclusion_tone_lift_fill_and_strand_multiply";
     private const string VisionLipBoundarySource = "apple_vision_runtime_lip_landmarks";
     private const string VisionLipBoundaryRenderer = "apple_vision_lip_landmark_arface_uv_baked";
     private const string VisionBoundaryRuntimeTransform = "flip-y";
+    private const string MediaPipeEyebrowBoundaryRuntimeTransform = "raw";
     private const int VisionScreenMaskMaxDimension = 1024;
     private const int VisionUvMaskSize = 512;
     private const int VisionUvMaskSoftSplatRadius = 3;
@@ -229,6 +242,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const float FeatherFarRadiusScale = 1.85f;
     private const float VisionFaceMotionMediumThreshold = 0.18f;
     private const float VisionFaceMotionLargeThreshold = 0.32f;
+    private const float EyebrowCalibrationMaxYawDeg = 14.0f;
+    private const float EyebrowCalibrationMaxPitchDeg = 12.0f;
+    private const float EyebrowCalibrationMaxRollDeg = 16.0f;
+    private const float EyebrowBoundaryEyePaddingPx = 8.0f;
+    private const float EyebrowCleanupEyePaddingPx = 13.0f;
+    private const float EyebrowStyleShapeAmount = 0.82f;
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -242,6 +261,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         new Dictionary<string, MaskTextureDiagnostics>();
     private static readonly Dictionary<string, MaskTextureSampleData> MaskTextureSampleCache =
         new Dictionary<string, MaskTextureSampleData>();
+    private readonly HashSet<string> captureSuppressedRegions = new HashSet<string>();
     private bool overlayRenderingSuppressed;
     private bool visionCaptureSuppressed;
 
@@ -282,6 +302,25 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         Debug.Log(
             "[E7] vision_lip_boundary_overlay_suppression"
             + " suppressed=" + visionCaptureSuppressed.ToString().ToLowerInvariant());
+    }
+
+    public void SetRegionCaptureSuppressed(string region, bool suppressed)
+    {
+        string normalizedRegion = NormalizeRegion(region);
+        if (suppressed)
+        {
+            captureSuppressedRegions.Add(normalizedRegion);
+            HideRegionViews(normalizedRegion);
+        }
+        else
+        {
+            captureSuppressedRegions.Remove(normalizedRegion);
+        }
+
+        Debug.Log(
+            "[E7] region_capture_suppression"
+            + " region=" + normalizedRegion
+            + " suppressed=" + suppressed.ToString().ToLowerInvariant());
     }
 
     public void ClearRecipesAndHideOverlays()
@@ -425,12 +464,17 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             result.TopologyAuditStatus = BuildTopologyAuditStatus(face);
             result.TopologyAuditSummary = BuildTopologyAuditSummary(face);
 
-            if (overlayRenderingSuppressed || visionCaptureSuppressed || !visibility.ShouldRender)
+            bool regionCaptureSuppressed = captureSuppressedRegions.Contains(region);
+            if (overlayRenderingSuppressed || visionCaptureSuppressed || regionCaptureSuppressed || !visibility.ShouldRender)
             {
                 SetViewVisibility(view, false);
                 if (overlayRenderingSuppressed)
                 {
                     result.StateAction = "suppressed_for_clean_view";
+                }
+                else if (regionCaptureSuppressed)
+                {
+                    result.StateAction = "suppressed_for_region_capture";
                 }
                 else if (visionCaptureSuppressed)
                 {
@@ -598,7 +642,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             : cheekBlushMask
             ? CheekBlushBoundaryRenderer
             : eyebrowHairMask
-            ? EyebrowBoundaryRenderer
+            ? EyebrowMediaPipeBoundaryRenderer
             : BoundaryRenderer;
         result.MaskThreshold = mask.Threshold;
         result.MaskFeatherUvNormalized = ResolveEffectiveFeather(mask, recipe);
@@ -620,6 +664,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (visionLipBoundaryRuntime == null)
         {
             visionLipBoundaryRuntime = FindFirstObjectByType<E7VisionLipBoundaryRuntime>();
+        }
+
+        if (mediaPipeEyebrowBoundaryRuntime == null)
+        {
+            mediaPipeEyebrowBoundaryRuntime = FindFirstObjectByType<E7MediaPipeEyebrowBoundaryRuntime>();
         }
     }
 
@@ -718,7 +767,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             return false;
         }
 
-        bool shouldCullToMask = ShouldCullMeshToMask(recipe);
+        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
+        bool eyebrowHairMask = recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId);
+        bool shouldCullToMask = ShouldCullMeshToMask(recipe) && !eyebrowHairMask;
         bool shouldCullToVisionBoundary = ShouldCullMeshToVisionBoundary(recipe);
         Camera arCamera = Camera.main;
         MaskTextureSampleData sampleData = null;
@@ -802,13 +853,116 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             visionGateInfo = BuildVisionGateInfo(visionBoundary);
         }
 
-        bool cheekBlushMask = recipe.Region == "cheek" && IsCheekBlushMask(recipe.MaskTextureId);
-        bool eyebrowHairMask = recipe.Region == "eyebrow" && IsEyebrowHairMask(recipe.MaskTextureId);
-        bool useFaceLocalCoordinates = cheekBlushMask || eyebrowHairMask;
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot eyebrowBoundary = default;
+        bool eyebrowBoundaryReady = false;
+        if (eyebrowHairMask)
+        {
+            EnsureMediaPipeEyebrowBoundaryRuntime();
+            if (mediaPipeEyebrowBoundaryRuntime == null)
+            {
+                visionGateInfo.Status = "provider_missing";
+                visionGateInfo.Source = EyebrowMediaPipeBoundarySource;
+                meshCullingMode = "mediapipe_eyebrow_landmark_provider_missing";
+                view.Mesh.Clear();
+                return false;
+            }
+
+            string eyebrowCalibrationKey = BuildEyebrowCalibrationKey(recipe);
+            EyebrowPoseGateInfo poseGate = ResolveEyebrowPoseGate(face, arCamera);
+            if (TryUseExistingEyebrowBoundaryUvMask(
+                    view,
+                    eyebrowCalibrationKey,
+                    out dynamicMaskDiagnostics))
+            {
+                mediaPipeEyebrowBoundaryRuntime.SetRuntimeRequested(false);
+                meshCullingMode = "mediapipe_eyebrow_calibrated_arface_uv_mask_tracking";
+                visionGateInfo = BuildEyebrowPoseGateInfo(
+                    poseGate,
+                    poseGate.CanBake
+                        ? "calibrated_uv_mask_locked"
+                        : "calibrated_uv_mask_tracking",
+                    dynamicMaskDiagnostics);
+            }
+            else if (!poseGate.CanBake)
+            {
+                mediaPipeEyebrowBoundaryRuntime.SetRuntimeRequested(false);
+                meshCullingMode = "mediapipe_eyebrow_uv_calibration_pending_" + poseGate.Status;
+                visionGateInfo = BuildEyebrowPoseGateInfo(
+                    poseGate,
+                    "calibration_pending",
+                    dynamicMaskDiagnostics);
+                view.Mesh.Clear();
+                return false;
+            }
+            else
+            {
+                mediaPipeEyebrowBoundaryRuntime.SetRuntimeRequested(true);
+                eyebrowBoundaryReady = mediaPipeEyebrowBoundaryRuntime.TryGetLatestBoundary(
+                    Screen.width,
+                    Screen.height,
+                    out eyebrowBoundary);
+                visionGateInfo = BuildEyebrowGateInfo(eyebrowBoundary);
+                meshCullingMode = eyebrowBoundaryReady
+                    ? "mediapipe_eyebrow_landmark_arface_uv_calibration_bake_pending"
+                    : "mediapipe_eyebrow_landmark_calibration_pending";
+
+                if (!eyebrowBoundaryReady)
+                {
+                    view.Mesh.Clear();
+                    return false;
+                }
+                else
+                {
+                    E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot screenEyebrowBoundary =
+                        TransformEyebrowBoundaryForScreen(
+                            eyebrowBoundary,
+                            Screen.width,
+                            Screen.height,
+                            MediaPipeEyebrowBoundaryRuntimeTransform);
+                    screenEyebrowBoundary = StabilizeEyebrowBoundaryToCurrentFace(
+                        face,
+                        arCamera,
+                        screenEyebrowBoundary);
+                    screenEyebrowBoundary = ApplyEyebrowStyleShape(
+                        screenEyebrowBoundary,
+                        recipe.MaskTextureId);
+                    visionGateInfo = BuildEyebrowGateInfo(screenEyebrowBoundary);
+
+                    if (!ApplyEyebrowBoundaryUvMask(
+                            face,
+                            arCamera,
+                            view,
+                            eyebrowBoundary,
+                            screenEyebrowBoundary,
+                            out dynamicMaskDiagnostics))
+                    {
+                        meshCullingMode = "mediapipe_eyebrow_landmark_arface_uv_calibration_bake_unavailable";
+                        view.Mesh.Clear();
+                        return false;
+                    }
+
+                    view.EyebrowUvMaskCalibrationKey = eyebrowCalibrationKey;
+                    screenEyebrowBoundary.CoordinateMode = AppendCoordinateMode(
+                        screenEyebrowBoundary.CoordinateMode,
+                        "arface-uv-calibration-bake");
+                    meshCullingMode = "mediapipe_eyebrow_landmark_arface_uv_calibrated_eye_exclusion";
+                    eyebrowBoundary = screenEyebrowBoundary;
+                    visionGateInfo = BuildEyebrowGateInfo(eyebrowBoundary);
+                    visionGateInfo.FaceMotionRisk = AppendCoordinateMode(
+                        visionGateInfo.FaceMotionRisk,
+                        BuildEyebrowPoseSummary(poseGate));
+                }
+            }
+        }
+
+        bool useFaceLocalCoordinates = cheekBlushMask;
         List<Vector3> vertices = new List<Vector3>(face.vertices.Length);
         List<Vector2> textureCoordinates = useFaceLocalCoordinates
             ? BuildCheekFaceLocalUvCoordinates(face)
             : new List<Vector2>(face.uvs.Length);
+        List<Vector2> eyebrowLocalCoordinates = eyebrowHairMask
+            ? BuildEyebrowLocalUvCoordinates(face)
+            : null;
         List<int> triangles = new List<int>(face.indices.Length);
 
         for (int index = 0; index < face.vertices.Length; index++)
@@ -862,6 +1016,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 continue;
             }
 
+            if (eyebrowHairMask
+                && !TriangleIntersectsRuntimeUvMask(
+                    maskUvA,
+                    maskUvB,
+                    maskUvC,
+                    view.VisionUvMaskPixels,
+                    view.VisionUvMaskWidth,
+                    view.VisionUvMaskHeight,
+                    8))
+            {
+                culledTriangleCount++;
+                continue;
+            }
+
             triangles.Add(sourceA);
             triangles.Add(sourceB);
             triangles.Add(sourceC);
@@ -877,6 +1045,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         view.Mesh.Clear();
         view.Mesh.SetVertices(vertices);
         view.Mesh.SetUVs(0, textureCoordinates);
+        if (eyebrowHairMask
+            && eyebrowLocalCoordinates != null
+            && eyebrowLocalCoordinates.Count == vertices.Count)
+        {
+            view.Mesh.SetUVs(1, eyebrowLocalCoordinates);
+        }
         view.Mesh.SetTriangles(triangles, 0);
         view.Mesh.RecalculateNormals();
         view.Mesh.RecalculateBounds();
@@ -894,6 +1068,20 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         if (visionLipBoundaryRuntime == null)
         {
             visionLipBoundaryRuntime = gameObject.AddComponent<E7VisionLipBoundaryRuntime>();
+        }
+    }
+
+    private void EnsureMediaPipeEyebrowBoundaryRuntime()
+    {
+        if (mediaPipeEyebrowBoundaryRuntime != null)
+        {
+            return;
+        }
+
+        mediaPipeEyebrowBoundaryRuntime = FindFirstObjectByType<E7MediaPipeEyebrowBoundaryRuntime>();
+        if (mediaPipeEyebrowBoundaryRuntime == null)
+        {
+            mediaPipeEyebrowBoundaryRuntime = gameObject.AddComponent<E7MediaPipeEyebrowBoundaryRuntime>();
         }
     }
 
@@ -934,6 +1122,143 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             FaceMotionScaleDelta = snapshot.FaceMotionScaleDelta,
             FaceMotionRisk = string.IsNullOrWhiteSpace(snapshot.FaceMotionRisk) ? "none" : snapshot.FaceMotionRisk
         };
+    }
+
+    private static VisionBoundaryGateInfo BuildEyebrowGateInfo(
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot snapshot)
+    {
+        return new VisionBoundaryGateInfo
+        {
+            Status = string.IsNullOrWhiteSpace(snapshot.Status) ? "unknown" : snapshot.Status,
+            Source = string.IsNullOrWhiteSpace(snapshot.Source) ? EyebrowMediaPipeBoundarySource : snapshot.Source,
+            CoordinateMode = string.IsNullOrWhiteSpace(snapshot.CoordinateMode) ? "raw-y" : snapshot.CoordinateMode,
+            OuterPointCount = snapshot.LeftOuterPointCount + snapshot.RightOuterPointCount,
+            InnerPointCount = snapshot.LeftEyePointCount + snapshot.RightEyePointCount,
+            ImageWidth = snapshot.ImageWidth,
+            ImageHeight = snapshot.ImageHeight,
+            AgeMs = snapshot.AgeMs,
+            FaceMotionScore = snapshot.FaceMotionScore,
+            FaceMotionCenterShiftPx = snapshot.FaceMotionCenterShiftPx,
+            FaceMotionScaleDelta = snapshot.FaceMotionScaleDelta,
+            FaceMotionRisk = string.IsNullOrWhiteSpace(snapshot.FaceMotionRisk) ? "none" : snapshot.FaceMotionRisk
+        };
+    }
+
+    private static VisionBoundaryGateInfo BuildEyebrowPoseGateInfo(
+        EyebrowPoseGateInfo poseGate,
+        string status,
+        MaskTextureDiagnostics diagnostics)
+    {
+        string gateStatus = string.IsNullOrWhiteSpace(poseGate.Status)
+            ? "pose_unknown"
+            : poseGate.Status;
+
+        return new VisionBoundaryGateInfo
+        {
+            Status = string.IsNullOrWhiteSpace(status)
+                ? gateStatus
+                : status + "|" + gateStatus,
+            Source = EyebrowMediaPipeBoundarySource,
+            CoordinateMode = "arface-uv-calibrated",
+            OuterPointCount = 0,
+            InnerPointCount = 0,
+            ImageWidth = Screen.width,
+            ImageHeight = Screen.height,
+            AgeMs = 0,
+            FaceMotionScore = 0.0f,
+            FaceMotionCenterShiftPx = 0.0f,
+            FaceMotionScaleDelta = 0.0f,
+            FaceMotionRisk = BuildEyebrowPoseSummary(poseGate)
+                + ",mask=" + (diagnostics == null || string.IsNullOrWhiteSpace(diagnostics.Status)
+                    ? "none"
+                    : diagnostics.Status)
+        };
+    }
+
+    private static EyebrowPoseGateInfo ResolveEyebrowPoseGate(
+        ARFace face,
+        Camera arCamera)
+    {
+        if (face == null || arCamera == null)
+        {
+            return new EyebrowPoseGateInfo
+            {
+                CanBake = false,
+                Status = "pose_unavailable",
+                YawDeg = 0.0f,
+                PitchDeg = 0.0f,
+                RollDeg = 0.0f
+            };
+        }
+
+        Vector3 localForward = arCamera.transform
+            .InverseTransformDirection(face.transform.forward)
+            .normalized;
+        Vector3 localUp = arCamera.transform
+            .InverseTransformDirection(face.transform.up)
+            .normalized;
+
+        float yawDeg = NormalizeSignedAngle(
+            Mathf.Atan2(
+                localForward.x,
+                Mathf.Max(0.001f, Mathf.Abs(localForward.z)))
+            * Mathf.Rad2Deg);
+        float pitchDeg = NormalizeSignedAngle(
+            Mathf.Atan2(
+                localForward.y,
+                Mathf.Max(0.001f, new Vector2(localForward.x, localForward.z).magnitude))
+            * Mathf.Rad2Deg);
+        float rollDeg = NormalizeSignedAngle(
+            Mathf.Atan2(
+                localUp.x,
+                Mathf.Max(0.001f, Mathf.Abs(localUp.y)))
+            * Mathf.Rad2Deg);
+
+        bool canBake = Mathf.Abs(yawDeg) <= EyebrowCalibrationMaxYawDeg
+            && Mathf.Abs(pitchDeg) <= EyebrowCalibrationMaxPitchDeg
+            && Mathf.Abs(rollDeg) <= EyebrowCalibrationMaxRollDeg;
+
+        string status = canBake
+            ? "frontal_calibration_ready"
+            : "hold_calibrated_uv_mask_pose_yaw="
+                + yawDeg.ToString("0.#", CultureInfo.InvariantCulture)
+                + "_pitch=" + pitchDeg.ToString("0.#", CultureInfo.InvariantCulture)
+                + "_roll=" + rollDeg.ToString("0.#", CultureInfo.InvariantCulture);
+
+        return new EyebrowPoseGateInfo
+        {
+            CanBake = canBake,
+            Status = status,
+            YawDeg = yawDeg,
+            PitchDeg = pitchDeg,
+            RollDeg = rollDeg
+        };
+    }
+
+    private static string BuildEyebrowPoseSummary(EyebrowPoseGateInfo poseGate)
+    {
+        return "poseGate=" + (string.IsNullOrWhiteSpace(poseGate.Status)
+                ? "unknown"
+                : poseGate.Status)
+            + ",yaw=" + poseGate.YawDeg.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",pitch=" + poseGate.PitchDeg.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",roll=" + poseGate.RollDeg.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",canBake=" + poseGate.CanBake.ToString().ToLowerInvariant();
+    }
+
+    private static float NormalizeSignedAngle(float angleDeg)
+    {
+        while (angleDeg > 180.0f)
+        {
+            angleDeg -= 360.0f;
+        }
+
+        while (angleDeg < -180.0f)
+        {
+            angleDeg += 360.0f;
+        }
+
+        return angleDeg;
     }
 
     private static void ApplyVisionGateInfo(
@@ -1236,6 +1561,288 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 Mathf.Max(1, sourceBoundary.ImageHeight)));
     }
 
+    private static bool ApplyEyebrowBoundaryUvMask(
+        ARFace face,
+        Camera arCamera,
+        RegionOverlayView view,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot sourceBoundary,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        out MaskTextureDiagnostics diagnostics)
+    {
+        diagnostics = new MaskTextureDiagnostics
+        {
+            Status = "eyebrow_arface_uv_bake_unavailable"
+        };
+
+        if (face == null
+            || arCamera == null
+            || view == null
+            || view.MeshRenderer == null
+            || view.MeshRenderer.sharedMaterial == null
+            || !HasUsableUv(face)
+            || boundary.LeftOuterPoints == null
+            || boundary.RightOuterPoints == null
+            || boundary.LeftOuterPoints.Length < 3
+            || boundary.RightOuterPoints.Length < 3
+            || boundary.ImageWidth <= 0
+            || boundary.ImageHeight <= 0)
+        {
+            return false;
+        }
+
+        EnsureVisionUvMaskStorage(view, VisionUvMaskSize, VisionUvMaskSize);
+        if (view.VisionUvMaskTexture == null
+            || view.VisionUvMaskPixels == null
+            || view.VisionUvMaskPixels.Length != VisionUvMaskSize * VisionUvMaskSize)
+        {
+            diagnostics.Status = "eyebrow_arface_uv_bake_storage_failed";
+            return false;
+        }
+
+        if (view.VisionUvMaskSequence == boundary.Sequence
+            && view.VisionUvMaskDiagnostics != null
+            && view.VisionUvMaskDiagnostics.ActivePixelCountGt8 > 0)
+        {
+            Material reusedMaterial = view.MeshRenderer.sharedMaterial;
+            if (reusedMaterial.HasProperty("_BoundaryTex"))
+            {
+                reusedMaterial.SetTexture("_BoundaryTex", view.VisionUvMaskTexture);
+            }
+
+            if (reusedMaterial.HasProperty("_RuntimeBoundaryMode"))
+            {
+                reusedMaterial.SetFloat("_RuntimeBoundaryMode", 1.0f);
+            }
+
+            diagnostics = view.VisionUvMaskDiagnostics;
+            diagnostics.Status = "eyebrow_arface_uv_bake_reused_current_sequence";
+            return true;
+        }
+
+        BuildEyebrowUvMaskPixels(
+            face,
+            arCamera,
+            view,
+            sourceBoundary,
+            boundary,
+            VisionUvMaskSize,
+            VisionUvMaskSize);
+
+        Material material = view.MeshRenderer.sharedMaterial;
+        if (material.HasProperty("_BoundaryTex"))
+        {
+            material.SetTexture("_BoundaryTex", view.VisionUvMaskTexture);
+        }
+
+        if (material.HasProperty("_RuntimeBoundaryMode"))
+        {
+            material.SetFloat("_RuntimeBoundaryMode", 1.0f);
+        }
+
+        diagnostics = view.VisionUvMaskDiagnostics ?? new MaskTextureDiagnostics
+        {
+            Status = "eyebrow_arface_uv_bake_missing_diagnostics",
+            Width = VisionUvMaskSize,
+            Height = VisionUvMaskSize
+        };
+        return diagnostics.ActivePixelCountGt8 > 0;
+    }
+
+    private static bool TryUseExistingEyebrowBoundaryUvMask(
+        RegionOverlayView view,
+        string calibrationKey,
+        out MaskTextureDiagnostics diagnostics)
+    {
+        diagnostics = view != null && view.VisionUvMaskDiagnostics != null
+            ? view.VisionUvMaskDiagnostics
+            : new MaskTextureDiagnostics
+            {
+                Status = "eyebrow_last_arface_uv_mask_missing",
+                Width = VisionUvMaskSize,
+                Height = VisionUvMaskSize
+            };
+
+        if (view == null
+            || view.MeshRenderer == null
+            || view.MeshRenderer.sharedMaterial == null
+            || view.VisionUvMaskTexture == null
+            || view.VisionUvMaskPixels == null
+            || view.VisionUvMaskPixels.Length != view.VisionUvMaskWidth * view.VisionUvMaskHeight
+            || string.IsNullOrWhiteSpace(calibrationKey)
+            || !string.Equals(view.EyebrowUvMaskCalibrationKey, calibrationKey, StringComparison.Ordinal)
+            || diagnostics.ActivePixelCountGt8 <= 0)
+        {
+            return false;
+        }
+
+        Material material = view.MeshRenderer.sharedMaterial;
+        if (material.HasProperty("_BoundaryTex"))
+        {
+            material.SetTexture("_BoundaryTex", view.VisionUvMaskTexture);
+        }
+
+        if (material.HasProperty("_RuntimeBoundaryMode"))
+        {
+            material.SetFloat("_RuntimeBoundaryMode", 1.0f);
+        }
+
+        diagnostics.Status = "eyebrow_last_arface_uv_mask_reused";
+        return true;
+    }
+
+    private static void BuildEyebrowUvMaskPixels(
+        ARFace face,
+        Camera arCamera,
+        RegionOverlayView view,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot sourceBoundary,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height)
+    {
+        Color32[] pixels = view.VisionUvMaskPixels;
+        Array.Clear(pixels, 0, pixels.Length);
+
+        int screenWidth = Mathf.Max(1, boundary.ImageWidth);
+        int screenHeight = Mathf.Max(1, boundary.ImageHeight);
+        CalculateEyebrowBoundaryBbox(
+            boundary,
+            screenWidth,
+            screenHeight,
+            out int boundaryLeft,
+            out int boundaryTop,
+            out int boundaryRight,
+            out int boundaryBottom);
+
+        int sampleStride = ResolveVisionUvBakeSampleStride(screenWidth, screenHeight);
+        int candidateTriangles = 0;
+        int hitTriangles = 0;
+        int testedSamples = 0;
+        int hitSamples = 0;
+        int skippedDegenerateTriangles = 0;
+
+        for (int index = 0; index + 2 < face.indices.Length; index += 3)
+        {
+            int sourceA = face.indices[index];
+            int sourceB = face.indices[index + 1];
+            int sourceC = face.indices[index + 2];
+            if (sourceA < 0 || sourceB < 0 || sourceC < 0
+                || sourceA >= face.vertices.Length
+                || sourceB >= face.vertices.Length
+                || sourceC >= face.vertices.Length
+                || sourceA >= face.uvs.Length
+                || sourceB >= face.uvs.Length
+                || sourceC >= face.uvs.Length
+                || !TryProjectVertexTopLeft(face, arCamera, sourceA, out Vector2 screenA)
+                || !TryProjectVertexTopLeft(face, arCamera, sourceB, out Vector2 screenB)
+                || !TryProjectVertexTopLeft(face, arCamera, sourceC, out Vector2 screenC)
+                || !CalculateTriangleBbox(
+                    screenA,
+                    screenB,
+                    screenC,
+                    screenWidth,
+                    screenHeight,
+                    out int triangleLeft,
+                    out int triangleTop,
+                    out int triangleRight,
+                    out int triangleBottom))
+            {
+                continue;
+            }
+
+            int left = Mathf.Max(triangleLeft, boundaryLeft);
+            int top = Mathf.Max(triangleTop, boundaryTop);
+            int right = Mathf.Min(triangleRight, boundaryRight);
+            int bottom = Mathf.Min(triangleBottom, boundaryBottom);
+            if (right < left || bottom < top)
+            {
+                continue;
+            }
+
+            candidateTriangles++;
+            Vector2 uvA = face.uvs[sourceA];
+            Vector2 uvB = face.uvs[sourceB];
+            Vector2 uvC = face.uvs[sourceC];
+            bool triangleHit = false;
+
+            for (int y = top; y <= bottom; y += sampleStride)
+            {
+                for (int x = left; x <= right; x += sampleStride)
+                {
+                    Vector2 point = new Vector2(x + 0.5f, y + 0.5f);
+                    if (!TryCalculateBarycentric(point, screenA, screenB, screenC, out Vector3 barycentric))
+                    {
+                        continue;
+                    }
+
+                    testedSamples++;
+                    bool insideEyebrowBoundary = IsPointInsideEyebrowBoundary(point, boundary);
+                    bool insideEyebrowCleanup = !insideEyebrowBoundary
+                        && IsPointInsideEyebrowCleanupBoundary(point, boundary);
+                    if (!insideEyebrowBoundary && !insideEyebrowCleanup)
+                    {
+                        continue;
+                    }
+
+                    Vector2 uv = uvA * barycentric.x
+                        + uvB * barycentric.y
+                        + uvC * barycentric.z;
+                    if (!WriteEyebrowUvMaskPixel(
+                            pixels,
+                            width,
+                            height,
+                            uv,
+                            insideEyebrowBoundary))
+                    {
+                        continue;
+                    }
+
+                    hitSamples++;
+                    triangleHit = true;
+                }
+            }
+
+            if (triangleHit)
+            {
+                hitTriangles++;
+            }
+            else if (IsTriangleDegenerate(screenA, screenB, screenC))
+            {
+                skippedDegenerateTriangles++;
+            }
+        }
+
+        view.VisionUvMaskTexture.SetPixels32(pixels);
+        view.VisionUvMaskTexture.Apply(false, false);
+        view.VisionUvMaskSequence = boundary.Sequence;
+        MaskTextureDiagnostics bakedDiagnostics = BuildRuntimeMaskDiagnosticsFromPixels(
+            hitSamples > 0
+                ? "eyebrow_arface_uv_baked_left_right_outer_minus_eye_exclusion"
+                : "eyebrow_arface_uv_baked_empty",
+            width,
+            height,
+            pixels);
+        view.VisionUvMaskDiagnostics = bakedDiagnostics;
+
+        Debug.Log(
+            "[E7] mediapipe_eyebrow_boundary_arface_uv_bake"
+            + " sequence=" + boundary.Sequence.ToString(CultureInfo.InvariantCulture)
+            + " selected=" + MediaPipeEyebrowBoundaryRuntimeTransform
+            + " sourceCoordinateMode=" + sourceBoundary.CoordinateMode
+            + " bakedCoordinateMode=" + boundary.CoordinateMode + "->arface-uv-calibration-bake"
+            + " uvSize=" + width.ToString(CultureInfo.InvariantCulture)
+            + "x" + height.ToString(CultureInfo.InvariantCulture)
+            + " candidateTriangles=" + candidateTriangles.ToString(CultureInfo.InvariantCulture)
+            + " hitTriangles=" + hitTriangles.ToString(CultureInfo.InvariantCulture)
+            + " testedSamples=" + testedSamples.ToString(CultureInfo.InvariantCulture)
+            + " hitSamples=" + hitSamples.ToString(CultureInfo.InvariantCulture)
+            + " activePixels=" + bakedDiagnostics.ActivePixelCountGt8.ToString(CultureInfo.InvariantCulture)
+            + " activeCoverage=" + bakedDiagnostics.ActiveCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
+            + " activeBbox=" + bakedDiagnostics.ActiveBbox
+            + " softSplatRadius=" + VisionUvMaskSoftSplatRadius.ToString(CultureInfo.InvariantCulture)
+            + " sampleStride=" + sampleStride.ToString(CultureInfo.InvariantCulture)
+            + " skippedDegenerateTriangles=" + skippedDegenerateTriangles.ToString(CultureInfo.InvariantCulture));
+    }
+
     private static bool ApplyVisionBoundaryScreenMask(
         RegionOverlayView view,
         E7VisionLipBoundaryRuntime.BoundarySnapshot sourceBoundary,
@@ -1478,6 +2085,44 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return transformed;
     }
 
+    private static E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot TransformEyebrowBoundaryForScreen(
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height,
+        string transformMode)
+    {
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot transformed = boundary;
+        width = Mathf.Max(1, width);
+        height = Mathf.Max(1, height);
+        transformMode = NormalizeVisionTransformMode(transformMode);
+        transformed.LeftOuterPoints = TransformVisionBoundaryPoints(
+            boundary.LeftOuterPoints,
+            width,
+            height,
+            transformMode);
+        transformed.RightOuterPoints = TransformVisionBoundaryPoints(
+            boundary.RightOuterPoints,
+            width,
+            height,
+            transformMode);
+        transformed.LeftEyePoints = TransformVisionBoundaryPoints(
+            boundary.LeftEyePoints,
+            width,
+            height,
+            transformMode);
+        transformed.RightEyePoints = TransformVisionBoundaryPoints(
+            boundary.RightEyePoints,
+            width,
+            height,
+            transformMode);
+        transformed.ImageWidth = width;
+        transformed.ImageHeight = height;
+        transformed.CoordinateMode = string.IsNullOrWhiteSpace(boundary.CoordinateMode)
+            ? transformMode
+            : boundary.CoordinateMode + "->" + transformMode;
+        return transformed;
+    }
+
     private static E7VisionLipBoundaryRuntime.BoundarySnapshot StabilizeVisionBoundaryToCurrentFace(
         ARFace face,
         Camera arCamera,
@@ -1535,7 +2180,89 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return boundary;
     }
 
+    private static E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot StabilizeEyebrowBoundaryToCurrentFace(
+        ARFace face,
+        Camera arCamera,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        if (!boundary.Available
+            || !boundary.FaceBoundsAvailable
+            || boundary.FaceBoundsSize.x <= 1.0f
+            || boundary.FaceBoundsSize.y <= 1.0f
+            || !TryCalculateCurrentFaceScreenBounds(face, arCamera, out Vector2 currentCenter, out Vector2 currentSize))
+        {
+            boundary.StabilizationMode = AppendStabilizationMode(
+                boundary.StabilizationMode,
+                "face_local_unavailable");
+            return boundary;
+        }
+
+        float rawScaleX = currentSize.x / Mathf.Max(1.0f, boundary.FaceBoundsSize.x);
+        float rawScaleY = currentSize.y / Mathf.Max(1.0f, boundary.FaceBoundsSize.y);
+        Vector2 scale = new Vector2(
+            Mathf.Clamp(rawScaleX, 0.82f, 1.22f),
+            Mathf.Clamp(rawScaleY, 0.82f, 1.22f));
+        float centerShiftPx = Vector2.Distance(currentCenter, boundary.FaceBoundsCenter);
+        float referenceSize = Mathf.Max(1.0f, Mathf.Max(boundary.FaceBoundsSize.x, boundary.FaceBoundsSize.y));
+        float centerShiftNormalized = centerShiftPx / referenceSize;
+        float scaleDelta = Mathf.Max(Mathf.Abs(rawScaleX - 1.0f), Mathf.Abs(rawScaleY - 1.0f));
+        float motionScore = centerShiftNormalized + scaleDelta * 0.5f;
+        boundary.FaceMotionCenterShiftPx = centerShiftPx;
+        boundary.FaceMotionScaleDelta = scaleDelta;
+        boundary.FaceMotionScore = motionScore;
+        boundary.FaceMotionRisk = ResolveMediaPipeFaceMotionRisk(motionScore);
+        boundary.LeftOuterPoints = WarpBoundaryPointsToCurrentFace(
+            boundary.LeftOuterPoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.RightOuterPoints = WarpBoundaryPointsToCurrentFace(
+            boundary.RightOuterPoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.LeftEyePoints = WarpBoundaryPointsToCurrentFace(
+            boundary.LeftEyePoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.RightEyePoints = WarpBoundaryPointsToCurrentFace(
+            boundary.RightEyePoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.CoordinateMode = string.IsNullOrWhiteSpace(boundary.CoordinateMode)
+            ? "face-local-warp"
+            : boundary.CoordinateMode + "->face-local-warp";
+        boundary.StabilizationMode = AppendStabilizationMode(
+            boundary.StabilizationMode,
+            "face_bbox_translate_scale");
+        if (motionScore >= VisionFaceMotionLargeThreshold)
+        {
+            boundary.StabilizationMode = AppendStabilizationMode(
+                boundary.StabilizationMode,
+                "large_face_motion_compensated");
+        }
+
+        return boundary;
+    }
+
     private static string ResolveVisionFaceMotionRisk(float motionScore)
+    {
+        if (motionScore >= VisionFaceMotionLargeThreshold)
+        {
+            return "large_face_motion";
+        }
+
+        if (motionScore >= VisionFaceMotionMediumThreshold)
+        {
+            return "medium_face_motion";
+        }
+
+        return "low_face_motion";
+    }
+
+    private static string ResolveMediaPipeFaceMotionRisk(float motionScore)
     {
         if (motionScore >= VisionFaceMotionLargeThreshold)
         {
@@ -1872,6 +2599,84 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return wrote;
     }
 
+    private static bool WriteEyebrowUvMaskPixel(
+        Color32[] pixels,
+        int width,
+        int height,
+        Vector2 uv,
+        bool boundaryPixel)
+    {
+        if (pixels == null
+            || pixels.Length != width * height
+            || width <= 0
+            || height <= 0
+            || float.IsNaN(uv.x)
+            || float.IsNaN(uv.y)
+            || float.IsInfinity(uv.x)
+            || float.IsInfinity(uv.y))
+        {
+            return false;
+        }
+
+        int centerX = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.x) * (width - 1)),
+            0,
+            width - 1);
+        int centerY = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.y) * (height - 1)),
+            0,
+            height - 1);
+
+        bool wrote = false;
+        for (int offsetY = -VisionUvMaskSoftSplatRadius; offsetY <= VisionUvMaskSoftSplatRadius; offsetY++)
+        {
+            int y = centerY + offsetY;
+            if (y < 0 || y >= height)
+            {
+                continue;
+            }
+
+            for (int offsetX = -VisionUvMaskSoftSplatRadius; offsetX <= VisionUvMaskSoftSplatRadius; offsetX++)
+            {
+                int x = centerX + offsetX;
+                if (x < 0 || x >= width)
+                {
+                    continue;
+                }
+
+                float distance = Mathf.Sqrt(offsetX * offsetX + offsetY * offsetY);
+                float falloff = Mathf.Clamp01(1.0f - distance / (VisionUvMaskSoftSplatRadius + 0.5f));
+                falloff = falloff * falloff * (3.0f - 2.0f * falloff);
+                byte value = (byte)Mathf.RoundToInt(falloff * 255.0f);
+                if (value == 0)
+                {
+                    continue;
+                }
+
+                int pixelIndex = y * width + x;
+                Color32 current = pixels[pixelIndex];
+                if (boundaryPixel)
+                {
+                    byte hard = current.r > value ? current.r : value;
+                    byte softValue = (byte)Mathf.RoundToInt(value * 0.74f);
+                    byte soft = current.g > softValue ? current.g : softValue;
+                    pixels[pixelIndex] = new Color32(hard, soft, current.b, current.a);
+                }
+                else
+                {
+                    byte cleanup = current.b > value ? current.b : value;
+                    byte cleanupSoftValue = (byte)Mathf.RoundToInt(value * 0.70f);
+                    byte cleanupSoft = current.a > cleanupSoftValue ? current.a : cleanupSoftValue;
+                    pixels[pixelIndex] = new Color32(current.r, current.g, cleanup, cleanupSoft);
+                }
+
+                wrote = true;
+            }
+        }
+
+        return wrote;
+    }
+
     private static MaskTextureDiagnostics BuildRuntimeMaskDiagnosticsFromPixels(
         string status,
         int width,
@@ -1970,6 +2775,60 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         bottom = Mathf.Clamp(Mathf.CeilToInt(maxY) + padding, 0, height - 1);
     }
 
+    private static void CalculateEyebrowBoundaryBbox(
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        int width,
+        int height,
+        out int left,
+        out int top,
+        out int right,
+        out int bottom)
+    {
+        const int padding = 24;
+        float minX = width;
+        float minY = height;
+        float maxX = -1.0f;
+        float maxY = -1.0f;
+        IncludeBoundaryBboxPoints(boundary.LeftOuterPoints, ref minX, ref minY, ref maxX, ref maxY);
+        IncludeBoundaryBboxPoints(boundary.RightOuterPoints, ref minX, ref minY, ref maxX, ref maxY);
+
+        if (maxX < minX || maxY < minY)
+        {
+            left = 0;
+            top = 0;
+            right = 0;
+            bottom = 0;
+            return;
+        }
+
+        left = Mathf.Clamp(Mathf.FloorToInt(minX) - padding, 0, width - 1);
+        right = Mathf.Clamp(Mathf.CeilToInt(maxX) + padding, 0, width - 1);
+        top = Mathf.Clamp(Mathf.FloorToInt(minY) - padding, 0, height - 1);
+        bottom = Mathf.Clamp(Mathf.CeilToInt(maxY) + padding, 0, height - 1);
+    }
+
+    private static void IncludeBoundaryBboxPoints(
+        Vector2[] points,
+        ref float minX,
+        ref float minY,
+        ref float maxX,
+        ref float maxY)
+    {
+        if (points == null)
+        {
+            return;
+        }
+
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            minX = Mathf.Min(minX, point.x);
+            maxX = Mathf.Max(maxX, point.x);
+            minY = Mathf.Min(minY, point.y);
+            maxY = Mathf.Max(maxY, point.y);
+        }
+    }
+
     private static bool TriangleIntersectsVisionBoundary(
         ARFace face,
         Camera arCamera,
@@ -2052,6 +2911,267 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         return IsPointInPolygon(point, outerPoints)
             && !IsPointInPolygon(point, innerPoints);
+    }
+
+    private static bool IsPointInsideEyebrowBoundary(
+        Vector2 point,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        bool insideBrow = IsPointInPolygon(point, boundary.LeftOuterPoints)
+            || IsPointInPolygon(point, boundary.RightOuterPoints);
+        if (!insideBrow)
+        {
+            return false;
+        }
+
+        return !IsPointInsideEyebrowEyeExclusion(
+            point,
+            boundary,
+            EyebrowBoundaryEyePaddingPx,
+            1.08f,
+            1.18f);
+    }
+
+    private static E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot ApplyEyebrowStyleShape(
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        string maskTextureId)
+    {
+        if (!boundary.Available)
+        {
+            return boundary;
+        }
+
+        int styleIndex = ResolveEyebrowStyleIndex(maskTextureId);
+        boundary.LeftOuterPoints = ShapeEyebrowBoundaryPoints(
+            boundary.LeftOuterPoints,
+            boundary.LeftEyePoints,
+            true,
+            styleIndex);
+        boundary.RightOuterPoints = ShapeEyebrowBoundaryPoints(
+            boundary.RightOuterPoints,
+            boundary.RightEyePoints,
+            false,
+            styleIndex);
+        boundary.LeftOuterPointCount = boundary.LeftOuterPoints != null ? boundary.LeftOuterPoints.Length : 0;
+        boundary.RightOuterPointCount = boundary.RightOuterPoints != null ? boundary.RightOuterPoints.Length : 0;
+        boundary.CoordinateMode = AppendCoordinateMode(
+            boundary.CoordinateMode,
+            "brow-style-" + styleIndex.ToString(CultureInfo.InvariantCulture));
+        return boundary;
+    }
+
+    private static Vector2[] ShapeEyebrowBoundaryPoints(
+        Vector2[] points,
+        Vector2[] eyePoints,
+        bool screenLeftBrow,
+        int styleIndex)
+    {
+        if (points == null || points.Length < 3)
+        {
+            return points ?? Array.Empty<Vector2>();
+        }
+
+        if (!TryCalculateBoundaryBounds(points, out float left, out float top, out float right, out float bottom))
+        {
+            return points;
+        }
+
+        float width = Mathf.Max(1.0f, right - left);
+        float height = Mathf.Max(1.0f, bottom - top);
+        Vector2 center = new Vector2((left + right) * 0.5f, (top + bottom) * 0.5f);
+        float amount = EyebrowStyleShapeAmount;
+        ResolveEyebrowStyleProfile(
+            styleIndex,
+            out float widthScale,
+            out float heightScale,
+            out float archLift,
+            out float tailExtend,
+            out float lowerLift);
+        widthScale = Mathf.Lerp(1.0f, widthScale, amount);
+        heightScale = Mathf.Lerp(1.0f, heightScale, amount);
+        archLift = Mathf.Lerp(0.0f, archLift, amount);
+        tailExtend = Mathf.Lerp(0.0f, tailExtend, amount);
+        lowerLift = Mathf.Lerp(0.0f, lowerLift, amount);
+
+        Vector2[] shaped = new Vector2[points.Length];
+        float outwardDirection = screenLeftBrow ? -1.0f : 1.0f;
+        float eyeTop = TryCalculateBoundaryBounds(eyePoints, out _, out float detectedEyeTop, out _, out _)
+            ? detectedEyeTop
+            : bottom + height * 2.0f;
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            float xNorm = Mathf.Clamp01((point.x - left) / width);
+            float arch = Mathf.Sin(Mathf.PI * xNorm);
+            float tailT = screenLeftBrow ? 1.0f - xNorm : xNorm;
+            float lowerHalf = point.y > center.y ? 1.0f : 0.0f;
+            float shapedX = center.x + (point.x - center.x) * widthScale
+                + outwardDirection * tailExtend * width * tailT * tailT;
+            float shapedY = center.y + (point.y - center.y) * heightScale
+                - archLift * height * arch
+                - lowerLift * height * lowerHalf * (0.25f + arch * 0.75f);
+            shapedY = Mathf.Min(shapedY, eyeTop - 10.0f);
+            shaped[index] = new Vector2(shapedX, shapedY);
+        }
+
+        return shaped;
+    }
+
+    private static void ResolveEyebrowStyleProfile(
+        int styleIndex,
+        out float widthScale,
+        out float heightScale,
+        out float archLift,
+        out float tailExtend,
+        out float lowerLift)
+    {
+        switch (styleIndex)
+        {
+            case 1:
+                // Soft arch: keep the user's natural width, softly raise the center,
+                // and avoid a heavy block at the front of the brow.
+                widthScale = 1.02f;
+                heightScale = 0.94f;
+                archLift = 0.10f;
+                tailExtend = 0.04f;
+                lowerLift = 0.04f;
+                return;
+            case 2:
+                // Straight: flatten the arch and lift the lower edge so it does not
+                // read as an eyeshadow stripe above the eye.
+                widthScale = 1.03f;
+                heightScale = 0.72f;
+                archLift = -0.02f;
+                tailExtend = 0.02f;
+                lowerLift = 0.12f;
+                return;
+            case 3:
+                // Slim tail: keep body narrow, extend outward tail, and thin the
+                // lower half so the end tapers instead of getting cut off.
+                widthScale = 1.08f;
+                heightScale = 0.76f;
+                archLift = 0.04f;
+                tailExtend = 0.13f;
+                lowerLift = 0.14f;
+                return;
+            default:
+                widthScale = 1.02f;
+                heightScale = 0.94f;
+                archLift = 0.10f;
+                tailExtend = 0.04f;
+                lowerLift = 0.04f;
+                return;
+        }
+    }
+
+    private static bool IsPointInsideEyebrowCleanupBoundary(
+        Vector2 point,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        if (IsPointInsideEyebrowEyeExclusion(
+                point,
+                boundary,
+                EyebrowCleanupEyePaddingPx,
+                1.12f,
+                1.26f)
+            || IsPointInPolygon(point, boundary.LeftOuterPoints)
+            || IsPointInPolygon(point, boundary.RightOuterPoints))
+        {
+            return false;
+        }
+
+        return IsPointInScaledPolygon(point, boundary.LeftOuterPoints, 1.055f, 1.24f)
+            || IsPointInScaledPolygon(point, boundary.RightOuterPoints, 1.055f, 1.24f);
+    }
+
+    private static bool IsPointInsideEyebrowEyeExclusion(
+        Vector2 point,
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
+        float topPaddingPx,
+        float eyeScaleX,
+        float eyeScaleY)
+    {
+        return IsPointInScaledPolygon(point, boundary.LeftEyePoints, eyeScaleX, eyeScaleY)
+            || IsPointInScaledPolygon(point, boundary.RightEyePoints, eyeScaleX, eyeScaleY)
+            || IsPointTooCloseToEyeTop(point, boundary.LeftEyePoints, topPaddingPx)
+            || IsPointTooCloseToEyeTop(point, boundary.RightEyePoints, topPaddingPx);
+    }
+
+    private static bool IsPointTooCloseToEyeTop(
+        Vector2 point,
+        Vector2[] eyePoints,
+        float topPaddingPx)
+    {
+        if (!TryCalculateBoundaryBounds(
+                eyePoints,
+                out float left,
+                out float top,
+                out float right,
+                out _))
+        {
+            return false;
+        }
+
+        float horizontalPadding = Mathf.Max(8.0f, (right - left) * 0.18f);
+        return point.x >= left - horizontalPadding
+            && point.x <= right + horizontalPadding
+            && point.y >= top - topPaddingPx;
+    }
+
+    private static bool IsPointInScaledPolygon(
+        Vector2 point,
+        Vector2[] polygon,
+        float scaleX,
+        float scaleY)
+    {
+        if (!TryCalculateBoundaryBounds(polygon, out float left, out float top, out float right, out float bottom))
+        {
+            return false;
+        }
+
+        Vector2 center = new Vector2((left + right) * 0.5f, (top + bottom) * 0.5f);
+        Vector2 projected = new Vector2(
+            center.x + (point.x - center.x) / Mathf.Max(0.001f, scaleX),
+            center.y + (point.y - center.y) / Mathf.Max(0.001f, scaleY));
+        return IsPointInPolygon(projected, polygon);
+    }
+
+    private static bool TryCalculateBoundaryBounds(
+        Vector2[] points,
+        out float left,
+        out float top,
+        out float right,
+        out float bottom)
+    {
+        left = float.MaxValue;
+        top = float.MaxValue;
+        right = float.MinValue;
+        bottom = float.MinValue;
+        if (points == null || points.Length == 0)
+        {
+            return false;
+        }
+
+        int validCount = 0;
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            if (float.IsNaN(point.x)
+                || float.IsNaN(point.y)
+                || float.IsInfinity(point.x)
+                || float.IsInfinity(point.y))
+            {
+                continue;
+            }
+
+            left = Mathf.Min(left, point.x);
+            right = Mathf.Max(right, point.x);
+            top = Mathf.Min(top, point.y);
+            bottom = Mathf.Max(bottom, point.y);
+            validCount++;
+        }
+
+        return validCount > 0 && right > left && bottom > top;
     }
 
     private static bool IsPointInPolygon(Vector2 point, Vector2[] polygon)
@@ -2223,6 +3343,66 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return textureCoordinates;
     }
 
+    private static List<Vector2> BuildEyebrowLocalUvCoordinates(ARFace face)
+    {
+        int count = face != null && face.vertices.IsCreated ? face.vertices.Length : 0;
+        List<Vector2> textureCoordinates = new List<Vector2>(Mathf.Max(0, count));
+        if (count <= 0)
+        {
+            return textureCoordinates;
+        }
+
+        float[] xs = new float[count];
+        float[] ys = new float[count];
+        for (int index = 0; index < count; index++)
+        {
+            Vector3 vertex = face.vertices[index];
+            xs[index] = vertex.x;
+            ys[index] = vertex.y;
+        }
+
+        Array.Sort(xs);
+        Array.Sort(ys);
+        int lowIndex = Mathf.Clamp(Mathf.FloorToInt((count - 1) * 0.01f), 0, count - 1);
+        int highIndex = Mathf.Clamp(Mathf.CeilToInt((count - 1) * 0.99f), 0, count - 1);
+        float minX = xs[lowIndex];
+        float maxX = xs[highIndex];
+        float minY = ys[lowIndex];
+        float maxY = ys[highIndex];
+        float width = Mathf.Max(maxX - minX, 0.00001f);
+        float height = Mathf.Max(maxY - minY, 0.00001f);
+        minX -= width * 0.10f;
+        maxX += width * 0.10f;
+        minY -= height * 0.08f;
+        maxY += height * 0.08f;
+        width = Mathf.Max(maxX - minX, 0.00001f);
+        height = Mathf.Max(maxY - minY, 0.00001f);
+
+        const float leftTailX = 0.105f;
+        const float leftInnerX = 0.486f;
+        const float rightInnerX = 0.514f;
+        const float rightTailX = 0.895f;
+        const float browBottomY = 0.735f;
+        const float browTopY = 0.860f;
+        for (int index = 0; index < count; index++)
+        {
+            Vector3 vertex = face.vertices[index];
+            float normalizedX = (vertex.x - minX) / width;
+            float normalizedY = (vertex.y - minY) / height;
+            bool leftSide = normalizedX < 0.5f;
+            float localX = leftSide
+                ? (leftInnerX - normalizedX) / Mathf.Max(leftInnerX - leftTailX, 0.001f)
+                : (normalizedX - rightInnerX) / Mathf.Max(rightTailX - rightInnerX, 0.001f);
+            float localY = (normalizedY - browBottomY) / Mathf.Max(browTopY - browBottomY, 0.001f);
+            float encodedX = leftSide
+                ? localX * 0.5f
+                : 0.5f + localX * 0.5f;
+            textureCoordinates.Add(new Vector2(encodedX, localY));
+        }
+
+        return textureCoordinates;
+    }
+
     private static string GetDefaultMaskTextureId(string region)
     {
         switch (NormalizeRegion(region))
@@ -2234,7 +3414,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "eyebrow":
-                return EyebrowHairAtlas5MaskId;
+                return EyebrowHairAtlas1MaskId;
             default:
                 throw new ArgumentException("Unsupported smooth mask region: " + region);
         }
@@ -2467,6 +3647,65 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         return sampleData.Pixels[pixelIndex].r;
     }
 
+    private static bool TriangleIntersectsRuntimeUvMask(
+        Vector2 uvA,
+        Vector2 uvB,
+        Vector2 uvC,
+        Color32[] pixels,
+        int width,
+        int height,
+        int thresholdByte)
+    {
+        Vector2 centroid = (uvA + uvB + uvC) / 3.0f;
+        Vector2 midAB = (uvA + uvB) * 0.5f;
+        Vector2 midBC = (uvB + uvC) * 0.5f;
+        Vector2 midCA = (uvC + uvA) * 0.5f;
+
+        return SampleRuntimeMaskByte(pixels, width, height, uvA) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, uvB) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, uvC) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, centroid) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, midAB) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, midBC) > thresholdByte
+            || SampleRuntimeMaskByte(pixels, width, height, midCA) > thresholdByte;
+    }
+
+    private static int SampleRuntimeMaskByte(
+        Color32[] pixels,
+        int width,
+        int height,
+        Vector2 uv)
+    {
+        if (pixels == null
+            || width <= 0
+            || height <= 0
+            || pixels.Length != width * height
+            || float.IsNaN(uv.x)
+            || float.IsNaN(uv.y)
+            || float.IsInfinity(uv.x)
+            || float.IsInfinity(uv.y))
+        {
+            return 0;
+        }
+
+        int x = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.x) * (width - 1)),
+            0,
+            width - 1);
+        int y = Mathf.Clamp(
+            Mathf.RoundToInt(Mathf.Clamp01(uv.y) * (height - 1)),
+            0,
+            height - 1);
+        int pixelIndex = y * width + x;
+        if (pixelIndex < 0 || pixelIndex >= pixels.Length)
+        {
+            return 0;
+        }
+
+        Color32 pixel = pixels[pixelIndex];
+        return Mathf.Max(pixel.r, pixel.g);
+    }
+
     private static MaskTextureDiagnostics GetMaskTextureDiagnostics(MaskDefinition mask)
     {
         if (mask == null)
@@ -2656,6 +3895,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         if (eyebrowHairMask)
         {
+            if (material.HasProperty("_RuntimeBoundaryMode"))
+            {
+                material.SetFloat("_RuntimeBoundaryMode", 0.0f);
+            }
+
             Texture2D boundaryTexture = GetEyebrowBoundaryTexture();
             if (boundaryTexture != null && material.HasProperty("_BoundaryTex"))
             {
@@ -3313,6 +4557,50 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             || maskTextureId == EyebrowHairAtlas3MaskId
             || maskTextureId == EyebrowHairAtlas4MaskId
             || maskTextureId == EyebrowHairAtlas5MaskId;
+    }
+
+    private static int ResolveEyebrowStyleIndex(string maskTextureId)
+    {
+        maskTextureId = string.IsNullOrWhiteSpace(maskTextureId)
+            ? string.Empty
+            : maskTextureId.Trim();
+        if (maskTextureId == EyebrowHairAtlas1MaskId)
+        {
+            return 1;
+        }
+
+        if (maskTextureId == EyebrowHairAtlas2MaskId)
+        {
+            return 2;
+        }
+
+        if (maskTextureId == EyebrowHairAtlas3MaskId)
+        {
+            return 3;
+        }
+
+        if (maskTextureId == EyebrowHairAtlas4MaskId)
+        {
+            return 2;
+        }
+
+        if (maskTextureId == EyebrowHairAtlas5MaskId)
+        {
+            return 3;
+        }
+
+        return 1;
+    }
+
+    private static string BuildEyebrowCalibrationKey(RegionRecipeState recipe)
+    {
+        if (recipe == null)
+        {
+            return "eyebrow:none";
+        }
+
+        return "eyebrow:"
+            + SanitizeDiagnosticValue(recipe.MaskTextureId);
     }
 
     private static bool IsEyebrowTextureSample(string textureSample)

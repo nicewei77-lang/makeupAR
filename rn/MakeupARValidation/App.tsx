@@ -262,7 +262,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   },
   {
     name: 'eyebrow_candidate_1',
-    label: 'brow 1',
+    label: 'soft arch',
     region: 'eyebrow',
     textureMode: 'sample',
     blendMode: 'multiply',
@@ -280,7 +280,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   },
   {
     name: 'eyebrow_candidate_2',
-    label: 'brow 2',
+    label: 'straight',
     region: 'eyebrow',
     textureMode: 'sample',
     blendMode: 'multiply',
@@ -298,43 +298,7 @@ export const RECIPE_TEXTURE_SAMPLE_OPTIONS = [
   },
   {
     name: 'eyebrow_candidate_3',
-    label: 'brow 3',
-    region: 'eyebrow',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#6C5043',
-    intensity: 0.82,
-    feather: 0.34,
-    coverage: 0.9,
-    finish: 'brow',
-    roughness: 1,
-    specular: 0,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
-    name: 'eyebrow_candidate_4',
-    label: 'brow 4',
-    region: 'eyebrow',
-    textureMode: 'sample',
-    blendMode: 'multiply',
-    secondaryColor: '#6C5043',
-    intensity: 0.82,
-    feather: 0.34,
-    coverage: 0.9,
-    finish: 'brow',
-    roughness: 1,
-    specular: 0,
-    specularPower: 6,
-    glossBoost: 0,
-    gradientAmount: 0,
-    preserveDetail: true,
-  },
-  {
-    name: 'eyebrow_candidate_5',
-    label: 'brow 5',
+    label: 'slim tail',
     region: 'eyebrow',
     textureMode: 'sample',
     blendMode: 'multiply',
@@ -449,7 +413,7 @@ const DEFAULT_TEXTURE_SAMPLE_BY_REGION: Record<
     textureSample => textureSample.name === 'shimmer_eye',
   ) as RecipeTextureSample,
   eyebrow: RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
-    textureSample => textureSample.name === 'eyebrow_candidate_5',
+    textureSample => textureSample.name === 'eyebrow_candidate_1',
   ) as RecipeTextureSample,
 };
 export const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
@@ -482,7 +446,7 @@ const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
   lip: 'lip-drawn-style-atlas-v1',
   cheek: 'cheek-session-mask-1-v1',
   eye: 'eye-drawn-mask-v1',
-  eyebrow: 'eyebrow-hair-atlas-5-v1',
+  eyebrow: 'eyebrow-hair-atlas-1-v1',
 };
 const GRADIENT_LIP_MASK_TEXTURE_ID: MaskTextureId =
   'lip-drawn-gradient-density-atlas-v1';
@@ -518,13 +482,9 @@ function resolveMaskTextureIdForRecipe(
         return 'eyebrow-hair-atlas-2-v1';
       case 'eyebrow_candidate_3':
         return 'eyebrow-hair-atlas-3-v1';
-      case 'eyebrow_candidate_4':
-        return 'eyebrow-hair-atlas-4-v1';
-      case 'eyebrow_candidate_5':
-        return 'eyebrow-hair-atlas-5-v1';
     }
 
-    return 'eyebrow-hair-atlas-5-v1';
+    return 'eyebrow-hair-atlas-1-v1';
   }
 
   return DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
@@ -547,6 +507,7 @@ const UNITY_EVENT_TYPES = [
   'e7_metric_sample',
   'e7_reference_capture',
   'e7_vision_lip_boundary',
+  'e7_mediapipe_eyebrow_boundary',
   'recipe_applied',
 ] as const;
 
@@ -870,6 +831,17 @@ type UnityEventPayload = {
   transitionProgress?: number;
   transitionDurationMs?: number;
   faceBoundsAvailable?: boolean;
+  leftOuterPointCount?: number;
+  rightOuterPointCount?: number;
+  leftEyePointCount?: number;
+  rightEyePointCount?: number;
+  hairRefinement?: string;
+  leftHairPixels?: number;
+  rightHairPixels?: number;
+  leftBrowEyeGapPx?: number;
+  rightBrowEyeGapPx?: number;
+  faceMotionScore?: number;
+  faceMotionRisk?: string;
   capturePairId?: string;
   relativeDirectory?: string;
   coordinateSpaceValidated?: boolean;
@@ -1325,6 +1297,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? '[E7] rn_reference_capture_received'
             : parsed.type === 'e7_vision_lip_boundary'
             ? '[E7] rn_vision_lip_boundary_received'
+            : parsed.type === 'e7_mediapipe_eyebrow_boundary'
+            ? '[E7] rn_mediapipe_eyebrow_boundary_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -1577,15 +1551,11 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         case 'shimmer_eye':
           return 'Shimmer';
         case 'eyebrow_candidate_1':
-          return 'Brow 1';
+          return 'Soft Arch';
         case 'eyebrow_candidate_2':
-          return 'Brow 2';
+          return 'Straight';
         case 'eyebrow_candidate_3':
-          return 'Brow 3';
-        case 'eyebrow_candidate_4':
-          return 'Brow 4';
-        case 'eyebrow_candidate_5':
-          return 'Brow 5';
+          return 'Slim Tail';
         default:
           return 'Matte';
       }
@@ -2320,6 +2290,10 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `e7_vision_lip_boundary ${formatE7VisionLipBoundarySummary(
         event,
       )}`;
+    case 'e7_mediapipe_eyebrow_boundary':
+      return `e7_mediapipe_eyebrow_boundary ${formatE7MediaPipeEyebrowBoundarySummary(
+        event,
+      )}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -2393,9 +2367,37 @@ function formatUnityEventTypeStatus(
       return `e7_vision_lip_boundary: ${formatE7VisionLipBoundarySummary(
         parsed,
       )} ${event.receivedAt}`;
+    case 'e7_mediapipe_eyebrow_boundary':
+      return `e7_mediapipe_eyebrow_boundary: ${formatE7MediaPipeEyebrowBoundarySummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
+}
+
+function formatE7MediaPipeEyebrowBoundarySummary(event: UnityEventPayload) {
+  return `status=${String(event.status ?? 'unknown')} available=${String(
+    event.available ?? false,
+  )} source=${String(
+    event.source ?? 'mediapipe_face_landmarker_runtime_eyebrow_boundary',
+  )} coord=${String(event.coordinateMode ?? 'mediapipe-image-top-left')} face=${String(
+    event.faceCount ?? 'n/a',
+  )} brow=${String(event.leftOuterPointCount ?? 'n/a')}/${String(
+    event.rightOuterPointCount ?? 'n/a',
+  )} eye=${String(event.leftEyePointCount ?? 'n/a')}/${String(
+    event.rightEyePointCount ?? 'n/a',
+  )} gap=${formatMetricNumber(event.leftBrowEyeGapPx, 1)}/${formatMetricNumber(
+    event.rightBrowEyeGapPx,
+    1,
+  )} hair=${String(event.leftHairPixels ?? 'n/a')}/${String(
+    event.rightHairPixels ?? 'n/a',
+  )} refine=${String(event.hairRefinement ?? 'n/a')} motion=${formatMetricNumber(
+    event.faceMotionScore,
+    3,
+  )}/${String(event.faceMotionRisk ?? 'n/a')} privacy raw=${String(
+    event.rawCameraFrameStored ?? false,
+  )} offDevice=${String(event.offDeviceUpload ?? false)}`;
 }
 
 function formatE7VisionLipBoundarySummary(event: UnityEventPayload) {

@@ -15,6 +15,7 @@ Shader "MakeupAR/EyebrowRegionMask"
         _ToneLiftStrength ("Tone Lift Strength", Range(0, 1)) = 0.18
         _TintStrength ("Tint Strength", Range(0, 1)) = 0.72
         _StrandStrength ("Strand Strength", Range(0, 1.5)) = 1.0
+        _RuntimeBoundaryMode ("Runtime Boundary Mode", Range(0, 1)) = 0
     }
 
     SubShader
@@ -48,31 +49,28 @@ Shader "MakeupAR/EyebrowRegionMask"
         float _ToneLiftStrength;
         float _TintStrength;
         float _StrandStrength;
-
-        static const float LeftTailX = 0.112f;
-        static const float LeftInnerX = 0.495f;
-        static const float RightInnerX = 0.570f;
-        static const float RightTailX = 0.972f;
-        static const float BrowBottomY = 0.684f;
-        static const float BrowTopY = 0.772f;
+        float _RuntimeBoundaryMode;
 
         struct appdata
         {
             float4 vertex : POSITION;
             float2 uv : TEXCOORD0;
+            float2 uv2 : TEXCOORD1;
         };
 
         struct v2f
         {
             float4 pos : SV_POSITION;
-            float2 uv : TEXCOORD0;
+            float2 boundaryUv : TEXCOORD0;
+            float2 localUv : TEXCOORD1;
         };
 
         v2f vert(appdata input)
         {
             v2f output;
             output.pos = UnityObjectToClipPos(input.vertex);
-            output.uv = input.uv;
+            output.boundaryUv = input.uv;
+            output.localUv = input.uv2;
             return output;
         }
 
@@ -120,16 +118,18 @@ Shader "MakeupAR/EyebrowRegionMask"
         {
             float hard = saturate(boundary.r * 1.12);
             float cleanup = max(boundary.b, boundary.a);
-            return saturate(cleanup - hard * 0.78);
+            float atlasCleanup = saturate(cleanup - hard * 0.78);
+            float runtimeCleanup = saturate(cleanup * (1.0 - hard * 0.62) * 0.74);
+            return lerp(atlasCleanup, runtimeCleanup, step(0.5, _RuntimeBoundaryMode));
         }
 
         void ComputeBrowLocal(float2 uv, out float localX, out float localY, out float leftSide)
         {
             leftSide = 1.0 - step(0.5, uv.x);
-            float leftLocalX = (LeftInnerX - uv.x) / max(LeftInnerX - LeftTailX, 0.001);
-            float rightLocalX = (uv.x - RightInnerX) / max(RightTailX - RightInnerX, 0.001);
+            float leftLocalX = uv.x * 2.0;
+            float rightLocalX = (uv.x - 0.5) * 2.0;
             localX = saturate(lerp(rightLocalX, leftLocalX, leftSide));
-            localY = saturate((uv.y - BrowBottomY) / max(BrowTopY - BrowBottomY, 0.001));
+            localY = saturate(uv.y);
         }
 
         float2 BrowSourceUv(float localX, float localY, float leftSide)
@@ -167,7 +167,7 @@ Shader "MakeupAR/EyebrowRegionMask"
 
             fixed4 frag(v2f input) : SV_Target
             {
-                float4 boundary = BoundarySample(input.uv);
+                float4 boundary = BoundarySample(input.boundaryUv);
                 float cleanup = OuterCleanupCoverage(boundary);
                 float alpha = saturate(
                     cleanup
@@ -194,10 +194,10 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float localX;
                 float localY;
                 float leftSide;
-                ComputeBrowLocal(input.uv, localX, localY, leftSide);
-                float coverage = BoundaryCoverage(input.uv) * BrowEndTaper(localX);
+                ComputeBrowLocal(input.localUv, localX, localY, leftSide);
+                float coverage = BoundaryCoverage(input.boundaryUv) * BrowEndTaper(localX);
                 float centerDensity = 1.0 - smoothstep(0.18, 0.86, abs(localX - 0.38));
-                float lift = saturate(coverage * (0.30 + centerDensity * 0.40));
+                float lift = saturate(coverage * (0.18 + centerDensity * 0.24));
                 float alpha = saturate(
                     lift
                     * _ToneLiftStrength
@@ -224,13 +224,13 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float localX;
                 float localY;
                 float leftSide;
-                ComputeBrowLocal(input.uv, localX, localY, leftSide);
-                float coverage = BoundaryCoverage(input.uv) * BrowEndTaper(localX);
+                ComputeBrowLocal(input.localUv, localX, localY, leftSide);
+                float coverage = BoundaryCoverage(input.boundaryUv) * BrowEndTaper(localX);
                 float source = SourceDensity(BrowSourceUv(localX, localY, leftSide));
                 float centerDensity = 1.0 - smoothstep(0.16, 0.92, abs(localX - 0.36));
                 float alpha = saturate(
                     coverage
-                    * (0.030 + source * 0.420 + centerDensity * 0.035)
+                    * (0.010 + source * 0.340 + centerDensity * 0.018)
                     * _TintStrength
                     * _Opacity
                     * _VisibilityAlpha
@@ -254,14 +254,14 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float localX;
                 float localY;
                 float leftSide;
-                ComputeBrowLocal(input.uv, localX, localY, leftSide);
+                ComputeBrowLocal(input.localUv, localX, localY, leftSide);
                 float endTaper = BrowEndTaper(localX);
-                float coverage = BoundaryCoverage(input.uv) * endTaper;
+                float coverage = BoundaryCoverage(input.boundaryUv) * endTaper;
                 float source = SourceDensity(BrowSourceUv(localX, localY, leftSide));
 
                 float centerDensity = 1.0 - smoothstep(0.16, 0.92, abs(localX - 0.36));
-                float softFill = saturate(coverage * (0.10 + source * 1.22 + centerDensity * 0.10) * _TintStrength);
-                float strands = saturate(BoundaryCoverage(input.uv) * sqrt(endTaper) * source * _StrandStrength);
+                float softFill = saturate(coverage * (0.06 + source * 1.08 + centerDensity * 0.055) * _TintStrength);
+                float strands = saturate(BoundaryCoverage(input.boundaryUv) * sqrt(endTaper) * source * _StrandStrength);
                 float strength = saturate((softFill * 0.88 + strands * 1.28) * _Opacity * _VisibilityAlpha * _Coverage);
                 float3 darkBrow = saturate(lerp(_RegionColor.rgb, float3(0.06, 0.045, 0.038), 0.10));
                 float3 multiplyFilter = lerp(float3(1.0, 1.0, 1.0), darkBrow, strength);

@@ -10,6 +10,7 @@ using UnityEngine.XR.ARFoundation;
 public sealed class RNBridge : MonoBehaviour
 {
     private static readonly string[] FeatureSnapshotRegions = { "lip", "cheek", "eye" };
+    private static readonly string[] FeatureSnapshotDisplayRegions = { "lip", "cheek", "eye", "eyebrow" };
     private static readonly string[] RecipeLayerRegions = { "lip", "cheek", "eye", "eyebrow" };
 
     [Serializable]
@@ -427,6 +428,11 @@ public sealed class RNBridge : MonoBehaviour
     }
 
     public void SendE7VisionLipBoundaryEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
+    public void SendE7MediaPipeEyebrowBoundaryEvent(string json)
     {
         SendUnityEvent(json, "[E7]");
     }
@@ -915,7 +921,7 @@ public sealed class RNBridge : MonoBehaviour
             return;
         }
 
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 || !state.Enabled
@@ -966,7 +972,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         List<string> activeRegions = new List<string>();
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 && state.Enabled)
@@ -983,7 +989,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         List<string> appliedSamples = new List<string>();
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 && state.Enabled)
@@ -1000,7 +1006,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         List<string> activeRegions = new List<string>();
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 && state.Enabled)
@@ -1017,7 +1023,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         List<string> samples = new List<string>();
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 || !state.Enabled)
@@ -1085,7 +1091,7 @@ public sealed class RNBridge : MonoBehaviour
         RefreshLatestOverlayRegionResults();
 
         List<string> regions = new List<string>();
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state);
             bool active = state != null && state.Enabled;
@@ -1335,7 +1341,7 @@ public sealed class RNBridge : MonoBehaviour
     private RegionFeatureState GetLatestActiveRegionFeatureState()
     {
         RegionFeatureState latest = null;
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (!latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 || !state.Enabled)
@@ -1355,7 +1361,7 @@ public sealed class RNBridge : MonoBehaviour
     private int CountKnownRegionFeatureStates()
     {
         int count = 0;
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (latestRegionFeatureStates.ContainsKey(region))
             {
@@ -1369,7 +1375,7 @@ public sealed class RNBridge : MonoBehaviour
     private int CountEnabledRegionFeatureStates()
     {
         int count = 0;
-        foreach (string region in FeatureSnapshotRegions)
+        foreach (string region in FeatureSnapshotDisplayRegions)
         {
             if (latestRegionFeatureStates.TryGetValue(region, out RegionFeatureState state)
                 && state.Enabled)
@@ -2116,7 +2122,7 @@ public sealed class RNBridge : MonoBehaviour
             case "eye":
                 return "eye-drawn-mask-v1";
             case "eyebrow":
-                return "eyebrow-hair-atlas-5-v1";
+                return "eyebrow-hair-atlas-1-v1";
             default:
                 return "lip-drawn-style-atlas-v1";
         }

@@ -518,6 +518,53 @@ test('surfaces Vision smoothing transition and capture motion events', async () 
   expect(text).toContain('privacy raw=false offDevice=false');
 });
 
+test('surfaces MediaPipe eyebrow boundary diagnostics from Unity events', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'e7_mediapipe_eyebrow_boundary',
+    status: 'ok',
+    available: true,
+    source: 'mediapipe_face_landmarker_runtime_eyebrow_boundary',
+    coordinateMode: 'mediapipe-image-top-left',
+    faceCount: 1,
+    leftOuterPointCount: 36,
+    rightOuterPointCount: 36,
+    leftEyePointCount: 16,
+    rightEyePointCount: 16,
+    hairRefinement: 'pixel_refined_boundary_first',
+    leftHairPixels: 421,
+    rightHairPixels: 408,
+    leftBrowEyeGapPx: 14.2,
+    rightBrowEyeGapPx: 13.6,
+    faceMotionScore: 0.072,
+    faceMotionRisk: 'stable_face_motion',
+    rawCameraFrameStored: false,
+    offDeviceUpload: false,
+  });
+
+  pressByText(renderer!, 'Debug');
+  const text = collectText(renderer!);
+
+  expect(text).toContain('e7_mediapipe_eyebrow_boundary');
+  expect(text).toContain('status=ok');
+  expect(text).toContain(
+    'source=mediapipe_face_landmarker_runtime_eyebrow_boundary',
+  );
+  expect(text).toContain('face=1');
+  expect(text).toContain('brow=36/36');
+  expect(text).toContain('eye=16/16');
+  expect(text).toContain('gap=14.2/13.6');
+  expect(text).toContain('hair=421/408');
+  expect(text).toContain('refine=pixel_refined_boundary_first');
+  expect(text).toContain('privacy raw=false offDevice=false');
+});
+
 test('keeps thin wet-line diagnostics off matte lip recipe events', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
@@ -882,7 +929,7 @@ test('allows lip and eye toggles for placement validation while preserving 3-lay
 
 test('adds eyebrow as optional fourth layer without changing legacy payloads', () => {
   const eyebrowSample = RECIPE_TEXTURE_SAMPLE_OPTIONS.find(
-    textureOption => textureOption.name === 'eyebrow_candidate_5',
+    textureOption => textureOption.name === 'eyebrow_candidate_1',
   )!;
   const eyebrowColor = EYEBROW_COLOR_OPTIONS.find(
     colorOption => colorOption.name === 'dark_brown',
@@ -928,21 +975,21 @@ test('adds eyebrow as optional fourth layer without changing legacy payloads', (
   expect(eyebrowPayload.layers).toHaveLength(4);
   expect(eyebrowPayload.activeRegions).toBe('eyebrow');
   expect(eyebrowPayload.enabledLayerCount).toBe(1);
-  expect(eyebrowPayload.texture).toBe('eyebrow_candidate_5');
-  expect(eyebrowPayload.maskTextureId).toBe('eyebrow-hair-atlas-5-v1');
+  expect(eyebrowPayload.texture).toBe('eyebrow_candidate_1');
+  expect(eyebrowPayload.maskTextureId).toBe('eyebrow-hair-atlas-1-v1');
   expect(eyebrowPayload.shaderMode).toBe(
     'eyebrow-boundary-tone-lift-validation',
   );
   expect(eyebrowPayload.passCount).toBe(4);
   expect(eyebrowLayer.enabled).toBe(true);
   expect(eyebrowLayer.color).toBe('#3B2A22');
-  expect(eyebrowLayer.maskTextureId).toBe('eyebrow-hair-atlas-5-v1');
+  expect(eyebrowLayer.maskTextureId).toBe('eyebrow-hair-atlas-1-v1');
   expect(eyebrowLayer.blendMode).toBe('multiply');
   expect(eyebrowLayer.finish).toBe('brow');
   expect(eyebrowLayer.skinAdaptive).toBe(false);
 });
 
-test('maps all five eyebrow buttons to Unity mask resources', () => {
+test('maps the three eyebrow styles to Unity mask resources', () => {
   const eyebrowSamples = RECIPE_TEXTURE_SAMPLE_OPTIONS.filter(
     textureOption => textureOption.region === 'eyebrow',
   );
@@ -951,8 +998,6 @@ test('maps all five eyebrow buttons to Unity mask resources', () => {
     'eyebrow_candidate_1',
     'eyebrow_candidate_2',
     'eyebrow_candidate_3',
-    'eyebrow_candidate_4',
-    'eyebrow_candidate_5',
   ]);
 
   eyebrowSamples.forEach((sample, index) => {
@@ -1065,7 +1110,7 @@ test('keeps existing regions active when focusing eyebrow controls', async () =>
   expect(latestRecipePostCall).toContain('enabledLayerCount=3');
   expect(latestRecipePostCall).toContain('focusRegion=eyebrow');
   expect(latestRecipePostCall).toContain(
-    'eyebrowMaskTextureId=eyebrow-hair-atlas-5-v1',
+    'eyebrowMaskTextureId=eyebrow-hair-atlas-1-v1',
   );
 });
 

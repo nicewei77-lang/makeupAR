@@ -84,12 +84,40 @@ PACKAGE_FRAMEWORK="$ROOT_DIR/rn/MakeupARValidation/node_modules/@azesmway/react-
 PRODUCT_FRAMEWORK_SCHEME="$DERIVED_DATA/Build/Products/Release-iphoneos/UnityFramework.framework"
 PRODUCT_FRAMEWORK_TARGET="$EXPORT_PATH/unity-builds/xcode-target-products/Release-iphoneos/UnityFramework.framework"
 PRODUCT_FRAMEWORK="$PRODUCT_FRAMEWORK_SCHEME"
+RN_IOS_DIR="$ROOT_DIR/rn/MakeupARValidation/ios"
+MEDIAPIPE_PODS_DIR="${MEDIAPIPE_PODS_DIR:-$RN_IOS_DIR/Pods}"
+MEDIAPIPE_FACE_LANDMARKER_MODEL="$RN_IOS_DIR/MakeupARValidation/E7Models/face_landmarker.task"
+MEDIAPIPE_XCODE_ARGS=()
 
 require_file() {
   if [[ ! -f "$1" ]]; then
     echo "Missing required file: $1" >&2
     exit 1
   fi
+}
+
+configure_mediapipe_xcode_args() {
+  local vision_slice="$MEDIAPIPE_PODS_DIR/MediaPipeTasksVision/frameworks/MediaPipeTasksVision.xcframework/ios-arm64"
+  local common_slice="$MEDIAPIPE_PODS_DIR/MediaPipeTasksCommon/frameworks/MediaPipeTasksCommon.xcframework/ios-arm64"
+  local graph_library_dir="$MEDIAPIPE_PODS_DIR/MediaPipeTasksCommon/frameworks/graph_libraries"
+  local device_graph="$graph_library_dir/libMediaPipeTasksCommon_device_graph.a"
+
+  MEDIAPIPE_XCODE_ARGS=()
+  if [[ ! -d "$vision_slice" || ! -d "$common_slice" || ! -f "$device_graph" ]]; then
+    echo "MediaPipe Pods not found for UnityFramework native link."
+    echo "Expected: $vision_slice"
+    echo "Expected: $common_slice"
+    echo "Expected: $device_graph"
+    echo "Run pod install in $RN_IOS_DIR before building the MediaPipe eyebrow runtime."
+    exit 1
+  fi
+
+  MEDIAPIPE_XCODE_ARGS=(
+    "FRAMEWORK_SEARCH_PATHS=\$(inherited) $vision_slice $common_slice"
+    "LIBRARY_SEARCH_PATHS=\$(inherited) $graph_library_dir"
+    "OTHER_LDFLAGS=\$(inherited) -ObjC -framework MediaPipeTasksVision -framework MediaPipeTasksCommon -framework CoreMedia -framework CoreVideo -framework UIKit -force_load $device_graph"
+  )
+  echo "MediaPipe native link enabled for UnityFramework."
 }
 
 resolve_unity_bin
@@ -113,6 +141,7 @@ if [[ "$SKIP_UNITY_EXPORT" != "1" ]]; then
   require_file "$UNITY_BIN"
 fi
 require_file "$NATIVE_PROXY_HEADER"
+require_file "$MEDIAPIPE_FACE_LANDMARKER_MODEL"
 mkdir -p "$LOG_DIR" "$BUILD_LOG_DIR" "$DERIVED_DATA" "$RN_FRAMEWORK_DIR"
 
 if [[ "$CLEAN_DERIVED_DATA" == "1" ]]; then
@@ -151,6 +180,12 @@ require_file "$PROJECT_FILE"
 require_file "$EXPORT_PATH/Data/boot.config"
 
 echo
+echo "== Stage MediaPipe face landmarker model =="
+mkdir -p "$EXPORT_PATH/Data/Raw"
+cp "$MEDIAPIPE_FACE_LANDMARKER_MODEL" "$EXPORT_PATH/Data/Raw/face_landmarker.task"
+require_file "$EXPORT_PATH/Data/Raw/face_landmarker.task"
+
+echo
 echo "== Verify generated ARKit native links =="
 for required_entry in \
   "UnityARKit.m in Sources" \
@@ -166,6 +201,7 @@ for required_entry in \
   fi
   echo "Found: $required_entry"
 done
+configure_mediapipe_xcode_args
 
 echo
 echo "== Build UnityFramework target =="
@@ -180,6 +216,7 @@ run_xcodebuild_scheme() {
     CODE_SIGNING_ALLOWED=NO \
     DEBUG_INFORMATION_FORMAT="$XCODE_DEBUG_INFORMATION_FORMAT" \
     GCC_GENERATE_DEBUGGING_SYMBOLS="$XCODE_GENERATE_DEBUG_SYMBOLS" \
+    "${MEDIAPIPE_XCODE_ARGS[@]}" \
     build
 }
 
@@ -194,6 +231,7 @@ run_xcodebuild_target() {
     GCC_GENERATE_DEBUGGING_SYMBOLS="$XCODE_GENERATE_DEBUG_SYMBOLS" \
     SYMROOT="$EXPORT_PATH/unity-builds/xcode-target-products" \
     OBJROOT="$EXPORT_PATH/unity-builds/xcode-target-objects" \
+    "${MEDIAPIPE_XCODE_ARGS[@]}" \
     build
 }
 
@@ -255,6 +293,7 @@ echo "== Place Unity Data inside framework =="
 rm -rf "$PRODUCT_FRAMEWORK/Data"
 ditto "$EXPORT_PATH/Data" "$PRODUCT_FRAMEWORK/Data"
 require_file "$PRODUCT_FRAMEWORK/Data/boot.config"
+require_file "$PRODUCT_FRAMEWORK/Data/Raw/face_landmarker.task"
 
 echo
 echo "== Copy framework to RN reference path =="
@@ -262,6 +301,7 @@ rm -rf "$RN_FRAMEWORK"
 ditto "$PRODUCT_FRAMEWORK" "$RN_FRAMEWORK"
 require_file "$RN_FRAMEWORK/UnityFramework"
 require_file "$RN_FRAMEWORK/Data/boot.config"
+require_file "$RN_FRAMEWORK/Data/Raw/face_landmarker.task"
 require_file "$RN_FRAMEWORK/Headers/NativeCallProxy.h"
 
 if [[ -d "$(dirname "$PACKAGE_FRAMEWORK")" ]]; then
@@ -271,6 +311,7 @@ if [[ -d "$(dirname "$PACKAGE_FRAMEWORK")" ]]; then
   ditto "$PRODUCT_FRAMEWORK" "$PACKAGE_FRAMEWORK"
   require_file "$PACKAGE_FRAMEWORK/UnityFramework"
   require_file "$PACKAGE_FRAMEWORK/Data/boot.config"
+  require_file "$PACKAGE_FRAMEWORK/Data/Raw/face_landmarker.task"
   require_file "$PACKAGE_FRAMEWORK/Headers/NativeCallProxy.h"
 fi
 

@@ -14,6 +14,10 @@ if linkage != nil
   use_frameworks! :linkage => linkage.to_sym
 end
 
+abstract_target 'E7MediaPipeManualPods' do
+  pod 'MediaPipeTasksVision', '0.10.35'
+end
+
 target 'MakeupARValidation' do
   config = use_native_modules!
 
@@ -30,5 +34,13 @@ target 'MakeupARValidation' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |build_config|
+        build_config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+        build_config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+        build_config.build_settings['CODE_SIGN_IDENTITY'] = ''
+      end
+    end
   end
 end

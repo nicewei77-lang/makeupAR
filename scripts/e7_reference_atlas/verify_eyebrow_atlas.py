@@ -247,13 +247,29 @@ def main() -> None:
     require('material.SetTexture("_BoundaryTex", boundaryTexture)' in overlay_text, "Unity eyebrow boundary texture is not bound")
     require("ResolveEyebrowToneLiftStrength" in overlay_text, "Unity eyebrow tone-lift strength resolver missing")
     require(
-        "eyebrow_boundary_clipped_cleanup_tone_lift_fill_and_strand_multiply" in overlay_text,
+        "mediapipe_face_landmarker_eyebrow_arface_uv_baked_eye_exclusion_tone_lift_fill_and_strand_multiply" in overlay_text,
         "Unity eyebrow renderer diagnostic does not include tone lift",
     )
     require(
+        "BuildEyebrowCalibrationKey" in overlay_text
+        and 'return "eyebrow:"' in overlay_text
+        and "SanitizeDiagnosticValue(recipe.MaskTextureId)" in overlay_text
+        and "shapeIntensity" not in overlay_text,
+        "eyebrow UV calibration key must be style-only so opacity/intensity/color changes do not rebake placement",
+    )
+    require(
+        "ApplyEyebrowStyleShape(\n                        screenEyebrowBoundary,\n                        recipe.MaskTextureId)" in overlay_text
+        and "private const float EyebrowStyleShapeAmount" in overlay_text,
+        "eyebrow style shaping must be independent from runtime intensity sliders",
+    )
+    require(
+        "return Mathf.Max(pixel.r, pixel.g);" in overlay_text,
+        "eyebrow mesh culling must use hard/soft brow channels only, not cleanup channels",
+    )
+    require(
         "lip_cheek_eyebrow" in runtime_verifier_text
-        and "face_local_actual_brow_boundary_with_user_texture_density" in runtime_verifier_text
-        and "eyebrow_boundary_clipped_cleanup_tone_lift_fill_and_strand_multiply" in runtime_verifier_text,
+        and "mediapipe_face_landmarker_runtime_eyebrow_boundary" in runtime_verifier_text
+        and "mediapipe_face_landmarker_eyebrow_arface_uv_baked_eye_exclusion_tone_lift_fill_and_strand_multiply" in runtime_verifier_text,
         "eyebrow runtime verifier does not guard simultaneous lip+cheek+eyebrow evidence",
     )
     require(
