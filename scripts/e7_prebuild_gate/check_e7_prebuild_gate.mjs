@@ -734,7 +734,6 @@ function runMain() {
     /e7-adjust-preview-mode-\$\{mode\}/,
     /formatAdjustmentPreviewModeLabel/,
     /원본 비교/,
-    /경계 보기/,
   ]);
   addCheck(
     'rn.default_generate_flow_one_shot_blend_off',
@@ -1103,25 +1102,26 @@ function runMain() {
     {
       label: 'onOff',
       pattern:
-        /ON\s*\/\s*OFF|mask\s*(?:on|off)|maskEnabled|generated-mask-toggle|마스크\s*(?:켜기|끄기)/i,
-    },
-    {
-      label: 'strong',
-      pattern: /strong|validationStrong|strongValidation|진하게|강하게/i,
+        /ON\s*\/\s*OFF|full-face-region-toggle|regionControl\.enabled|부위별\s*ON\/OFF/i,
     },
     {
       label: 'color',
-      pattern: /color\s*swatch|generated-mask-color|validationColor|색상|컬러/i,
+      pattern: /color\s*swatch|full-face-region-color|onChangeRegionColor|색상|컬러|색,/i,
     },
     {
       label: 'opacity',
-      pattern: /opacity|generated-mask-opacity|불투명|투명도/i,
+      pattern: /opacity|region-adjustment-step-\$\{testIDLabel\}|불투명|투명도|농도/i,
+    },
+    {
+      label: 'regionSchema',
+      pattern:
+        /REGION_ADJUSTMENT_FIELD_SCHEMAS|RegionAdjustmentPanel|onAdjustRegionParameter/i,
     },
   ];
   const hasGeneratedValidationAnchor = matchesAny(rnAppSource, [
     /Generated(?:Mask|Ar|AR)Validation(?:Bar|Controls)/,
     /e7-generated-ar-validation/i,
-    /generated-mask-(?:toggle|opacity|color|strong)/i,
+    /full-face-region-(?:toggle|color|tab)/i,
   ]);
   const hasControlsNearAppliedState = anyWindowMatchesAll(
     rnAppSource,
@@ -1140,7 +1140,7 @@ function runMain() {
         rnAppSource,
         generatedValidationControlRequirements.map(item => item.pattern),
       ),
-    `Post-applied generated mask UI must expose ON/OFF, strong validation mode, color, and opacity controls. anchor=${
+    `Post-applied AR UI must expose per-region ON/OFF, color, opacity, and schema-driven adjustment controls. anchor=${
       hasGeneratedValidationAnchor ? 'yes' : 'no'
     } nearApplied=${
       hasControlsNearAppliedState ? 'yes' : 'no'
@@ -1152,24 +1152,21 @@ function runMain() {
 
   const validationControlAckReady =
     matchesAll(rnAppSource, [
-      /pendingGeneratedControlCheck/,
-      /doesGeneratedControlAckMatch/,
-      /controlRequestId/,
-      /generated_lip_mask_control_ack_mismatch/,
-      /postRegionOverlayVisibility\(\s*nextControls\.maskVisible/,
-      /GENERATED_CONTROL_ACK_TIMEOUT_MS/,
-      /AR 검증 변경이 반영되었습니다/,
-      /AR 검증 변경 확인이 늦습니다/,
+      /postUpdatedFullFaceControls/,
+      /postRecipeBatch/,
+      /ApplyRecipeJson/,
+      /recipe_applied/,
+      /AR 조정이 반영되었습니다/,
     ]) &&
     matchesAll(unityBridgeSource, [
-      /controlRequestId/,
-      /validationControlRequestId/,
-      /validationControls[\s\S]{0,240}controlRequestId/,
+      /RecipeAckPayload/,
+      /SendRecipeAppliedEvent/,
+      /enabledLayerCount/,
     ]);
   addCheck(
     'v2.ar_validation_controls_ack_confirmed',
     validationControlAckReady,
-    `AR validation controls must wait for a matching generated-mask ack or show a delayed confirmation state. ready=${
+    `AR inline region controls must route through Unity recipe apply ack. ready=${
       validationControlAckReady ? 'yes' : 'no'
     }`,
   );
@@ -1193,15 +1190,12 @@ function runMain() {
     /새 frame\.png \/ arface_export\.json/,
   ].every(pattern => !pattern.test(rnAppSource));
   const userFacingArCopyPresent = matchesAll(rnAppSource, [
-    /AR 립 검증/,
-    /AR 립 적용됨/,
+    /AR 메이크업 적용됨/,
     /AR 화면입니다/,
     /AR 적용 응답이 늦습니다/,
     /AR 화면에서 적용 확인을 기다립니다/,
-    /전체 얼굴 기준 마스크 미리보기/,
-    /마스크 ON/,
-    /진하게 보기/,
-    /경계 보기/,
+    /부위별 ON\/OFF/,
+    /세부조정/,
     /농도/,
   ]);
   addCheck(

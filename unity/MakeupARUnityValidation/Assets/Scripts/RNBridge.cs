@@ -2813,6 +2813,11 @@ public sealed class RNBridge : MonoBehaviour
             return value;
         }
 
+        if (region == "lip" && IsGeneratedLipMaskTextureId(value))
+        {
+            return value;
+        }
+
         if (region == "brow"
             && value == "psd-arcore-brow-semi-arch-v1")
         {
@@ -2837,6 +2842,7 @@ public sealed class RNBridge : MonoBehaviour
                 || value == "lip-tight-auto-v0"
                 || value == "lip-tight-user-v0"
                 || value == "lip-safe-v0"
+                || IsGeneratedLipMaskTextureId(value)
                 || value.StartsWith("cv-", StringComparison.Ordinal)))
         {
             return value;

@@ -256,13 +256,6 @@ const LIP_RUNTIME_CANDIDATE_OPTIONS = [
     status: 'coverage',
   },
 ] as const;
-const LIP_GENERATE_PROVIDER_OPTIONS: Array<{
-  name: GeneratedLipMaskProvider;
-  label: string;
-}> = [
-  { name: 'vision', label: 'Vision' },
-  { name: 'mediapipe', label: 'MediaPipe' },
-];
 const DEFAULT_LIP_GENERATE_PROVIDER: GeneratedLipMaskProvider = 'mediapipe';
 const DEFAULT_LIP_GENERATE_CANDIDATE_KEY =
   `${DEFAULT_LIP_GENERATE_PROVIDER}/uvOnly`;
@@ -368,13 +361,9 @@ const GENERATED_APPLY_RETRY_DELAY_MS = 800;
 const GENERATED_APPLY_MAX_TRANSIENT_RETRIES = 8;
 const GENERATED_CONTROL_ACK_TIMEOUT_MS = 3_000;
 const ADJUSTMENT_PREVIEW_DEBOUNCE_MS = 0;
-const GENERATED_MASK_VALIDATION_COLORS = [
-  { name: 'rose', color: '#D94B74' },
-  { name: 'hot', color: '#FF2D8A' },
-] as const;
 const DEFAULT_GENERATED_MASK_VALIDATION_CONTROLS = {
   maskVisible: true,
-  strongMode: true,
+  strongMode: false,
   colorHex: '#D94B74',
   opacity: 0.86,
   boundaryDebugVisible: false,
@@ -409,22 +398,6 @@ type LipSample = {
   glossBoost: number;
 };
 type RendererMode = 'smooth-region-mask';
-type MaskTextureId =
-  | 'lip-smooth-mask-v1'
-  | 'e7-lip-validation-tight-auto-v0'
-  | 'e7-lip-validation-tight-user-v0'
-  | 'e7-lip-validation-safe-v0'
-  | 'e7-lip-validation-cv-parsing-smooth-v1'
-  | 'e7-lip-validation-cv-vision-fill-v1'
-  | 'e7-lip-validation-cv-vision-color-v1'
-  | 'e7-lip-validation-cv-hybrid-safe-v1'
-  | 'e7-lip-validation-cv-hybrid-balanced-v1'
-  | 'cheek-smooth-mask-v1'
-  | 'eye-smooth-mask-v1'
-  | 'e7-lip-balanced-uv-v0'
-  | 'e7-blush-balanced-uv-v0'
-  | 'psd-arcore-brow-semi-arch-v1'
-  | 'e7-eyeliner-minimal-safe-uv-v0';
 type ValidationViewMode = 'clean' | 'compact' | 'full';
 type E7WizardStep = (typeof E7_WIZARD_STEPS)[number];
 type E7ShotStatus = 'pending' | 'capturing' | 'captured' | 'blocked';
@@ -539,6 +512,26 @@ type RegionRecipe = {
   textureSample: RecipeTextureSample;
 };
 type ActiveRegionMap = Record<RecipeRegion, boolean>;
+type RegionAdjustmentValueUpdate =
+  | number
+  | ((currentValue: number) => number);
+type RegionAdjustmentFieldSchema = {
+  name: string;
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  defaultValue: number;
+  help: string;
+};
+type FullFaceRegionControl = {
+  enabled: boolean;
+  colorHex: string;
+  opacity: number;
+  intensity: number;
+  params: Record<string, number>;
+};
+type FullFaceRegionControls = Record<RecipeRegion, FullFaceRegionControl>;
 
 const DEFAULT_RECIPE_REGION: RecipeRegion = 'lip';
 const DEFAULT_RECIPE_COLOR = RECIPE_COLOR_OPTIONS[0];
@@ -583,17 +576,223 @@ const DEFAULT_REGION_RECIPES: Record<RecipeRegion, RegionRecipe> = {
     textureSample: DEFAULT_TEXTURE_SAMPLE_BY_REGION.eyeliner,
   },
 };
-const DEFAULT_MASK_TEXTURE_ID_BY_REGION: Record<RecipeRegion, MaskTextureId> = {
-  lip: 'lip-smooth-mask-v1',
-  blush: 'e7-blush-balanced-uv-v0',
-  brow: 'psd-arcore-brow-semi-arch-v1',
-  eyeliner: 'e7-eyeliner-minimal-safe-uv-v0',
-};
 const DEFAULT_ACTIVE_REGIONS: ActiveRegionMap = {
   lip: false,
   blush: false,
   brow: false,
   eyeliner: false,
+};
+const FULL_FACE_ACTIVE_REGIONS: ActiveRegionMap = {
+  lip: true,
+  blush: true,
+  brow: true,
+  eyeliner: true,
+};
+const PRODUCT_REGION_LABELS: Record<RecipeRegion, string> = {
+  lip: '립',
+  blush: '블러셔',
+  brow: '브로우',
+  eyeliner: '아이라이너',
+};
+const PRODUCT_REGION_COLOR_OPTIONS: Record<
+  RecipeRegion,
+  Array<{ name: string; color: string }>
+> = {
+  lip: [
+    { name: 'rose', color: '#C76B74' },
+    { name: 'berry', color: '#B83A55' },
+    { name: 'coral', color: '#D46A5E' },
+  ],
+  blush: [
+    { name: 'soft', color: '#E67B5F' },
+    { name: 'peach', color: '#F0A06B' },
+    { name: 'rose', color: '#D94B74' },
+  ],
+  brow: [
+    { name: 'ash', color: '#4A342B' },
+    { name: 'brown', color: '#5A3A2E' },
+    { name: 'soft', color: '#6B5147' },
+  ],
+  eyeliner: [
+    { name: 'ink', color: '#2F2730' },
+    { name: 'brown', color: '#4B332E' },
+    { name: 'soft', color: '#514552' },
+  ],
+};
+const REGION_ADJUSTMENT_FIELD_SCHEMAS: Record<
+  RecipeRegion,
+  RegionAdjustmentFieldSchema[]
+> = {
+  lip: [
+    {
+      name: 'cornerReach',
+      label: '입꼬리',
+      min: -1,
+      max: 1,
+      step: LIP_ADJUSTMENT_STEP,
+      defaultValue: 0,
+      help: '양쪽 입꼬리까지 색이 닿는 범위를 조정합니다.',
+    },
+    {
+      name: 'upperLipTightness',
+      label: '윗입술',
+      min: -1,
+      max: 1,
+      step: LIP_ADJUSTMENT_STEP,
+      defaultValue: 0,
+      help: '윗입술 라인의 밀착도를 조정합니다.',
+    },
+    {
+      name: 'lowerLipTightness',
+      label: '밑입술',
+      min: -1,
+      max: 1,
+      step: LIP_ADJUSTMENT_STEP,
+      defaultValue: 0,
+      help: '밑입술 라인의 밀착도를 조정합니다.',
+    },
+    {
+      name: 'upperInnerFill',
+      label: '안쪽채움',
+      min: -1,
+      max: 1,
+      step: LIP_INNER_FILL_ADJUSTMENT_STEP,
+      defaultValue: 0,
+      help: '입 안쪽으로 보이는 영역의 채움 정도를 조정합니다.',
+    },
+    {
+      name: 'verticalOffset',
+      label: '위치',
+      min: -1,
+      max: 1,
+      step: LIP_ADJUSTMENT_STEP,
+      defaultValue: 0,
+      help: '입술 마스크의 위아래 위치를 조정합니다.',
+    },
+  ],
+  blush: [
+    {
+      name: 'coverage',
+      label: '범위',
+      min: 0.25,
+      max: 1,
+      step: 0.05,
+      defaultValue: 0.68,
+      help: '볼에 퍼지는 면적을 조정합니다.',
+    },
+    {
+      name: 'feather',
+      label: '번짐',
+      min: 0.02,
+      max: 0.22,
+      step: 0.01,
+      defaultValue: 0.07,
+      help: '가장자리의 부드러운 정도를 조정합니다.',
+    },
+    {
+      name: 'maskThreshold',
+      label: '선명도',
+      min: 0.05,
+      max: 0.45,
+      step: 0.01,
+      defaultValue: 0.18,
+      help: '볼 마스크가 잡히는 밀도를 조정합니다.',
+    },
+  ],
+  brow: [
+    {
+      name: 'detailAmount',
+      label: '결',
+      min: 0,
+      max: 1,
+      step: 0.05,
+      defaultValue: 0.64,
+      help: '눈썹 결 표현의 양을 조정합니다.',
+    },
+    {
+      name: 'maskSpreadX',
+      label: '폭',
+      min: -0.34,
+      max: 0.34,
+      step: 0.02,
+      defaultValue: 0,
+      help: '눈썹 좌우 폭을 조정합니다.',
+    },
+    {
+      name: 'maskOffsetY',
+      label: '높이',
+      min: -0.08,
+      max: 0.08,
+      step: 0.01,
+      defaultValue: 0,
+      help: '눈썹 위치를 위아래로 조정합니다.',
+    },
+    {
+      name: 'browGap',
+      label: '간격',
+      min: -0.34,
+      max: 0.34,
+      step: 0.02,
+      defaultValue: 0,
+      help: '미간 쪽 간격을 조정합니다.',
+    },
+    {
+      name: 'browAngle',
+      label: '각도',
+      min: -0.16,
+      max: 0.16,
+      step: 0.01,
+      defaultValue: 0,
+      help: '눈썹 기울기를 조정합니다.',
+    },
+    {
+      name: 'browArch',
+      label: '아치',
+      min: -0.05,
+      max: 0.05,
+      step: 0.01,
+      defaultValue: 0,
+      help: '눈썹 산의 높이를 조정합니다.',
+    },
+    {
+      name: 'browArchPosition',
+      label: '산 위치',
+      min: -0.15,
+      max: 0.15,
+      step: 0.01,
+      defaultValue: 0,
+      help: '눈썹 산의 좌우 위치를 조정합니다.',
+    },
+  ],
+  eyeliner: [
+    {
+      name: 'coverage',
+      label: '길이',
+      min: 0.35,
+      max: 1,
+      step: 0.05,
+      defaultValue: 0.72,
+      help: '아이라인의 적용 길이를 조정합니다.',
+    },
+    {
+      name: 'feather',
+      label: '부드러움',
+      min: 0.01,
+      max: 0.18,
+      step: 0.01,
+      defaultValue: 0.07,
+      help: '라인의 가장자리 부드러움을 조정합니다.',
+    },
+    {
+      name: 'maskThreshold',
+      label: '밀도',
+      min: 0.04,
+      max: 0.35,
+      step: 0.01,
+      defaultValue: 0.12,
+      help: '라인이 보이는 밀도를 조정합니다.',
+    },
+  ],
 };
 const E7_NATIVE_BOUNDARY_MODULE = NativeModules.E7NativeLipBoundaryProviders as
   | E7NativeBoundaryModule
@@ -1095,9 +1294,13 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   const [focusedRegion, setFocusedRegion] = useState<RecipeRegion>(
     DEFAULT_RECIPE_REGION,
   );
+  const [selectedMakeupRegion, setSelectedMakeupRegion] =
+    useState<RecipeRegion>(DEFAULT_RECIPE_REGION);
   const [activeRegions, setActiveRegions] = useState<ActiveRegionMap>(
     DEFAULT_ACTIVE_REGIONS,
   );
+  const [fullFaceRegionControls, setFullFaceRegionControls] =
+    useState<FullFaceRegionControls>(createDefaultFullFaceRegionControls);
   const [regionRecipes] = useState<Record<RecipeRegion, RegionRecipe>>(
     DEFAULT_REGION_RECIPES,
   );
@@ -1204,6 +1407,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
     typeof setTimeout
   > | null>(null);
   const generatedControlRequestSequenceRef = useRef(0);
+  const fullFaceRegionControlsRef = useRef<FullFaceRegionControls>(
+    createDefaultFullFaceRegionControls(),
+  );
   const selectedLipSample =
     lipSampleSettings[selectedLipSampleName] ?? DEFAULT_LIP_SAMPLE;
   const lipUserAdjustmentSignature = useMemo(
@@ -1249,6 +1455,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   useEffect(() => {
     lipUserAdjustmentRef.current = lipUserAdjustment;
   }, [lipUserAdjustment]);
+
+  useEffect(() => {
+    fullFaceRegionControlsRef.current = fullFaceRegionControls;
+  }, [fullFaceRegionControls]);
 
   useEffect(() => {
     pendingGeneratedMaskIdRef.current = pendingGeneratedMaskId;
@@ -1302,40 +1512,90 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       lipSample: LipSample,
       lipRuntimeCandidate: LipRuntimeCandidate,
       userAdjustment: LipUserAdjustment,
+      regionControls: FullFaceRegionControls,
+      generatedLipPackage?: LipGeneratePackage | null,
     ) => {
-      const lookId = lipSample.name;
-      const recipePrefix = 'lip-sample-pack-v0';
+      const lookId = generatedLipPackage
+        ? 'e7_full_face_personalized_v0'
+        : lipSample.name;
+      const recipePrefix = generatedLipPackage
+        ? 'full-face-product-pack-v0'
+        : 'lip-sample-pack-v0';
       const recipeBatchId = `${recipePrefix}-batch-${Math.round(sentAtMs)}`;
-      const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
-      const enabledLayerCount = countActiveRegions(enabledRegions);
+      const effectiveActiveRegions = RECIPE_REGION_OPTIONS.reduce(
+        (map, region) => ({
+          ...map,
+          [region]: Boolean(enabledRegions[region] && regionControls[region]?.enabled),
+        }),
+        {} as ActiveRegionMap,
+      );
+      const activeRegionSummary = formatActiveRegionSummary(
+        effectiveActiveRegions,
+      );
+      const enabledLayerCount = countActiveRegions(effectiveActiveRegions);
       const layers = RECIPE_REGION_OPTIONS.map(region => {
         const recipe = recipes[region];
+        const runtimeLayer = getFullFaceRegionRuntimeLayer(region);
+        const runtimeRecord = runtimeLayer as Record<string, unknown>;
+        const control = regionControls[region];
         const isLipSampleLayer = region === 'lip';
+        const generatedRuntimePayload = isLipSampleLayer
+          ? generatedLipPackage?.runtimeApplyPayload
+          : undefined;
+        const generatedRuntimeRecord = generatedRuntimePayload as
+          | Record<string, unknown>
+          | undefined;
+        const isGeneratedLipLayer = Boolean(
+          generatedRuntimePayload?.maskTextureId,
+        );
         const maskTextureId = isLipSampleLayer
-          ? lipRuntimeCandidate.maskTextureId
-          : DEFAULT_MASK_TEXTURE_ID_BY_REGION[region];
+          ? isGeneratedLipLayer
+            ? String(generatedRuntimePayload?.maskTextureId)
+            : runtimeLayer.maskTextureId
+          : runtimeLayer.maskTextureId;
         const maskThreshold = isLipSampleLayer
-          ? lipRuntimeCandidate.maskThreshold
-          : 0.04;
+          ? isGeneratedLipLayer
+            ? readNumber(generatedRuntimePayload?.maskThreshold) ??
+              lipRuntimeCandidate.maskThreshold
+            : getRegionControlParameter(
+                control,
+                'maskThreshold',
+                lipRuntimeCandidate.maskThreshold,
+              )
+          : getRegionControlParameter(
+              control,
+              'maskThreshold',
+              Number(runtimeLayer.maskThreshold),
+            );
         const textureSample = isLipSampleLayer
           ? DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip
           : recipe.textureSample;
-        const color = isLipSampleLayer ? lipSample.color : recipe.color.color;
-        const opacity = isLipSampleLayer ? lipSample.opacity : recipe.opacity;
-        const coverage = isLipSampleLayer ? lipSample.coverage : 0;
-        const feather = isLipSampleLayer
-          ? lipRuntimeCandidate.feather
-          : recipe.textureSample.feather;
+        const color = control.colorHex;
+        const opacity = control.opacity;
+        const coverage = getRegionControlParameter(
+          control,
+          'coverage',
+          Number(runtimeLayer.coverage),
+        );
+        const feather = getRegionControlParameter(
+          control,
+          'feather',
+          Number(runtimeLayer.maskFeatherUvNormalized),
+        );
         const blendMode = isLipSampleLayer
           ? lipSample.blendMode
-          : recipe.textureSample.blendMode;
+          : runtimeLayer.blendMode;
         const finish = isLipSampleLayer
           ? lipSample.finish
           : 'validation-placeholder';
         const textureAmount = isLipSampleLayer
           ? lipSample.textureAmount
-          : recipe.textureSample.intensity;
-        const intensity = isLipSampleLayer ? 1 : textureAmount;
+          : getRegionControlParameter(
+              control,
+              'detailAmount',
+              readNumber(runtimeRecord.detailAmount) ?? runtimeLayer.intensity,
+            );
+        const intensity = isLipSampleLayer ? control.intensity : control.intensity;
         const roughness = isLipSampleLayer ? lipSample.roughness : 0;
         const specular = isLipSampleLayer ? lipSample.specular : 0;
         const specularPower = isLipSampleLayer ? lipSample.specularPower : 0;
@@ -1347,8 +1607,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         return {
           id: `${region}-${textureSample.name}`,
           candidateId: isLipSampleLayer
-            ? lipRuntimeCandidate.candidateId
-            : DEFAULT_MASK_TEXTURE_ID_BY_REGION[region],
+            ? isGeneratedLipLayer
+              ? String(
+                  generatedRuntimeRecord?.generatedMaskId ??
+                    generatedLipPackage?.generatedMaskId ??
+                    lipRuntimeCandidate.candidateId,
+                )
+              : runtimeLayer.candidateId
+            : runtimeLayer.candidateId,
           recipeId: layerRecipeId,
           recipeBatchId,
           lookId,
@@ -1367,7 +1633,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           intensity,
           feather,
           blendMode,
-          enabled: enabledRegions[region],
+          enabled: effectiveActiveRegions[region],
           coverage,
           finish,
           textureAmount,
@@ -1375,9 +1641,76 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           specular,
           specularPower,
           glossBoost,
+          detailAmount:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'detailAmount',
+                  readNumber(runtimeRecord.detailAmount) ?? 0,
+                )
+              : 0,
+          maskSpreadX:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'maskSpreadX',
+                  readNumber(runtimeRecord.maskSpreadX) ?? 0,
+                )
+              : 0,
+          maskOffsetY:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'maskOffsetY',
+                  readNumber(runtimeRecord.maskOffsetY) ?? 0,
+                )
+              : 0,
+          browGap:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'browGap',
+                  readNumber(runtimeRecord.browGap) ?? 0,
+                )
+              : 0,
+          browAngle:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'browAngle',
+                  readNumber(runtimeRecord.browAngle) ?? 0,
+                )
+              : 0,
+          browArch:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'browArch',
+                  readNumber(runtimeRecord.browArch) ?? 0,
+                )
+              : 0,
+          browArchPosition:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'browArchPosition',
+                  readNumber(runtimeRecord.browArchPosition) ?? 0,
+                )
+              : 0,
+          browCleanupEnabled: false,
+          browCleanupStrength: 0,
+          browReshapeStrength:
+            region === 'brow'
+              ? getRegionControlParameter(
+                  control,
+                  'browReshapeStrength',
+                  readNumber(runtimeRecord.browReshapeStrength) ?? 0,
+                )
+              : 0,
+          browCleanupSourceMode: 'none',
           shimmer: 0,
           shimmerColor: '#FFFFFF',
-          skinAdaptive: isLipSampleLayer,
+          skinAdaptive: Boolean(runtimeLayer.skinAdaptive),
           preserveDetail: true,
           materialId: `${textureSample.name}-${finish}-sample-material`,
           shaderMode: 'smooth-lip-finish-v0',
@@ -1395,7 +1728,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           verticalOffset: isLipSampleLayer ? userAdjustment.verticalOffset : 0,
           innerFill: isLipSampleLayer ? userAdjustment.innerFill : 0,
           upperInnerFill: isLipSampleLayer ? userAdjustment.upperInnerFill : 0,
-          cameraBackdropAvailable: false,
+          cameraBackdropAvailable:
+            Boolean(generatedRuntimeRecord?.cameraBackdropAvailable) || false,
           lightEstimateAvailable: false,
         };
       });
@@ -1429,9 +1763,10 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         materialId: `${DEFAULT_TEXTURE_SAMPLE_BY_REGION.lip.name}-${lipSample.finish}-sample-material`,
         shaderMode: 'smooth-lip-finish-v0',
         passCount: 1,
-        maskTextureId: lipRuntimeCandidate.maskTextureId,
-        maskThreshold: lipRuntimeCandidate.maskThreshold,
-        maskFeatherUvNormalized: lipRuntimeCandidate.feather,
+        maskTextureId: layers[0]?.maskTextureId ?? lipRuntimeCandidate.maskTextureId,
+        maskThreshold: layers[0]?.maskThreshold ?? lipRuntimeCandidate.maskThreshold,
+        maskFeatherUvNormalized:
+          layers[0]?.maskFeatherUvNormalized ?? lipRuntimeCandidate.feather,
         cornerReach: userAdjustment.cornerReach,
         upperLipTightness: userAdjustment.upperLipTightness,
         lowerLipTightness: userAdjustment.lowerLipTightness,
@@ -1456,6 +1791,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         DEFAULT_LIP_SAMPLE,
       lipRuntimeCandidate = selectedLipRuntimeCandidate,
       userAdjustment = lipUserAdjustment,
+      regionControls = fullFaceRegionControls,
+      generatedLipPackage = appliedGeneratedPackage ?? pendingGeneratedPackage,
     ) => {
       const sentAtMs = Date.now();
       const recipeJson = buildRecipeBatchJson(
@@ -1467,6 +1804,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         lipSample,
         lipRuntimeCandidate,
         userAdjustment,
+        regionControls,
+        generatedLipPackage,
       );
       const activeRegionSummary = formatActiveRegionSummary(enabledRegions);
       console.log(
@@ -1490,6 +1829,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         `activeRegions=${activeRegionSummary}`,
         `enabledLayerCount=${countActiveRegions(enabledRegions)}`,
         `focusRegion=${focusRegion}`,
+        `fullFaceControls=product`,
         `payloadBytes=${recipeJson.length}`,
         `sentAtMs=${sentAtMs}`,
       );
@@ -1505,6 +1845,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       selectedRendererMode,
       selectedLipRuntimeCandidate,
       lipUserAdjustment,
+      fullFaceRegionControls,
+      appliedGeneratedPackage,
+      pendingGeneratedPackage,
     ],
   );
 
@@ -1625,133 +1968,163 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
   ]);
 
   const postFullFaceRegionPackage = useCallback(() => {
-    const sentAtMs = Date.now();
-    const recipeBatchId = `e7-full-face-region-batch-${Math.round(sentAtMs)}`;
-    const enabledLayerCount = E7_FULL_FACE_REGION_RUNTIME_LAYERS.length;
-    const layers = E7_FULL_FACE_REGION_RUNTIME_LAYERS.map(layer => ({
-      id: `${layer.region}-${layer.candidateId}`,
-      recipeId: `${recipeBatchId}-${layer.region}`,
-      recipeBatchId,
-      lookId: 'e7_full_face_region_generate_v0',
-      sentAtMs,
-      activeRegions: 'lip,blush,brow,eyeliner',
-      layerCount: E7_FULL_FACE_REGION_RUNTIME_LAYERS.length,
-      enabledLayerCount,
-      region: layer.region,
-      layer: layer.layer,
-      color: layer.color,
-      opacity: layer.opacity,
-      texture: layer.texture,
-      sample: layer.texture,
-      textureMode: 'sample',
-      intensity: layer.intensity,
-      feather: layer.maskFeatherUvNormalized,
-      blendMode: layer.blendMode,
-      rendererMode: selectedRendererMode,
-      enabled: true,
-      coverage: layer.coverage,
-      finish: 'validation-placeholder',
-      textureAmount: layer.region === 'brow' ? layer.detailAmount : 0,
-      roughness: 0,
-      specular: 0,
-      specularPower: 0,
-      glossBoost: 0,
-      detailAmount: layer.region === 'brow' ? layer.detailAmount : 0,
-      maskSpreadX: layer.region === 'brow' ? layer.maskSpreadX : 0,
-      maskOffsetY: layer.region === 'brow' ? layer.maskOffsetY : 0,
-      browGap: layer.region === 'brow' ? layer.browGap : 0,
-      browAngle: layer.region === 'brow' ? layer.browAngle : 0,
-      browArch: layer.region === 'brow' ? layer.browArch : 0,
-      browArchPosition:
-        layer.region === 'brow' ? layer.browArchPosition : 0,
-      browCleanupEnabled:
-        layer.region === 'brow' ? layer.browCleanupEnabled : false,
-      browCleanupStrength:
-        layer.region === 'brow' ? layer.browCleanupStrength : 0,
-      browReshapeStrength:
-        layer.region === 'brow' ? layer.browReshapeStrength : 0,
-      browCleanupSourceMode:
-        layer.region === 'brow' ? layer.browCleanupSourceMode : 'none',
-      shimmer: 0,
-      shimmerColor: '#FFFFFF',
-      skinAdaptive: layer.skinAdaptive,
-      preserveDetail: true,
-      materialId: `e7-full-face-${layer.region}-material-v0`,
-      shaderMode: 'smooth-lip-finish-v0',
-      passCount: 1,
-      candidateId: layer.candidateId,
-      maskTextureId: layer.maskTextureId,
-      maskThreshold: layer.maskThreshold,
-      maskFeatherUvNormalized: layer.maskFeatherUvNormalized,
-      cornerReach: layer.region === 'lip' ? lipUserAdjustment.cornerReach : 0,
-      upperLipTightness:
-        layer.region === 'lip' ? lipUserAdjustment.upperLipTightness : 0,
-      lowerLipTightness:
-        layer.region === 'lip' ? lipUserAdjustment.lowerLipTightness : 0,
-      verticalOffset:
-        layer.region === 'lip' ? lipUserAdjustment.verticalOffset : 0,
-      innerFill: layer.region === 'lip' ? lipUserAdjustment.innerFill : 0,
-      upperInnerFill:
-        layer.region === 'lip' ? lipUserAdjustment.upperInnerFill : 0,
-      cameraBackdropAvailable: false,
-      lightEstimateAvailable: false,
-    }));
-    const recipeJson = JSON.stringify({
-      version: 2,
-      recipeBatchId,
-      recipeId: recipeBatchId,
-      lookId: 'e7_full_face_region_generate_v0',
-      sentAtMs,
-      rendererMode: selectedRendererMode,
-      region: 'lip',
-      activeRegions: 'lip,blush,brow,eyeliner',
-      layerCount: layers.length,
-      enabledLayerCount,
-      texture: 'matte_lip',
-      sample: 'matte_lip',
-      textureMode: 'sample',
-      coverage: 0.72,
-      finish: 'validation-placeholder',
-      textureAmount: 0,
-      roughness: 0,
-      specular: 0,
-      specularPower: 0,
-      glossBoost: 0,
-      shimmer: 0,
-      shimmerColor: '#FFFFFF',
-      skinAdaptive: true,
-      preserveDetail: true,
-      materialId: 'e7-full-face-region-batch-material-v0',
-      shaderMode: 'smooth-lip-finish-v0',
-      passCount: 1,
-      cameraBackdropAvailable: false,
-      lightEstimateAvailable: false,
-      layers,
-    });
-
-    console.log(
-      '[E7] rn_full_face_region_package_post',
-      `recipeBatchId=${recipeBatchId}`,
-      `layerCount=${layers.length}`,
-      `activeRegions=lip,blush,brow,eyeliner`,
-      `payloadBytes=${recipeJson.length}`,
-      'runtimeReady=false',
-      'source=e7_full_face_region_generate_pre_xcode',
+    const nextControls = enableAllRegionControls(fullFaceRegionControls);
+    fullFaceRegionControlsRef.current = nextControls;
+    setFullFaceRegionControls(nextControls);
+    setFocusedRegion(selectedMakeupRegion);
+    setActiveRegions(FULL_FACE_ACTIVE_REGIONS);
+    postRecipeBatch(
+      regionRecipes,
+      FULL_FACE_ACTIVE_REGIONS,
+      selectedMakeupRegion,
+      selectedRendererMode,
+      selectedLipSample,
+      selectedLipRuntimeCandidate,
+      lipUserAdjustment,
+      nextControls,
+      appliedGeneratedPackage ?? pendingGeneratedPackage,
     );
+    setLastGeneratedLipMaskSummary('full-face product package applied');
+  }, [
+    appliedGeneratedPackage,
+    fullFaceRegionControls,
+    lipUserAdjustment,
+    pendingGeneratedPackage,
+    postRecipeBatch,
+    regionRecipes,
+    selectedLipRuntimeCandidate,
+    selectedLipSample,
+    selectedMakeupRegion,
+    selectedRendererMode,
+  ]);
 
-    setFocusedRegion('lip');
-    setActiveRegions({
-      ...DEFAULT_ACTIVE_REGIONS,
-      lip: true,
-      blush: true,
-      brow: true,
-      eyeliner: true,
-    });
-    setLastGeneratedLipMaskSummary(
-      `full-face package payload=${recipeJson.length}B pre-Xcode`,
-    );
-    unityRef.current?.postMessage('RNBridge', 'ApplyRecipeJson', recipeJson);
-  }, [lipUserAdjustment, selectedRendererMode]);
+  const selectMakeupRegion = useCallback((region: RecipeRegion) => {
+    setSelectedMakeupRegion(region);
+    setFocusedRegion(region);
+  }, []);
+
+  const postUpdatedFullFaceControls = useCallback(
+    (
+      nextControls: FullFaceRegionControls,
+      nextActiveRegions = activeRegions,
+      focusRegion = selectedMakeupRegion,
+    ) => {
+      fullFaceRegionControlsRef.current = nextControls;
+      setFullFaceRegionControls(nextControls);
+      setActiveRegions(nextActiveRegions);
+      setFocusedRegion(focusRegion);
+      setSelectedMakeupRegion(focusRegion);
+      postRecipeBatch(
+        regionRecipes,
+        nextActiveRegions,
+        focusRegion,
+        selectedRendererMode,
+        selectedLipSample,
+        selectedLipRuntimeCandidate,
+        lipUserAdjustmentRef.current,
+        nextControls,
+        appliedGeneratedPackage ?? pendingGeneratedPackage,
+      );
+    },
+    [
+      activeRegions,
+      appliedGeneratedPackage,
+      pendingGeneratedPackage,
+      postRecipeBatch,
+      regionRecipes,
+      selectedLipRuntimeCandidate,
+      selectedLipSample,
+      selectedMakeupRegion,
+      selectedRendererMode,
+    ],
+  );
+
+  const updateFullFaceRegionControl = useCallback(
+    (
+      region: RecipeRegion,
+      updater: (control: FullFaceRegionControl) => FullFaceRegionControl,
+    ) => {
+      const currentControls = fullFaceRegionControlsRef.current;
+      const nextRegionControl = updater(currentControls[region]);
+      const nextControls = {
+        ...currentControls,
+        [region]: nextRegionControl,
+      };
+      const nextActiveRegions = {
+        ...activeRegions,
+        [region]: nextRegionControl.enabled,
+      };
+      postUpdatedFullFaceControls(nextControls, nextActiveRegions, region);
+    },
+    [activeRegions, postUpdatedFullFaceControls],
+  );
+
+  const updateFullFaceRegionColor = useCallback(
+    (region: RecipeRegion, colorHex: string) => {
+      updateFullFaceRegionControl(region, control => ({
+        ...control,
+        colorHex,
+      }));
+    },
+    [updateFullFaceRegionControl],
+  );
+
+  const updateFullFaceRegionOpacity = useCallback(
+    (region: RecipeRegion, value: RegionAdjustmentValueUpdate) => {
+      updateFullFaceRegionControl(region, control => ({
+        ...control,
+        opacity: clampRegionValue(
+          resolveRegionValueUpdate(value, control.opacity),
+          0,
+          1,
+        ),
+      }));
+    },
+    [updateFullFaceRegionControl],
+  );
+
+  const updateFullFaceRegionIntensity = useCallback(
+    (region: RecipeRegion, value: RegionAdjustmentValueUpdate) => {
+      updateFullFaceRegionControl(region, control => ({
+        ...control,
+        intensity: clampRegionValue(
+          resolveRegionValueUpdate(value, control.intensity),
+          0,
+          1,
+        ),
+      }));
+    },
+    [updateFullFaceRegionControl],
+  );
+
+  const updateFullFaceRegionParameter = useCallback(
+    (
+      region: RecipeRegion,
+      fieldName: string,
+      value: RegionAdjustmentValueUpdate,
+    ) => {
+      updateFullFaceRegionControl(region, control => {
+        const schema = getRegionAdjustmentField(region, fieldName);
+        const currentValue = getRegionControlParameter(
+          control,
+          fieldName,
+          schema.defaultValue,
+        );
+        return {
+          ...control,
+          params: {
+            ...control.params,
+            [fieldName]: clampRegionValue(
+              resolveRegionValueUpdate(value, currentValue),
+              schema.min,
+              schema.max,
+            ),
+          },
+        };
+      });
+    },
+    [updateFullFaceRegionControl],
+  );
 
   const postRecipeAck = useCallback(
     (payload: UnityEventPayload, receivedAtMs: number) => {
@@ -2015,11 +2388,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         );
       };
       setIsGeneratingCandidates(true);
-      setWizardNotice(
-        `현재 촬영 frame에서 ${formatProviderLabel(
-          lipGenerateProvider,
-        )} 후보를 생성하는 중입니다.`,
-      );
+      setWizardNotice('현재 촬영 사진에서 추천 룩을 준비하는 중입니다.');
 
       try {
         const capturedShotKinds = E7_CAPTURE_SHOT_OPTIONS.filter(option =>
@@ -2107,6 +2476,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
         );
         setGeneratedCandidatesStale(false);
         setSavedGeneratedPackage(null);
+        setActiveRegions(FULL_FACE_ACTIVE_REGIONS);
+        setFullFaceRegionControls(currentControls => {
+          const nextControls = enableAllRegionControls(currentControls);
+          fullFaceRegionControlsRef.current = nextControls;
+          return nextControls;
+        });
         resetGeneratedApplyFlow('generate_candidates');
         if (!options?.stayOnStep) {
           setWizardStep('adjust');
@@ -2116,9 +2491,7 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
           candidatesWithPreviews.some(candidate => candidate.package)
             ? options?.reason === 'auto-adjustment'
               ? '조정값이 현재 후보에 자동 반영되었습니다.'
-              : `${formatProviderLabel(
-                  lipGenerateProvider,
-                )} 마스크 생성 완료. 바로 조정하세요.`
+              : '추천 룩이 준비되었습니다. 바로 조정하세요.'
             : '후보 생성이 막혔습니다. 다시 생성해 주세요.',
         );
       } catch (error) {
@@ -2595,9 +2968,9 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       setWizardNotice(
         `AR 검증 변경을 확인하는 중입니다: ${
           nextControls.maskVisible ? 'ON' : 'OFF'
-        } / ${nextControls.strongMode ? '진하게' : '기본'} / ${
-          nextControls.colorHex
-        } / 농도 ${nextControls.opacity.toFixed(2)}`,
+        } / ${nextControls.colorHex} / 농도 ${nextControls.opacity.toFixed(
+          2,
+        )}`,
       );
     },
     [
@@ -2642,6 +3015,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             logE7RecipeLatency(parsed, receivedAtMs);
           }
           postRecipeAck(parsed, receivedAtMs);
+          if (
+            String(parsed.lookId ?? '').includes('full_face') ||
+            String(parsed.recipeBatchId ?? '').includes('full-face')
+          ) {
+            setWizardNotice(
+              'AR 조정이 반영되었습니다. 화면에서 각 부위를 확인하세요.',
+            );
+          }
         }
 
         if (parsed.type === 'generated_lip_mask_applied') {
@@ -2733,6 +3114,30 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
                 )?.package ??
                 null,
             );
+            const confirmedPackage =
+              pendingGeneratedPackage ??
+              generatedCandidates.find(
+                candidate =>
+                  candidate.package?.generatedMaskId === generatedMaskId,
+              )?.package ??
+              null;
+            const nextControls = enableAllRegionControls(
+              fullFaceRegionControlsRef.current,
+            );
+            fullFaceRegionControlsRef.current = nextControls;
+            setFullFaceRegionControls(nextControls);
+            setActiveRegions(FULL_FACE_ACTIVE_REGIONS);
+            postRecipeBatchRef.current(
+              regionRecipes,
+              FULL_FACE_ACTIVE_REGIONS,
+              selectedMakeupRegion,
+              selectedRendererMode,
+              selectedLipSample,
+              selectedLipRuntimeCandidate,
+              lipUserAdjustmentRef.current,
+              nextControls,
+              confirmedPackage,
+            );
             pendingGeneratedMaskIdRef.current = null;
             setPendingGeneratedMaskId(null);
             if (didConfirmPendingControls) {
@@ -2740,8 +3145,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             }
             setWizardNotice(
               didConfirmPendingControls
-                ? 'AR 검증 변경이 반영되었습니다. 화면에서 마스크 차이를 확인하세요.'
-                : 'AR 화면입니다. 마스크가 보이는지 아래 컨트롤로 확인하세요.',
+                ? 'AR 변경이 반영되었습니다. 화면에서 메이크업을 확인하세요.'
+                : 'AR 화면입니다. 아래에서 각 부위를 바로 조정할 수 있습니다.',
             );
           } else if (
             isMatchingPendingMask &&
@@ -2930,7 +3335,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
       pendingGeneratedPackage,
       clearGeneratedApplyRetryTimeout,
       postRecipeAck,
+      regionRecipes,
       scheduleGeneratedApplyRetry,
+      selectedLipRuntimeCandidate,
+      selectedLipSample,
+      selectedMakeupRegion,
+      selectedRendererMode,
       validationViewMode,
     ],
   );
@@ -3244,16 +3654,12 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
 
   const toggleRegion = useCallback(
     (region: RecipeRegion) => {
-      const nextActiveRegions = {
-        ...activeRegions,
-        [region]: !activeRegions[region],
-      };
-
-      setFocusedRegion(region);
-      setActiveRegions(nextActiveRegions);
-      postRecipeBatch(regionRecipes, nextActiveRegions, region);
+      updateFullFaceRegionControl(region, control => ({
+        ...control,
+        enabled: !control.enabled,
+      }));
     },
-    [activeRegions, postRecipeBatch, regionRecipes],
+    [updateFullFaceRegionControl],
   );
 
   const selectLipSample = useCallback(
@@ -3505,6 +3911,14 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             notice={wizardNotice}
             controls={generatedValidationControls}
             onChangeControls={updateGeneratedMaskValidationControls}
+            selectedRegion={selectedMakeupRegion}
+            fullFaceRegionControls={fullFaceRegionControls}
+            onSelectRegion={selectMakeupRegion}
+            onToggleRegion={toggleRegion}
+            onChangeRegionColor={updateFullFaceRegionColor}
+            onChangeRegionOpacity={updateFullFaceRegionOpacity}
+            onChangeRegionIntensity={updateFullFaceRegionIntensity}
+            onAdjustRegionParameter={updateFullFaceRegionParameter}
             onReopenGenerate={() => {
               resetGeneratedApplyFlow('reopen_generate_after_apply');
               setWizardStep('adjust');
@@ -3535,6 +3949,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             capturedFramePreviewUri={capturedFramePreviewUri}
             selectedLipSample={selectedLipSample}
             lipUserAdjustment={lipUserAdjustment}
+            selectedMakeupRegion={selectedMakeupRegion}
+            fullFaceRegionControls={fullFaceRegionControls}
             activeLipAdjustment={activeLipAdjustment}
             activeLipAdjustmentField={activeLipAdjustmentField}
             activeLipAdjustmentStep={activeLipAdjustmentStep}
@@ -3578,6 +3994,17 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             }}
             onSelectAdjustmentField={setActiveLipAdjustmentField}
             onAdjustLip={updateLipUserAdjustment}
+            onSelectMakeupRegion={selectMakeupRegion}
+            onToggleRegion={toggleRegion}
+            onChangeRegionColor={updateFullFaceRegionColor}
+            onChangeRegionOpacity={updateFullFaceRegionOpacity}
+            onChangeRegionIntensity={updateFullFaceRegionIntensity}
+            onAdjustRegionParameter={(region, fieldName, value) => {
+              updateFullFaceRegionParameter(region, fieldName, value);
+              if (region === 'lip' && isLipAdjustmentFieldName(fieldName)) {
+                updateLipUserAdjustment(fieldName, value);
+              }
+            }}
             onSave={saveSelectedGeneratedPackage}
           />
         )}
@@ -4049,6 +4476,8 @@ type E7GenerateWizardProps = {
   capturedFramePreviewUri?: string;
   selectedLipSample: LipSample;
   lipUserAdjustment: LipUserAdjustment;
+  selectedMakeupRegion: RecipeRegion;
+  fullFaceRegionControls: FullFaceRegionControls;
   activeLipAdjustment: (typeof LIP_ADJUSTMENT_FIELD_OPTIONS)[number];
   activeLipAdjustmentField: LipAdjustmentField;
   activeLipAdjustmentStep: number;
@@ -4061,6 +4490,22 @@ type E7GenerateWizardProps = {
   onAdjustLip: (
     field: LipAdjustmentField,
     nextValue: LipAdjustmentValueUpdate,
+  ) => void;
+  onSelectMakeupRegion: (region: RecipeRegion) => void;
+  onToggleRegion: (region: RecipeRegion) => void;
+  onChangeRegionColor: (region: RecipeRegion, colorHex: string) => void;
+  onChangeRegionOpacity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onChangeRegionIntensity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onAdjustRegionParameter: (
+    region: RecipeRegion,
+    fieldName: string,
+    value: RegionAdjustmentValueUpdate,
   ) => void;
   onSave: () => void;
 };
@@ -4087,17 +4532,25 @@ function E7GenerateWizard({
   selectedCandidateKey,
   capturedFramePreviewUri,
   selectedLipSample,
-  lipUserAdjustment,
+  lipUserAdjustment: _lipUserAdjustment,
+  selectedMakeupRegion,
+  fullFaceRegionControls,
   activeLipAdjustment,
   activeLipAdjustmentField,
-  activeLipAdjustmentStep,
+  activeLipAdjustmentStep: _activeLipAdjustmentStep,
   onStepRequest,
   onBack,
   onCaptureShot,
   onRetakeCapture,
   onGenerateCandidates,
   onSelectAdjustmentField,
-  onAdjustLip,
+  onAdjustLip: _onAdjustLip,
+  onSelectMakeupRegion,
+  onToggleRegion,
+  onChangeRegionColor,
+  onChangeRegionOpacity,
+  onChangeRegionIntensity,
+  onAdjustRegionParameter,
   onSave,
 }: E7GenerateWizardProps) {
   const selectedGeneratedCandidate =
@@ -4297,7 +4750,7 @@ function E7GenerateWizard({
                 if (nextCaptureShot) {
                   onCaptureShot(nextCaptureShot.kind);
                 } else {
-                  onStepRequest('extract');
+                  onGenerateCandidates();
                 }
               }}
             >
@@ -4306,7 +4759,7 @@ function E7GenerateWizard({
                   ? isNextCaptureInProgress
                     ? '촬영 중'
                     : `${nextCaptureShot.label} 촬영`
-                  : '추출 단계로 이동'}
+                  : '추천 룩 준비'}
               </Text>
             </Pressable>
           </View>
@@ -4328,7 +4781,7 @@ function E7GenerateWizard({
               </View>
             )}
             <Text style={styles.generateWizardBodyText}>
-              촬영한 얼굴에서 MediaPipe 경로로 네 지역 후보를 만듭니다.
+              촬영한 얼굴에서 네 부위 추천 룩을 준비합니다.
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -4342,11 +4795,7 @@ function E7GenerateWizard({
               onPress={onGenerateCandidates}
             >
               <Text style={styles.generateWizardPrimaryText}>
-                {isGeneratingCandidates
-                  ? '생성 중'
-                  : `${formatProviderLabel(
-                      DEFAULT_LIP_GENERATE_PROVIDER,
-                    )} 후보 생성`}
+                {isGeneratingCandidates ? '준비 중' : '추천 룩 준비'}
               </Text>
             </Pressable>
           </View>
@@ -4365,46 +4814,26 @@ function E7GenerateWizard({
                 previewState={adjustmentPreviewState}
                 framePreviewUri={capturedFramePreviewUri}
               />
-              <View style={styles.adjustmentFieldButtonRow}>
-                {LIP_ADJUSTMENT_FIELD_OPTIONS.map(fieldOption => {
-                  const isSelected =
-                    fieldOption.name === activeLipAdjustmentField;
-
-                  return (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityState={{ selected: isSelected }}
-                      key={fieldOption.name}
-                      testID={`lip-adjust-field-${fieldOption.name}`}
-                      style={({ pressed }) => [
-                        styles.adjustmentFieldButton,
-                        isSelected && styles.adjustmentFieldButtonSelected,
-                        pressed && styles.colorButtonPressed,
-                      ]}
-                      onPress={() => onSelectAdjustmentField(fieldOption.name)}
-                    >
-                      <Text
-                        style={[
-                          styles.adjustmentFieldButtonText,
-                          isSelected &&
-                            styles.adjustmentFieldButtonTextSelected,
-                        ]}
-                      >
-                        {fieldOption.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <AdjustmentStepper
-                label={activeLipAdjustment.label}
-                testIDLabel={activeLipAdjustment.name}
-                value={lipUserAdjustment[activeLipAdjustment.name]}
-                step={activeLipAdjustmentStep}
-                onChange={value => onAdjustLip(activeLipAdjustment.name, value)}
+              <RegionAdjustmentPanel
+                selectedRegion={selectedMakeupRegion}
+                fullFaceRegionControls={fullFaceRegionControls}
+                showRegionToggle={false}
+                onSelectRegion={region => {
+                  onSelectMakeupRegion(region);
+                  if (region === 'lip') {
+                    onSelectAdjustmentField(activeLipAdjustmentField);
+                  }
+                }}
+                onToggleRegion={onToggleRegion}
+                onChangeRegionColor={onChangeRegionColor}
+                onChangeRegionOpacity={onChangeRegionOpacity}
+                onChangeRegionIntensity={onChangeRegionIntensity}
+                onAdjustRegionParameter={onAdjustRegionParameter}
               />
               <Text style={styles.generateWizardBodyText}>
-                {formatLipAdjustmentHelp(activeLipAdjustment.name)}
+                {selectedMakeupRegion === 'lip'
+                  ? formatLipAdjustmentHelp(activeLipAdjustment.name)
+                  : formatRegionParameterHelp(selectedMakeupRegion)}
               </Text>
               <Text style={styles.generateWizardBodyText}>
                 {formatAdjustmentPreviewStateMessage(
@@ -4413,8 +4842,10 @@ function E7GenerateWizard({
                 )}
               </Text>
               <Text style={styles.generateWizardBodyText}>
-                선택 룩: {selectedLipSample.label} / 질감:{' '}
-                {formatLipFinishLabel(selectedLipSample.finish)}
+                선택 룩: {PRODUCT_REGION_LABELS[selectedMakeupRegion]} / 질감:{' '}
+                {selectedMakeupRegion === 'lip'
+                  ? formatLipFinishLabel(selectedLipSample.finish)
+                  : '자동 추천'}
               </Text>
               <Pressable
                 accessibilityRole="button"
@@ -4549,13 +4980,39 @@ function E7GenerateWizard({
 
 function GeneratedRuntimeAppliedBanner({
   notice,
-  controls,
-  onChangeControls,
+  controls: _controls,
+  onChangeControls: _onChangeControls,
+  selectedRegion,
+  fullFaceRegionControls,
+  onSelectRegion,
+  onToggleRegion,
+  onChangeRegionColor,
+  onChangeRegionOpacity,
+  onChangeRegionIntensity,
+  onAdjustRegionParameter,
   onReopenGenerate,
 }: {
   notice: string;
   controls: GeneratedMaskValidationControls;
   onChangeControls: (patch: Partial<GeneratedMaskValidationControls>) => void;
+  selectedRegion: RecipeRegion;
+  fullFaceRegionControls: FullFaceRegionControls;
+  onSelectRegion: (region: RecipeRegion) => void;
+  onToggleRegion: (region: RecipeRegion) => void;
+  onChangeRegionColor: (region: RecipeRegion, colorHex: string) => void;
+  onChangeRegionOpacity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onChangeRegionIntensity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onAdjustRegionParameter: (
+    region: RecipeRegion,
+    fieldName: string,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
   onReopenGenerate: () => void;
 }) {
   return (
@@ -4565,14 +5022,16 @@ function GeneratedRuntimeAppliedBanner({
     >
       <View style={styles.generateAppliedHeader}>
         <View>
-          <Text style={styles.generateAppliedBannerTitle}>AR 립 적용됨</Text>
+          <Text style={styles.generateAppliedBannerTitle}>
+            AR 메이크업 적용됨
+          </Text>
           <Text style={styles.generateAppliedBannerText} numberOfLines={2}>
             {notice}
           </Text>
         </View>
       </View>
       <Text style={styles.generateAppliedBannerText} numberOfLines={1}>
-        마스크 ON/OFF, 진하게 보기, 색, 농도로 적용 상태를 확인하세요.
+        부위별 ON/OFF, 색, 농도, 세부조정을 바로 바꿀 수 있습니다.
       </Text>
       <Pressable
         accessibilityRole="button"
@@ -4585,89 +5044,21 @@ function GeneratedRuntimeAppliedBanner({
         </Text>
       </Pressable>
       <View style={styles.generateAppliedControlRow}>
-        <Pressable
-          accessibilityRole="button"
-          testID="generated-mask-toggle"
-          style={[
-            styles.generateAppliedControlButton,
-            controls.maskVisible && styles.generateAppliedControlButtonActive,
-          ]}
-          onPress={() =>
-            onChangeControls({ maskVisible: !controls.maskVisible })
-          }
-        >
-          <Text style={styles.generateAppliedControlText}>
-            {controls.maskVisible ? '마스크 ON' : '마스크 OFF'}
-          </Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          testID="generated-mask-strong"
-          style={[
-            styles.generateAppliedControlButton,
-            controls.strongMode && styles.generateAppliedControlButtonActive,
-          ]}
-          onPress={() => onChangeControls({ strongMode: !controls.strongMode })}
-        >
-          <Text style={styles.generateAppliedControlText}>진하게 보기</Text>
-        </Pressable>
-        <Pressable
-          accessibilityRole="button"
-          testID="generated-mask-boundary"
-          style={[
-            styles.generateAppliedControlButton,
-            controls.boundaryDebugVisible &&
-              styles.generateAppliedControlButtonActive,
-          ]}
-          onPress={() =>
-            onChangeControls({
-              boundaryDebugVisible: !controls.boundaryDebugVisible,
-            })
-          }
-        >
-          <Text style={styles.generateAppliedControlText}>경계 보기</Text>
-        </Pressable>
-      </View>
-      <View style={styles.generateAppliedColorRow}>
-        {GENERATED_MASK_VALIDATION_COLORS.map(color => (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityState={{ selected: controls.colorHex === color.color }}
-            key={color.name}
-            testID={`generated-mask-color-${color.name}`}
-            style={[
-              styles.generateAppliedColorButton,
-              { backgroundColor: color.color },
-              controls.colorHex === color.color &&
-                styles.generateAppliedColorButtonSelected,
-            ]}
-            onPress={() => onChangeControls({ colorHex: color.color })}
-          >
-            <Text style={styles.generateAppliedColorText}>{color.name}</Text>
-          </Pressable>
-        ))}
-      </View>
-      <View style={styles.generateAppliedControlRow}>
-        <Pressable
-          accessibilityRole="button"
-          testID="generated-mask-opacity-minus"
-          style={styles.generateAppliedControlButton}
-          onPress={() => onChangeControls({ opacity: controls.opacity - 0.1 })}
-        >
-          <Text style={styles.generateAppliedControlText}>-</Text>
-        </Pressable>
         <Text style={styles.generateAppliedOpacityText}>
-          농도 {controls.opacity.toFixed(2)}
+          현재 {PRODUCT_REGION_LABELS[selectedRegion]} 조정 중
         </Text>
-        <Pressable
-          accessibilityRole="button"
-          testID="generated-mask-opacity-plus"
-          style={styles.generateAppliedControlButton}
-          onPress={() => onChangeControls({ opacity: controls.opacity + 0.1 })}
-        >
-          <Text style={styles.generateAppliedControlText}>+</Text>
-        </Pressable>
       </View>
+      <RegionAdjustmentPanel
+        selectedRegion={selectedRegion}
+        fullFaceRegionControls={fullFaceRegionControls}
+        showRegionToggle
+        onSelectRegion={onSelectRegion}
+        onToggleRegion={onToggleRegion}
+        onChangeRegionColor={onChangeRegionColor}
+        onChangeRegionOpacity={onChangeRegionOpacity}
+        onChangeRegionIntensity={onChangeRegionIntensity}
+        onAdjustRegionParameter={onAdjustRegionParameter}
+      />
     </View>
   );
 }
@@ -4873,15 +5264,11 @@ function GeneratedAdjustmentPreview({
       )}
       <View style={styles.generatedAdjustmentMaskBadge}>
         <Text style={styles.generatedAdjustmentMaskBadgeText}>
-          {candidate
-            ? `${formatProviderLabel(
-                candidate.provider,
-              )} · ${formatGeneratedCandidateTitle(candidate)}`
-            : selectedCandidateKey}
+          {candidate ? `추천 후보 · ${formatGeneratedCandidateTitle(candidate)}` : selectedCandidateKey}
         </Text>
       </View>
       <View style={styles.generatedAdjustmentPreviewModeRow}>
-        {(['mask', 'boundary', 'compare'] as E7AdjustmentPreviewMode[]).map(
+        {(['mask', 'compare'] as E7AdjustmentPreviewMode[]).map(
           mode => {
             const isActive = previewMode === mode;
             const isDisabled = mode === 'compare' && !canCompare;
@@ -4922,8 +5309,6 @@ function GeneratedAdjustmentPreview({
           ? '미리보기 갱신 중'
           : previewMode === 'compare'
           ? '원본 비교'
-          : previewMode === 'boundary'
-          ? '경계 보기'
           : isLipZoomed
           ? '입술 확대 미리보기'
           : '전체 얼굴 기준 마스크 미리보기'}
@@ -4936,8 +5321,6 @@ function formatAdjustmentPreviewModeLabel(mode: E7AdjustmentPreviewMode) {
   switch (mode) {
     case 'mask':
       return '마스크';
-    case 'boundary':
-      return '경계';
     case 'compare':
       return '비교';
   }
@@ -4969,13 +5352,6 @@ function formatAdjustmentPreviewStateMessage(
     return '추출 결과가 없어 조정 preview를 만들 수 없습니다.';
   }
   return '조정값이 미리보기와 저장 후보에 바로 반영됩니다.';
-}
-
-function formatProviderLabel(provider: GeneratedLipMaskProvider) {
-  return (
-    LIP_GENERATE_PROVIDER_OPTIONS.find(option => option.name === provider)
-      ?.label ?? provider
-  );
 }
 
 function formatLipFinishLabel(finish: LipFinish) {
@@ -5827,6 +6203,109 @@ function countActiveRegions(activeRegions: ActiveRegionMap) {
   );
 }
 
+function getFullFaceRegionRuntimeLayer(region: RecipeRegion) {
+  const layer = E7_FULL_FACE_REGION_RUNTIME_LAYERS.find(
+    runtimeLayer => runtimeLayer.region === region,
+  );
+  if (!layer) {
+    throw new Error(`Missing full-face runtime layer: ${region}`);
+  }
+
+  return layer;
+}
+
+function createDefaultFullFaceRegionControls(): FullFaceRegionControls {
+  return RECIPE_REGION_OPTIONS.reduce((controls, region) => {
+    const layer = getFullFaceRegionRuntimeLayer(region);
+    const layerRecord = layer as Record<string, unknown>;
+    const params = REGION_ADJUSTMENT_FIELD_SCHEMAS[region].reduce(
+      (paramMap, field) => ({
+        ...paramMap,
+        [field.name]:
+          readNumber(layerRecord[field.name]) ??
+          (field.name === 'feather'
+            ? Number(layer.maskFeatherUvNormalized)
+            : field.name === 'coverage'
+            ? Number(layer.coverage)
+            : field.name === 'maskThreshold'
+            ? Number(layer.maskThreshold)
+            : field.defaultValue),
+      }),
+      {} as Record<string, number>,
+    );
+
+    return {
+      ...controls,
+      [region]: {
+        enabled: true,
+        colorHex: layer.color,
+        opacity: Number(layer.opacity),
+        intensity: Number(layer.intensity),
+        params,
+      },
+    };
+  }, {} as FullFaceRegionControls);
+}
+
+function enableAllRegionControls(
+  controls: FullFaceRegionControls,
+): FullFaceRegionControls {
+  return RECIPE_REGION_OPTIONS.reduce(
+    (nextControls, region) => ({
+      ...nextControls,
+      [region]: {
+        ...controls[region],
+        enabled: true,
+      },
+    }),
+    {} as FullFaceRegionControls,
+  );
+}
+
+function getRegionAdjustmentField(
+  region: RecipeRegion,
+  fieldName: string,
+): RegionAdjustmentFieldSchema {
+  return (
+    REGION_ADJUSTMENT_FIELD_SCHEMAS[region].find(
+      field => field.name === fieldName,
+    ) ?? REGION_ADJUSTMENT_FIELD_SCHEMAS[region][0]
+  );
+}
+
+function getRegionControlParameter(
+  control: FullFaceRegionControl,
+  fieldName: string,
+  fallback: number,
+) {
+  return readNumber(control.params[fieldName]) ?? fallback;
+}
+
+function resolveRegionValueUpdate(
+  value: RegionAdjustmentValueUpdate,
+  currentValue: number,
+) {
+  return typeof value === 'function' ? value(currentValue) : value;
+}
+
+function clampRegionValue(value: number, min: number, max: number) {
+  return Number(Math.max(min, Math.min(max, value)).toFixed(3));
+}
+
+function isLipAdjustmentFieldName(
+  fieldName: string,
+): fieldName is LipAdjustmentField {
+  return LIP_ADJUSTMENT_FIELD_OPTIONS.some(
+    field => field.name === fieldName,
+  );
+}
+
+function formatRegionParameterHelp(region: RecipeRegion) {
+  return REGION_ADJUSTMENT_FIELD_SCHEMAS[region]
+    .map(field => `${field.label}: ${field.help}`)
+    .join(' ');
+}
+
 function buildReferenceCapturePairId(sequence: number, requestedAtMs: number) {
   const timestamp = new Date(requestedAtMs)
     .toISOString()
@@ -5843,6 +6322,231 @@ type TuningSliderProps = {
   onLayoutWidth: (width: number) => void;
   onChange: (value: number) => void;
 };
+
+type RegionAdjustmentPanelProps = {
+  selectedRegion: RecipeRegion;
+  fullFaceRegionControls: FullFaceRegionControls;
+  showRegionToggle: boolean;
+  onSelectRegion: (region: RecipeRegion) => void;
+  onToggleRegion: (region: RecipeRegion) => void;
+  onChangeRegionColor: (region: RecipeRegion, colorHex: string) => void;
+  onChangeRegionOpacity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onChangeRegionIntensity: (
+    region: RecipeRegion,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+  onAdjustRegionParameter: (
+    region: RecipeRegion,
+    fieldName: string,
+    value: RegionAdjustmentValueUpdate,
+  ) => void;
+};
+
+function RegionAdjustmentPanel({
+  selectedRegion,
+  fullFaceRegionControls,
+  showRegionToggle,
+  onSelectRegion,
+  onToggleRegion,
+  onChangeRegionColor,
+  onChangeRegionOpacity,
+  onChangeRegionIntensity,
+  onAdjustRegionParameter,
+}: RegionAdjustmentPanelProps) {
+  const regionControl = fullFaceRegionControls[selectedRegion];
+  const adjustmentFields = REGION_ADJUSTMENT_FIELD_SCHEMAS[selectedRegion];
+
+  return (
+    <View>
+      <View style={styles.adjustmentFieldButtonRow}>
+        {RECIPE_REGION_OPTIONS.map(region => {
+          const isSelected = region === selectedRegion;
+          const isEnabled = fullFaceRegionControls[region].enabled;
+          return (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityState={{ selected: isSelected }}
+              key={region}
+              testID={`full-face-region-tab-${region}`}
+              style={({ pressed }) => [
+                styles.adjustmentFieldButton,
+                isSelected && styles.adjustmentFieldButtonSelected,
+                !isEnabled && styles.generateWizardButtonDisabled,
+                pressed && styles.colorButtonPressed,
+              ]}
+              onPress={() => onSelectRegion(region)}
+            >
+              <Text
+                style={[
+                  styles.adjustmentFieldButtonText,
+                  isSelected && styles.adjustmentFieldButtonTextSelected,
+                ]}
+              >
+                {PRODUCT_REGION_LABELS[region]}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {showRegionToggle && (
+        <Pressable
+          accessibilityRole="button"
+          testID={`full-face-region-toggle-${selectedRegion}`}
+          style={[
+            styles.generateAppliedControlButton,
+            regionControl.enabled && styles.generateAppliedControlButtonActive,
+          ]}
+          onPress={() => onToggleRegion(selectedRegion)}
+        >
+          <Text style={styles.generateAppliedControlText}>
+            {PRODUCT_REGION_LABELS[selectedRegion]}{' '}
+            {regionControl.enabled ? 'ON' : 'OFF'}
+          </Text>
+        </Pressable>
+      )}
+
+      <View style={styles.generateAppliedColorRow}>
+        {PRODUCT_REGION_COLOR_OPTIONS[selectedRegion].map(color => (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{
+              selected: regionControl.colorHex === color.color,
+            }}
+            key={color.name}
+            testID={`full-face-region-color-${selectedRegion}-${color.name}`}
+            style={[
+              styles.generateAppliedColorButton,
+              { backgroundColor: color.color },
+              regionControl.colorHex === color.color &&
+                styles.generateAppliedColorButtonSelected,
+            ]}
+            onPress={() => onChangeRegionColor(selectedRegion, color.color)}
+          >
+            <Text style={styles.generateAppliedColorText}>{color.name}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <RegionValueStepper
+        label="농도"
+        testIDLabel={`${selectedRegion}-opacity`}
+        value={regionControl.opacity}
+        min={0}
+        max={1}
+        step={0.05}
+        onChange={value => onChangeRegionOpacity(selectedRegion, value)}
+      />
+      <RegionValueStepper
+        label="표현"
+        testIDLabel={`${selectedRegion}-intensity`}
+        value={regionControl.intensity}
+        min={0}
+        max={1}
+        step={0.05}
+        onChange={value => onChangeRegionIntensity(selectedRegion, value)}
+      />
+
+      {adjustmentFields.map(field => (
+        <RegionValueStepper
+          key={`${selectedRegion}-${field.name}`}
+          label={field.label}
+          testIDLabel={`${selectedRegion}-${field.name}`}
+          value={getRegionControlParameter(
+            regionControl,
+            field.name,
+            field.defaultValue,
+          )}
+          min={field.min}
+          max={field.max}
+          step={field.step}
+          onChange={value =>
+            onAdjustRegionParameter(selectedRegion, field.name, value)
+          }
+        />
+      ))}
+    </View>
+  );
+}
+
+type RegionValueStepperProps = {
+  label: string;
+  testIDLabel: string;
+  value: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (value: RegionAdjustmentValueUpdate) => void;
+};
+
+function RegionValueStepper({
+  label,
+  testIDLabel,
+  value,
+  min,
+  max,
+  step,
+  onChange,
+}: RegionValueStepperProps) {
+  const stepValue = useCallback(
+    (direction: -1 | 1) => {
+      onChange(currentValue => {
+        const nextValue =
+          Math.round((currentValue + direction * step) / step) * step;
+
+        return clampRegionValue(Number(nextValue.toFixed(3)), min, max);
+      });
+    },
+    [max, min, onChange, step],
+  );
+
+  return (
+    <View style={styles.adjustmentStepper}>
+      <View style={styles.opacityHeader}>
+        <Text style={styles.opacityLabel}>{label}</Text>
+        <Text style={styles.opacityValue}>{value.toFixed(2)}</Text>
+      </View>
+      <View style={styles.adjustmentStepperRow}>
+        <Pressable
+          accessibilityRole="button"
+          testID={`region-adjustment-step-${testIDLabel}-down`}
+          style={({ pressed }) => [
+            styles.adjustmentStepButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => stepValue(-1)}
+        >
+          <Text style={styles.adjustmentStepButtonText}>-</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID={`region-adjustment-step-${testIDLabel}-reset`}
+          style={({ pressed }) => [
+            styles.adjustmentResetButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => onChange(clampRegionValue(0, min, max))}
+        >
+          <Text style={styles.adjustmentStepButtonText}>0</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          testID={`region-adjustment-step-${testIDLabel}-up`}
+          style={({ pressed }) => [
+            styles.adjustmentStepButton,
+            pressed && styles.colorButtonPressed,
+          ]}
+          onPress={() => stepValue(1)}
+        >
+          <Text style={styles.adjustmentStepButtonText}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
 
 function TuningSlider({
   label,
