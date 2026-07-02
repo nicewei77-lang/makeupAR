@@ -32,6 +32,9 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         public Vector2[] RightOuterPoints;
         public Vector2[] LeftEyePoints;
         public Vector2[] RightEyePoints;
+        public Vector2[] LeftControlPoints;
+        public Vector2[] RightControlPoints;
+        public string ControlPointMode;
         public bool FaceBoundsAvailable;
         public Vector2 FaceBoundsCenter;
         public Vector2 FaceBoundsSize;

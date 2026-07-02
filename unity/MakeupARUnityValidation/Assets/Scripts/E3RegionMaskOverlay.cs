@@ -1250,6 +1250,35 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ",canBake=" + poseGate.CanBake.ToString().ToLowerInvariant();
     }
 
+    private static string BuildEyebrowControlPointSummary(
+        E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary)
+    {
+        return "left{" + BuildSingleEyebrowControlPointSummary(boundary.LeftControlPoints) + "}"
+            + ";right{" + BuildSingleEyebrowControlPointSummary(boundary.RightControlPoints) + "}";
+    }
+
+    private static string BuildSingleEyebrowControlPointSummary(Vector2[] points)
+    {
+        if (points == null || points.Length < 4)
+        {
+            return "none";
+        }
+
+        return "H=" + FormatEyebrowPoint(points[0])
+            + ",B=" + FormatEyebrowPoint(points[1])
+            + ",A=" + FormatEyebrowPoint(points[2])
+            + ",T=" + FormatEyebrowPoint(points[3]);
+    }
+
+    private static string FormatEyebrowPoint(Vector2 point)
+    {
+        return "("
+            + point.x.ToString("0.#", CultureInfo.InvariantCulture)
+            + ","
+            + point.y.ToString("0.#", CultureInfo.InvariantCulture)
+            + ")";
+    }
+
     private static float NormalizeSignedAngle(float angleDeg)
     {
         while (angleDeg > 180.0f)
@@ -1842,6 +1871,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + " activePixels=" + bakedDiagnostics.ActivePixelCountGt8.ToString(CultureInfo.InvariantCulture)
             + " activeCoverage=" + bakedDiagnostics.ActiveCoverageGt8.ToString("0.######", CultureInfo.InvariantCulture)
             + " activeBbox=" + bakedDiagnostics.ActiveBbox
+            + " controlPointMode=" + (string.IsNullOrWhiteSpace(boundary.ControlPointMode)
+                ? "none"
+                : boundary.ControlPointMode)
+            + " controlPoints=" + BuildEyebrowControlPointSummary(boundary)
             + " softSplatRadius=" + VisionUvMaskSoftSplatRadius.ToString(CultureInfo.InvariantCulture)
             + " sampleStride=" + sampleStride.ToString(CultureInfo.InvariantCulture)
             + " skippedDegenerateTriangles=" + skippedDegenerateTriangles.ToString(CultureInfo.InvariantCulture));
@@ -2119,6 +2152,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             width,
             height,
             transformMode);
+        transformed.LeftControlPoints = TransformVisionBoundaryPoints(
+            boundary.LeftControlPoints,
+            width,
+            height,
+            transformMode);
+        transformed.RightControlPoints = TransformVisionBoundaryPoints(
+            boundary.RightControlPoints,
+            width,
+            height,
+            transformMode);
         transformed.ImageWidth = width;
         transformed.ImageHeight = height;
         transformed.CoordinateMode = string.IsNullOrWhiteSpace(boundary.CoordinateMode)
@@ -2232,6 +2275,16 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             scale);
         boundary.RightEyePoints = WarpBoundaryPointsToCurrentFace(
             boundary.RightEyePoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.LeftControlPoints = WarpBoundaryPointsToCurrentFace(
+            boundary.LeftControlPoints,
+            boundary.FaceBoundsCenter,
+            currentCenter,
+            scale);
+        boundary.RightControlPoints = WarpBoundaryPointsToCurrentFace(
+            boundary.RightControlPoints,
             boundary.FaceBoundsCenter,
             currentCenter,
             scale);
@@ -2959,6 +3012,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         EnforceEyebrowInnerGap(
             ref boundary.LeftOuterPoints,
             ref boundary.RightOuterPoints);
+        boundary.LeftControlPoints = BuildEyebrowControlPoints(
+            boundary.LeftOuterPoints,
+            true);
+        boundary.RightControlPoints = BuildEyebrowControlPoints(
+            boundary.RightOuterPoints,
+            false);
+        boundary.ControlPointMode = "head_body_arch_tail_styled";
         boundary.LeftOuterPointCount = boundary.LeftOuterPoints != null ? boundary.LeftOuterPoints.Length : 0;
         boundary.RightOuterPointCount = boundary.RightOuterPoints != null ? boundary.RightOuterPoints.Length : 0;
         boundary.CoordinateMode = AppendCoordinateMode(
@@ -3121,6 +3181,48 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         return trimmed;
+    }
+
+    private static Vector2[] BuildEyebrowControlPoints(
+        Vector2[] points,
+        bool screenLeftBrow)
+    {
+        if (points == null || points.Length < 4)
+        {
+            return Array.Empty<Vector2>();
+        }
+
+        return new[]
+        {
+            SampleEyebrowBoundaryCenter(points, screenLeftBrow, 0.0f),
+            SampleEyebrowBoundaryCenter(points, screenLeftBrow, 0.34f),
+            SampleEyebrowBoundaryCenter(points, screenLeftBrow, 0.68f),
+            SampleEyebrowBoundaryCenter(points, screenLeftBrow, 1.0f)
+        };
+    }
+
+    private static Vector2 SampleEyebrowBoundaryCenter(
+        Vector2[] points,
+        bool screenLeftBrow,
+        float progressFromHead)
+    {
+        int halfCount = points != null ? points.Length / 2 : 0;
+        if (halfCount < 2)
+        {
+            return Vector2.zero;
+        }
+
+        float topIndexPosition = (screenLeftBrow ? 1.0f - progressFromHead : progressFromHead)
+            * (halfCount - 1);
+        int lower = Mathf.Clamp(Mathf.FloorToInt(topIndexPosition), 0, halfCount - 1);
+        int upper = Mathf.Clamp(Mathf.CeilToInt(topIndexPosition), 0, halfCount - 1);
+        float fraction = Mathf.Clamp01(topIndexPosition - lower);
+        Vector2 top = Vector2.Lerp(points[lower], points[upper], fraction);
+        Vector2 bottom = Vector2.Lerp(
+            points[points.Length - 1 - lower],
+            points[points.Length - 1 - upper],
+            fraction);
+        return (top + bottom) * 0.5f;
     }
 
     private static int NormalizeEyebrowShapeStyleIndex(int styleIndex)
