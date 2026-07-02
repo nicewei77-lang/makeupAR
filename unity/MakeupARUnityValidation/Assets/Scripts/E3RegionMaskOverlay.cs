@@ -247,7 +247,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const float EyebrowCalibrationMaxRollDeg = 16.0f;
     private const float EyebrowBoundaryEyePaddingPx = 8.0f;
     private const float EyebrowCleanupEyePaddingPx = 13.0f;
-    private const float EyebrowStyleShapeAmount = 0.82f;
+    private const float EyebrowStyleShapeAmount = 1.0f;
+    private const int EyebrowStyledBoundaryPointCount = 36;
+    private const float EyebrowInnerGapRightBias = 0.70f;
+    private const float EyebrowScreenLeftHeadRestoreRatio = 0.46f;
+    private const float EyebrowScreenRightHeadExtraTrimRatio = 0.18f;
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -2952,6 +2956,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             boundary.RightEyePoints,
             false,
             styleIndex);
+        EnforceEyebrowInnerGap(
+            ref boundary.LeftOuterPoints,
+            ref boundary.RightOuterPoints);
         boundary.LeftOuterPointCount = boundary.LeftOuterPoints != null ? boundary.LeftOuterPoints.Length : 0;
         boundary.RightOuterPointCount = boundary.RightOuterPoints != null ? boundary.RightOuterPoints.Length : 0;
         boundary.CoordinateMode = AppendCoordinateMode(
@@ -2977,91 +2984,262 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         float width = Mathf.Max(1.0f, right - left);
-        float height = Mathf.Max(1.0f, bottom - top);
-        Vector2 center = new Vector2((left + right) * 0.5f, (top + bottom) * 0.5f);
-        float amount = EyebrowStyleShapeAmount;
+        float sourceHeight = Mathf.Max(1.0f, bottom - top);
+        int shapeStyle = NormalizeEyebrowShapeStyleIndex(styleIndex);
         ResolveEyebrowStyleProfile(
-            styleIndex,
+            shapeStyle,
             out float widthScale,
-            out float heightScale,
-            out float archLift,
-            out float tailExtend,
-            out float lowerLift);
-        widthScale = Mathf.Lerp(1.0f, widthScale, amount);
-        heightScale = Mathf.Lerp(1.0f, heightScale, amount);
-        archLift = Mathf.Lerp(0.0f, archLift, amount);
-        tailExtend = Mathf.Lerp(0.0f, tailExtend, amount);
-        lowerLift = Mathf.Lerp(0.0f, lowerLift, amount);
-
-        Vector2[] shaped = new Vector2[points.Length];
-        float outwardDirection = screenLeftBrow ? -1.0f : 1.0f;
+            out float heightRatio,
+            out float tailExtendRatio,
+            out float headTrimRatio,
+            out float bottomLiftRatio);
         float eyeTop = TryCalculateBoundaryBounds(eyePoints, out _, out float detectedEyeTop, out _, out _)
             ? detectedEyeTop
-            : bottom + height * 2.0f;
-        for (int index = 0; index < points.Length; index++)
+            : bottom + sourceHeight * 2.0f;
+
+        float amount = Mathf.Clamp01(EyebrowStyleShapeAmount);
+        float adjustedWidth = Mathf.Lerp(width, width * widthScale, amount);
+        float centerX = (left + right) * 0.5f;
+        float shapedLeft = centerX - adjustedWidth * 0.5f;
+        float shapedRight = centerX + adjustedWidth * 0.5f;
+        float tailExtend = Mathf.Clamp(width * tailExtendRatio * amount, 0.0f, 28.0f);
+        float headTrim = Mathf.Clamp(width * headTrimRatio * amount, 12.0f, 54.0f);
+        if (screenLeftBrow)
         {
-            Vector2 point = points[index];
-            float xNorm = Mathf.Clamp01((point.x - left) / width);
-            float arch = Mathf.Sin(Mathf.PI * xNorm);
-            float tailT = screenLeftBrow ? 1.0f - xNorm : xNorm;
-            float lowerHalf = point.y > center.y ? 1.0f : 0.0f;
-            float shapedX = center.x + (point.x - center.x) * widthScale
-                + outwardDirection * tailExtend * width * tailT * tailT;
-            float shapedY = center.y + (point.y - center.y) * heightScale
-                - archLift * height * arch
-                - lowerLift * height * lowerHalf * (0.25f + arch * 0.75f);
-            shapedY = Mathf.Min(shapedY, eyeTop - 10.0f);
-            shaped[index] = new Vector2(shapedX, shapedY);
+            shapedLeft -= tailExtend;
+            shapedRight -= headTrim;
+            shapedRight += headTrim * EyebrowScreenLeftHeadRestoreRatio;
+        }
+        else
+        {
+            shapedLeft += headTrim;
+            shapedLeft += headTrim * EyebrowScreenRightHeadExtraTrimRatio;
+            shapedRight += tailExtend;
+        }
+
+        if (shapedRight <= shapedLeft + 8.0f)
+        {
+            return points;
+        }
+
+        float shapeWidth = shapedRight - shapedLeft;
+        float height = Mathf.Clamp(
+            Mathf.Max(sourceHeight * 1.08f, shapeWidth * heightRatio),
+            Mathf.Clamp(shapeWidth * 0.120f, 14.0f, 30.0f),
+            Mathf.Clamp(shapeWidth * 0.245f, 34.0f, 62.0f));
+        float maxBottom = eyeTop - 12.0f;
+        float bottomAnchor = Mathf.Min(
+            Mathf.Max(bottom + sourceHeight * 0.05f, top + sourceHeight * 0.78f),
+            maxBottom);
+        bottomAnchor -= height * bottomLiftRatio;
+        float topAnchor = bottomAnchor - height;
+
+        Vector2[] shaped = new Vector2[EyebrowStyledBoundaryPointCount * 2];
+        for (int index = 0; index < EyebrowStyledBoundaryPointCount; index++)
+        {
+            float t = index / (float)(EyebrowStyledBoundaryPointCount - 1);
+            float x = Mathf.Lerp(shapedLeft, shapedRight, t);
+            float progressFromHead = screenLeftBrow ? 1.0f - t : t;
+            float topY = topAnchor + height * EvaluateEyebrowStyleTop(progressFromHead, shapeStyle);
+            float bottomY = topAnchor + height * EvaluateEyebrowStyleBottom(progressFromHead, shapeStyle);
+            if (bottomY > maxBottom)
+            {
+                float shift = bottomY - maxBottom;
+                topY -= shift;
+                bottomY -= shift;
+            }
+
+            shaped[index] = new Vector2(x, topY);
+            shaped[shaped.Length - 1 - index] = new Vector2(x, bottomY);
         }
 
         return shaped;
     }
 
-    private static void ResolveEyebrowStyleProfile(
-        int styleIndex,
-        out float widthScale,
-        out float heightScale,
-        out float archLift,
-        out float tailExtend,
-        out float lowerLift)
+    private static void EnforceEyebrowInnerGap(
+        ref Vector2[] leftBrowPoints,
+        ref Vector2[] rightBrowPoints)
+    {
+        if (leftBrowPoints == null
+            || rightBrowPoints == null
+            || leftBrowPoints.Length < 3
+            || rightBrowPoints.Length < 3)
+        {
+            return;
+        }
+
+        if (!TryCalculateBoundaryBounds(leftBrowPoints, out float leftMinX, out _, out float leftMaxX, out _)
+            || !TryCalculateBoundaryBounds(rightBrowPoints, out float rightMinX, out _, out float rightMaxX, out _))
+        {
+            return;
+        }
+
+        float leftWidth = Mathf.Max(1.0f, leftMaxX - leftMinX);
+        float rightWidth = Mathf.Max(1.0f, rightMaxX - rightMinX);
+        float averageWidth = (leftWidth + rightWidth) * 0.5f;
+        float minimumGap = Mathf.Clamp(averageWidth * 0.40f, 76.0f, 140.0f);
+        float currentGap = rightMinX - leftMaxX;
+        if (currentGap >= minimumGap)
+        {
+            return;
+        }
+
+        float trimNeeded = minimumGap - currentGap;
+        float rightTrim = trimNeeded * EyebrowInnerGapRightBias;
+        float leftTrim = trimNeeded - rightTrim;
+        leftBrowPoints = TrimEyebrowInnerEdge(leftBrowPoints, true, leftTrim);
+        rightBrowPoints = TrimEyebrowInnerEdge(rightBrowPoints, false, rightTrim);
+    }
+
+    private static Vector2[] TrimEyebrowInnerEdge(
+        Vector2[] points,
+        bool screenLeftBrow,
+        float trimPx)
+    {
+        if (points == null || points.Length == 0 || trimPx <= 0.0f)
+        {
+            return points ?? Array.Empty<Vector2>();
+        }
+
+        if (!TryCalculateBoundaryBounds(points, out float minX, out _, out float maxX, out _))
+        {
+            return points;
+        }
+
+        float width = Mathf.Max(1.0f, maxX - minX);
+        Vector2[] trimmed = new Vector2[points.Length];
+        for (int index = 0; index < points.Length; index++)
+        {
+            Vector2 point = points[index];
+            float distanceFromInner = screenLeftBrow
+                ? (maxX - point.x) / width
+                : (point.x - minX) / width;
+            float influence = 1.0f - SmoothStep01(distanceFromInner / 0.30f);
+            float shift = trimPx * influence;
+            point.x += screenLeftBrow ? -shift : shift;
+            trimmed[index] = point;
+        }
+
+        return trimmed;
+    }
+
+    private static int NormalizeEyebrowShapeStyleIndex(int styleIndex)
     {
         switch (styleIndex)
         {
-            case 1:
-                // Soft arch: keep the user's natural width, softly raise the center,
-                // and avoid a heavy block at the front of the brow.
-                widthScale = 1.02f;
-                heightScale = 0.94f;
-                archLift = 0.10f;
-                tailExtend = 0.04f;
-                lowerLift = 0.04f;
-                return;
             case 2:
-                // Straight: flatten the arch and lift the lower edge so it does not
-                // read as an eyeshadow stripe above the eye.
-                widthScale = 1.03f;
-                heightScale = 0.72f;
-                archLift = -0.02f;
-                tailExtend = 0.02f;
-                lowerLift = 0.12f;
+                return 2;
+            case 3:
+                return 3;
+            case 4:
+                return 2;
+            case 5:
+                return 3;
+            default:
+                return 1;
+        }
+    }
+
+    private static float ResolveEyebrowShapeMode(int styleIndex)
+    {
+        int shapeStyle = NormalizeEyebrowShapeStyleIndex(styleIndex);
+        return shapeStyle == 2 ? 1.0f : shapeStyle == 3 ? 2.0f : 0.0f;
+    }
+
+    private static void ResolveEyebrowStyleProfile(
+        int styleIndex,
+        out float widthScale,
+        out float heightRatio,
+        out float tailExtendRatio,
+        out float headTrimRatio,
+        out float bottomLiftRatio)
+    {
+        switch (styleIndex)
+        {
+            case 2:
+                widthScale = 0.91f;
+                heightRatio = 0.158f;
+                tailExtendRatio = 0.000f;
+                headTrimRatio = 0.170f;
+                bottomLiftRatio = 0.030f;
                 return;
             case 3:
-                // Slim tail: keep body narrow, extend outward tail, and thin the
-                // lower half so the end tapers instead of getting cut off.
-                widthScale = 1.08f;
-                heightScale = 0.76f;
-                archLift = 0.04f;
-                tailExtend = 0.13f;
-                lowerLift = 0.14f;
+                widthScale = 0.93f;
+                heightRatio = 0.215f;
+                tailExtendRatio = 0.012f;
+                headTrimRatio = 0.178f;
+                bottomLiftRatio = 0.005f;
                 return;
+            case 1:
             default:
-                widthScale = 1.02f;
-                heightScale = 0.94f;
-                archLift = 0.10f;
-                tailExtend = 0.04f;
-                lowerLift = 0.04f;
+                widthScale = 0.92f;
+                heightRatio = 0.192f;
+                tailExtendRatio = 0.006f;
+                headTrimRatio = 0.176f;
+                bottomLiftRatio = 0.015f;
                 return;
         }
+    }
+
+    private static float EvaluateEyebrowStyleTop(float progressFromHead, int styleIndex)
+    {
+        switch (styleIndex)
+        {
+            case 2:
+                return EvaluateEyebrowCurve(progressFromHead, 0.46f, 0.34f, 0.30f, 0.34f, 0.56f);
+            case 3:
+                return EvaluateEyebrowCurve(progressFromHead, 0.47f, 0.32f, 0.03f, 0.18f, 0.64f);
+            case 1:
+            default:
+                return EvaluateEyebrowCurve(progressFromHead, 0.46f, 0.33f, 0.11f, 0.22f, 0.59f);
+        }
+    }
+
+    private static float EvaluateEyebrowStyleBottom(float progressFromHead, int styleIndex)
+    {
+        switch (styleIndex)
+        {
+            case 2:
+                return EvaluateEyebrowCurve(progressFromHead, 0.97f, 0.88f, 0.82f, 0.78f, 0.66f);
+            case 3:
+                return EvaluateEyebrowCurve(progressFromHead, 1.04f, 0.94f, 0.76f, 0.73f, 0.72f);
+            case 1:
+            default:
+                return EvaluateEyebrowCurve(progressFromHead, 1.02f, 0.92f, 0.78f, 0.74f, 0.68f);
+        }
+    }
+
+    private static float EvaluateEyebrowCurve(
+        float progress,
+        float head,
+        float body,
+        float arch,
+        float tailBody,
+        float tail)
+    {
+        progress = Mathf.Clamp01(progress);
+        if (progress <= 0.34f)
+        {
+            return Mathf.Lerp(head, body, SmoothStep01(progress / 0.34f));
+        }
+
+        if (progress <= 0.68f)
+        {
+            return Mathf.Lerp(body, arch, SmoothStep01((progress - 0.34f) / 0.34f));
+        }
+
+        if (progress <= 0.88f)
+        {
+            return Mathf.Lerp(arch, tailBody, SmoothStep01((progress - 0.68f) / 0.20f));
+        }
+
+        return Mathf.Lerp(tailBody, tail, SmoothStep01((progress - 0.88f) / 0.12f));
+    }
+
+    private static float SmoothStep01(float value)
+    {
+        value = Mathf.Clamp01(value);
+        return value * value * (3.0f - 2.0f * value);
     }
 
     private static bool IsPointInsideEyebrowCleanupBoundary(
@@ -3934,6 +4112,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             if (material.HasProperty("_StrandStrength"))
             {
                 material.SetFloat("_StrandStrength", Mathf.Lerp(0.82f, 1.42f, recipe.Intensity));
+            }
+
+            if (material.HasProperty("_BrowShapeMode"))
+            {
+                material.SetFloat(
+                    "_BrowShapeMode",
+                    ResolveEyebrowShapeMode(ResolveEyebrowStyleIndex(recipe.MaskTextureId)));
             }
         }
 

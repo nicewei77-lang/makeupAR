@@ -16,6 +16,7 @@ Shader "MakeupAR/EyebrowRegionMask"
         _TintStrength ("Tint Strength", Range(0, 1)) = 0.72
         _StrandStrength ("Strand Strength", Range(0, 1.5)) = 1.0
         _RuntimeBoundaryMode ("Runtime Boundary Mode", Range(0, 1)) = 0
+        _BrowShapeMode ("Brow Shape Mode", Range(0, 2)) = 0
     }
 
     SubShader
@@ -50,6 +51,7 @@ Shader "MakeupAR/EyebrowRegionMask"
         float _TintStrength;
         float _StrandStrength;
         float _RuntimeBoundaryMode;
+        float _BrowShapeMode;
 
         struct appdata
         {
@@ -109,9 +111,25 @@ Shader "MakeupAR/EyebrowRegionMask"
 
         float BrowEndTaper(float localX)
         {
-            float innerTaper = smoothstep(0.02, 0.14, localX);
-            float tailTaper = 1.0 - smoothstep(0.86, 0.99, localX);
-            return saturate(innerTaper * tailTaper);
+            float headTaper = lerp(0.34, 1.0, smoothstep(0.00, 0.20, localX));
+            float tailTaper = 1.0 - smoothstep(0.78, 1.0, localX);
+            return saturate(headTaper * tailTaper);
+        }
+
+        float BrowShapeDensity(float localX)
+        {
+            float semiMode = 1.0 - saturate(abs(_BrowShapeMode - 0.0));
+            float straightMode = 1.0 - saturate(abs(_BrowShapeMode - 1.0));
+            float archMode = 1.0 - saturate(abs(_BrowShapeMode - 2.0));
+            float archCenter = semiMode * 0.64 + straightMode * 0.50 + archMode * 0.70;
+            float archStrength = semiMode * 0.18 + straightMode * 0.05 + archMode * 0.32;
+            float headSoft = (1.0 - smoothstep(0.00, 0.24, localX)) * 0.28;
+            float body = smoothstep(0.05, 0.34, localX)
+                * (1.0 - smoothstep(0.84, 1.0, localX))
+                * 0.56;
+            float arch = (1.0 - smoothstep(0.00, 0.24, abs(localX - archCenter))) * archStrength;
+            float tailFade = (1.0 - smoothstep(0.74, 1.0, localX)) * 0.18;
+            return saturate(headSoft + body + arch + tailFade);
         }
 
         float OuterCleanupCoverage(float4 boundary)
@@ -196,8 +214,8 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float leftSide;
                 ComputeBrowLocal(input.localUv, localX, localY, leftSide);
                 float coverage = BoundaryCoverage(input.boundaryUv) * BrowEndTaper(localX);
-                float centerDensity = 1.0 - smoothstep(0.18, 0.86, abs(localX - 0.38));
-                float lift = saturate(coverage * (0.18 + centerDensity * 0.24));
+                float shapeDensity = BrowShapeDensity(localX);
+                float lift = saturate(coverage * (0.12 + shapeDensity * 0.22));
                 float alpha = saturate(
                     lift
                     * _ToneLiftStrength
@@ -227,10 +245,10 @@ Shader "MakeupAR/EyebrowRegionMask"
                 ComputeBrowLocal(input.localUv, localX, localY, leftSide);
                 float coverage = BoundaryCoverage(input.boundaryUv) * BrowEndTaper(localX);
                 float source = SourceDensity(BrowSourceUv(localX, localY, leftSide));
-                float centerDensity = 1.0 - smoothstep(0.16, 0.92, abs(localX - 0.36));
+                float shapeDensity = BrowShapeDensity(localX);
                 float alpha = saturate(
                     coverage
-                    * (0.010 + source * 0.340 + centerDensity * 0.018)
+                    * (0.075 + shapeDensity * 0.170 + source * 0.070)
                     * _TintStrength
                     * _Opacity
                     * _VisibilityAlpha
@@ -259,8 +277,8 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float coverage = BoundaryCoverage(input.boundaryUv) * endTaper;
                 float source = SourceDensity(BrowSourceUv(localX, localY, leftSide));
 
-                float centerDensity = 1.0 - smoothstep(0.16, 0.92, abs(localX - 0.36));
-                float softFill = saturate(coverage * (0.06 + source * 1.08 + centerDensity * 0.055) * _TintStrength);
+                float shapeDensity = BrowShapeDensity(localX);
+                float softFill = saturate(coverage * (0.08 + source * 0.42 + shapeDensity * 0.105) * _TintStrength);
                 float strands = saturate(BoundaryCoverage(input.boundaryUv) * sqrt(endTaper) * source * _StrandStrength);
                 float strength = saturate((softFill * 0.88 + strands * 1.28) * _Opacity * _VisibilityAlpha * _Coverage);
                 float3 darkBrow = saturate(lerp(_RegionColor.rgb, float3(0.06, 0.045, 0.038), 0.10));

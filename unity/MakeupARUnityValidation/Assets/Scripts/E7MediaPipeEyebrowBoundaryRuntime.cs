@@ -98,6 +98,10 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
     private const float FaceMotionLargeThreshold = 0.32f;
     private const int BrowRefinementSampleStepPx = 2;
     private const float BrowMinimumEyeGapPx = 14.0f;
+    private const int BrowEnvelopeColumnCount = 24;
+    private const int BrowMakeupShapePointCount = 36;
+    private const int BrowEnvelopeMinValidColumns = 5;
+    private const int BrowDenseCorePaddingColumns = 0;
     private const string RuntimeSource = "mediapipe_face_landmarker_runtime_eyebrow_boundary";
     private const string CoordinateMode = "mediapipe-image-top-left";
 
@@ -799,7 +803,7 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
             out stats.RightHairPixelCount,
             out stats.RightBrowEyeGapPx);
 
-        stats.Status = "pixel_refined_boundary_first"
+        stats.Status = "pixel_refined_makeup_body_column_boundary_first"
             + ":leftHair=" + stats.LeftHairPixelCount.ToString(CultureInfo.InvariantCulture)
             + ",rightHair=" + stats.RightHairPixelCount.ToString(CultureInfo.InvariantCulture)
             + ",leftGap=" + stats.LeftBrowEyeGapPx.ToString("0.###", CultureInfo.InvariantCulture)
@@ -829,15 +833,15 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         float eyeTop = TryCalculatePointBounds(eyeBoundary, out _, out float detectedEyeTop, out _, out _)
             ? detectedEyeTop
             : seedBottom + seedHeight * 2.0f;
-        float browSearchHeight = Mathf.Clamp(seedWidth * 0.22f, 18.0f, 54.0f);
+        float browSearchHeight = Mathf.Clamp(seedWidth * 0.30f, 22.0f, 72.0f);
         float browSearchTop = Mathf.Max(
-            seedTop - Mathf.Min(seedHeight * 0.18f, 5.0f),
+            seedTop - Mathf.Clamp(seedHeight * 0.28f, 4.0f, 12.0f),
             eyeTop - browSearchHeight);
         float browSearchBottom = Mathf.Min(
-            seedBottom + Mathf.Min(seedHeight * 0.16f, 5.0f),
+            seedBottom + Mathf.Clamp(seedHeight * 0.24f, 3.0f, 10.0f),
             eyeTop - BrowMinimumEyeGapPx);
-        int roiLeft = Mathf.Clamp(Mathf.FloorToInt(seedLeft - seedWidth * 0.14f - 6.0f), 0, frameWidth - 1);
-        int roiRight = Mathf.Clamp(Mathf.CeilToInt(seedRight + seedWidth * 0.14f + 6.0f), 0, frameWidth - 1);
+        int roiLeft = Mathf.Clamp(Mathf.FloorToInt(seedLeft - seedWidth * 0.18f - 8.0f), 0, frameWidth - 1);
+        int roiRight = Mathf.Clamp(Mathf.CeilToInt(seedRight + seedWidth * 0.18f + 8.0f), 0, frameWidth - 1);
         int roiTop = Mathf.Clamp(Mathf.FloorToInt(browSearchTop), 0, frameHeight - 1);
         int roiBottom = Mathf.Clamp(
             Mathf.CeilToInt(browSearchBottom),
@@ -855,64 +859,55 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
             return fallback;
         }
 
-        List<int> darkXs = new List<int>();
-        List<int> darkYs = new List<int>();
+        List<int>[] columnYs = CreateBrowColumnBuckets();
+        float roiWidth = Mathf.Max(1.0f, roiRight - roiLeft + 1.0f);
         for (int y = roiTop; y <= roiBottom; y += BrowRefinementSampleStepPx)
         {
             for (int x = roiLeft; x <= roiRight; x += BrowRefinementSampleStepPx)
             {
+                Vector2 samplePoint = new Vector2(x + 0.5f, y + 0.5f);
+                if (IsPointInsideEyeRejectZone(samplePoint, eyeBoundary, BrowMinimumEyeGapPx))
+                {
+                    continue;
+                }
+
+                if (!IsPointInScaledBoundary(samplePoint, seedBoundary, 1.20f, 1.70f))
+                {
+                    continue;
+                }
+
                 Color32 pixel = ReadTopLeftPixel(framePixels, frameWidth, frameHeight, x, y);
-                if (!LooksLikeBrowHair(pixel))
+                if (!LooksLikeBrowHair(framePixels, frameWidth, frameHeight, x, y, pixel))
                 {
                     continue;
                 }
 
-                if (!IsPointInScaledBoundary(
-                        new Vector2(x + 0.5f, y + 0.5f),
-                        seedBoundary,
-                        1.12f,
-                        1.30f))
-                {
-                    continue;
-                }
-
-                darkXs.Add(x);
-                darkYs.Add(y);
+                int columnIndex = Mathf.Clamp(
+                    Mathf.FloorToInt(((x - roiLeft) / roiWidth) * BrowEnvelopeColumnCount),
+                    0,
+                    BrowEnvelopeColumnCount - 1);
+                columnYs[columnIndex].Add(y);
+                hairPixelCount++;
             }
         }
 
-        hairPixelCount = darkXs.Count;
-        Vector2[] refined;
-        if (hairPixelCount >= Mathf.Max(18, Mathf.RoundToInt(seedWidth * 0.11f)))
+        Vector2[] refined = null;
+        int minimumHairPixels = Mathf.Max(18, Mathf.RoundToInt(seedWidth * 0.09f));
+        if (hairPixelCount >= minimumHairPixels)
         {
-            darkXs.Sort();
-            darkYs.Sort();
-            float hairLeft = Percentile(darkXs, 0.08f);
-            float hairRight = Percentile(darkXs, 0.93f);
-            float hairTop = Percentile(darkYs, 0.18f);
-            float hairBottom = Percentile(darkYs, 0.78f);
-            float hairWidth = Mathf.Max(seedWidth * 0.58f, hairRight - hairLeft);
-            float hairHeight = Mathf.Max(5.0f, hairBottom - hairTop);
-            float centerY = (hairTop + hairBottom) * 0.5f;
-            float desiredHeight = Mathf.Clamp(hairHeight * 1.22f + 6.0f, seedWidth * 0.080f, seedWidth * 0.155f);
-            float outerExtend = Mathf.Clamp(hairWidth * 0.045f, 3.0f, 14.0f);
-            float innerExtend = Mathf.Clamp(hairWidth * 0.025f, 2.0f, 8.0f);
-            float desiredLeft = screenLeftBrow
-                ? hairLeft - outerExtend
-                : hairLeft - innerExtend;
-            float desiredRight = screenLeftBrow
-                ? hairRight + innerExtend
-                : hairRight + outerExtend;
-            float desiredBottom = Mathf.Min(centerY + desiredHeight * 0.24f, eyeTop - BrowMinimumEyeGapPx);
-            float desiredTop = desiredBottom - desiredHeight;
-            refined = BuildDesiredBrowPolygonFromBox(
-                desiredLeft,
-                desiredTop,
-                desiredRight,
-                desiredBottom,
+            refined = BuildBrowEnvelopePolygonFromColumns(
+                columnYs,
+                roiLeft,
+                roiRight,
+                seedLeft,
+                seedTop,
+                seedRight,
+                seedBottom,
+                eyeTop,
                 screenLeftBrow);
         }
-        else
+
+        if (refined == null || refined.Length < 3)
         {
             float desiredBottom = Mathf.Min(seedBottom + seedHeight * 0.05f, eyeTop - BrowMinimumEyeGapPx);
             refined = BuildDesiredBrowPolygonFromBox(
@@ -928,6 +923,434 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         return refined;
     }
 
+    private static List<int>[] CreateBrowColumnBuckets()
+    {
+        List<int>[] buckets = new List<int>[BrowEnvelopeColumnCount];
+        for (int index = 0; index < buckets.Length; index++)
+        {
+            buckets[index] = new List<int>();
+        }
+
+        return buckets;
+    }
+
+    private static Vector2[] BuildBrowEnvelopePolygonFromColumns(
+        List<int>[] columnYs,
+        int roiLeft,
+        int roiRight,
+        float seedLeft,
+        float seedTop,
+        float seedRight,
+        float seedBottom,
+        float eyeTop,
+        bool screenLeftBrow)
+    {
+        if (columnYs == null || columnYs.Length == 0)
+        {
+            return null;
+        }
+
+        int columnCount = columnYs.Length;
+        bool[] valid = new bool[columnCount];
+        float[] top = new float[columnCount];
+        float[] bottom = new float[columnCount];
+        int[] columnCounts = new int[columnCount];
+        int firstValid = -1;
+        int lastValid = -1;
+        int validCount = 0;
+
+        for (int column = 0; column < columnCount; column++)
+        {
+            List<int> values = columnYs[column];
+            if (values == null || values.Count < 2)
+            {
+                continue;
+            }
+
+            values.Sort();
+            valid[column] = true;
+            columnCounts[column] = values.Count;
+            top[column] = Percentile(values, 0.24f);
+            bottom[column] = Percentile(values, 0.76f);
+            if (bottom[column] < top[column] + 1.0f)
+            {
+                bottom[column] = top[column] + 1.0f;
+            }
+
+            if (firstValid < 0)
+            {
+                firstValid = column;
+            }
+
+            lastValid = column;
+            validCount++;
+        }
+
+        if (validCount < BrowEnvelopeMinValidColumns || firstValid < 0 || lastValid <= firstValid)
+        {
+            return null;
+        }
+
+        if (TryResolveDenseBrowCoreRange(
+                valid,
+                columnCounts,
+                out int denseFirst,
+                out int denseLast))
+        {
+            firstValid = Mathf.Max(0, denseFirst - BrowDenseCorePaddingColumns);
+            lastValid = Mathf.Min(columnCount - 1, denseLast + BrowDenseCorePaddingColumns);
+        }
+
+        float seedWidth = Mathf.Max(8.0f, seedRight - seedLeft);
+        float seedHeight = Mathf.Max(4.0f, seedBottom - seedTop);
+        float measuredTop = float.MaxValue;
+        float measuredBottom = float.MinValue;
+        float measuredCenterSum = 0.0f;
+        int measuredCenterCount = 0;
+        for (int column = firstValid; column <= lastValid; column++)
+        {
+            if (!valid[column])
+            {
+                continue;
+            }
+
+            measuredTop = Mathf.Min(measuredTop, top[column]);
+            measuredBottom = Mathf.Max(measuredBottom, bottom[column]);
+            measuredCenterSum += (top[column] + bottom[column]) * 0.5f;
+            measuredCenterCount++;
+        }
+
+        float measuredCenterY = measuredCenterCount > 0
+            ? measuredCenterSum / measuredCenterCount
+            : (seedTop + seedBottom) * 0.5f;
+        float measuredHeight = measuredBottom > measuredTop
+            ? measuredBottom - measuredTop
+            : seedHeight;
+
+        FillMissingBrowColumns(top, bottom, valid, seedTop, seedBottom, seedWidth);
+        SmoothBrowEnvelope(top, 3);
+        SmoothBrowEnvelope(bottom, 3);
+
+        float roiWidth = Mathf.Max(1.0f, roiRight - roiLeft + 1.0f);
+        float columnWidth = roiWidth / Mathf.Max(1, columnCount);
+        float hairLeft = roiLeft + firstValid * columnWidth;
+        float hairRight = roiLeft + (lastValid + 1) * columnWidth;
+        float hairWidth = Mathf.Max(8.0f, hairRight - hairLeft);
+        float hairCenterX = (hairLeft + hairRight) * 0.5f;
+        float seedCenterX = (seedLeft + seedRight) * 0.5f;
+        float centerShift = Mathf.Clamp(
+            hairCenterX - seedCenterX,
+            -seedWidth * 0.060f,
+            seedWidth * 0.060f);
+        float seedTailInset = Mathf.Clamp(seedWidth * 0.040f, 3.0f, 12.0f);
+        float seedHeadInset = Mathf.Clamp(
+            seedWidth * (screenLeftBrow ? 0.118f : 0.178f),
+            screenLeftBrow ? 10.0f : 18.0f,
+            screenLeftBrow ? 34.0f : 52.0f);
+        float hairTailInset = Mathf.Clamp(hairWidth * 0.025f, 2.0f, 7.0f);
+        float hairHeadInset = Mathf.Clamp(
+            hairWidth * (screenLeftBrow ? 0.090f : 0.168f),
+            screenLeftBrow ? 5.0f : 10.0f,
+            screenLeftBrow ? 22.0f : 36.0f);
+        float seedTargetLeft = screenLeftBrow
+            ? seedLeft + seedTailInset
+            : seedLeft + seedHeadInset;
+        float seedTargetRight = screenLeftBrow
+            ? seedRight - seedHeadInset
+            : seedRight - seedTailInset;
+        float hairTargetLeft = screenLeftBrow
+            ? hairLeft + hairTailInset
+            : hairLeft + hairHeadInset;
+        float hairTargetRight = screenLeftBrow
+            ? hairRight - hairHeadInset
+            : hairRight - hairTailInset;
+        float left = Mathf.Lerp(seedTargetLeft, hairTargetLeft, 0.72f)
+            + centerShift * 0.24f;
+        float right = Mathf.Lerp(seedTargetRight, hairTargetRight, 0.72f)
+            + centerShift * 0.24f;
+
+        if (right <= left + 4.0f)
+        {
+            return null;
+        }
+
+        Vector2[] polygon = new Vector2[BrowMakeupShapePointCount * 2];
+        float maxBottom = eyeTop - BrowMinimumEyeGapPx;
+        float makeupShapeHeight = Mathf.Clamp(
+            Mathf.Max(measuredHeight * 1.90f, seedWidth * 0.225f, seedHeight * 1.66f),
+            Mathf.Clamp(seedWidth * 0.165f, 14.0f, 32.0f),
+            Mathf.Clamp(seedWidth * 0.295f, 34.0f, 64.0f));
+        float seedCenterY = (seedTop + seedBottom) * 0.5f;
+        float baseCenterY = Mathf.Lerp(seedCenterY, measuredCenterY, 0.58f);
+        float bodyBottomAnchor = Mathf.Min(
+            Mathf.Max(
+                seedBottom + seedHeight * 0.12f,
+                baseCenterY + makeupShapeHeight * 0.36f),
+            maxBottom);
+        float shapeTopY = bodyBottomAnchor - makeupShapeHeight;
+        for (int index = 0; index < BrowMakeupShapePointCount; index++)
+        {
+            float t = index / (float)(BrowMakeupShapePointCount - 1);
+            float x = Mathf.Lerp(left, right, t);
+            float columnPosition = Mathf.Clamp01((x - roiLeft) / roiWidth) * (columnCount - 1);
+            float sampledTop = SampleFloatArray(top, columnPosition);
+            float sampledBottom = SampleFloatArray(bottom, columnPosition);
+            float bodyT = 1.0f - Mathf.Abs(t - 0.5f) * 2.0f;
+            float progressFromTail = screenLeftBrow ? t : 1.0f - t;
+            float sampledCenterY = sampledTop * 0.46f + sampledBottom * 0.54f;
+            float localCenterY = Mathf.Lerp(
+                baseCenterY,
+                sampledCenterY,
+                0.18f);
+            float localTopY = Mathf.Lerp(
+                shapeTopY,
+                localCenterY - makeupShapeHeight * 0.48f,
+                0.16f);
+            localTopY -= Mathf.Clamp(seedWidth * 0.004f, 0.5f, 1.8f)
+                * Smooth01(Mathf.InverseLerp(0.05f, 0.82f, bodyT));
+
+            float topY = localTopY + makeupShapeHeight * EvaluateBrowFillTop(progressFromTail);
+            float bottomY = localTopY + makeupShapeHeight * EvaluateBrowFillBottom(progressFromTail);
+            if (bottomY > maxBottom)
+            {
+                float shift = bottomY - maxBottom;
+                topY -= shift;
+                bottomY -= shift;
+            }
+
+            polygon[index] = new Vector2(x, topY);
+            polygon[polygon.Length - 1 - index] = new Vector2(x, bottomY);
+        }
+
+        return polygon;
+    }
+
+    private static float EvaluateBrowFillTop(float progressFromTail)
+    {
+        return EvaluateBrowFillCurve(
+            progressFromTail,
+            0.60f,
+            0.38f,
+            0.04f,
+            0.15f,
+            0.38f);
+    }
+
+    private static float EvaluateBrowFillBottom(float progressFromTail)
+    {
+        return EvaluateBrowFillCurve(
+            progressFromTail,
+            0.60f,
+            0.59f,
+            0.74f,
+            0.82f,
+            0.92f);
+    }
+
+    private static float EvaluateBrowFillCurve(
+        float progress,
+        float tail,
+        float outerBody,
+        float archBody,
+        float innerBody,
+        float head)
+    {
+        progress = Mathf.Clamp01(progress);
+        if (progress <= 0.20f)
+        {
+            return Mathf.Lerp(tail, outerBody, Smooth01(progress / 0.20f));
+        }
+
+        if (progress <= 0.52f)
+        {
+            return Mathf.Lerp(outerBody, archBody, Smooth01((progress - 0.20f) / 0.32f));
+        }
+
+        if (progress <= 0.82f)
+        {
+            return Mathf.Lerp(archBody, innerBody, Smooth01((progress - 0.52f) / 0.30f));
+        }
+
+        return Mathf.Lerp(innerBody, head, Smooth01((progress - 0.82f) / 0.18f));
+    }
+
+    private static bool TryResolveDenseBrowCoreRange(
+        bool[] valid,
+        int[] columnCounts,
+        out int first,
+        out int last)
+    {
+        first = -1;
+        last = -1;
+        if (valid == null
+            || columnCounts == null
+            || valid.Length == 0
+            || columnCounts.Length != valid.Length)
+        {
+            return false;
+        }
+
+        List<int> nonZeroCounts = new List<int>();
+        for (int index = 0; index < valid.Length; index++)
+        {
+            if (valid[index] && columnCounts[index] > 0)
+            {
+                nonZeroCounts.Add(columnCounts[index]);
+            }
+        }
+
+        if (nonZeroCounts.Count < BrowEnvelopeMinValidColumns)
+        {
+            return false;
+        }
+
+        nonZeroCounts.Sort();
+        float medianCount = Percentile(nonZeroCounts, 0.50f);
+        int denseThreshold = Mathf.Max(2, Mathf.RoundToInt(medianCount * 0.38f));
+        int denseStart = -1;
+        int denseEnd = -1;
+
+        for (int index = 0; index < valid.Length; index++)
+        {
+            bool dense = valid[index] && columnCounts[index] >= denseThreshold;
+            if (!dense)
+            {
+                continue;
+            }
+
+            if (denseStart < 0)
+            {
+                denseStart = index;
+            }
+
+            denseEnd = index;
+        }
+
+        if (denseStart < 0
+            || denseEnd <= denseStart
+            || denseEnd - denseStart + 1 < BrowEnvelopeMinValidColumns)
+        {
+            return false;
+        }
+
+        first = denseStart;
+        last = denseEnd;
+        return true;
+    }
+
+    private static void FillMissingBrowColumns(
+        float[] top,
+        float[] bottom,
+        bool[] valid,
+        float seedTop,
+        float seedBottom,
+        float seedWidth)
+    {
+        float seedCenter = (seedTop + seedBottom) * 0.5f;
+        float fallbackHalf = Mathf.Clamp(seedWidth * 0.030f, 2.0f, 8.0f);
+        for (int index = 0; index < valid.Length; index++)
+        {
+            if (valid[index])
+            {
+                continue;
+            }
+
+            int previous = FindPreviousValid(valid, index);
+            int next = FindNextValid(valid, index);
+            if (previous >= 0 && next >= 0)
+            {
+                float t = (index - previous) / (float)Mathf.Max(1, next - previous);
+                top[index] = Mathf.Lerp(top[previous], top[next], t);
+                bottom[index] = Mathf.Lerp(bottom[previous], bottom[next], t);
+            }
+            else if (previous >= 0)
+            {
+                top[index] = top[previous];
+                bottom[index] = bottom[previous];
+            }
+            else if (next >= 0)
+            {
+                top[index] = top[next];
+                bottom[index] = bottom[next];
+            }
+            else
+            {
+                top[index] = seedCenter - fallbackHalf;
+                bottom[index] = seedCenter + fallbackHalf;
+            }
+        }
+    }
+
+    private static int FindPreviousValid(bool[] valid, int start)
+    {
+        for (int index = start - 1; index >= 0; index--)
+        {
+            if (valid[index])
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static int FindNextValid(bool[] valid, int start)
+    {
+        for (int index = start + 1; index < valid.Length; index++)
+        {
+            if (valid[index])
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private static void SmoothBrowEnvelope(float[] values, int passes)
+    {
+        if (values == null || values.Length < 3)
+        {
+            return;
+        }
+
+        float[] scratch = new float[values.Length];
+        for (int pass = 0; pass < passes; pass++)
+        {
+            Array.Copy(values, scratch, values.Length);
+            for (int index = 1; index < values.Length - 1; index++)
+            {
+                values[index] = scratch[index - 1] * 0.24f
+                    + scratch[index] * 0.52f
+                    + scratch[index + 1] * 0.24f;
+            }
+        }
+    }
+
+    private static float SampleFloatArray(float[] values, float position)
+    {
+        if (values == null || values.Length == 0)
+        {
+            return 0.0f;
+        }
+
+        position = Mathf.Clamp(position, 0.0f, values.Length - 1);
+        int lower = Mathf.FloorToInt(position);
+        int upper = Mathf.CeilToInt(position);
+        if (lower == upper)
+        {
+            return values[lower];
+        }
+
+        return Mathf.Lerp(values[lower], values[upper], position - lower);
+    }
+
+    private static float Smooth01(float value)
+    {
+        value = Mathf.Clamp01(value);
+        return value * value * (3.0f - 2.0f * value);
+    }
+
     private static Vector2[] BuildDesiredBrowPolygonFromBox(
         float left,
         float top,
@@ -935,24 +1358,21 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         float bottom,
         bool screenLeftBrow)
     {
-        const int sampleCount = 18;
+        const int sampleCount = BrowMakeupShapePointCount;
         Vector2[] polygon = new Vector2[sampleCount * 2];
-        float width = Mathf.Max(8.0f, right - left);
         float height = Mathf.Max(5.0f, bottom - top);
 
         for (int index = 0; index < sampleCount; index++)
         {
             float t = index / (float)(sampleCount - 1);
             float x = Mathf.Lerp(left, right, t);
-            float arch = Mathf.Sin(Mathf.PI * t);
-            float centerY = top + height * (0.52f - arch * 0.14f);
-            float baseThickness = height * (0.08f + 0.46f * Mathf.Pow(Mathf.Max(0.0f, arch), 0.70f));
-            float outerTailT = screenLeftBrow ? 1.0f - t : t;
-            float taper = (0.22f + 0.78f * Mathf.Pow(Mathf.Max(0.0f, arch), 0.45f))
-                * (1.0f - 0.82f * outerTailT);
-            float thickness = Mathf.Max(1.4f, baseThickness * taper);
-            polygon[index] = new Vector2(x, centerY - thickness * 0.64f);
-            polygon[polygon.Length - 1 - index] = new Vector2(x, centerY + thickness * 0.32f);
+            float progressFromTail = screenLeftBrow ? t : 1.0f - t;
+            polygon[index] = new Vector2(
+                x,
+                top + height * EvaluateBrowFillTop(progressFromTail));
+            polygon[polygon.Length - 1 - index] = new Vector2(
+                x,
+                top + height * EvaluateBrowFillBottom(progressFromTail));
         }
 
         return polygon;
@@ -992,6 +1412,22 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
             center.x + (point.x - center.x) / Mathf.Max(0.001f, scaleX),
             center.y + (point.y - center.y) / Mathf.Max(0.001f, scaleY));
         return IsPointInPolygon(projected, polygon);
+    }
+
+    private static bool IsPointInsideEyeRejectZone(
+        Vector2 point,
+        Vector2[] eyeBoundary,
+        float topPaddingPx)
+    {
+        if (!TryCalculatePointBounds(eyeBoundary, out float left, out float top, out float right, out _))
+        {
+            return false;
+        }
+
+        float horizontalPadding = Mathf.Max(8.0f, (right - left) * 0.18f);
+        return point.x >= left - horizontalPadding
+            && point.x <= right + horizontalPadding
+            && point.y >= top - topPaddingPx;
     }
 
     private static bool IsPointInPolygon(Vector2 point, Vector2[] polygon)
@@ -1075,16 +1511,62 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         return pixels[textureY * width + x];
     }
 
-    private static bool LooksLikeBrowHair(Color32 pixel)
+    private static bool LooksLikeBrowHair(
+        Color32[] pixels,
+        int width,
+        int height,
+        int x,
+        int topLeftY,
+        Color32 pixel)
     {
-        float luma = pixel.r * 0.299f + pixel.g * 0.587f + pixel.b * 0.114f;
+        float luma = CalculateLuma(pixel);
         int maxChannel = Mathf.Max(pixel.r, Mathf.Max(pixel.g, pixel.b));
         int minChannel = Mathf.Min(pixel.r, Mathf.Min(pixel.g, pixel.b));
         int chromaSpread = maxChannel - minChannel;
-        return luma < 92.0f
-            || (luma < 138.0f
-                && maxChannel < 168
-                && chromaSpread < 54);
+        float localContrast = CalculateLocalDarkContrast(pixels, width, height, x, topLeftY, luma);
+
+        return luma < 72.0f
+            || (luma < 118.0f && maxChannel < 156 && chromaSpread < 64 && localContrast > 4.0f)
+            || (luma < 146.0f && maxChannel < 178 && chromaSpread < 58 && localContrast > 9.0f);
+    }
+
+    private static float CalculateLuma(Color32 pixel)
+    {
+        return pixel.r * 0.299f + pixel.g * 0.587f + pixel.b * 0.114f;
+    }
+
+    private static float CalculateLocalDarkContrast(
+        Color32[] pixels,
+        int width,
+        int height,
+        int x,
+        int topLeftY,
+        float centerLuma)
+    {
+        const int radius = 4;
+        int count = 0;
+        float sum = 0.0f;
+        for (int dy = -radius; dy <= radius; dy += radius)
+        {
+            for (int dx = -radius; dx <= radius; dx += radius)
+            {
+                if (dx == 0 && dy == 0)
+                {
+                    continue;
+                }
+
+                Color32 sample = ReadTopLeftPixel(pixels, width, height, x + dx, topLeftY + dy);
+                sum += CalculateLuma(sample);
+                count++;
+            }
+        }
+
+        if (count <= 0)
+        {
+            return 0.0f;
+        }
+
+        return (sum / count) - centerLuma;
     }
 
     private static float Percentile(List<int> sortedValues, float percentile)
