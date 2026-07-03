@@ -2420,6 +2420,8 @@ function formatE7MediaPipeEyebrowStyledBoundarySummary(
     event.controlPointMode ?? 'n/a',
   )} curve=${String(event.curveMode ?? 'n/a')} sourceUse=${String(
     event.sourceUsage ?? 'n/a',
+  )} rawUse=${String(
+    event.rawBoundaryUsage ?? 'n/a',
   )} body=${String(event.bodyCurve ?? 'n/a')} tail=${String(
     event.tailCurve ?? 'n/a',
   )} points=${String(event.leftOuterPointCount ?? 'n/a')}/${String(
@@ -2442,7 +2444,11 @@ function formatE7MediaPipeEyebrowStyledBoundarySummary(
     event.leftShapeMetrics ?? 'none',
   )}/R:${String(event.rightShapeMetrics ?? 'none')} gate=${String(
     event.shapeGateStatus ?? 'unknown',
-  )}/${String(event.shapeGateChecks ?? 'none')} uv=${String(
+  )}/${String(event.shapeGateChecks ?? 'none')} bounds=rawL:${String(
+    event.leftRawBounds ?? 'none',
+  )}/rawR:${String(event.rightRawBounds ?? 'none')}/styledL:${String(
+    event.leftStyledBounds ?? 'none',
+  )}/styledR:${String(event.rightStyledBounds ?? 'none')} uv=${String(
     event.hitTriangles ?? 'n/a',
   )}/${String(event.candidateTriangles ?? 'n/a')} active=${String(
     event.activePixels ?? 'n/a',

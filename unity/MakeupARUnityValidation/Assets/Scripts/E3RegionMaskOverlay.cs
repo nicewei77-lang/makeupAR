@@ -1364,6 +1364,27 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ")";
     }
 
+    private static string FormatEyebrowBoundsSummary(Vector2[] points)
+    {
+        if (!TryCalculateBoundaryBounds(points, out float left, out float top, out float right, out float bottom))
+        {
+            return "none";
+        }
+
+        return "x="
+            + left.ToString("0.#", CultureInfo.InvariantCulture)
+            + "-"
+            + right.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",y="
+            + top.ToString("0.#", CultureInfo.InvariantCulture)
+            + "-"
+            + bottom.ToString("0.#", CultureInfo.InvariantCulture)
+            + ",px="
+            + Mathf.Max(0.0f, right - left).ToString("0.#", CultureInfo.InvariantCulture)
+            + "x"
+            + Mathf.Max(0.0f, bottom - top).ToString("0.#", CultureInfo.InvariantCulture);
+    }
+
     private void SendStyledEyebrowBoundaryEvent(
         E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
         MaskTextureDiagnostics diagnostics,
@@ -1407,6 +1428,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             leftShapeMetrics,
             rightShapeMetrics,
             out bool shapeGatePassed);
+        string rawBoundaryUsage = string.IsNullOrWhiteSpace(boundary.ShapeSourceUsage)
+            ? "raw_boundary_position_width_scale_only"
+            : boundary.ShapeSourceUsage;
         return "{"
             + "\"type\":\"e7_mediapipe_eyebrow_styled_boundary\""
             + ",\"status\":\"ok\""
@@ -1419,8 +1443,13 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ",\"controlPointMode\":\"" + EscapeJsonString(boundary.ControlPointMode) + "\""
             + ",\"curveMode\":\"body_spline_tail_bezier\""
             + ",\"sourceUsage\":\"mediapipe_position_scale_only\""
+            + ",\"rawBoundaryUsage\":\"" + EscapeJsonString(rawBoundaryUsage) + "\""
             + ",\"bodyCurve\":\"H-B-A/S cubic_spline\""
             + ",\"tailCurve\":\"A/S-T cubic_bezier\""
+            + ",\"leftRawBounds\":\"" + EscapeJsonString(boundary.LeftRawBounds) + "\""
+            + ",\"rightRawBounds\":\"" + EscapeJsonString(boundary.RightRawBounds) + "\""
+            + ",\"leftStyledBounds\":\"" + EscapeJsonString(boundary.LeftStyledBounds) + "\""
+            + ",\"rightStyledBounds\":\"" + EscapeJsonString(boundary.RightStyledBounds) + "\""
             + ",\"controlPoints\":\"" + EscapeJsonString(controlPoints) + "\""
             + ",\"leftControls\":\"" + EscapeJsonString(
                 BuildSingleEyebrowControlPointSummary(
@@ -3403,6 +3432,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
 
         int styleIndex = ResolveEyebrowStyleIndex(maskTextureId);
+        string leftRawBounds = FormatEyebrowBoundsSummary(boundary.LeftOuterPoints);
+        string rightRawBounds = FormatEyebrowBoundsSummary(boundary.RightOuterPoints);
         boundary.LeftOuterPoints = ShapeEyebrowBoundaryPoints(
             boundary.LeftOuterPoints,
             boundary.LeftEyePoints,
@@ -3431,6 +3462,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             false,
             EyebrowTailStartProgress);
         boundary.ControlPointMode = "head_body_arch_bodySpline_AS_tailBezier_styled";
+        boundary.ShapeSourceUsage = "raw_boundary_position_width_scale_only";
+        boundary.LeftRawBounds = leftRawBounds;
+        boundary.RightRawBounds = rightRawBounds;
+        boundary.LeftStyledBounds = FormatEyebrowBoundsSummary(boundary.LeftOuterPoints);
+        boundary.RightStyledBounds = FormatEyebrowBoundsSummary(boundary.RightOuterPoints);
         boundary.LeftOuterPointCount = boundary.LeftOuterPoints != null ? boundary.LeftOuterPoints.Length : 0;
         boundary.RightOuterPointCount = boundary.RightOuterPoints != null ? boundary.RightOuterPoints.Length : 0;
         boundary.CoordinateMode = AppendCoordinateMode(

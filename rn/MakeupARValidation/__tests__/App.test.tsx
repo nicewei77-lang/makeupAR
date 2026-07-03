@@ -584,8 +584,13 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
     controlPointMode: 'head_body_arch_bodySpline_AS_tailBezier_styled',
     curveMode: 'body_spline_tail_bezier',
     sourceUsage: 'mediapipe_position_scale_only',
+    rawBoundaryUsage: 'raw_boundary_position_width_scale_only',
     bodyCurve: 'H-B-A/S cubic_spline',
     tailCurve: 'A/S-T cubic_bezier',
+    leftRawBounds: 'x=308.0-585.0,y=486.0-533.0,px=277.0x47.0',
+    rightRawBounds: 'x=616.0-858.0,y=485.0-532.0,px=242.0x47.0',
+    leftStyledBounds: 'x=296.0-568.0,y=488.0-530.0,px=272.0x42.0',
+    rightStyledBounds: 'x=625.0-864.0,y=488.0-530.0,px=239.0x42.0',
     headBodySplitProgress: 0.2,
     bodyEndProgress: 0.62,
     archProgress: 0.64,
@@ -615,6 +620,7 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
   expect(text).toContain('mode=head_body_arch_bodySpline_AS_tailBezier_styled');
   expect(text).toContain('curve=body_spline_tail_bezier');
   expect(text).toContain('sourceUse=mediapipe_position_scale_only');
+  expect(text).toContain('rawUse=raw_boundary_position_width_scale_only');
   expect(text).toContain('body=H-B-A/S cubic_spline');
   expect(text).toContain('tail=A/S-T cubic_bezier');
   expect(text).toContain('split=H:0.20/B:0.62/A:0.64/S:0.64/root:0.98/taper:0.64');
@@ -624,6 +630,8 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
   expect(text).toContain('shape=L:h/w=0.155');
   expect(text).toContain('/R:h/w=0.177');
   expect(text).toContain('gate=pass/Lh=pass');
+  expect(text).toContain('bounds=rawL:x=308.0-585.0');
+  expect(text).toContain('/styledR:x=625.0-864.0');
   expect(text).toContain('uv=42/128');
   expect(text).toContain('privacy raw=false offDevice=false');
 });

@@ -37,6 +37,11 @@ public sealed class E7MediaPipeEyebrowBoundaryRuntime : MonoBehaviour
         public Vector2 LeftTailStartPoint;
         public Vector2 RightTailStartPoint;
         public string ControlPointMode;
+        public string ShapeSourceUsage;
+        public string LeftRawBounds;
+        public string RightRawBounds;
+        public string LeftStyledBounds;
+        public string RightStyledBounds;
         public bool FaceBoundsAvailable;
         public Vector2 FaceBoundsCenter;
         public Vector2 FaceBoundsSize;
