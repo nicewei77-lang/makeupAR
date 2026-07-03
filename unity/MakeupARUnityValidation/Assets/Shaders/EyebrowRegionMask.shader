@@ -111,7 +111,7 @@ Shader "MakeupAR/EyebrowRegionMask"
 
         float BrowEndTaper(float localX)
         {
-            float headTaper = lerp(0.34, 1.0, smoothstep(0.00, 0.20, localX));
+            float headTaper = lerp(0.46, 1.0, smoothstep(0.00, 0.20, localX));
             float tailTaper = lerp(1.0, 0.38, smoothstep(0.64, 1.0, localX));
             return saturate(headTaper * tailTaper);
         }
@@ -123,7 +123,7 @@ Shader "MakeupAR/EyebrowRegionMask"
             float archMode = 1.0 - saturate(abs(_BrowShapeMode - 2.0));
             float archCenter = semiMode * 0.64 + straightMode * 0.64 + archMode * 0.64;
             float archStrength = semiMode * 0.18 + straightMode * 0.05 + archMode * 0.32;
-            float headSoft = (1.0 - smoothstep(0.00, 0.24, localX)) * 0.20;
+            float headSoft = (1.0 - smoothstep(0.00, 0.24, localX)) * 0.28;
             float body = smoothstep(0.05, 0.34, localX)
                 * (1.0 - smoothstep(0.64, 1.0, localX))
                 * 0.78;

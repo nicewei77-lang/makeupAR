@@ -291,27 +291,27 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     };
     private static readonly float[] EyebrowSemiArchTopSpline =
     {
-        0.44f, 0.15f, 0.05f, 0.44f
+        0.40f, 0.14f, 0.05f, 0.44f
     };
     private static readonly float[] EyebrowStraightTopSpline =
     {
-        0.46f, 0.29f, 0.26f, 0.43f
+        0.41f, 0.28f, 0.26f, 0.43f
     };
     private static readonly float[] EyebrowArchTopSpline =
     {
-        0.46f, 0.12f, -0.02f, 0.46f
+        0.40f, 0.11f, -0.02f, 0.46f
     };
     private static readonly float[] EyebrowSemiArchBottomSpline =
     {
-        0.88f, 0.70f, 0.66f, 0.55f
+        0.92f, 0.71f, 0.66f, 0.55f
     };
     private static readonly float[] EyebrowStraightBottomSpline =
     {
-        0.84f, 0.70f, 0.66f, 0.55f
+        0.90f, 0.71f, 0.66f, 0.55f
     };
     private static readonly float[] EyebrowArchBottomSpline =
     {
-        0.90f, 0.70f, 0.66f, 0.57f
+        0.94f, 0.71f, 0.66f, 0.57f
     };
 
     private readonly Dictionary<string, RegionRecipeState> recipes =

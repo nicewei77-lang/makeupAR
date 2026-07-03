@@ -29,14 +29,14 @@ SEMI_ARCH_TOP_PROFILE = (0.42, 0.30, 0.22, 0.16, 0.10, 0.08, 0.04, 0.12, 0.24, 0
 SEMI_ARCH_BOTTOM_PROFILE = (0.86, 0.80, 0.75, 0.72, 0.70, 0.69, 0.67, 0.63, 0.57, 0.51, 0.50)
 SPLINE_KNOTS = (0.0, CONTROL_BODY, ARCH, 1.0)
 SPLINE_TOPS = {
-    1: (0.44, 0.15, 0.05, 0.44),
-    2: (0.46, 0.29, 0.26, 0.43),
-    3: (0.46, 0.12, -0.02, 0.46),
+    1: (0.40, 0.14, 0.05, 0.44),
+    2: (0.41, 0.28, 0.26, 0.43),
+    3: (0.40, 0.11, -0.02, 0.46),
 }
 SPLINE_BOTTOMS = {
-    1: (0.88, 0.70, 0.66, 0.55),
-    2: (0.84, 0.70, 0.66, 0.55),
-    3: (0.90, 0.70, 0.66, 0.57),
+    1: (0.92, 0.71, 0.66, 0.55),
+    2: (0.90, 0.71, 0.66, 0.55),
+    3: (0.94, 0.71, 0.66, 0.57),
 }
 
 COMMERCIAL_SHAPE_TARGETS = {
@@ -445,7 +445,7 @@ def enforce_inner_gap(
 
 
 def brow_end_taper(local_x: float) -> float:
-    head_taper = lerp(0.34, 1.0, smoothstep(local_x / 0.20))
+    head_taper = lerp(0.46, 1.0, smoothstep(local_x / 0.20))
     tail_taper = lerp(1.0, 0.38, smoothstep((local_x - TAIL_START) / (1.0 - TAIL_START)))
     return max(0.0, min(1.0, head_taper * tail_taper))
 
@@ -456,7 +456,7 @@ def brow_shape_density(local_x: float, style_index: int) -> float:
     arch_mode = 1.0 if style_index == 3 else 0.0
     arch_center = semi_mode * 0.64 + straight_mode * 0.64 + arch_mode * 0.64
     arch_strength = semi_mode * 0.18 + straight_mode * 0.05 + arch_mode * 0.32
-    head_soft = (1.0 - smoothstep(local_x / 0.24)) * 0.20
+    head_soft = (1.0 - smoothstep(local_x / 0.24)) * 0.28
     body = smoothstep((local_x - 0.05) / 0.29) * (1.0 - smoothstep((local_x - TAIL_START) / (1.0 - TAIL_START))) * 0.78
     arch = (1.0 - smoothstep(abs(local_x - arch_center) / 0.24)) * arch_strength
     tail_fade = (1.0 - smoothstep((local_x - TAIL_START) / (1.0 - TAIL_START))) * 0.16
@@ -501,6 +501,24 @@ def make_shader_like_fill(
                 fill_pixels[x, y] = color + (int(source_alpha * density * tapered),)
 
     return fill
+
+
+def draw_boundary_only(
+    face: Image.Image,
+    left_polygon: list[tuple[float, float]],
+    right_polygon: list[tuple[float, float]],
+    crop_box: tuple[int, int, int, int],
+) -> Image.Image:
+    canvas = face.copy()
+    draw = ImageDraw.Draw(canvas)
+    for polygon in (left_polygon, right_polygon):
+        draw.line(
+            polygon + [polygon[0]],
+            fill=(255, 0, 0, 255),
+            width=3,
+            joint="curve",
+        )
+    return canvas.crop(crop_box)
 
 
 def extract_reference_red_points(
@@ -642,6 +660,7 @@ def render(args: argparse.Namespace) -> None:
     crop_box = (40, 390, 825, 650)
     debug_rows = []
     clean_rows = []
+    boundary_rows = []
     style_summaries = []
     reference_compare = None
 
@@ -668,6 +687,12 @@ def render(args: argparse.Namespace) -> None:
                 "rightMetrics": right_metrics,
                 "commercialShapeGate": gate,
             }
+        )
+
+        boundary_crop = draw_boundary_only(face, left_polygon, right_polygon, crop_box)
+        boundary_rows.append(boundary_crop)
+        boundary_crop.save(
+            out_dir / f"boundary_only_{style_index}_{style_name.replace(' ', '_')}_{args.version}.png"
         )
 
         for debug in (False, True):
@@ -729,12 +754,14 @@ def render(args: argparse.Namespace) -> None:
 
     debug_sheet = save_sheet(debug_rows, f"debug_boundary_fill_3style_{args.version}_makeup_envelope.png")
     clean_sheet = save_sheet(clean_rows, f"clean_boundary_fill_3style_{args.version}_makeup_envelope.png")
+    boundary_sheet = save_sheet(boundary_rows, f"boundary_only_3style_{args.version}_spline_envelope.png")
     (out_dir / "summary.json").write_text(
         json.dumps(
             {
                 "version": args.version,
                 "debugSheet": str(debug_sheet),
                 "cleanSheet": str(clean_sheet),
+                "boundaryOnlySheet": str(boundary_sheet),
                 "constants": {
                     "H": 0.0,
                     "B": CONTROL_BODY,
@@ -743,6 +770,20 @@ def render(args: argparse.Namespace) -> None:
                     "tailRoot": TAIL_ROOT,
                     "T": 1.0,
                     "bodyEnd": BODY_END,
+                },
+                "spline": {
+                    "controlPointMode": "head_body_arch_tail_cubic_spline",
+                    "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from spline controls",
+                    "knots": list(SPLINE_KNOTS),
+                    "topControls": {str(key): list(value) for key, value in SPLINE_TOPS.items()},
+                    "bottomControls": {str(key): list(value) for key, value in SPLINE_BOTTOMS.items()},
+                    "anchors": {
+                        "H": 0.0,
+                        "B": CONTROL_BODY,
+                        "A/S": ARCH,
+                        "R": TAIL_ROOT,
+                        "T": 1.0,
+                    },
                 },
                 "styles": style_summaries,
                 "referenceCompare": reference_compare,
@@ -753,6 +794,7 @@ def render(args: argparse.Namespace) -> None:
     )
     print(debug_sheet)
     print(clean_sheet)
+    print(boundary_sheet)
 
 
 def main() -> None:
