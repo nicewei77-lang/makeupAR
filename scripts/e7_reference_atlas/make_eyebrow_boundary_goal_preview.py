@@ -24,16 +24,26 @@ ARCH = 0.64
 TAIL_START = ARCH
 TAIL_ROOT = 0.985
 CONTROL_BODY = 0.42
-SPLINE_KNOTS = (0.0, CONTROL_BODY, ARCH, 1.0)
-SPLINE_TOPS = {
-    1: (0.40, 0.14, 0.05, 0.44),
-    2: (0.41, 0.28, 0.26, 0.43),
-    3: (0.40, 0.11, -0.02, 0.46),
+BODY_KNOTS = (0.0, CONTROL_BODY, ARCH)
+TOP_BODY_CONTROLS = {
+    1: (0.40, 0.14, 0.05),
+    2: (0.41, 0.28, 0.26),
+    3: (0.40, 0.11, -0.02),
 }
-SPLINE_BOTTOMS = {
-    1: (0.92, 0.71, 0.66, 0.55),
-    2: (0.90, 0.71, 0.66, 0.55),
-    3: (0.94, 0.71, 0.66, 0.57),
+BOTTOM_BODY_CONTROLS = {
+    1: (0.92, 0.71, 0.66),
+    2: (0.90, 0.71, 0.66),
+    3: (0.94, 0.71, 0.66),
+}
+TOP_TAIL_CONTROLS = {
+    1: (0.05, 0.13, 0.36, 0.44),
+    2: (0.26, 0.30, 0.39, 0.43),
+    3: (-0.02, 0.10, 0.38, 0.46),
+}
+BOTTOM_TAIL_CONTROLS = {
+    1: (0.66, 0.64, 0.58, 0.55),
+    2: (0.66, 0.64, 0.58, 0.55),
+    3: (0.66, 0.63, 0.59, 0.57),
 }
 
 COMMERCIAL_SHAPE_TARGETS = {
@@ -105,12 +115,67 @@ def evaluate_cubic_spline(
     return h00 * values[index - 1] + h10 * m0 + h01 * values[index] + h11 * m1
 
 
+def evaluate_cubic_bezier(
+    amount: float,
+    values: tuple[float, float, float, float],
+) -> float:
+    amount = max(0.0, min(1.0, amount))
+    inverse = 1.0 - amount
+    return (
+        inverse * inverse * inverse * values[0]
+        + 3.0 * inverse * inverse * amount * values[1]
+        + 3.0 * inverse * amount * amount * values[2]
+        + amount * amount * amount * values[3]
+    )
+
+
 def evaluate_style_top(progress: float, style_index: int) -> float:
-    return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_TOPS.get(style_index, SPLINE_TOPS[1]))
+    if progress <= ARCH:
+        return evaluate_cubic_spline(
+            progress,
+            BODY_KNOTS,
+            TOP_BODY_CONTROLS.get(style_index, TOP_BODY_CONTROLS[1]),
+        )
+    return evaluate_cubic_bezier(
+        (progress - ARCH) / (1.0 - ARCH),
+        TOP_TAIL_CONTROLS.get(style_index, TOP_TAIL_CONTROLS[1]),
+    )
 
 
 def evaluate_style_bottom(progress: float, style_index: int) -> float:
-    return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_BOTTOMS.get(style_index, SPLINE_BOTTOMS[1]))
+    if progress <= ARCH:
+        return evaluate_cubic_spline(
+            progress,
+            BODY_KNOTS,
+            BOTTOM_BODY_CONTROLS.get(style_index, BOTTOM_BODY_CONTROLS[1]),
+        )
+    return evaluate_cubic_bezier(
+        (progress - ARCH) / (1.0 - ARCH),
+        BOTTOM_TAIL_CONTROLS.get(style_index, BOTTOM_TAIL_CONTROLS[1]),
+    )
+
+
+def evaluate_curve_x(
+    progress: float,
+    screen_left: bool,
+    shaped_left: float,
+    shaped_right: float,
+    shape_width: float,
+    top_line: bool,
+) -> float:
+    direction_to_tail = -1.0 if screen_left else 1.0
+    head_x = shaped_right if screen_left else shaped_left
+    tail_x = shaped_left if screen_left else shaped_right
+    arch_x = lerp(head_x, tail_x, ARCH)
+    if progress <= ARCH:
+        axis_x = lerp(head_x, arch_x, progress / ARCH)
+        head_influence = 1.0 - smoothstep(progress / 0.18)
+        return axis_x + direction_to_tail * shape_width * (0.028 if top_line else 0.006) * head_influence
+
+    amount = (progress - ARCH) / (1.0 - ARCH)
+    c1 = arch_x + direction_to_tail * shape_width * (0.13 if top_line else 0.20)
+    c2 = tail_x - direction_to_tail * shape_width * (0.20 if top_line else 0.07)
+    return evaluate_cubic_bezier(amount, (arch_x, c1, c2, tail_x))
 
 
 def bounds(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
@@ -185,28 +250,12 @@ def shape_boundary(
     bottom_points: list[tuple[float, float]] = []
     for index in range(POINT_COUNT):
         ratio = index / (POINT_COUNT - 1)
-        x = lerp(shaped_left, shaped_right, ratio)
         progress = 1.0 - ratio if screen_left else ratio
         top_y = top_anchor + height * evaluate_style_top(progress, style_index)
         bottom_y = top_anchor + height * evaluate_style_bottom(progress, style_index)
-        direction_to_tail_x = -1.0 if screen_left else 1.0
-        head_influence = 1.0 - smoothstep(progress / 0.18)
         tail_influence = smoothstep((progress - TAIL_START) / (1.0 - TAIL_START))
-        top_x = (
-            x
-            + direction_to_tail_x * shape_width * 0.028 * head_influence
-            - direction_to_tail_x * shape_width * 0.015 * tail_influence
-        )
-        bottom_x = (
-            x
-            + direction_to_tail_x * shape_width * 0.006 * head_influence
-            + direction_to_tail_x * shape_width * 0.018 * tail_influence
-        )
-        tail_tip_influence = smoothstep((progress - TAIL_START) / (1.0 - TAIL_START))
-        tail_tip_x = x + direction_to_tail_x * shape_width * 0.004
-        tail_tip_blend = tail_tip_influence * 0.72
-        top_x = lerp(top_x, tail_tip_x, tail_tip_blend)
-        bottom_x = lerp(bottom_x, tail_tip_x, tail_tip_blend)
+        top_x = evaluate_curve_x(progress, screen_left, shaped_left, shaped_right, shape_width, True)
+        bottom_x = evaluate_curve_x(progress, screen_left, shaped_left, shaped_right, shape_width, False)
         min_thickness = height * lerp(0.060, 0.145, 1.0 - tail_influence)
         if bottom_y < top_y + min_thickness:
             bottom_y = top_y + min_thickness
@@ -703,12 +752,14 @@ def render(args: argparse.Namespace) -> None:
                     "T": 1.0,
                     "bodyEnd": BODY_END,
                 },
-                "spline": {
-                    "controlPointMode": "head_body_arch_tail_cubic_spline",
-                    "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from spline controls",
-                    "knots": list(SPLINE_KNOTS),
-                    "topControls": {str(key): list(value) for key, value in SPLINE_TOPS.items()},
-                    "bottomControls": {str(key): list(value) for key, value in SPLINE_BOTTOMS.items()},
+                "curve": {
+                    "controlPointMode": "head_body_arch_body_spline_plus_arch_tail_bezier",
+                    "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from smooth makeup curve controls",
+                    "bodyKnots": list(BODY_KNOTS),
+                    "topBodyControls": {str(key): list(value) for key, value in TOP_BODY_CONTROLS.items()},
+                    "bottomBodyControls": {str(key): list(value) for key, value in BOTTOM_BODY_CONTROLS.items()},
+                    "topTailBezierControls": {str(key): list(value) for key, value in TOP_TAIL_CONTROLS.items()},
+                    "bottomTailBezierControls": {str(key): list(value) for key, value in BOTTOM_TAIL_CONTROLS.items()},
                     "anchors": {
                         "H": 0.0,
                         "B": CONTROL_BODY,
