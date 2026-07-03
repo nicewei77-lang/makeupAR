@@ -24,9 +24,6 @@ ARCH = 0.64
 TAIL_START = ARCH
 TAIL_ROOT = 0.985
 CONTROL_BODY = 0.42
-PROFILE_KNOTS = (0.0, 0.08, 0.16, 0.24, 0.42, 0.62, 0.64, 0.78, 0.90, 0.985, 1.0)
-SEMI_ARCH_TOP_PROFILE = (0.42, 0.30, 0.22, 0.16, 0.10, 0.08, 0.04, 0.12, 0.24, 0.34, 0.40)
-SEMI_ARCH_BOTTOM_PROFILE = (0.86, 0.80, 0.75, 0.72, 0.70, 0.69, 0.67, 0.63, 0.57, 0.51, 0.50)
 SPLINE_KNOTS = (0.0, CONTROL_BODY, ARCH, 1.0)
 SPLINE_TOPS = {
     1: (0.40, 0.14, 0.05, 0.44),
@@ -49,26 +46,14 @@ STYLES = {
     1: (
         "semi arch",
         (0.90, 0.165, 0.004, 0.202, 0.015),
-        (0.83, 0.70, 0.62, 0.45, 0.52, 0.58, 0.76),
-        (0.18, 0.76, 0.70, 0.52, 0.29, 0.16, 0.040),
-        (0.38, 0.30, 0.18, 0.16, 0.30, 0.42, 0.52),
-        (0.89, 0.76, 0.68, 0.66, 0.66, 0.64, 0.62),
     ),
     2: (
         "straight",
         (0.88, 0.150, 0.000, 0.198, 0.020),
-        (0.80, 0.72, 0.70, 0.68, 0.70, 0.72, 0.77),
-        (0.18, 0.76, 0.70, 0.54, 0.30, 0.16, 0.040),
-        (0.50, 0.27, 0.24, 0.22, 0.32, 0.44, 0.50),
-        (0.86, 0.73, 0.72, 0.71, 0.68, 0.62, 0.63),
     ),
     3: (
         "arch",
         (0.92, 0.180, 0.008, 0.204, 0.000),
-        (0.85, 0.70, 0.56, 0.36, 0.44, 0.50, 0.76),
-        (0.18, 0.76, 0.70, 0.50, 0.28, 0.15, 0.040),
-        (0.40, 0.13, 0.04, -0.04, 0.10, 0.32, 0.50),
-        (0.90, 0.74, 0.71, 0.69, 0.65, 0.60, 0.62),
     ),
 }
 
@@ -80,59 +65,6 @@ def smoothstep(value: float) -> float:
 
 def lerp(start: float, end: float, amount: float) -> float:
     return start + (end - start) * amount
-
-
-def evaluate_curve(progress: float, values: tuple[float, ...]) -> float:
-    head, body_start, body_end, arch, tail_start, tail_root, tail = values
-    progress = max(0.0, min(1.0, progress))
-    if progress <= HEAD_BODY:
-        return lerp(head, body_start, smoothstep(progress / HEAD_BODY))
-    if progress <= BODY_END:
-        return lerp(
-            body_start,
-            body_end,
-            smoothstep((progress - HEAD_BODY) / (BODY_END - HEAD_BODY)),
-        )
-    if progress <= ARCH:
-        return lerp(
-            body_end,
-            arch,
-            smoothstep((progress - BODY_END) / (ARCH - BODY_END)),
-        )
-    if progress <= TAIL_START:
-        return lerp(
-            arch,
-            tail_start,
-            smoothstep((progress - ARCH) / (TAIL_START - ARCH)),
-        )
-    if progress <= TAIL_ROOT:
-        return lerp(
-            tail_start,
-            tail_root,
-            smoothstep((progress - TAIL_START) / (TAIL_ROOT - TAIL_START)),
-        )
-    return lerp(
-        tail_root,
-        tail,
-        smoothstep((progress - TAIL_ROOT) / (1.0 - TAIL_ROOT)),
-    )
-
-
-def evaluate_profile_curve(
-    progress: float,
-    knots: tuple[float, ...],
-    values: tuple[float, ...],
-) -> float:
-    progress = max(0.0, min(1.0, progress))
-    if progress <= knots[0]:
-        return values[0]
-    for index in range(1, len(knots)):
-        if progress <= knots[index]:
-            start = knots[index - 1]
-            end = knots[index]
-            amount = 0.0 if end <= start else smoothstep((progress - start) / (end - start))
-            return lerp(values[index - 1], values[index], amount)
-    return values[-1]
 
 
 def evaluate_cubic_spline(
@@ -173,11 +105,11 @@ def evaluate_cubic_spline(
     return h00 * values[index - 1] + h10 * m0 + h01 * values[index] + h11 * m1
 
 
-def evaluate_style_top(progress: float, style_index: int, values: tuple[float, ...]) -> float:
+def evaluate_style_top(progress: float, style_index: int) -> float:
     return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_TOPS.get(style_index, SPLINE_TOPS[1]))
 
 
-def evaluate_style_bottom(progress: float, style_index: int, values: tuple[float, ...]) -> float:
+def evaluate_style_bottom(progress: float, style_index: int) -> float:
     return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_BOTTOMS.get(style_index, SPLINE_BOTTOMS[1]))
 
 
@@ -221,7 +153,7 @@ def shape_boundary(
     left, top, right, bottom = bounds(source_points)
     width = max(1.0, right - left)
     source_height = max(1.0, bottom - top)
-    _, profile, center_values, thickness_values, top_values, bottom_values = STYLES[style_index]
+    _, profile = STYLES[style_index]
     width_scale, height_ratio, tail_extend_ratio, head_trim_ratio, bottom_lift = profile
 
     adjusted_width = width * width_scale
@@ -255,8 +187,8 @@ def shape_boundary(
         ratio = index / (POINT_COUNT - 1)
         x = lerp(shaped_left, shaped_right, ratio)
         progress = 1.0 - ratio if screen_left else ratio
-        top_y = top_anchor + height * evaluate_style_top(progress, style_index, top_values)
-        bottom_y = top_anchor + height * evaluate_style_bottom(progress, style_index, bottom_values)
+        top_y = top_anchor + height * evaluate_style_top(progress, style_index)
+        bottom_y = top_anchor + height * evaluate_style_bottom(progress, style_index)
         direction_to_tail_x = -1.0 if screen_left else 1.0
         head_influence = 1.0 - smoothstep(progress / 0.18)
         tail_influence = smoothstep((progress - TAIL_START) / (1.0 - TAIL_START))

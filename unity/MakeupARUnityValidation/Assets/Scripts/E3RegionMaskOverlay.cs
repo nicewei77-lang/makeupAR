@@ -273,18 +273,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const float EyebrowTailRootProgress = 0.985f;
     private const float EyebrowTailTaperStartProgress = EyebrowTailStartProgress;
     private const float EyebrowControlBodyProgress = 0.42f;
-    private static readonly float[] EyebrowSemiArchProfileKnots =
-    {
-        0.0f, 0.08f, 0.16f, 0.24f, 0.42f, 0.62f, 0.64f, 0.78f, 0.90f, 0.985f, 1.0f
-    };
-    private static readonly float[] EyebrowSemiArchTopProfile =
-    {
-        0.42f, 0.30f, 0.22f, 0.16f, 0.10f, 0.08f, 0.04f, 0.12f, 0.24f, 0.34f, 0.40f
-    };
-    private static readonly float[] EyebrowSemiArchBottomProfile =
-    {
-        0.86f, 0.80f, 0.75f, 0.72f, 0.70f, 0.69f, 0.67f, 0.63f, 0.57f, 0.51f, 0.50f
-    };
     private static readonly float[] EyebrowSplineKnots =
     {
         0.0f, EyebrowControlBodyProgress, EyebrowArchProgress, 1.0f
@@ -3796,34 +3784,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         }
     }
 
-    private static float EvaluateEyebrowStyleCenter(float progressFromHead, int styleIndex)
-    {
-        switch (styleIndex)
-        {
-            case 2:
-                return EvaluateEyebrowCurve(progressFromHead, 0.80f, 0.72f, 0.70f, 0.68f, 0.70f, 0.72f, 0.77f);
-            case 3:
-                return EvaluateEyebrowCurve(progressFromHead, 0.85f, 0.70f, 0.56f, 0.36f, 0.44f, 0.50f, 0.76f);
-            case 1:
-            default:
-                return EvaluateEyebrowCurve(progressFromHead, 0.83f, 0.70f, 0.62f, 0.45f, 0.52f, 0.58f, 0.76f);
-        }
-    }
-
-    private static float EvaluateEyebrowStyleThickness(float progressFromHead, int styleIndex)
-    {
-        switch (styleIndex)
-        {
-            case 2:
-                return EvaluateEyebrowCurve(progressFromHead, 0.18f, 0.76f, 0.70f, 0.54f, 0.30f, 0.16f, 0.040f);
-            case 3:
-                return EvaluateEyebrowCurve(progressFromHead, 0.18f, 0.76f, 0.70f, 0.50f, 0.28f, 0.15f, 0.040f);
-            case 1:
-            default:
-                return EvaluateEyebrowCurve(progressFromHead, 0.18f, 0.76f, 0.70f, 0.52f, 0.29f, 0.16f, 0.040f);
-        }
-    }
-
     private static float EvaluateEyebrowCubicSpline(float progress, float[] values)
     {
         if (values == null || values.Length != EyebrowSplineKnots.Length)
@@ -3879,108 +3839,6 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         float span = EyebrowSplineKnots[index + 1] - EyebrowSplineKnots[index - 1];
         return span <= 0.0f ? 0.0f : (values[index + 1] - values[index - 1]) / span;
-    }
-
-    private static float EvaluateEyebrowCurve(
-        float progress,
-        float head,
-        float bodyStart,
-        float bodyEnd,
-        float arch,
-        float tailStart,
-        float tailRoot,
-        float tail)
-    {
-        progress = Mathf.Clamp01(progress);
-        if (progress <= EyebrowHeadBodySplitProgress)
-        {
-            return Mathf.Lerp(
-                head,
-                bodyStart,
-                SmoothStep01(progress / EyebrowHeadBodySplitProgress));
-        }
-
-        if (progress <= EyebrowBodyEndProgress)
-        {
-            return Mathf.Lerp(
-                bodyStart,
-                bodyEnd,
-                SmoothStep01(
-                    (progress - EyebrowHeadBodySplitProgress)
-                    / (EyebrowBodyEndProgress - EyebrowHeadBodySplitProgress)));
-        }
-
-        if (progress <= EyebrowArchProgress)
-        {
-            return Mathf.Lerp(
-                bodyEnd,
-                arch,
-                SmoothStep01(
-                    (progress - EyebrowBodyEndProgress)
-                    / (EyebrowArchProgress - EyebrowBodyEndProgress)));
-        }
-
-        if (progress <= EyebrowTailStartProgress)
-        {
-            return Mathf.Lerp(
-                arch,
-                tailStart,
-                SmoothStep01(
-                    (progress - EyebrowArchProgress)
-                    / (EyebrowTailStartProgress - EyebrowArchProgress)));
-        }
-
-        if (progress <= EyebrowTailRootProgress)
-        {
-            return Mathf.Lerp(
-                tailStart,
-                tailRoot,
-                SmoothStep01(
-                    (progress - EyebrowTailStartProgress)
-                    / (EyebrowTailRootProgress - EyebrowTailStartProgress)));
-        }
-
-        return Mathf.Lerp(
-            tailRoot,
-            tail,
-            SmoothStep01(
-                (progress - EyebrowTailRootProgress)
-                / (1.0f - EyebrowTailRootProgress)));
-    }
-
-    private static float EvaluateEyebrowProfileCurve(
-        float progress,
-        float[] knots,
-        float[] values)
-    {
-        progress = Mathf.Clamp01(progress);
-        if (knots == null
-            || values == null
-            || knots.Length == 0
-            || knots.Length != values.Length)
-        {
-            return 0.0f;
-        }
-
-        if (progress <= knots[0])
-        {
-            return values[0];
-        }
-
-        for (int index = 1; index < knots.Length; index++)
-        {
-            if (progress <= knots[index])
-            {
-                float start = knots[index - 1];
-                float end = knots[index];
-                float amount = end <= start
-                    ? 0.0f
-                    : SmoothStep01((progress - start) / (end - start));
-                return Mathf.Lerp(values[index - 1], values[index], amount);
-            }
-        }
-
-        return values[values.Length - 1];
     }
 
     private static float SmoothStep01(float value)
