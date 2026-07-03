@@ -1003,10 +1003,16 @@ def render(args: argparse.Namespace) -> None:
         json.dumps(
             {
                 "version": args.version,
-                "debugSheet": str(debug_sheet),
-                "cleanSheet": str(clean_sheet),
+                "primaryApprovalSheet": str(boundary_sheet),
+                "previewGate": {
+                    "status": "line_only_first",
+                    "instruction": "Review the red boundary-only sheet before using fill, texture, or Unity build evidence.",
+                    "fillTextureBuildBlockedUntilBoundaryApproval": True,
+                },
                 "boundaryOnlySheet": str(boundary_sheet),
                 "curveDebugSheet": str(curve_debug_sheet),
+                "debugSheet": str(debug_sheet),
+                "cleanSheet": str(clean_sheet),
                 "constants": {
                     "H": 0.0,
                     "B": CONTROL_BODY,
@@ -1041,10 +1047,10 @@ def render(args: argparse.Namespace) -> None:
             indent=2,
         )
     )
-    print(debug_sheet)
-    print(clean_sheet)
     print(boundary_sheet)
     print(curve_debug_sheet)
+    print(debug_sheet)
+    print(clean_sheet)
 
 
 def main() -> None:
