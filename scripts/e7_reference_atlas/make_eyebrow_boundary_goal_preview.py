@@ -95,6 +95,11 @@ UNITY_ARRAY_CONSTANTS = {
     "EyebrowStraightBottomTail": BOTTOM_TAIL_CONTROLS[2],
     "EyebrowArchBottomTail": BOTTOM_TAIL_CONTROLS[3],
 }
+DEFAULT_REFERENCE_BOUNDARY = Path(
+    "evidence/e7-reference-atlas/virtual-makeup-eyebrow-reference-v1/"
+    "clean_boundary_user_red_body_v7.png"
+)
+REFERENCE_DELTA_WARN_THRESHOLD = 0.10
 
 
 def smoothstep(value: float) -> float:
@@ -841,6 +846,39 @@ def compare_polygon_to_red_profile(
     }
 
 
+def resolve_reference_boundary(root: Path, reference_boundary: str) -> Path | None:
+    if reference_boundary.strip().lower() in {"", "none", "off", "false"}:
+        return None
+    path = Path(reference_boundary)
+    if not path.is_absolute():
+        path = root / path
+    return path if path.exists() else None
+
+
+def reference_compare_gate(reference_compare: dict[str, object] | None) -> dict[str, object]:
+    if not reference_compare:
+        return {
+            "status": "missing_optional_reference",
+            "threshold": REFERENCE_DELTA_WARN_THRESHOLD,
+        }
+
+    deltas: list[float] = []
+    for side in ("left", "right"):
+        side_result = reference_compare.get(side)
+        if not isinstance(side_result, dict):
+            continue
+        for key in ("topMeanDeltaNorm", "bottomMeanDeltaNorm"):
+            value = side_result.get(key)
+            if isinstance(value, (int, float)):
+                deltas.append(float(value))
+    max_delta = max(deltas) if deltas else 1.0
+    return {
+        "status": "pass" if max_delta <= REFERENCE_DELTA_WARN_THRESHOLD else "check",
+        "threshold": REFERENCE_DELTA_WARN_THRESHOLD,
+        "maxDeltaNorm": round(max_delta, 4),
+    }
+
+
 def write_reference_compare(
     out_dir: Path,
     reference_path: Path,
@@ -894,6 +932,7 @@ def render(args: argparse.Namespace) -> None:
     boundary_rows = []
     curve_debug_rows = []
     style_summaries = []
+    reference_boundary_path = resolve_reference_boundary(root, args.reference_boundary)
     reference_compare = None
 
     for style_index in (1, 2, 3):
@@ -904,10 +943,10 @@ def render(args: argparse.Namespace) -> None:
         left_metrics = boundary_shape_metrics(left_polygon, True)
         right_metrics = boundary_shape_metrics(right_polygon, False)
         gate = evaluate_commercial_shape_gate(style_name, left_metrics, right_metrics)
-        if style_index == 1 and args.reference_boundary:
+        if style_index == 1 and reference_boundary_path:
             reference_compare = write_reference_compare(
                 out_dir,
-                Path(args.reference_boundary),
+                reference_boundary_path,
                 left_polygon,
                 right_polygon,
             )
@@ -999,6 +1038,7 @@ def render(args: argparse.Namespace) -> None:
     clean_sheet = save_sheet(clean_rows, f"clean_boundary_fill_3style_{args.version}_makeup_envelope.png")
     boundary_sheet = save_sheet(boundary_rows, f"boundary_only_3style_{args.version}_spline_envelope.png")
     curve_debug_sheet = save_sheet(curve_debug_rows, f"curve_debug_3style_{args.version}_body_tail.png")
+    compare_gate = reference_compare_gate(reference_compare)
     (out_dir / "summary.json").write_text(
         json.dumps(
             {
@@ -1008,6 +1048,8 @@ def render(args: argparse.Namespace) -> None:
                     "status": "line_only_first",
                     "instruction": "Review the red boundary-only sheet before using fill, texture, or Unity build evidence.",
                     "fillTextureBuildBlockedUntilBoundaryApproval": True,
+                    "referenceBoundary": str(reference_boundary_path) if reference_boundary_path else None,
+                    "referenceCompareGate": compare_gate,
                 },
                 "boundaryOnlySheet": str(boundary_sheet),
                 "curveDebugSheet": str(curve_debug_sheet),
@@ -1060,7 +1102,7 @@ def main() -> None:
     parser.add_argument("--alpha", type=int, default=150)
     parser.add_argument("--blur", type=float, default=1.45)
     parser.add_argument("--color", type=int, nargs=3, default=(62, 43, 34))
-    parser.add_argument("--reference-boundary", default="")
+    parser.add_argument("--reference-boundary", default=str(DEFAULT_REFERENCE_BOUNDARY))
     render(parser.parse_args())
 
 
