@@ -508,6 +508,7 @@ const UNITY_EVENT_TYPES = [
   'e7_reference_capture',
   'e7_vision_lip_boundary',
   'e7_mediapipe_eyebrow_boundary',
+  'e7_mediapipe_eyebrow_styled_boundary',
   'recipe_applied',
 ] as const;
 
@@ -1299,6 +1300,8 @@ function UnityScreen({ entryCount, exitCount, onClose }: UnityScreenProps) {
             ? '[E7] rn_vision_lip_boundary_received'
             : parsed.type === 'e7_mediapipe_eyebrow_boundary'
             ? '[E7] rn_mediapipe_eyebrow_boundary_received'
+            : parsed.type === 'e7_mediapipe_eyebrow_styled_boundary'
+            ? '[E7] rn_mediapipe_eyebrow_styled_boundary_received'
             : parsed.type === 'recipe_applied'
             ? '[E7] rn_recipe_applied_received'
             : parsed.type === 'face_lifecycle'
@@ -2294,6 +2297,10 @@ function formatUnityEvent(event: UnityEventPayload) {
       return `e7_mediapipe_eyebrow_boundary ${formatE7MediaPipeEyebrowBoundarySummary(
         event,
       )}`;
+    case 'e7_mediapipe_eyebrow_styled_boundary':
+      return `e7_mediapipe_eyebrow_styled_boundary ${formatE7MediaPipeEyebrowStyledBoundarySummary(
+        event,
+      )}`;
     case 'recipe_applied':
       return formatRecipeAppliedSummary(event);
     default:
@@ -2371,6 +2378,10 @@ function formatUnityEventTypeStatus(
       return `e7_mediapipe_eyebrow_boundary: ${formatE7MediaPipeEyebrowBoundarySummary(
         parsed,
       )} ${event.receivedAt}`;
+    case 'e7_mediapipe_eyebrow_styled_boundary':
+      return `e7_mediapipe_eyebrow_styled_boundary: ${formatE7MediaPipeEyebrowStyledBoundarySummary(
+        parsed,
+      )} ${event.receivedAt}`;
     case 'recipe_applied':
       return `${formatRecipeAppliedSummary(parsed)} ${event.receivedAt}`;
   }
@@ -2396,6 +2407,42 @@ function formatE7MediaPipeEyebrowBoundarySummary(event: UnityEventPayload) {
     event.faceMotionScore,
     3,
   )}/${String(event.faceMotionRisk ?? 'n/a')} privacy raw=${String(
+    event.rawCameraFrameStored ?? false,
+  )} offDevice=${String(event.offDeviceUpload ?? false)}`;
+}
+
+function formatE7MediaPipeEyebrowStyledBoundarySummary(
+  event: UnityEventPayload,
+) {
+  return `status=${String(event.status ?? 'unknown')} available=${String(
+    event.available ?? false,
+  )} coord=${String(event.coordinateMode ?? 'styled-screen')} mode=${String(
+    event.controlPointMode ?? 'n/a',
+  )} points=${String(event.leftOuterPointCount ?? 'n/a')}/${String(
+    event.rightOuterPointCount ?? 'n/a',
+  )} split=H:${formatMetricNumber(
+    event.headBodySplitProgress,
+    2,
+  )}/B:${formatMetricNumber(event.bodyEndProgress, 2)}/A:${formatMetricNumber(
+    event.archProgress,
+    2,
+  )}/S:${formatMetricNumber(
+    event.tailStartProgress,
+    2,
+  )}/root:${formatMetricNumber(
+    event.tailRootProgress,
+    2,
+  )}/taper:${formatMetricNumber(event.tailTaperStartProgress, 2)} left=${String(
+    event.leftControls ?? 'none',
+  )} right=${String(event.rightControls ?? 'none')} shape=L:${String(
+    event.leftShapeMetrics ?? 'none',
+  )}/R:${String(event.rightShapeMetrics ?? 'none')} gate=${String(
+    event.shapeGateStatus ?? 'unknown',
+  )}/${String(event.shapeGateChecks ?? 'none')} uv=${String(
+    event.hitTriangles ?? 'n/a',
+  )}/${String(event.candidateTriangles ?? 'n/a')} active=${String(
+    event.activePixels ?? 'n/a',
+  )}/${formatMetricNumber(event.activeCoverage, 4)} privacy raw=${String(
     event.rawCameraFrameStored ?? false,
   )} offDevice=${String(event.offDeviceUpload ?? false)}`;
 }

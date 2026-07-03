@@ -437,6 +437,11 @@ public sealed class RNBridge : MonoBehaviour
         SendUnityEvent(json, "[E7]");
     }
 
+    public void SendE7MediaPipeEyebrowStyledBoundaryEvent(string json)
+    {
+        SendUnityEvent(json, "[E7]");
+    }
+
     public void SetE7RegionOverlayVisibleJson(string json)
     {
         try
@@ -619,7 +624,7 @@ public sealed class RNBridge : MonoBehaviour
             regionMaskOverlay = gameObject.AddComponent<E3RegionMaskOverlay>();
         }
 
-        regionMaskOverlay.Configure(faceManager);
+        regionMaskOverlay.Configure(faceManager, this);
     }
 
     private void EnsureReferenceCaptureExporter()

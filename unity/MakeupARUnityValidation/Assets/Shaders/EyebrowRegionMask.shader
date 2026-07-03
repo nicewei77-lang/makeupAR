@@ -112,7 +112,7 @@ Shader "MakeupAR/EyebrowRegionMask"
         float BrowEndTaper(float localX)
         {
             float headTaper = lerp(0.34, 1.0, smoothstep(0.00, 0.20, localX));
-            float tailTaper = 1.0 - smoothstep(0.78, 1.0, localX);
+            float tailTaper = lerp(1.0, 0.38, smoothstep(0.64, 1.0, localX));
             return saturate(headTaper * tailTaper);
         }
 
@@ -121,14 +121,14 @@ Shader "MakeupAR/EyebrowRegionMask"
             float semiMode = 1.0 - saturate(abs(_BrowShapeMode - 0.0));
             float straightMode = 1.0 - saturate(abs(_BrowShapeMode - 1.0));
             float archMode = 1.0 - saturate(abs(_BrowShapeMode - 2.0));
-            float archCenter = semiMode * 0.64 + straightMode * 0.50 + archMode * 0.70;
+            float archCenter = semiMode * 0.64 + straightMode * 0.64 + archMode * 0.64;
             float archStrength = semiMode * 0.18 + straightMode * 0.05 + archMode * 0.32;
-            float headSoft = (1.0 - smoothstep(0.00, 0.24, localX)) * 0.28;
+            float headSoft = (1.0 - smoothstep(0.00, 0.24, localX)) * 0.20;
             float body = smoothstep(0.05, 0.34, localX)
-                * (1.0 - smoothstep(0.84, 1.0, localX))
-                * 0.56;
+                * (1.0 - smoothstep(0.64, 1.0, localX))
+                * 0.78;
             float arch = (1.0 - smoothstep(0.00, 0.24, abs(localX - archCenter))) * archStrength;
-            float tailFade = (1.0 - smoothstep(0.74, 1.0, localX)) * 0.18;
+            float tailFade = (1.0 - smoothstep(0.64, 1.0, localX)) * 0.16;
             return saturate(headSoft + body + arch + tailFade);
         }
 
@@ -248,7 +248,7 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float shapeDensity = BrowShapeDensity(localX);
                 float alpha = saturate(
                     coverage
-                    * (0.075 + shapeDensity * 0.170 + source * 0.070)
+                    * (0.220 + shapeDensity * 0.720 + source * 0.020)
                     * _TintStrength
                     * _Opacity
                     * _VisibilityAlpha
@@ -278,9 +278,9 @@ Shader "MakeupAR/EyebrowRegionMask"
                 float source = SourceDensity(BrowSourceUv(localX, localY, leftSide));
 
                 float shapeDensity = BrowShapeDensity(localX);
-                float softFill = saturate(coverage * (0.08 + source * 0.42 + shapeDensity * 0.105) * _TintStrength);
+                float softFill = saturate(coverage * (0.030 + source * 0.120 + shapeDensity * 0.035) * _TintStrength);
                 float strands = saturate(BoundaryCoverage(input.boundaryUv) * sqrt(endTaper) * source * _StrandStrength);
-                float strength = saturate((softFill * 0.88 + strands * 1.28) * _Opacity * _VisibilityAlpha * _Coverage);
+                float strength = saturate((softFill * 0.35 + strands * 0.72) * _Opacity * _VisibilityAlpha * _Coverage);
                 float3 darkBrow = saturate(lerp(_RegionColor.rgb, float3(0.06, 0.045, 0.038), 0.10));
                 float3 multiplyFilter = lerp(float3(1.0, 1.0, 1.0), darkBrow, strength);
                 return fixed4(multiplyFilter, 1.0);

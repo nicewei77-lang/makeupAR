@@ -565,6 +565,61 @@ test('surfaces MediaPipe eyebrow boundary diagnostics from Unity events', async 
   expect(text).toContain('privacy raw=false offDevice=false');
 });
 
+test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async () => {
+  let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
+
+  await ReactTestRenderer.act(() => {
+    renderer = ReactTestRenderer.create(<App />);
+  });
+  enterUnityScreen(renderer!);
+
+  sendUnityMessage(renderer!, {
+    type: 'e7_mediapipe_eyebrow_styled_boundary',
+    status: 'ok',
+    available: true,
+    coordinateMode:
+      'mediapipe-image-top-left->screen->face-local-warp->brow-style-1',
+    leftOuterPointCount: 144,
+    rightOuterPointCount: 144,
+    controlPointMode: 'head_body_arch_tailStart_tail_styled',
+    headBodySplitProgress: 0.2,
+    bodyEndProgress: 0.62,
+    archProgress: 0.64,
+    tailStartProgress: 0.64,
+    tailRootProgress: 0.985,
+    tailTaperStartProgress: 0.64,
+    leftControls: 'H=(320.1,512.4),B=(250.2,496.3),A=(185.0,492.1),S=(185.0,492.1),T=(84.4,505.1)',
+    rightControls: 'H=(520.1,512.4),B=(590.2,496.3),A=(655.0,492.1),S=(655.0,492.1),T=(755.4,505.1)',
+    leftShapeMetrics: 'h/w=0.155,px=271.6x42.2,th=H0.70/B0.66/S0.66/A0.66/T0.14',
+    rightShapeMetrics: 'h/w=0.177,px=239.1x42.2,th=H0.70/B0.66/S0.66/A0.66/T0.14',
+    shapeGateStyle: 1,
+    shapeGateStatus: 'pass',
+    shapeGateChecks:
+      'Lh=pass,Rh=pass,Lt=pass,Rt=pass,sep=pass,sym=pass,target=h0.145-0.225/t0.10-0.36',
+    candidateTriangles: 128,
+    hitTriangles: 42,
+    activePixels: 2401,
+    activeCoverage: 0.0092,
+    rawCameraFrameStored: false,
+    offDeviceUpload: false,
+  });
+
+  pressByText(renderer!, 'Debug');
+  const text = collectText(renderer!);
+
+  expect(text).toContain('e7_mediapipe_eyebrow_styled_boundary');
+  expect(text).toContain('mode=head_body_arch_tailStart_tail_styled');
+  expect(text).toContain('split=H:0.20/B:0.62/A:0.64/S:0.64/root:0.98/taper:0.64');
+  expect(text).toContain('left=H=(320.1,512.4)');
+  expect(text).toContain('S=(185.0,492.1)');
+  expect(text).toContain('right=H=(520.1,512.4)');
+  expect(text).toContain('shape=L:h/w=0.155');
+  expect(text).toContain('/R:h/w=0.177');
+  expect(text).toContain('gate=pass/Lh=pass');
+  expect(text).toContain('uv=42/128');
+  expect(text).toContain('privacy raw=false offDevice=false');
+});
+
 test('keeps thin wet-line diagnostics off matte lip recipe events', async () => {
   let renderer: ReactTestRenderer.ReactTestRenderer | undefined;
 
