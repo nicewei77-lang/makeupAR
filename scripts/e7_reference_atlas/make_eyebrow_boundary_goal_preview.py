@@ -178,6 +178,79 @@ def evaluate_curve_x(
     return evaluate_cubic_bezier(amount, (arch_x, c1, c2, tail_x))
 
 
+def validate_curve_profiles() -> dict[str, object]:
+    if abs(TAIL_START - ARCH) > 0.0001:
+        raise ValueError(f"A/S must share one anchor: A={ARCH}, S={TAIL_START}")
+    if BODY_KNOTS != (0.0, CONTROL_BODY, ARCH):
+        raise ValueError(f"Body knots must be H-B-A/S: {BODY_KNOTS}")
+
+    style_checks: dict[str, dict[str, float]] = {}
+    for style_index in sorted(TOP_BODY_CONTROLS):
+        top_body = TOP_BODY_CONTROLS[style_index]
+        bottom_body = BOTTOM_BODY_CONTROLS[style_index]
+        top_tail = TOP_TAIL_CONTROLS[style_index]
+        bottom_tail = BOTTOM_TAIL_CONTROLS[style_index]
+        if abs(top_body[-1] - top_tail[0]) > 0.001:
+            raise ValueError(f"style {style_index} top body/tail discontinuity")
+        if abs(bottom_body[-1] - bottom_tail[0]) > 0.001:
+            raise ValueError(f"style {style_index} bottom body/tail discontinuity")
+
+        sampled_thicknesses = []
+        for step in range(0, 101):
+            progress = step / 100.0
+            top = evaluate_style_top(progress, style_index)
+            bottom = evaluate_style_bottom(progress, style_index)
+            if bottom <= top:
+                raise ValueError(
+                    f"style {style_index} inverted brow thickness at {progress:.2f}: "
+                    f"top={top:.3f} bottom={bottom:.3f}"
+                )
+        sampled_thicknesses.append(bottom - top)
+
+        head_thickness = bottom_body[0] - top_body[0]
+        body_thickness = evaluate_style_bottom(
+            CONTROL_BODY,
+            style_index,
+        ) - evaluate_style_top(
+            CONTROL_BODY,
+            style_index,
+        )
+        arch_thickness = bottom_body[-1] - top_body[-1]
+        tail_end_thickness = bottom_tail[-1] - top_tail[-1]
+        if head_thickness < 0.58:
+            raise ValueError(f"style {style_index} head is too thin: {head_thickness:.3f}")
+        if tail_end_thickness > body_thickness * 0.28:
+            raise ValueError(
+                f"style {style_index} tail does not taper enough: "
+                f"tail={tail_end_thickness:.3f} body={body_thickness:.3f}"
+            )
+
+        for screen_left in (True, False):
+            arch_top_x = evaluate_curve_x(ARCH, screen_left, 100.0, 500.0, 400.0, True)
+            arch_bottom_x = evaluate_curve_x(ARCH, screen_left, 100.0, 500.0, 400.0, False)
+            tail_top_x = evaluate_curve_x(1.0, screen_left, 100.0, 500.0, 400.0, True)
+            tail_bottom_x = evaluate_curve_x(1.0, screen_left, 100.0, 500.0, 400.0, False)
+            if abs(arch_top_x - arch_bottom_x) > 0.001:
+                raise ValueError(f"style {style_index} A/S x anchor split")
+            if abs(tail_top_x - tail_bottom_x) > 0.001:
+                raise ValueError(f"style {style_index} T x anchor split")
+
+        style_checks[str(style_index)] = {
+            "headThickness": round(head_thickness, 4),
+            "bodyThickness": round(body_thickness, 4),
+            "archThickness": round(arch_thickness, 4),
+            "tailEndThickness": round(tail_end_thickness, 4),
+            "minSampledThickness": round(min(sampled_thicknesses), 4),
+            "maxSampledThickness": round(max(sampled_thicknesses), 4),
+        }
+
+    return {
+        "passed": True,
+        "checks": "A/S shared, body-tail continuous, positive thickness, tapered tail",
+        "styles": style_checks,
+    }
+
+
 def bounds(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:
     xs = [point[0] for point in points]
     ys = [point[1] for point in points]
@@ -695,6 +768,7 @@ def write_reference_compare(
 
 
 def render(args: argparse.Namespace) -> None:
+    profile_validation = validate_curve_profiles()
     root = Path(args.root)
     source = root / "evidence/e7-reference-atlas/eyebrow-validation-v1/source/face.png"
     summary_path = root / "evidence/e7-reference-atlas/eyebrow-validation-v1/summary.json"
@@ -838,6 +912,7 @@ def render(args: argparse.Namespace) -> None:
                 "curve": {
                     "controlPointMode": "head_body_arch_body_spline_plus_arch_tail_bezier",
                     "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from smooth makeup curve controls",
+                    "profileValidation": profile_validation,
                     "bodyKnots": list(BODY_KNOTS),
                     "topBodyControls": {str(key): list(value) for key, value in TOP_BODY_CONTROLS.items()},
                     "bottomBodyControls": {str(key): list(value) for key, value in BOTTOM_BODY_CONTROLS.items()},
