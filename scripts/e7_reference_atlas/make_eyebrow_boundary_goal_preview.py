@@ -27,6 +27,17 @@ CONTROL_BODY = 0.42
 PROFILE_KNOTS = (0.0, 0.08, 0.16, 0.24, 0.42, 0.62, 0.64, 0.78, 0.90, 0.985, 1.0)
 SEMI_ARCH_TOP_PROFILE = (0.42, 0.30, 0.22, 0.16, 0.10, 0.08, 0.04, 0.12, 0.24, 0.34, 0.40)
 SEMI_ARCH_BOTTOM_PROFILE = (0.86, 0.80, 0.75, 0.72, 0.70, 0.69, 0.67, 0.63, 0.57, 0.51, 0.50)
+SPLINE_KNOTS = (0.0, CONTROL_BODY, ARCH, 1.0)
+SPLINE_TOPS = {
+    1: (0.44, 0.15, 0.05, 0.44),
+    2: (0.46, 0.29, 0.26, 0.43),
+    3: (0.46, 0.12, -0.02, 0.46),
+}
+SPLINE_BOTTOMS = {
+    1: (0.88, 0.70, 0.66, 0.55),
+    2: (0.84, 0.70, 0.66, 0.55),
+    3: (0.90, 0.70, 0.66, 0.57),
+}
 
 COMMERCIAL_SHAPE_TARGETS = {
     "semi arch": {"h_over_w": (0.145, 0.225), "tail_t": (0.10, 0.36)},
@@ -124,16 +135,50 @@ def evaluate_profile_curve(
     return values[-1]
 
 
+def evaluate_cubic_spline(
+    progress: float,
+    knots: tuple[float, ...],
+    values: tuple[float, ...],
+) -> float:
+    progress = max(0.0, min(1.0, progress))
+    if progress <= knots[0]:
+        return values[0]
+    if progress >= knots[-1]:
+        return values[-1]
+    index = 1
+    while index < len(knots) and progress > knots[index]:
+        index += 1
+    start = knots[index - 1]
+    end = knots[index]
+    t = 0.0 if end <= start else (progress - start) / (end - start)
+
+    def slope(point_index: int) -> float:
+        if point_index <= 0:
+            dx = knots[1] - knots[0]
+            return 0.0 if dx <= 0.0 else (values[1] - values[0]) / dx
+        if point_index >= len(knots) - 1:
+            dx = knots[-1] - knots[-2]
+            return 0.0 if dx <= 0.0 else (values[-1] - values[-2]) / dx
+        dx = knots[point_index + 1] - knots[point_index - 1]
+        return 0.0 if dx <= 0.0 else (values[point_index + 1] - values[point_index - 1]) / dx
+
+    m0 = slope(index - 1) * (end - start) * 0.55
+    m1 = slope(index) * (end - start) * 0.55
+    t2 = t * t
+    t3 = t2 * t
+    h00 = 2.0 * t3 - 3.0 * t2 + 1.0
+    h10 = t3 - 2.0 * t2 + t
+    h01 = -2.0 * t3 + 3.0 * t2
+    h11 = t3 - t2
+    return h00 * values[index - 1] + h10 * m0 + h01 * values[index] + h11 * m1
+
+
 def evaluate_style_top(progress: float, style_index: int, values: tuple[float, ...]) -> float:
-    if style_index == 1:
-        return evaluate_profile_curve(progress, PROFILE_KNOTS, SEMI_ARCH_TOP_PROFILE)
-    return evaluate_curve(progress, values)
+    return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_TOPS.get(style_index, SPLINE_TOPS[1]))
 
 
 def evaluate_style_bottom(progress: float, style_index: int, values: tuple[float, ...]) -> float:
-    if style_index == 1:
-        return evaluate_profile_curve(progress, PROFILE_KNOTS, SEMI_ARCH_BOTTOM_PROFILE)
-    return evaluate_curve(progress, values)
+    return evaluate_cubic_spline(progress, SPLINE_KNOTS, SPLINE_BOTTOMS.get(style_index, SPLINE_BOTTOMS[1]))
 
 
 def bounds(points: list[tuple[float, float]]) -> tuple[float, float, float, float]:

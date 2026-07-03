@@ -285,6 +285,34 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     {
         0.86f, 0.80f, 0.75f, 0.72f, 0.70f, 0.69f, 0.67f, 0.63f, 0.57f, 0.51f, 0.50f
     };
+    private static readonly float[] EyebrowSplineKnots =
+    {
+        0.0f, EyebrowControlBodyProgress, EyebrowArchProgress, 1.0f
+    };
+    private static readonly float[] EyebrowSemiArchTopSpline =
+    {
+        0.44f, 0.15f, 0.05f, 0.44f
+    };
+    private static readonly float[] EyebrowStraightTopSpline =
+    {
+        0.46f, 0.29f, 0.26f, 0.43f
+    };
+    private static readonly float[] EyebrowArchTopSpline =
+    {
+        0.46f, 0.12f, -0.02f, 0.46f
+    };
+    private static readonly float[] EyebrowSemiArchBottomSpline =
+    {
+        0.88f, 0.70f, 0.66f, 0.55f
+    };
+    private static readonly float[] EyebrowStraightBottomSpline =
+    {
+        0.84f, 0.70f, 0.66f, 0.55f
+    };
+    private static readonly float[] EyebrowArchBottomSpline =
+    {
+        0.90f, 0.70f, 0.66f, 0.57f
+    };
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
         new Dictionary<string, RegionRecipeState>();
@@ -3745,15 +3773,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (styleIndex)
         {
             case 2:
-                return EvaluateEyebrowCurve(progressFromHead, 0.50f, 0.27f, 0.24f, 0.22f, 0.32f, 0.44f, 0.50f);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowStraightTopSpline);
             case 3:
-                return EvaluateEyebrowCurve(progressFromHead, 0.40f, 0.13f, 0.04f, -0.04f, 0.10f, 0.32f, 0.50f);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowArchTopSpline);
             case 1:
             default:
-                return EvaluateEyebrowProfileCurve(
-                    progressFromHead,
-                    EyebrowSemiArchProfileKnots,
-                    EyebrowSemiArchTopProfile);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowSemiArchTopSpline);
         }
     }
 
@@ -3762,15 +3787,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (styleIndex)
         {
             case 2:
-                return EvaluateEyebrowCurve(progressFromHead, 0.86f, 0.73f, 0.72f, 0.71f, 0.68f, 0.62f, 0.63f);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowStraightBottomSpline);
             case 3:
-                return EvaluateEyebrowCurve(progressFromHead, 0.90f, 0.74f, 0.71f, 0.69f, 0.65f, 0.60f, 0.62f);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowArchBottomSpline);
             case 1:
             default:
-                return EvaluateEyebrowProfileCurve(
-                    progressFromHead,
-                    EyebrowSemiArchProfileKnots,
-                    EyebrowSemiArchBottomProfile);
+                return EvaluateEyebrowCubicSpline(progressFromHead, EyebrowSemiArchBottomSpline);
         }
     }
 
@@ -3800,6 +3822,63 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             default:
                 return EvaluateEyebrowCurve(progressFromHead, 0.18f, 0.76f, 0.70f, 0.52f, 0.29f, 0.16f, 0.040f);
         }
+    }
+
+    private static float EvaluateEyebrowCubicSpline(float progress, float[] values)
+    {
+        if (values == null || values.Length != EyebrowSplineKnots.Length)
+        {
+            return 0.5f;
+        }
+
+        progress = Mathf.Clamp01(progress);
+        if (progress <= EyebrowSplineKnots[0])
+        {
+            return values[0];
+        }
+
+        if (progress >= EyebrowSplineKnots[EyebrowSplineKnots.Length - 1])
+        {
+            return values[values.Length - 1];
+        }
+
+        int index = 1;
+        while (index < EyebrowSplineKnots.Length && progress > EyebrowSplineKnots[index])
+        {
+            index++;
+        }
+
+        float start = EyebrowSplineKnots[index - 1];
+        float end = EyebrowSplineKnots[index];
+        float t = end <= start ? 0.0f : (progress - start) / (end - start);
+        float m0 = EvaluateEyebrowSplineSlope(values, index - 1) * (end - start) * 0.55f;
+        float m1 = EvaluateEyebrowSplineSlope(values, index) * (end - start) * 0.55f;
+        float t2 = t * t;
+        float t3 = t2 * t;
+        float h00 = 2.0f * t3 - 3.0f * t2 + 1.0f;
+        float h10 = t3 - 2.0f * t2 + t;
+        float h01 = -2.0f * t3 + 3.0f * t2;
+        float h11 = t3 - t2;
+        return h00 * values[index - 1] + h10 * m0 + h01 * values[index] + h11 * m1;
+    }
+
+    private static float EvaluateEyebrowSplineSlope(float[] values, int index)
+    {
+        if (index <= 0)
+        {
+            float dx = EyebrowSplineKnots[1] - EyebrowSplineKnots[0];
+            return dx <= 0.0f ? 0.0f : (values[1] - values[0]) / dx;
+        }
+
+        if (index >= EyebrowSplineKnots.Length - 1)
+        {
+            int last = EyebrowSplineKnots.Length - 1;
+            float dx = EyebrowSplineKnots[last] - EyebrowSplineKnots[last - 1];
+            return dx <= 0.0f ? 0.0f : (values[last] - values[last - 1]) / dx;
+        }
+
+        float span = EyebrowSplineKnots[index + 1] - EyebrowSplineKnots[index - 1];
+        return span <= 0.0f ? 0.0f : (values[index + 1] - values[index - 1]) / span;
     }
 
     private static float EvaluateEyebrowCurve(
