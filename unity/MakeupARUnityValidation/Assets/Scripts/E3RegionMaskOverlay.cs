@@ -279,27 +279,27 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     };
     private static readonly float[] EyebrowSemiArchTopBody =
     {
-        0.34f, 0.14f, 0.05f
+        0.30f, 0.14f, 0.05f
     };
     private static readonly float[] EyebrowStraightTopBody =
     {
-        0.36f, 0.28f, 0.26f
+        0.32f, 0.28f, 0.26f
     };
     private static readonly float[] EyebrowArchTopBody =
     {
-        0.34f, 0.11f, -0.02f
+        0.30f, 0.11f, -0.02f
     };
     private static readonly float[] EyebrowSemiArchBottomBody =
     {
-        0.96f, 0.71f, 0.66f
+        0.98f, 0.71f, 0.66f
     };
     private static readonly float[] EyebrowStraightBottomBody =
     {
-        0.95f, 0.71f, 0.66f
+        0.98f, 0.71f, 0.66f
     };
     private static readonly float[] EyebrowArchBottomBody =
     {
-        0.98f, 0.71f, 0.66f
+        1.00f, 0.71f, 0.66f
     };
     private static readonly float[] EyebrowSemiArchTopTail =
     {
