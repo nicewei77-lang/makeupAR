@@ -2422,6 +2422,8 @@ function formatE7MediaPipeEyebrowStyledBoundarySummary(
     event.sourceUsage ?? 'n/a',
   )} rawUse=${String(
     event.rawBoundaryUsage ?? 'n/a',
+  )} uvMask=${String(
+    event.uvMaskSource ?? 'n/a',
   )} body=${String(event.bodyCurve ?? 'n/a')} tail=${String(
     event.tailCurve ?? 'n/a',
   )} points=${String(event.leftOuterPointCount ?? 'n/a')}/${String(

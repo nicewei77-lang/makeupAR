@@ -585,6 +585,7 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
     curveMode: 'body_spline_tail_bezier',
     sourceUsage: 'mediapipe_position_scale_only',
     rawBoundaryUsage: 'raw_boundary_position_width_scale_only',
+    uvMaskSource: 'styled_spline_envelope_boundary',
     bodyCurve: 'H-B-A/S cubic_spline',
     tailCurve: 'A/S-T cubic_bezier',
     leftRawBounds: 'x=308.0-585.0,y=486.0-533.0,px=277.0x47.0',
@@ -621,6 +622,7 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
   expect(text).toContain('curve=body_spline_tail_bezier');
   expect(text).toContain('sourceUse=mediapipe_position_scale_only');
   expect(text).toContain('rawUse=raw_boundary_position_width_scale_only');
+  expect(text).toContain('uvMask=styled_spline_envelope_boundary');
   expect(text).toContain('body=H-B-A/S cubic_spline');
   expect(text).toContain('tail=A/S-T cubic_bezier');
   expect(text).toContain('split=H:0.20/B:0.62/A:0.64/S:0.64/root:0.98/taper:0.64');

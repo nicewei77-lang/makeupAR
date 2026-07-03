@@ -1444,6 +1444,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ",\"curveMode\":\"body_spline_tail_bezier\""
             + ",\"sourceUsage\":\"mediapipe_position_scale_only\""
             + ",\"rawBoundaryUsage\":\"" + EscapeJsonString(rawBoundaryUsage) + "\""
+            + ",\"uvMaskSource\":\"styled_spline_envelope_boundary\""
             + ",\"bodyCurve\":\"H-B-A/S cubic_spline\""
             + ",\"tailCurve\":\"A/S-T cubic_bezier\""
             + ",\"leftRawBounds\":\"" + EscapeJsonString(boundary.LeftRawBounds) + "\""
@@ -2276,7 +2277,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         view.VisionUvMaskSequence = boundary.Sequence;
         MaskTextureDiagnostics bakedDiagnostics = BuildRuntimeMaskDiagnosticsFromPixels(
             hitSamples > 0
-                ? "eyebrow_arface_uv_baked_left_right_outer_minus_eye_exclusion"
+                ? "eyebrow_arface_uv_baked_styled_spline_envelope_minus_eye_exclusion"
                 : "eyebrow_arface_uv_baked_empty",
             width,
             height,
