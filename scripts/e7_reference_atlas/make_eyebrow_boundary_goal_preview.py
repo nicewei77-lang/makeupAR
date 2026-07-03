@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter
@@ -65,6 +66,34 @@ STYLES = {
         "arch",
         (0.92, 0.180, 0.008, 0.204, 0.000),
     ),
+}
+
+UNITY_OVERLAY_SCRIPT = Path(
+    "unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs"
+)
+UNITY_FLOAT_CONSTANTS = {
+    "EyebrowInnerGapRightBias": INNER_GAP_RIGHT_BIAS,
+    "EyebrowScreenLeftHeadRestoreRatio": SCREEN_LEFT_HEAD_RESTORE,
+    "EyebrowScreenRightHeadExtraTrimRatio": SCREEN_RIGHT_HEAD_EXTRA_TRIM,
+    "EyebrowHeadBodySplitProgress": HEAD_BODY,
+    "EyebrowBodyEndProgress": BODY_END,
+    "EyebrowArchProgress": ARCH,
+    "EyebrowTailRootProgress": TAIL_ROOT,
+    "EyebrowControlBodyProgress": CONTROL_BODY,
+}
+UNITY_ARRAY_CONSTANTS = {
+    "EyebrowSemiArchTopBody": TOP_BODY_CONTROLS[1],
+    "EyebrowStraightTopBody": TOP_BODY_CONTROLS[2],
+    "EyebrowArchTopBody": TOP_BODY_CONTROLS[3],
+    "EyebrowSemiArchBottomBody": BOTTOM_BODY_CONTROLS[1],
+    "EyebrowStraightBottomBody": BOTTOM_BODY_CONTROLS[2],
+    "EyebrowArchBottomBody": BOTTOM_BODY_CONTROLS[3],
+    "EyebrowSemiArchTopTail": TOP_TAIL_CONTROLS[1],
+    "EyebrowStraightTopTail": TOP_TAIL_CONTROLS[2],
+    "EyebrowArchTopTail": TOP_TAIL_CONTROLS[3],
+    "EyebrowSemiArchBottomTail": BOTTOM_TAIL_CONTROLS[1],
+    "EyebrowStraightBottomTail": BOTTOM_TAIL_CONTROLS[2],
+    "EyebrowArchBottomTail": BOTTOM_TAIL_CONTROLS[3],
 }
 
 
@@ -248,6 +277,83 @@ def validate_curve_profiles() -> dict[str, object]:
         "passed": True,
         "checks": "A/S shared, body-tail continuous, positive thickness, tapered tail",
         "styles": style_checks,
+    }
+
+
+def extract_unity_float_constant(source: str, name: str) -> float:
+    match = re.search(
+        rf"private\s+const\s+float\s+{re.escape(name)}\s*=\s*([-+]?\d+(?:\.\d+)?)f\s*;",
+        source,
+    )
+    if not match:
+        raise ValueError(f"Unity float constant not found: {name}")
+    return float(match.group(1))
+
+
+def extract_unity_int_constant(source: str, name: str) -> int:
+    match = re.search(
+        rf"private\s+const\s+int\s+{re.escape(name)}\s*=\s*(\d+)\s*;",
+        source,
+    )
+    if not match:
+        raise ValueError(f"Unity int constant not found: {name}")
+    return int(match.group(1))
+
+
+def extract_unity_float_array(source: str, name: str) -> tuple[float, ...]:
+    match = re.search(
+        rf"private\s+static\s+readonly\s+float\[\]\s+{re.escape(name)}\s*=\s*\{{(.*?)\}};",
+        source,
+        flags=re.S,
+    )
+    if not match:
+        raise ValueError(f"Unity float array not found: {name}")
+    values = re.findall(r"[-+]?\d+(?:\.\d+)?(?=f)", match.group(1))
+    return tuple(float(value) for value in values)
+
+
+def assert_close(name: str, expected: float, actual: float, tolerance: float = 0.0001) -> None:
+    if abs(expected - actual) > tolerance:
+        raise ValueError(f"{name} mismatch: preview={expected} unity={actual}")
+
+
+def validate_unity_curve_profile_sync(root: Path) -> dict[str, object]:
+    source_path = root / UNITY_OVERLAY_SCRIPT
+    source = source_path.read_text()
+    checked: list[str] = []
+
+    point_count = extract_unity_int_constant(source, "EyebrowStyledBoundaryPointCount")
+    if point_count != POINT_COUNT:
+        raise ValueError(f"POINT_COUNT mismatch: preview={POINT_COUNT} unity={point_count}")
+    checked.append("POINT_COUNT")
+
+    for name, expected in UNITY_FLOAT_CONSTANTS.items():
+        actual = extract_unity_float_constant(source, name)
+        assert_close(name, expected, actual)
+        checked.append(name)
+
+    tail_start_match = re.search(
+        r"private\s+const\s+float\s+EyebrowTailStartProgress\s*=\s*EyebrowArchProgress\s*;",
+        source,
+    )
+    if not tail_start_match:
+        raise ValueError("Unity A/S anchor must keep EyebrowTailStartProgress = EyebrowArchProgress")
+    checked.append("EyebrowTailStartProgress=EyebrowArchProgress")
+
+    for name, expected_values in UNITY_ARRAY_CONSTANTS.items():
+        actual_values = extract_unity_float_array(source, name)
+        if len(actual_values) != len(expected_values):
+            raise ValueError(
+                f"{name} length mismatch: preview={len(expected_values)} unity={len(actual_values)}"
+            )
+        for index, (expected, actual) in enumerate(zip(expected_values, actual_values)):
+            assert_close(f"{name}[{index}]", expected, actual)
+        checked.append(name)
+
+    return {
+        "passed": True,
+        "source": str(source_path),
+        "checked": checked,
     }
 
 
@@ -768,8 +874,9 @@ def write_reference_compare(
 
 
 def render(args: argparse.Namespace) -> None:
-    profile_validation = validate_curve_profiles()
     root = Path(args.root)
+    profile_validation = validate_curve_profiles()
+    unity_profile_sync = validate_unity_curve_profile_sync(root)
     source = root / "evidence/e7-reference-atlas/eyebrow-validation-v1/source/face.png"
     summary_path = root / "evidence/e7-reference-atlas/eyebrow-validation-v1/summary.json"
     summary = json.loads(summary_path.read_text())
@@ -913,6 +1020,7 @@ def render(args: argparse.Namespace) -> None:
                     "controlPointMode": "head_body_arch_body_spline_plus_arch_tail_bezier",
                     "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from smooth makeup curve controls",
                     "profileValidation": profile_validation,
+                    "unityProfileSync": unity_profile_sync,
                     "bodyKnots": list(BODY_KNOTS),
                     "topBodyControls": {str(key): list(value) for key, value in TOP_BODY_CONTROLS.items()},
                     "bottomBodyControls": {str(key): list(value) for key, value in BOTTOM_BODY_CONTROLS.items()},
