@@ -502,6 +502,75 @@ def draw_boundary_only(
     return canvas.crop(crop_box)
 
 
+def draw_boundary_curve_debug(
+    face: Image.Image,
+    left_polygon: list[tuple[float, float]],
+    right_polygon: list[tuple[float, float]],
+    crop_box: tuple[int, int, int, int],
+    style_name: str,
+) -> Image.Image:
+    canvas = face.copy()
+    draw = ImageDraw.Draw(canvas)
+    body_color = (255, 0, 0, 255)
+    tail_color = (255, 135, 0, 255)
+    point_color = (0, 210, 255, 255)
+    arch_color = (0, 230, 60, 255)
+    tail_point_color = (255, 95, 0, 255)
+    controls = [
+        ("H", 0.0, point_color),
+        ("B", CONTROL_BODY, point_color),
+        ("A/S", ARCH, arch_color),
+        ("T", 1.0, tail_point_color),
+    ]
+
+    def sample_curve(
+        polygon: list[tuple[float, float]],
+        screen_left: bool,
+        start: float,
+        end: float,
+    ) -> tuple[list[tuple[float, float]], list[tuple[float, float]]]:
+        steps = 24
+        top_points = []
+        bottom_points = []
+        for index in range(steps + 1):
+            progress = lerp(start, end, index / steps)
+            top, bottom = sample_boundary_pair(polygon, screen_left, progress)
+            top_points.append(top)
+            bottom_points.append(bottom)
+        return top_points, bottom_points
+
+    for polygon, screen_left in ((left_polygon, True), (right_polygon, False)):
+        for start, end, color, width in (
+            (0.0, ARCH, body_color, 3),
+            (ARCH, 1.0, tail_color, 4),
+        ):
+            top_points, bottom_points = sample_curve(polygon, screen_left, start, end)
+            draw.line(top_points, fill=color, width=width, joint="curve")
+            draw.line(bottom_points, fill=color, width=width, joint="curve")
+        top_a, bottom_a = sample_boundary_pair(polygon, screen_left, ARCH)
+        draw.line((top_a, bottom_a), fill=tail_color, width=3)
+        top_h, bottom_h = sample_boundary_pair(polygon, screen_left, 0.0)
+        draw.line((top_h, bottom_h), fill=body_color, width=2)
+        top_t, bottom_t = sample_boundary_pair(polygon, screen_left, 1.0)
+        draw.line((top_t, bottom_t), fill=tail_color, width=2)
+        for label, progress, color in controls:
+            x, y = sample_center(polygon, screen_left, progress)
+            draw.ellipse(
+                (x - 6, y - 6, x + 6, y + 6),
+                fill=color,
+                outline=(255, 255, 255, 255),
+                width=2,
+            )
+            draw.text((x + 5, y - 13), label, fill=color)
+
+    draw.text(
+        (crop_box[0] + 5, crop_box[1] + 5),
+        f"{style_name}: red=H-B-A/S body, orange=A/S-T tail",
+        fill=(255, 0, 0, 255),
+    )
+    return canvas.crop(crop_box)
+
+
 def extract_reference_red_points(
     reference_image: Image.Image,
 ) -> tuple[list[tuple[int, int]], list[tuple[int, int]]]:
@@ -642,6 +711,7 @@ def render(args: argparse.Namespace) -> None:
     debug_rows = []
     clean_rows = []
     boundary_rows = []
+    curve_debug_rows = []
     style_summaries = []
     reference_compare = None
 
@@ -674,6 +744,17 @@ def render(args: argparse.Namespace) -> None:
         boundary_rows.append(boundary_crop)
         boundary_crop.save(
             out_dir / f"boundary_only_{style_index}_{style_name.replace(' ', '_')}_{args.version}.png"
+        )
+        curve_debug_crop = draw_boundary_curve_debug(
+            face,
+            left_polygon,
+            right_polygon,
+            crop_box,
+            style_name,
+        )
+        curve_debug_rows.append(curve_debug_crop)
+        curve_debug_crop.save(
+            out_dir / f"curve_debug_{style_index}_{style_name.replace(' ', '_')}_{args.version}.png"
         )
 
         for debug in (False, True):
@@ -736,6 +817,7 @@ def render(args: argparse.Namespace) -> None:
     debug_sheet = save_sheet(debug_rows, f"debug_boundary_fill_3style_{args.version}_makeup_envelope.png")
     clean_sheet = save_sheet(clean_rows, f"clean_boundary_fill_3style_{args.version}_makeup_envelope.png")
     boundary_sheet = save_sheet(boundary_rows, f"boundary_only_3style_{args.version}_spline_envelope.png")
+    curve_debug_sheet = save_sheet(curve_debug_rows, f"curve_debug_3style_{args.version}_body_tail.png")
     (out_dir / "summary.json").write_text(
         json.dumps(
             {
@@ -743,6 +825,7 @@ def render(args: argparse.Namespace) -> None:
                 "debugSheet": str(debug_sheet),
                 "cleanSheet": str(clean_sheet),
                 "boundaryOnlySheet": str(boundary_sheet),
+                "curveDebugSheet": str(curve_debug_sheet),
                 "constants": {
                     "H": 0.0,
                     "B": CONTROL_BODY,
@@ -778,6 +861,7 @@ def render(args: argparse.Namespace) -> None:
     print(debug_sheet)
     print(clean_sheet)
     print(boundary_sheet)
+    print(curve_debug_sheet)
 
 
 def main() -> None:
