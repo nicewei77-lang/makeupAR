@@ -581,7 +581,11 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
       'mediapipe-image-top-left->screen->face-local-warp->brow-style-1',
     leftOuterPointCount: 144,
     rightOuterPointCount: 144,
-    controlPointMode: 'head_body_arch_tailStart_tail_styled',
+    controlPointMode: 'head_body_arch_bodySpline_AS_tailBezier_styled',
+    curveMode: 'body_spline_tail_bezier',
+    sourceUsage: 'mediapipe_position_scale_only',
+    bodyCurve: 'H-B-A/S cubic_spline',
+    tailCurve: 'A/S-T cubic_bezier',
     headBodySplitProgress: 0.2,
     bodyEndProgress: 0.62,
     archProgress: 0.64,
@@ -608,7 +612,11 @@ test('surfaces styled eyebrow H B A S T diagnostics from Unity events', async ()
   const text = collectText(renderer!);
 
   expect(text).toContain('e7_mediapipe_eyebrow_styled_boundary');
-  expect(text).toContain('mode=head_body_arch_tailStart_tail_styled');
+  expect(text).toContain('mode=head_body_arch_bodySpline_AS_tailBezier_styled');
+  expect(text).toContain('curve=body_spline_tail_bezier');
+  expect(text).toContain('sourceUse=mediapipe_position_scale_only');
+  expect(text).toContain('body=H-B-A/S cubic_spline');
+  expect(text).toContain('tail=A/S-T cubic_bezier');
   expect(text).toContain('split=H:0.20/B:0.62/A:0.64/S:0.64/root:0.98/taper:0.64');
   expect(text).toContain('left=H=(320.1,512.4)');
   expect(text).toContain('S=(185.0,492.1)');

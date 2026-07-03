@@ -1417,6 +1417,10 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ",\"leftOuterPointCount\":" + boundary.LeftOuterPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"rightOuterPointCount\":" + boundary.RightOuterPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"controlPointMode\":\"" + EscapeJsonString(boundary.ControlPointMode) + "\""
+            + ",\"curveMode\":\"body_spline_tail_bezier\""
+            + ",\"sourceUsage\":\"mediapipe_position_scale_only\""
+            + ",\"bodyCurve\":\"H-B-A/S cubic_spline\""
+            + ",\"tailCurve\":\"A/S-T cubic_bezier\""
             + ",\"controlPoints\":\"" + EscapeJsonString(controlPoints) + "\""
             + ",\"leftControls\":\"" + EscapeJsonString(
                 BuildSingleEyebrowControlPointSummary(
@@ -3426,7 +3430,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             boundary.RightOuterPoints,
             false,
             EyebrowTailStartProgress);
-        boundary.ControlPointMode = "head_body_arch_tailStart_tail_styled";
+        boundary.ControlPointMode = "head_body_arch_bodySpline_AS_tailBezier_styled";
         boundary.LeftOuterPointCount = boundary.LeftOuterPoints != null ? boundary.LeftOuterPoints.Length : 0;
         boundary.RightOuterPointCount = boundary.RightOuterPoints != null ? boundary.RightOuterPoints.Length : 0;
         boundary.CoordinateMode = AppendCoordinateMode(

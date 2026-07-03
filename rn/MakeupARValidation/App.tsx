@@ -2418,6 +2418,10 @@ function formatE7MediaPipeEyebrowStyledBoundarySummary(
     event.available ?? false,
   )} coord=${String(event.coordinateMode ?? 'styled-screen')} mode=${String(
     event.controlPointMode ?? 'n/a',
+  )} curve=${String(event.curveMode ?? 'n/a')} sourceUse=${String(
+    event.sourceUsage ?? 'n/a',
+  )} body=${String(event.bodyCurve ?? 'n/a')} tail=${String(
+    event.tailCurve ?? 'n/a',
   )} points=${String(event.leftOuterPointCount ?? 'n/a')}/${String(
     event.rightOuterPointCount ?? 'n/a',
   )} split=H:${formatMetricNumber(
