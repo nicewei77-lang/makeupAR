@@ -112,7 +112,7 @@ Shader "MakeupAR/EyebrowRegionMask"
         float BrowEndTaper(float localX)
         {
             float headTaper = lerp(0.46, 1.0, smoothstep(0.00, 0.20, localX));
-            float tailTaper = lerp(1.0, 0.38, smoothstep(0.64, 1.0, localX));
+            float tailTaper = lerp(1.0, 0.16, smoothstep(0.64, 1.0, localX));
             return saturate(headTaper * tailTaper);
         }
 

@@ -70,7 +70,7 @@ def verify_overlay_contract(source: str) -> str:
         "ApplyEyebrowStyleShape must rebuild brow boundary points",
     )
     require(
-        "head_body_arch_bodySpline_AS_tailBezier_styled" in style_method,
+        "head_body_arch_bodySpline_AS_tailLinear_styled" in style_method,
         "styled control point mode is missing",
     )
     require(

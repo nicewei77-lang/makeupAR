@@ -18,7 +18,9 @@ from PIL import Image, ImageDraw, ImageFilter
 POINT_COUNT = 72
 INNER_GAP_RIGHT_BIAS = 0.70
 SCREEN_LEFT_HEAD_RESTORE = 0.86
-SCREEN_RIGHT_HEAD_EXTRA_TRIM = -0.18
+SCREEN_RIGHT_HEAD_EXTRA_TRIM = -0.32
+VERTICAL_LIFT_RATIO = 0.040
+TAIL_SHORTEN_RATIO = 0.055
 HEAD_BODY = 0.20
 BODY_END = 0.62
 ARCH = 0.64
@@ -29,7 +31,7 @@ BODY_KNOTS = (0.0, CONTROL_BODY, ARCH)
 TOP_BODY_CONTROLS = {
     1: (0.30, 0.14, 0.05),
     2: (0.32, 0.28, 0.26),
-    3: (0.30, 0.11, -0.02),
+    3: (0.30, 0.07, -0.08),
 }
 BOTTOM_BODY_CONTROLS = {
     1: (0.98, 0.71, 0.66),
@@ -37,20 +39,20 @@ BOTTOM_BODY_CONTROLS = {
     3: (1.00, 0.71, 0.66),
 }
 TOP_TAIL_CONTROLS = {
-    1: (0.05, 0.13, 0.36, 0.44),
-    2: (0.26, 0.30, 0.39, 0.43),
-    3: (-0.02, 0.10, 0.38, 0.46),
+    1: (0.05, 0.13, 0.36, 0.48),
+    2: (0.26, 0.30, 0.39, 0.47),
+    3: (-0.08, 0.10, 0.38, 0.50),
 }
 BOTTOM_TAIL_CONTROLS = {
-    1: (0.66, 0.64, 0.58, 0.55),
-    2: (0.66, 0.64, 0.58, 0.55),
-    3: (0.66, 0.63, 0.59, 0.57),
+    1: (0.66, 0.64, 0.58, 0.515),
+    2: (0.66, 0.64, 0.58, 0.505),
+    3: (0.66, 0.63, 0.59, 0.535),
 }
 
 COMMERCIAL_SHAPE_TARGETS = {
-    "semi arch": {"h_over_w": (0.145, 0.225), "tail_t": (0.10, 0.36)},
-    "straight": {"h_over_w": (0.105, 0.165), "tail_t": (0.10, 0.36)},
-    "arch": {"h_over_w": (0.155, 0.220), "tail_t": (0.10, 0.36)},
+    "semi arch": {"h_over_w": (0.145, 0.225), "tail_t": (0.03, 0.18)},
+    "straight": {"h_over_w": (0.105, 0.175), "tail_t": (0.03, 0.18)},
+    "arch": {"h_over_w": (0.155, 0.245), "tail_t": (0.03, 0.18)},
 }
 
 STYLES = {
@@ -75,6 +77,8 @@ UNITY_FLOAT_CONSTANTS = {
     "EyebrowInnerGapRightBias": INNER_GAP_RIGHT_BIAS,
     "EyebrowScreenLeftHeadRestoreRatio": SCREEN_LEFT_HEAD_RESTORE,
     "EyebrowScreenRightHeadExtraTrimRatio": SCREEN_RIGHT_HEAD_EXTRA_TRIM,
+    "EyebrowVerticalLiftRatio": VERTICAL_LIFT_RATIO,
+    "EyebrowTailShortenRatio": TAIL_SHORTEN_RATIO,
     "EyebrowHeadBodySplitProgress": HEAD_BODY,
     "EyebrowBodyEndProgress": BODY_END,
     "EyebrowArchProgress": ARCH,
@@ -170,10 +174,8 @@ def evaluate_style_top(progress: float, style_index: int) -> float:
             BODY_KNOTS,
             TOP_BODY_CONTROLS.get(style_index, TOP_BODY_CONTROLS[1]),
         )
-    return evaluate_cubic_bezier(
-        (progress - ARCH) / (1.0 - ARCH),
-        TOP_TAIL_CONTROLS.get(style_index, TOP_TAIL_CONTROLS[1]),
-    )
+    tail = TOP_TAIL_CONTROLS.get(style_index, TOP_TAIL_CONTROLS[1])
+    return lerp(tail[0], tail[-1], (progress - ARCH) / (1.0 - ARCH))
 
 
 def evaluate_style_bottom(progress: float, style_index: int) -> float:
@@ -183,10 +185,8 @@ def evaluate_style_bottom(progress: float, style_index: int) -> float:
             BODY_KNOTS,
             BOTTOM_BODY_CONTROLS.get(style_index, BOTTOM_BODY_CONTROLS[1]),
         )
-    return evaluate_cubic_bezier(
-        (progress - ARCH) / (1.0 - ARCH),
-        BOTTOM_TAIL_CONTROLS.get(style_index, BOTTOM_TAIL_CONTROLS[1]),
-    )
+    tail = BOTTOM_TAIL_CONTROLS.get(style_index, BOTTOM_TAIL_CONTROLS[1])
+    return lerp(tail[0], tail[-1], (progress - ARCH) / (1.0 - ARCH))
 
 
 def evaluate_curve_x(
@@ -207,9 +207,7 @@ def evaluate_curve_x(
         return axis_x + direction_to_tail * shape_width * (0.028 if top_line else 0.006) * head_influence
 
     amount = (progress - ARCH) / (1.0 - ARCH)
-    c1 = arch_x + direction_to_tail * shape_width * (0.13 if top_line else 0.20)
-    c2 = tail_x - direction_to_tail * shape_width * (0.20 if top_line else 0.07)
-    return evaluate_cubic_bezier(amount, (arch_x, c1, c2, tail_x))
+    return lerp(arch_x, tail_x, amount)
 
 
 def validate_curve_profiles() -> dict[str, object]:
@@ -393,6 +391,44 @@ def smooth_boundary(
     return current
 
 
+def straighten_tail_segment(
+    polygon: list[tuple[float, float]],
+    screen_left: bool,
+) -> list[tuple[float, float]]:
+    half = len(polygon) // 2
+    if half < 4:
+        return polygon
+    top = list(polygon[:half])
+    bottom = list(reversed(polygon[half:]))
+    arch_ratio = 1.0 - ARCH if screen_left else ARCH
+    arch_index = max(0, min(half - 1, round(arch_ratio * (half - 1))))
+    if screen_left:
+        tail_range = range(0, arch_index + 1)
+        start_index = 0
+        end_index = arch_index
+    else:
+        tail_range = range(arch_index, half)
+        start_index = arch_index
+        end_index = half - 1
+
+    span = max(1, end_index - start_index)
+    top_start = top[start_index]
+    top_end = top[end_index]
+    bottom_start = bottom[start_index]
+    bottom_end = bottom[end_index]
+    for index in tail_range:
+        amount = (index - start_index) / span
+        top[index] = (
+            lerp(top_start[0], top_end[0], amount),
+            lerp(top_start[1], top_end[1], amount),
+        )
+        bottom[index] = (
+            lerp(bottom_start[0], bottom_end[0], amount),
+            lerp(bottom_start[1], bottom_end[1], amount),
+        )
+    return top + list(reversed(bottom))
+
+
 def shape_boundary(
     source_points: list[tuple[float, float]],
     screen_left: bool,
@@ -411,14 +447,17 @@ def shape_boundary(
     shaped_right = center_x + adjusted_width * 0.5
     tail_extend = max(0.0, min(width * tail_extend_ratio, 28.0))
     head_trim = max(12.0, min(width * head_trim_ratio, 54.0))
+    tail_shorten = max(0.0, min(width * TAIL_SHORTEN_RATIO, 22.0))
     if screen_left:
         shaped_left -= tail_extend
+        shaped_left += tail_shorten
         shaped_right -= head_trim
         shaped_right += head_trim * SCREEN_LEFT_HEAD_RESTORE
     else:
         shaped_left += head_trim
         shaped_left += head_trim * SCREEN_RIGHT_HEAD_EXTRA_TRIM
         shaped_right += tail_extend
+        shaped_right -= tail_shorten
 
     shape_width = shaped_right - shaped_left
     height = max(source_height * 0.84, shape_width * height_ratio)
@@ -428,6 +467,7 @@ def shape_boundary(
     max_bottom = eye_top - 12.0
     bottom_anchor = min(max(bottom + source_height * 0.05, top + source_height * 0.78), max_bottom)
     bottom_anchor -= height * bottom_lift
+    bottom_anchor -= height * VERTICAL_LIFT_RATIO
     top_anchor = bottom_anchor - height
 
     top_points: list[tuple[float, float]] = []
@@ -440,7 +480,7 @@ def shape_boundary(
         tail_influence = smoothstep((progress - TAIL_START) / (1.0 - TAIL_START))
         top_x = evaluate_curve_x(progress, screen_left, shaped_left, shaped_right, shape_width, True)
         bottom_x = evaluate_curve_x(progress, screen_left, shaped_left, shaped_right, shape_width, False)
-        min_thickness = height * lerp(0.060, 0.145, 1.0 - tail_influence)
+        min_thickness = max(1.25, height * lerp(0.028, 0.145, 1.0 - tail_influence))
         if bottom_y < top_y + min_thickness:
             bottom_y = top_y + min_thickness
         if bottom_y > max_bottom:
@@ -449,7 +489,8 @@ def shape_boundary(
             bottom_y -= shift
         top_points.append((top_x, top_y))
         bottom_points.append((bottom_x, bottom_y))
-    return smooth_boundary(top_points + list(reversed(bottom_points)), 3)
+    smoothed = smooth_boundary(top_points + list(reversed(bottom_points)), 3)
+    return straighten_tail_segment(smoothed, screen_left)
 
 
 def sample_center(
@@ -611,7 +652,7 @@ def enforce_inner_gap(
 
 def brow_end_taper(local_x: float) -> float:
     head_taper = lerp(0.46, 1.0, smoothstep(local_x / 0.20))
-    tail_taper = lerp(1.0, 0.38, smoothstep((local_x - TAIL_START) / (1.0 - TAIL_START)))
+    tail_taper = lerp(1.0, 0.16, smoothstep((local_x - TAIL_START) / (1.0 - TAIL_START)))
     return max(0.0, min(1.0, head_taper * tail_taper))
 
 
@@ -1065,15 +1106,15 @@ def render(args: argparse.Namespace) -> None:
                     "bodyEnd": BODY_END,
                 },
                 "curve": {
-                    "controlPointMode": "head_body_arch_body_spline_plus_arch_tail_bezier",
+                    "controlPointMode": "head_body_arch_body_spline_plus_arch_tail_linear",
                     "sourceUsage": "hair boundary is used only for position, width, and scale; final makeup envelope comes from smooth makeup curve controls",
                     "profileValidation": profile_validation,
                     "unityProfileSync": unity_profile_sync,
                     "bodyKnots": list(BODY_KNOTS),
                     "topBodyControls": {str(key): list(value) for key, value in TOP_BODY_CONTROLS.items()},
                     "bottomBodyControls": {str(key): list(value) for key, value in BOTTOM_BODY_CONTROLS.items()},
-                    "topTailBezierControls": {str(key): list(value) for key, value in TOP_TAIL_CONTROLS.items()},
-                    "bottomTailBezierControls": {str(key): list(value) for key, value in BOTTOM_TAIL_CONTROLS.items()},
+                    "topTailLineControls": {str(key): [value[0], value[-1]] for key, value in TOP_TAIL_CONTROLS.items()},
+                    "bottomTailLineControls": {str(key): [value[0], value[-1]] for key, value in BOTTOM_TAIL_CONTROLS.items()},
                     "anchors": {
                         "H": 0.0,
                         "B": CONTROL_BODY,

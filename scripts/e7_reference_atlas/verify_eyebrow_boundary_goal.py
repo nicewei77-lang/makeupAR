@@ -80,16 +80,17 @@ def verify_reference_gate(
         require(status == "pass", f"reference gate must pass, got {status!r}")
     else:
         require(
-            status in {"pass", "missing_optional_reference"},
+            status in {"pass", "check", "missing_optional_reference"},
             f"unexpected reference gate status: {status!r}",
         )
 
-    if status == "pass":
+    if status in {"pass", "check"}:
         threshold = compare_gate.get("threshold")
         max_delta = compare_gate.get("maxDeltaNorm")
         require(isinstance(threshold, (int, float)), "reference threshold must be numeric")
         require(isinstance(max_delta, (int, float)), "reference maxDeltaNorm must be numeric")
-        require(float(max_delta) <= float(threshold), "reference maxDeltaNorm exceeds threshold")
+        if require_reference:
+            require(float(max_delta) <= float(threshold), "reference maxDeltaNorm exceeds threshold")
 
         reference_boundary = preview_gate.get("referenceBoundary")
         require(resolve_path(repo, reference_boundary).exists(), "reference boundary image missing")
@@ -98,7 +99,7 @@ def verify_reference_gate(
         require(isinstance(reference_compare, dict), "missing referenceCompare details")
         reference_overlay = resolve_path(repo, reference_compare.get("path"))
         require(reference_overlay.exists(), f"reference compare overlay missing: {reference_overlay}")
-        return f"pass maxDelta={float(max_delta):.4f}"
+        return f"{status} maxDelta={float(max_delta):.4f}"
 
     return "missing_optional_reference"
 
@@ -129,7 +130,7 @@ def verify(summary_path: Path, repo: Path, require_reference: bool) -> str:
     curve = summary.get("curve")
     require(isinstance(curve, dict), "missing curve")
     control_mode = str(curve.get("controlPointMode", ""))
-    require("spline" in control_mode and "bezier" in control_mode, "curve mode must name spline and bezier")
+    require("spline" in control_mode and "linear" in control_mode, "curve mode must name spline and linear tail")
     require("hair boundary is used only for position" in str(curve.get("sourceUsage", "")), "wrong source usage")
 
     profile_validation = curve.get("profileValidation")

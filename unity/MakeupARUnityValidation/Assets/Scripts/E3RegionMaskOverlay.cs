@@ -265,7 +265,9 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     private const int EyebrowStyledBoundaryPointCount = 72;
     private const float EyebrowInnerGapRightBias = 0.70f;
     private const float EyebrowScreenLeftHeadRestoreRatio = 0.86f;
-    private const float EyebrowScreenRightHeadExtraTrimRatio = -0.18f;
+    private const float EyebrowScreenRightHeadExtraTrimRatio = -0.32f;
+    private const float EyebrowVerticalLiftRatio = 0.040f;
+    private const float EyebrowTailShortenRatio = 0.055f;
     private const float EyebrowHeadBodySplitProgress = 0.20f;
     private const float EyebrowBodyEndProgress = 0.62f;
     private const float EyebrowArchProgress = 0.64f;
@@ -287,7 +289,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     };
     private static readonly float[] EyebrowArchTopBody =
     {
-        0.30f, 0.11f, -0.02f
+        0.30f, 0.07f, -0.08f
     };
     private static readonly float[] EyebrowSemiArchBottomBody =
     {
@@ -303,27 +305,27 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
     };
     private static readonly float[] EyebrowSemiArchTopTail =
     {
-        0.05f, 0.13f, 0.36f, 0.44f
+        0.05f, 0.13f, 0.36f, 0.48f
     };
     private static readonly float[] EyebrowStraightTopTail =
     {
-        0.26f, 0.30f, 0.39f, 0.43f
+        0.26f, 0.30f, 0.39f, 0.47f
     };
     private static readonly float[] EyebrowArchTopTail =
     {
-        -0.02f, 0.10f, 0.38f, 0.46f
+        -0.08f, 0.10f, 0.38f, 0.50f
     };
     private static readonly float[] EyebrowSemiArchBottomTail =
     {
-        0.66f, 0.64f, 0.58f, 0.55f
+        0.66f, 0.64f, 0.58f, 0.515f
     };
     private static readonly float[] EyebrowStraightBottomTail =
     {
-        0.66f, 0.64f, 0.58f, 0.55f
+        0.66f, 0.64f, 0.58f, 0.505f
     };
     private static readonly float[] EyebrowArchBottomTail =
     {
-        0.66f, 0.63f, 0.59f, 0.57f
+        0.66f, 0.63f, 0.59f, 0.535f
     };
 
     private readonly Dictionary<string, RegionRecipeState> recipes =
@@ -1385,23 +1387,19 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + Mathf.Max(0.0f, bottom - top).ToString("0.#", CultureInfo.InvariantCulture);
     }
 
-    private void SendStyledEyebrowBoundaryEvent(
+    private static void SendStyledEyebrowBoundaryEvent(
         E7MediaPipeEyebrowBoundaryRuntime.BoundarySnapshot boundary,
         MaskTextureDiagnostics diagnostics,
         int candidateTriangles,
         int hitTriangles)
     {
-        if (rnBridge == null)
-        {
-            rnBridge = FindFirstObjectByType<RNBridge>();
-        }
-
-        if (rnBridge == null)
+        RNBridge bridge = FindFirstObjectByType<RNBridge>();
+        if (bridge == null)
         {
             return;
         }
 
-        rnBridge.SendE7MediaPipeEyebrowStyledBoundaryEvent(
+        bridge.SendE7MediaPipeEyebrowStyledBoundaryEvent(
             BuildStyledEyebrowBoundaryEventJson(
                 boundary,
                 diagnostics,
@@ -1441,12 +1439,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             + ",\"leftOuterPointCount\":" + boundary.LeftOuterPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"rightOuterPointCount\":" + boundary.RightOuterPointCount.ToString(CultureInfo.InvariantCulture)
             + ",\"controlPointMode\":\"" + EscapeJsonString(boundary.ControlPointMode) + "\""
-            + ",\"curveMode\":\"body_spline_tail_bezier\""
+            + ",\"curveMode\":\"body_spline_tail_linear\""
             + ",\"sourceUsage\":\"mediapipe_position_scale_only\""
             + ",\"rawBoundaryUsage\":\"" + EscapeJsonString(rawBoundaryUsage) + "\""
             + ",\"uvMaskSource\":\"styled_spline_envelope_boundary\""
             + ",\"bodyCurve\":\"H-B-A/S cubic_spline\""
-            + ",\"tailCurve\":\"A/S-T cubic_bezier\""
+            + ",\"tailCurve\":\"A/S-T linear_diagonal\""
             + ",\"leftRawBounds\":\"" + EscapeJsonString(boundary.LeftRawBounds) + "\""
             + ",\"rightRawBounds\":\"" + EscapeJsonString(boundary.RightRawBounds) + "\""
             + ",\"leftStyledBounds\":\"" + EscapeJsonString(boundary.LeftStyledBounds) + "\""
@@ -1672,18 +1670,18 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         out float minTailThickness,
         out float maxTailThickness)
     {
-        minTailThickness = 0.10f;
-        maxTailThickness = 0.36f;
+        minTailThickness = 0.03f;
+        maxTailThickness = 0.18f;
 
         switch (NormalizeEyebrowShapeStyleIndex(shapeStyle))
         {
             case 2:
                 minHOverW = 0.105f;
-                maxHOverW = 0.165f;
+                maxHOverW = 0.175f;
                 return;
             case 3:
                 minHOverW = 0.155f;
-                maxHOverW = 0.220f;
+                maxHOverW = 0.245f;
                 return;
             case 1:
             default:
@@ -3462,7 +3460,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             boundary.RightOuterPoints,
             false,
             EyebrowTailStartProgress);
-        boundary.ControlPointMode = "head_body_arch_bodySpline_AS_tailBezier_styled";
+        boundary.ControlPointMode = "head_body_arch_bodySpline_AS_tailLinear_styled";
         boundary.ShapeSourceUsage = "raw_boundary_position_width_scale_only";
         boundary.LeftRawBounds = leftRawBounds;
         boundary.RightRawBounds = rightRawBounds;
@@ -3513,9 +3511,11 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         float shapedRight = centerX + adjustedWidth * 0.5f;
         float tailExtend = Mathf.Clamp(width * tailExtendRatio * amount, 0.0f, 28.0f);
         float headTrim = Mathf.Clamp(width * headTrimRatio * amount, 12.0f, 54.0f);
+        float tailShorten = Mathf.Clamp(width * EyebrowTailShortenRatio * amount, 0.0f, 22.0f);
         if (screenLeftBrow)
         {
             shapedLeft -= tailExtend;
+            shapedLeft += tailShorten;
             shapedRight -= headTrim;
             shapedRight += headTrim * EyebrowScreenLeftHeadRestoreRatio;
         }
@@ -3524,6 +3524,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             shapedLeft += headTrim;
             shapedLeft += headTrim * EyebrowScreenRightHeadExtraTrimRatio;
             shapedRight += tailExtend;
+            shapedRight -= tailShorten;
         }
 
         if (shapedRight <= shapedLeft + 8.0f)
@@ -3541,6 +3542,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             Mathf.Max(bottom + sourceHeight * 0.05f, top + sourceHeight * 0.78f),
             maxBottom);
         bottomAnchor -= height * bottomLiftRatio;
+        bottomAnchor -= height * EyebrowVerticalLiftRatio;
         float topAnchor = bottomAnchor - height;
 
         Vector2[] shaped = new Vector2[EyebrowStyledBoundaryPointCount * 2];
@@ -3554,8 +3556,8 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
                 (progressFromHead - EyebrowTailTaperStartProgress)
                 / (1.0f - EyebrowTailTaperStartProgress));
             float minimumThickness = Mathf.Max(
-                2.0f,
-                height * Mathf.Lerp(0.060f, 0.145f, 1.0f - tailInfluence));
+                1.25f,
+                height * Mathf.Lerp(0.028f, 0.145f, 1.0f - tailInfluence));
             if (bottomY < topY + minimumThickness)
             {
                 bottomY = topY + minimumThickness;
@@ -3585,7 +3587,44 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
             shaped[shaped.Length - 1 - index] = new Vector2(bottomX, bottomY);
         }
 
-        return SmoothEyebrowBoundaryShape(shaped, 3);
+        Vector2[] smoothed = SmoothEyebrowBoundaryShape(shaped, 3);
+        return StraightenEyebrowTailSegment(smoothed, screenLeftBrow);
+    }
+
+    private static Vector2[] StraightenEyebrowTailSegment(
+        Vector2[] points,
+        bool screenLeftBrow)
+    {
+        int halfCount = points != null ? points.Length / 2 : 0;
+        if (halfCount < 4)
+        {
+            return points ?? Array.Empty<Vector2>();
+        }
+
+        Vector2[] output = (Vector2[])points.Clone();
+        int archIndex = Mathf.Clamp(
+            Mathf.RoundToInt((screenLeftBrow ? 1.0f - EyebrowArchProgress : EyebrowArchProgress)
+                * (halfCount - 1)),
+            0,
+            halfCount - 1);
+        int startIndex = screenLeftBrow ? 0 : archIndex;
+        int endIndex = screenLeftBrow ? archIndex : halfCount - 1;
+        int span = Mathf.Max(1, endIndex - startIndex);
+
+        Vector2 topStart = points[startIndex];
+        Vector2 topEnd = points[endIndex];
+        int bottomStartIndex = points.Length - 1 - startIndex;
+        int bottomEndIndex = points.Length - 1 - endIndex;
+        Vector2 bottomStart = points[bottomStartIndex];
+        Vector2 bottomEnd = points[bottomEndIndex];
+        for (int index = startIndex; index <= endIndex; index++)
+        {
+            float amount = (index - startIndex) / (float)span;
+            output[index] = Vector2.Lerp(topStart, topEnd, amount);
+            output[points.Length - 1 - index] = Vector2.Lerp(bottomStart, bottomEnd, amount);
+        }
+
+        return output;
     }
 
     private static Vector2[] SmoothEyebrowBoundaryShape(
@@ -3849,12 +3888,12 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (styleIndex)
         {
             case 2:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowStraightTopTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowStraightTopTail);
             case 3:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowArchTopTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowArchTopTail);
             case 1:
             default:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowSemiArchTopTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowSemiArchTopTail);
         }
     }
 
@@ -3888,13 +3927,23 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
         switch (styleIndex)
         {
             case 2:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowStraightBottomTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowStraightBottomTail);
             case 3:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowArchBottomTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowArchBottomTail);
             case 1:
             default:
-                return EvaluateEyebrowCubicBezier(tailAmount, EyebrowSemiArchBottomTail);
+                return EvaluateEyebrowLinearTail(tailAmount, EyebrowSemiArchBottomTail);
         }
+    }
+
+    private static float EvaluateEyebrowLinearTail(float amount, float[] values)
+    {
+        if (values == null || values.Length == 0)
+        {
+            return 0.5f;
+        }
+
+        return Mathf.Lerp(values[0], values[values.Length - 1], Mathf.Clamp01(amount));
     }
 
     private static float EvaluateEyebrowCurveX(
@@ -3922,9 +3971,7 @@ public sealed class E3RegionMaskOverlay : MonoBehaviour
 
         float amount = (progressFromHead - EyebrowArchProgress)
             / (1.0f - EyebrowArchProgress);
-        float c1 = archX + directionToTail * shapeWidth * (topLine ? 0.13f : 0.20f);
-        float c2 = tailX - directionToTail * shapeWidth * (topLine ? 0.20f : 0.07f);
-        return EvaluateEyebrowCubicBezier(amount, archX, c1, c2, tailX);
+        return Mathf.Lerp(archX, tailX, amount);
     }
 
     private static float EvaluateEyebrowCubicSpline(float progress, float[] knots, float[] values)
