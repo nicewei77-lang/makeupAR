@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
+import sys
 from pathlib import Path
 
 
@@ -26,6 +28,9 @@ RN_BRIDGE_PATH = Path("unity/MakeupARUnityValidation/Assets/Scripts/RNBridge.cs"
 OVERLAY_PATH = Path("unity/MakeupARUnityValidation/Assets/Scripts/E3RegionMaskOverlay.cs")
 SHADER_PATH = Path("unity/MakeupARUnityValidation/Assets/Shaders/EyebrowRegionMask.shader")
 MATERIAL_PATH = Path("unity/MakeupARUnityValidation/Assets/Resources/EyebrowRegionMaskMaterial.mat")
+RUNTIME_CONTRACT_VERIFIER_PATH = Path(
+    "scripts/e7_reference_atlas/verify_eyebrow_runtime_contract.py"
+)
 EYEBROW_SHADER_GUID = "58f9507dc56340cb9f2f6945e55e99a0"
 EXPECTED_EYEBROW_COLORS = {
     "black": "#171412",
@@ -86,6 +91,29 @@ def verify_mirrored_pair(boundary: dict[str, object]) -> None:
     height_delta = abs(int(left["height"]) - int(right["height"]))
     require(width_delta <= 22, f"mirrored boundary width mismatch: {width_delta}")
     require(height_delta <= 8, f"mirrored boundary height mismatch: {height_delta}")
+
+
+def verify_runtime_spline_contract(repo: Path, overlay_text: str) -> str:
+    verifier_path = repo / RUNTIME_CONTRACT_VERIFIER_PATH
+    require(verifier_path.exists(), "missing eyebrow runtime spline contract verifier")
+    spec = importlib.util.spec_from_file_location(
+        "verify_eyebrow_runtime_contract",
+        verifier_path,
+    )
+    require(spec is not None and spec.loader is not None, "could not load runtime contract verifier")
+    module = importlib.util.module_from_spec(spec)
+    previous_write_bytecode = sys.dont_write_bytecode
+    sys.dont_write_bytecode = True
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.dont_write_bytecode = previous_write_bytecode
+    result = module.verify_overlay_contract(overlay_text)
+    require(
+        "styled spline envelope drives UV mask" in result,
+        "runtime contract verifier did not confirm styled spline UV mask",
+    )
+    return result
 
 
 def main() -> None:
@@ -179,6 +207,12 @@ def main() -> None:
     rn_bridge_text = (repo / RN_BRIDGE_PATH).read_text(encoding="utf-8")
     overlay_text = (repo / OVERLAY_PATH).read_text(encoding="utf-8")
     shader_text = (repo / SHADER_PATH).read_text(encoding="utf-8")
+    runtime_contract_result = verify_runtime_spline_contract(repo, overlay_text)
+    runtime_contract_label = (
+        "styled-spline-uv"
+        if "styled spline envelope drives UV mask" in runtime_contract_result
+        else "unknown"
+    )
     runtime_verifier_text = (
         repo / "scripts/e7_reference_atlas/verify_eyebrow_runtime_evidence.py"
     ).read_text(encoding="utf-8")
@@ -323,6 +357,7 @@ def main() -> None:
         "unityCandidates=5",
         "boundary=eyebrow-boundary-v1/v10-y-align-tail",
         "cleanup=outer-skin",
+        "runtimeContract=" + runtime_contract_label,
         "unity=" + str(unity_path),
     )
 
